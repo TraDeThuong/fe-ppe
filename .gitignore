@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/design-system/.next/
 /out/
 
 # production
@@ -32,6 +33,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# .agent local config (personal, not pushed)
+.agent/AGENT.local.md
+.agent/settings.local.json
 
 # vercel
 .vercel

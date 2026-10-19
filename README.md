@@ -6,12 +6,6 @@ First, run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
@@ -19,6 +13,26 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Design System
+
+`npm run dev` starts two servers at once:
+
+- **App chính** — http://localhost:3000
+- **Design System** — http://localhost:3001: trang giới thiệu toàn bộ component UI của hệ thống cho lập trình viên / người phát triển giao diện.
+
+Cấu trúc:
+
+- `src/components/ui/` — component UI dùng chung (app chính và design system cùng import từ đây).
+- `src/styles/tokens.css` — design tokens (màu sắc, typography) dùng chung, single source of truth.
+- `design-system/` — app Next.js riêng hiển thị component ở port 3001, import component qua alias `@ui/*`.
+
+Chạy riêng từng server:
+
+```bash
+npm run dev:app           # chỉ app chính (3000)
+npm run dev:design-system # chỉ design system (3001)
+```
 
 ## Learn More
 
