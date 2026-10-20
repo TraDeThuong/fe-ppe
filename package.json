@@ -8,15 +8,20 @@
     "dev:design-system": "next dev design-system -p 3001",
     "build": "next build",
     "build:design-system": "next build design-system",
-    "start": "next start"
+    "start": "next start",
+    "test:refresh": "tsx scripts/test-refresh-single-flight.ts"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.9.2",
     "@tanstack/react-query": "^5.104.4",
     "axios": "^1.20.0",
+    "lucide-react": "^1.59.0",
     "next": "16.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "react-hot-toast": "^2.6.1"
+    "react-hook-form": "^7.90.0",
+    "react-hot-toast": "^2.6.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
@@ -25,6 +30,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

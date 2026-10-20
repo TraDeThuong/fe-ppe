@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Be_Vietnam_Pro, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SideNav } from "./side-nav";
 import { InlineScript } from "@ui/inline-script";
+import { ToasterProvider } from "@ui/toaster";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+const beVietnamSans = Be_Vietnam_Pro({
+  variable: "--font-bevietnam-sans",
+  subsets: ["vietnamese", "latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
 });
 
 const geistMono = Geist_Mono({
@@ -32,7 +34,7 @@ export default function RootLayout({
       lang="vi"
       data-theme="light"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${beVietnamSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <head>
         <InlineScript html={themeScript} />
@@ -40,6 +42,7 @@ export default function RootLayout({
       <body className="min-h-full flex bg-background font-sans text-foreground">
         <SideNav />
         <main className="flex-1 p-8 lg:p-12">{children}</main>
+        <ToasterProvider />
       </body>
     </html>
   );

@@ -17,8 +17,14 @@ const sections = [
     title: "Components",
     items: [
       { href: "/components", label: "Danh sách" },
+      { href: "/components/typography", label: "Typography" },
       { href: "/components/button", label: "Button" },
       { href: "/components/card", label: "Card" },
+      { href: "/components/toast", label: "Toast" },
+      { href: "/components/loader", label: "Loader & Skeleton" },
+      { href: "/components/input", label: "Input & Textarea" },
+      { href: "/components/selection", label: "Selection Controls" },
+      { href: "/components/form", label: "Form (Biểu mẫu)" },
     ],
   },
 ];

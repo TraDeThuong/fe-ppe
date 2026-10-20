@@ -3,6 +3,7 @@ import "client-only";
 import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig } from "axios";
 
 import { env } from "@/config/env";
+import { eventBus } from "@/lib/event-bus";
 import { toast } from "@/lib/toast";
 import { tokenStore } from "@/lib/token";
 import { ErrorCode, type ApiErrorBody } from "@/types/common";
@@ -44,8 +45,21 @@ const REFRESH_EXEMPT_PATHS = ["/auth/login", "/auth/refresh", "/auth/2fa/verify"
 
 let refreshPromise: Promise<boolean> | null = null;
 
-/** Instance trần (không interceptor) để gọi refresh — tránh đệ quy vô hạn */
+/** Instance trần (không interceptor) để gọi refresh/purge — tránh đệ quy vô hạn và toast thừa */
 const refreshClient = axios.create({ baseURL: env.apiBaseUrl, withCredentials: true, timeout: 15000 });
+
+/**
+ * Xóa cookie httpOnly (accessToken/refreshToken) khi session hết hạn thật sự.
+ * BE không tự clear cookie khi refresh bị từ chối — nếu để cookie cũ, proxy
+ * (lớp 1) thấy cookie và bounce /login → / → /login mỗi lần tải trang.
+ * Gọi bằng client trần để không kích hoạt refresh loop và không toast.
+ */
+export function purgeSessionCookies(): Promise<void> {
+  return refreshClient.post("/auth/logout", {}).then(
+    () => undefined,
+    () => undefined,
+  );
+}
 
 async function doRefresh(): Promise<boolean> {
   try {
@@ -61,10 +75,13 @@ async function doRefresh(): Promise<boolean> {
     if (!tokens?.accessToken || !tokens?.refreshToken) return false;
     tokenStore.setTokens(tokens.accessToken, tokens.refreshToken);
     return true;
-  } catch {
-    tokenStore.clear();
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event(AUTH_SESSION_EXPIRED_EVENT));
+  } catch (error) {
+    // Mất mạng chỉ là lỗi tạm thời — giữ session, request gốc sẽ toast "mất kết nối".
+    // Chỉ xóa phiên khi backend thực sự từ chối refresh token (401/4xx).
+    const isNetworkError = axios.isAxiosError(error) && !error.response;
+    if (!isNetworkError) {
+      tokenStore.clear();
+      eventBus.emit(AUTH_SESSION_EXPIRED_EVENT);
     }
     return false;
   }

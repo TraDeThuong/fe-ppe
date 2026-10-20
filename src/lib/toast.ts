@@ -1,12 +1,12 @@
-import { toast as hotToast, type ToastOptions } from "react-hot-toast";
+import { showToast, toast as hotToast } from "@ui/toaster";
 
 /**
- * Wrapper duy nhất quanh react-hot-toast — mọi toast trong app gọi qua đây.
- * Khi thiết kế lại toast theo design system, chỉ sửa file này.
+ * Wrapper duy nhất quanh toast của design system (@ui/toaster) — mọi toast
+ * trong app gọi qua đây để ăn đúng giao diện gỗ tùy chỉnh (WoodenToast).
  */
 export const toast = {
-  success: (message: string, options?: ToastOptions) => hotToast.success(message, options),
-  error: (message: string, options?: ToastOptions) => hotToast.error(message, options),
-  loading: (message: string, options?: ToastOptions) => hotToast.loading(message, options),
+  success: (message: string, options?: { id?: string }) => showToast(message, "success", options),
+  error: (message: string, options?: { id?: string }) => showToast(message, "error", options),
+  loading: (message: string, options?: { id?: string }) => showToast(message, "loading", options),
   dismiss: (toastId?: string) => hotToast.dismiss(toastId),
 };

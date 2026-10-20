@@ -13,7 +13,7 @@
 1. [Tiền đề backend cần hoàn thành trước/song song](#1-tiền-đề-backend)
 2. [Bước 1 — Khởi tạo dự án & cài đặt nền tảng](#bước-1--khởi-tạo-dự-án--cài-đặt-nền-tảng)
 3. [Bước 2 — Tầng `lib/`: token → query-client → axios](#bước-2--tầng-lib-token--query-client--axios)
-4. [Bước 3 — `providers/` + `AuthContext` + thứ tự bọc layout](#bước-3--providers--authcontext--thứ-tự-bọc-layout)
+4. [Bước 3 — Kiến trúc `providers/` + `AuthContext` + Thứ tự bọc layout & Liên kết Microservices](#bước-3--kiến-trúc-providers--authcontext--thứ-tự-bọc-layout--liên-kết-microservices)
 5. [Bước 4 — `types/`: định nghĩa contract theo BE](#bước-4--types-định-nghĩa-contract-theo-be)
 6. [Bước 5 — `services/`: từng hàm API](#bước-5--services-từng-hàm-api)
 7. [Bước 6 — `hooks/`: useQuery / useMutation](#bước-6--hooks-usequery--usemutation)
@@ -57,6 +57,7 @@ identity    sites/…       incidents/…   notification/…
 4. **Response login có 2 shape** (cùng HTTP 200): thường vs `{ requires2FA: true, tempToken }` — mọi luồng đăng nhập (email, Google) đều phải phân nhánh này.
 5. **Domain-first**: thư mục types/services/hooks tổ chức theo domain = tên backend microservice (`auth` → identity-service; sau này `sites`, `incidents`, `notifications`...). Thêm service mới = thêm folder, không đụng core.
 6. **Pages không gọi service trực tiếp** — chỉ gọi hook; hook không điều hướng — điều hướng do trang/layout quyết định.
+7. **Locale tập trung**: mọi chuỗi UI qua `t()` của LocaleProvider (dict `src/i18n/`), số/ngày giờ format qua `Intl` theo locale. Locale mặc định lấy từ BE `app.locale` (`/system/public`), user tự chọn thì lưu localStorage + cookie `ppe_locale` — chi tiết Bước 3.5.3.
 
 ---
 
@@ -123,10 +124,17 @@ fe-ppe/
 │   │   ├── query-client.ts
 │   │   └── axios.ts
 │   ├── providers/
-│   │   ├── index.tsx              # AppProviders — thứ tự bọc chuẩn
-│   │   └── prefetch-provider.tsx  # Bước 8
+│   │   ├── index.tsx              # RootProviders / AppProviders — thứ tự bọc chuẩn
+│   │   ├── react-query-provider.tsx # ReactQueryProvider (TanStack Query client & cache)
+│   │   ├── theme-provider.tsx     # ThemeProvider (Light/Dark/System + class="dark")
+│   │   ├── locale-provider.tsx    # LocaleProvider (i18n, dict vi/en, Intl format)
+│   │   ├── auth-provider.tsx      # AuthProvider (bọc AuthContext, session restore)
+│   │   ├── toast-provider.tsx     # ToastProvider (cấu hình Toaster đồng bộ theme)
+│   │   ├── realtime-provider.tsx  # RealtimeProvider (SSE/WebSocket alert - mount tại (auth))
+│   │   └── prefetch-provider.tsx  # PrefetchProvider (role-based prefetch - mount tại (auth))
 │   ├── contexts/
-│   │   └── AuthContext.tsx
+│   │   ├── AuthContext.tsx        # Context & useAuth() hook
+│   │   └── RealtimeContext.tsx    # Context realtime cảnh báo (triển khai theo nhu cầu)
 │   ├── types/
 │   │   ├── common.ts
 │   │   └── auth.types.ts
@@ -141,6 +149,9 @@ fe-ppe/
 │   ├── components/
 │   │   ├── ui/                     # design system (đã có)
 │   │   └── features/auth/          # form, card, QR, backup-codes modal...
+│   ├── i18n/
+│   │   ├── vi-VN.json              # dict chuỗi UI (xem Bước 3.5.3)
+│   │   └── en-US.json
 │   └── config/
 │       └── env.ts                  # đọc + validate env tập trung
 └── docs/journeys/                  # file hành trình này & các file sau
@@ -148,10 +159,12 @@ fe-ppe/
 
 ### 1.4 Tiêu chí hoàn thành
 
-- [ ] `npm run dev` chạy được, cài 3 package + devtools thành công
-- [ ] `.env.local` + `.env.example` có đủ biến ở trên
-- [ ] `src/config/env.ts` validate env (throw sớm nếu thiếu biến bắt buộc)
-- [ ] Cây thư mục `lib/`, `providers/`, `contexts/`, `types/`, `services/`, `hooks/auth/` đã tạo rỗng theo cấu trúc
+- [x] `npm run dev` chạy được, cài 3 package + devtools thành công
+- [x] `.env.local` + `.env.example` có đủ biến ở trên
+- [x] `src/config/env.ts` validate env (throw sớm nếu thiếu biến bắt buộc)
+- [x] Cây thư mục `lib/`, `providers/`, `contexts/`, `types/`, `services/`, `hooks/auth/` đã tạo rỗng theo cấu trúc
+
+> **Phát sinh thực tế (2026-10-19):** alias `@/*` trong tsconfig gốc trỏ `./*` (root) chưa ai dùng; đã sửa thành `./src/*` để `@/lib`, `@/config`, `@/types`... hoạt động theo chuẩn Next.js. `@ui/*` giữ nguyên (đang dùng rộng rãi). `.gitignore` đã thêm ngoại lệ `!.env.example`.
 
 ---
 
@@ -247,73 +260,558 @@ Request thất bại 401 + code TOKEN_EXPIRED?
 
 ### 2.4 Tiêu chí hoàn thành
 
-- [ ] Gọi 1 API lỗi 401 `TOKEN_EXPIRED` với 3 request song song → **chỉ 1 request** `/auth/refresh` xuất hiện trên Network tab, cả 3 request gốc được retry thành công
-- [ ] Refresh fail → session bị clear, sự kiện `auth:session-expired` phát ra, UI về login
-- [ ] 422 hiển thị đủ `errors[{field, message}]` trên form
-- [ ] 423/429/500 hiển thị toast đúng chỗ, không trùng
+- [x] Gọi 1 API lỗi 401 `TOKEN_EXPIRED` với 3 request song song → **chỉ 1 request** `/auth/refresh` xuất hiện trên Network tab, cả 3 request gốc được retry thành công
+- [x] Refresh fail → session bị clear, sự kiện `auth:session-expired` phát ra, UI về login
+- [x] 422 hiển thị đủ `errors[{field, message}]` trên form
+- [ ] 423/429/500 hiển thị toast đúng chỗ, không trùng — **cần browser, xác minh ở Bước 3+ khi có UI thật**
+
+> **Test tự động (đã đạt 11/11 assertion, 2026-10-19):** `scripts/test-refresh-single-flight.ts` — chạy `npm run test:refresh`, đăng nhập bằng seed user `admin@ppe.local`, forge access token hết hạn (HS256 ký bằng JWT_ACCESS_SECRET đọc runtime từ `.env` backend — backend chấp nhận HS256, xem `jwt-key.service.ts:279-285`), bắn 3 request song song rồi xác minh: cả 3 thành công, session không bị revoke (chứng minh không race), token đã rotate, refresh fail → clear + ApiError, 422 → `errors[]`, cleanup logout.
 
 ---
 
-## Bước 3 — `providers/` + `AuthContext` + thứ tự bọc layout
+## Bước 3 — Kiến trúc `providers/` + `AuthContext` + Thứ tự bọc layout & Liên kết Microservices
 
-### 3.1 `contexts/AuthContext.tsx`
+### 3.1 Rà soát & Đánh giá 7 Providers trong hệ thống Smart PPE Monitoring
+
+Frontend Smart PPE Monitoring xây dựng trên Next.js (App Router), TypeScript, TanStack Query, Axios, giao tiếp qua API Gateway (Traefik) tới hệ thống Microservices (`identity-service`, `camera-service`, `smart-ppe-ai-service`, `notification-service`, `incident-service`...).
+
+Dưới đây là kết quả rà soát kiến trúc cho 7 providers được xem xét:
+
+| # | Provider | Trách nhiệm chính | Phân loại & Quyết định | Tầng Mount |
+|---|----------|-------------------|------------------------|------------|
+| 1 | `ReactQueryProvider.tsx` | Quản lý server-state, query cache, GC, staleTime, retry policy | **Bắt buộc (Core)** — hạ tầng dữ liệu cho toàn bộ hooks | Root (`app/layout.tsx`) |
+| 2 | `AuthProvider.tsx` | Quản lý client session state (`user`, `status`), phục hồi session qua `/auth/me`, đón sự kiện `auth:session-expired` | **Bắt buộc (Core)** — định danh người dùng toàn ứng dụng | Root (`app/layout.tsx`) |
+| 3 | `ThemeProvider.tsx` | Quản lý Light / Dark / System theme, đồng bộ class `dark` trên `<html>`, triệt tiêu FOUC | **Bắt buộc (Core)** — hạ tầng giao diện Design System | Root (`app/layout.tsx`) |
+| 4 | `LocaleProvider.tsx` | Quản lý i18n (`vi-VN`, `en-US`), đọc default từ `/system/public`, cung cấp `t()`, format số/ngày giờ bằng `Intl` | **Bắt buộc (Core)** — đa ngôn ngữ toàn UI | Root (`app/layout.tsx`) |
+| 5 | `ToastProvider.tsx` | Container cấu hình `react-hot-toast` Toaster, đồng bộ styling theme, giới hạn số lượng toast tránh ngập thông báo | **Nên gộp / Thin UI Wrapper** — không tạo React Context thừa; bọc UI container Toaster | Root (`app/layout.tsx`) |
+| 6 | `RealtimeProvider.tsx` | Quản lý kết nối SSE/WebSocket nhận cảnh báo vi phạm PPE từ AI / Notification Service realtime | **Theo nhu cầu (Scoped)** — KHÔNG bọc ở root để tránh mở socket vô ích ở public routes (`/login`, `/register`); chỉ bọc tại protected routes | Protected (`app/(auth)/layout.tsx`) |
+| 7 | `PrefetchProvider.tsx` | Prefetch trước dữ liệu Dashboard (sites, cameras, incidents) theo role/permissions vào query cache | **Theo nhu cầu (Scoped)** — KHÔNG bọc ở root; đặt ở protected layout sau khi user đã xác thực | Protected (`app/(auth)/layout.tsx`) |
+
+**Đánh giá chi tiết & Định hướng tối ưu:**
+- **Không lạm dụng Context**: `ToastProvider` và `PrefetchProvider` không cần tạo thêm React Context độc lập (tránh re-render thừa). `ToastProvider` là một UI Component bọc cấu hình Toaster. `PrefetchProvider` là một lifecycle component kích hoạt query prefetch.
+- **Tách biệt phạm vi (Scoping)**: `RealtimeProvider` và `PrefetchProvider` tiêu tốn tài nguyên mạng và yêu cầu quyền hạn người dùng, do đó được tách khỏi Root Layout và chỉ kích hoạt trong Route Group `(auth)`.
+
+---
+
+### 3.2 Cấu trúc thư mục chuẩn của tầng `providers/`
+
+```
+src/
+├── providers/
+│   ├── index.tsx                  # RootProviders — gom toàn bộ root providers thành 1 component gọn
+│   ├── react-query-provider.tsx   # ReactQueryProvider — cấu hình QueryClient, devtools, staleTime
+│   ├── theme-provider.tsx         # ThemeProvider — Light/Dark mode, đồng bộ class dark, localStorage
+│   ├── locale-provider.tsx        # LocaleProvider — i18n dict vi/en, Intl formatters, sync BE config
+│   ├── auth-provider.tsx          # AuthProvider — bọc AuthContext, quản lý vòng đời session
+│   ├── toast-provider.tsx         # ToastProvider — Toaster UI wrapper, theme-aware, deduplication
+│   │
+│   │   # Các Provider có phạm vi đặc thù (Scoped Providers — chỉ dùng trong (auth)/layout.tsx):
+│   ├── realtime-provider.tsx      # RealtimeProvider — SSE/WebSocket client cho PPE alerts (theo nhu cầu)
+│   └── prefetch-provider.tsx      # PrefetchProvider — Role-based dashboard prefetch (theo nhu cầu)
+├── contexts/
+│   ├── AuthContext.tsx            # AuthContext & useAuth() hook
+│   └── RealtimeContext.tsx        # RealtimeContext & useRealtime() hook (khi phát triển phase Realtime)
+```
+
+---
+
+### 3.3 Thứ tự lồng Providers (Provider Nesting Order) & Lý do kiến trúc
+
+Việc sắp xếp thứ tự lồng nhau giữa các Provider là tối quan trọng để tránh lỗi khởi tạo, vòng lặp dependency và hiện tượng giật giao diện (FOUC).
+
+#### A. Tầng Root — `app/layout.tsx` (Toàn bộ ứng dụng)
+
+```tsx
+// Cấu trúc lồng chuẩn tại app/layout.tsx
+<html lang="vi" suppressHydrationWarning>
+  <head>
+    {/* Script đồng bộ theme sớm nhất trong DOM để chặn FOUC */}
+    <InlineThemeScript />
+  </head>
+  <body>
+    <ThemeProvider>                              {/* 1. Ngoài cùng: Quản lý Dark/Light class cho toàn DOM */}
+      <ReactQueryProvider>                       {/* 2. Cung cấp QueryClient cho mọi query/mutation bên trong */}
+        <LocaleProvider>                         {/* 3. Cần QueryClient để đọc /system/public; cung cấp t() */}
+          <AuthProvider>                         {/* 4. Cần QueryClient (sync /me) & LocaleProvider (thông báo) */}
+            {children}                           {/* 5. Cây component ứng dụng (public & auth routes) */}
+            <ToastProvider />                    {/* 6. Nằm trong Theme & Locale để toast ăn màu & ngôn ngữ đúng */}
+          </AuthProvider>
+        </LocaleProvider>
+        <ReactQueryDevtools />                   {/* 7. Devtools (chỉ hiển thị ở NODE_ENV === 'development') */}
+      </ReactQueryProvider>
+    </ThemeProvider>
+  </body>
+</html>
+```
+
+**Lý do thứ tự tại Root:**
+1. **`ThemeProvider` (Tầng 1)**: Đặt ngoài cùng để mọi phần tử con (kể cả Modal Portal, Toast container, Loading Fallback) đều thừa hưởng đúng CSS variables và class `dark`/`light`.
+2. **`ReactQueryProvider` (Tầng 2)**: Đặt trước `LocaleProvider` và `AuthProvider` vì cả hai provider này đều tận dụng TanStack Query để truy xuất API hoặc cache (LocaleProvider đọc `usePublicConfig`, AuthProvider tận dụng query cache).
+3. **`LocaleProvider` (Tầng 3)**: Đặt trước `AuthProvider` để khi `AuthProvider` hoặc các form đăng nhập, thông báo lỗi khởi động cần render, hàm `t()` đã sẵn sàng chuỗi dịch tương ứng.
+4. **`AuthProvider` (Tầng 4)**: Cung cấp session state cho toàn bộ cây `{children}`.
+5. **`ToastProvider` (Tầng 5)**: Đặt bên trong `ThemeProvider` và `LocaleProvider` để các thông báo toast vừa ăn theo theme vừa hỗ trợ chuỗi thông điệp đa ngôn ngữ.
+
+#### B. Tầng Protected — `app/(auth)/layout.tsx` (Chỉ các màn hình đã đăng nhập)
+
+```tsx
+// Cấu trúc lồng chuẩn tại app/(auth)/layout.tsx
+<AuthGuard>                                      {/* Kiểm tra session: unauthenticated -> redirect /login */}
+  <RealtimeProvider>                             {/* 1. Mở kết nối SSE/WebSocket nhận cảnh báo PPE realtime */}
+    <PrefetchProvider>                           {/* 2. Prefetch dữ liệu sites, cameras, incidents theo role */}
+      <AppHeader />
+      <AppSidebar />
+      <main>{children}</main>
+    </PrefetchProvider>
+  </RealtimeProvider>
+</AuthGuard>
+```
+
+**Lý do thứ tự tại Protected:**
+1. Chỉ người dùng đã đăng nhập hợp lệ (`status === "authenticated"`) mới có token/cookie để kết nối SSE/WebSocket và truy xuất dữ liệu nghiệp vụ.
+2. `RealtimeProvider` thiết lập kênh nhận sự kiện thời gian thực từ AI Service / Incident Service.
+3. `PrefetchProvider` đọc `user.role` từ `AuthProvider` và gọi `queryClient.prefetchQuery()` song song trong background mà không chặn luồng render UI chính.
+
+---
+
+### 3.4 Phân định ranh giới & Mối quan hệ giữa các thành phần
+
+Kiến trúc phân tầng rõ ràng giữa **Network (Axios) ↔ Event Bus ↔ State (Context/Query) ↔ UI**:
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                    UI LAYER                                            │
+│   Pages / Forms  ──(useAuth)──> AuthContext                                            │
+│   Components     ──(useQuery / useMutation)──> TanStack Query                          │
+│   Notifications  ──(useRealtime)──> RealtimeContext (SSE/WS)                           │
+└────────────────────────────────────────┬───────────────────────────────────────────────┘
+                                         │
+┌────────────────────────────────────────▼───────────────────────────────────────────────┐
+│                           STATE & CACHE COORDINATION                                   │
+│   AuthContext (Client Session State: user, status, logout)                             │
+│       ▲                                                │                               │
+│       │ lắng nghe event                                │ queryClient.clear() khi logout│
+│       │                                                ▼                               │
+│   Event Bus ("auth:session-expired")            TanStack Query Cache                   │
+│       ▲                                         (Server State Cache)                   │
+└───────┼────────────────────────────────────────────────┬───────────────────────────────┘
+        │ emit khi refresh fail                          │ queryFn / mutationFn
+┌───────┴────────────────────────────────────────────────▼───────────────────────────────┐
+│                                 NETWORK LAYER (Axios)                                  │
+│   tokenStore (in-memory access/refresh tokens)                                         │
+│   lib/axios.ts:                                                                        │
+│     - Request Interceptor: đính kèm Authorization: Bearer <token>                      │
+│     - Response Interceptor: bắt 401 TOKEN_EXPIRED -> Single-flight refresh token       │
+│     - Response Unwrapper: bóc tách { success, data } / throw ApiError                  │
+└────────────────────────────────────────┬───────────────────────────────────────────────┘
+                                         │ credentials: "include" (HTTP-only cookies)
+┌────────────────────────────────────────▼───────────────────────────────────────────────┐
+│                        API GATEWAY (Traefik - Port 80)                                 │
+│                        PathPrefix: /api/v1                                             │
+└───────┬───────────────────────┬────────────────────────┬───────────────────────────────┘
+        │ /api/v1/auth          │ /api/v1/cameras        │ /api/v1/ai & /incidents
+        ▼                       ▼                        ▼
+  identity-service        camera-service          smart-ppe-ai-service
+       :9999                   :3002                      :8000
+```
+
+#### 1. Phân định Client State (`AuthContext`) vs Server State (`TanStack Query`)
+- **`AuthContext`**: Chỉ lưu trữ thông tin nhận diện người dùng tối thiểu (`user: MeDto | null`, `status: "loading" | "authenticated" | "unauthenticated"`, `logout`). Không lưu danh sách logs, incidents, cameras...
+- **`TanStack Query`**: Quản lý toàn bộ dữ liệu từ Microservices, xử lý caching, revalidation, deduping request và garbage collection.
+- **Tránh trùng lặp chức năng**: `AuthContext` không tự tạo timer refetch hay fetch logic riêng; việc lấy thông tin người dùng được ủy quyền qua hook `useMe` (`authKeys.me()`). Khi đăng xuất hoặc phiên hết hạn, `AuthContext` gọi `queryClient.clear()` để xoá sạch toàn bộ server cache, ngăn chặn rò rỉ dữ liệu giữa các phiên đăng nhập.
+
+#### 2. Cơ chế tách rời giữa Axios Interceptors và React (Decoupling qua Event Bus)
+- **Vấn đề**: Axios Interceptor chạy ngoài ngữ cảnh React. Việc import trực tiếp hook React hoặc `useRouter` vào file axios sẽ vi phạm React Rules of Hooks và gây memory leak hoặc circular dependency.
+- **Giải pháp**:
+  - Axios Interceptor độc lập hoàn toàn với React. Khi request bị 401 và refresh token thất bại (hoặc phát hiện token reuse bị revoke):
+    1. Gọi `tokenStore.clear()`.
+    2. Phát sự kiện `auth:session-expired` qua module `lib/event-bus.ts` (dựa trên `EventTarget` native, siêu nhẹ).
+  - `AuthProvider` trong React Tree subscribe sự kiện `auth:session-expired`:
+    1. Cập nhật state nội bộ: `status = "unauthenticated"`, `user = null`.
+    2. Gọi `queryClient.clear()`.
+    3. Route Guard tự động chuyển hướng người dùng về `/login?next=...`.
+
+#### 3. Vai trò của API Gateway (Traefik) đối với Microservices Frontend
+- **Single Entrypoint**: Frontend chỉ gọi qua một base URL duy nhất (`NEXT_PUBLIC_API_BASE_URL=http://localhost:80/api/v1`). Gateway tự định tuyến tới đúng microservice.
+- **Đồng nhất Cookie & CORS**: Do tất cả microservices nằm sau cùng domain/port gateway, cookie HTTP-only (`accessToken`, `refreshToken`, `ppe_locale`) hoạt động xuyên suốt không bị rào cản Cross-Site Third-Party Cookie.
+- **Factory linh hoạt**: `lib/axios.ts` xuất hàm factory `createApiClient(pathPrefix)` để các service domain khác (`cameras`, `incidents`, `notifications`) có thể khởi tạo instance riêng nếu cần thiết lập cấu hình đặc thù, nhưng đều dùng chung interceptor auth và refresh token của `identity-service`.
+
+#### 4. Phân chia trách nhiệm thông báo (Toast Notifications)
+- **Axios Interceptor**: Chỉ hiển thị toast cho các lỗi **hạ tầng toàn cục**: Network offline, 500 Internal Server Error, 503 System Maintenance, 429 Rate Limit hệ thống.
+- **React Query Mutations / Form Pages**: Chịu trách nhiệm hiển thị lỗi **nghiệp vụ cụ thể**: Sai mật khẩu, tài khoản bị khoá (423), mã 2FA không hợp lệ, 422 validation lỗi field.
+- **`ToastProvider`**: Cấu hình `maxToasts: 3` và toast deduplication theo `toastId` để triệt tiêu hiện tượng spam thông báo khi microservice bắn lỗi dồn dập.
+
+---
+
+### 3.5 Thiết kế chi tiết từng Provider & Context
+
+#### 3.5.1 `contexts/AuthContext.tsx` & `providers/auth-provider.tsx`
 
 ```ts
-type AuthStatus = "loading" | "authenticated" | "unauthenticated";
+// src/contexts/AuthContext.tsx
+export type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
-interface AuthContextValue {
+export interface AuthContextValue {
   user: MeDto | null;
   status: AuthStatus;
-  setUser: (u: MeDto | null) => void;   // cập nhật sau profile/2FA đổi trạng thái
-  logout: () => Promise<void>;          // gọi POST /auth/logout + clear + về /login
+  setUser: (u: MeDto | null) => void;
+  logout: () => Promise<void>;
 }
 ```
 
-**Luồng khởi động (phục hồi session):**
-1. Mount → `status = "loading"`, gọi `GET /auth/me`.
-2. OK → `user = data`, `status = "authenticated"`.
-3. 401 → cookie hết hạn → thử `/auth/refresh` (qua service) → OK thì gọi lại `/me`; fail → `status = "unauthenticated"`.
-4. **Không redirect trong context** — redirect do guard layout/middleware lo (context không biết route nào là public).
-
-**Lắng nghe sự kiện:** subscribe `auth:session-expired` (từ axios) → clear state → `unauthenticated`.
-
-### 3.2 `providers/index.tsx` — thứ tự bọc CHUẨN
-
 ```tsx
-// Minh họa thứ tự — bắt buộc đúng tầng
-<QueryClientProvider client={queryClient}>   // 1. ngoài cùng — hook dùng được
-  <AuthProvider>                              // 2. cần queryClient bên trong
-    <PrefetchProvider>                        // 3. cần cả auth + queryClient (Bước 8)
+// src/providers/auth-provider.tsx (Minh họa triển khai)
+"use client";
+
+import { createContext, useContext, useEffect, useState, useCallback, useTransition } from "react";
+import { AuthContext, AuthStatus } from "@/contexts/AuthContext";
+import { MeDto } from "@/types/auth.types";
+import { authService } from "@/services/auth.service";
+import { tokenStore } from "@/lib/token";
+import { queryClient } from "@/lib/query-client";
+import { eventBus } from "@/lib/event-bus";
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<MeDto | null>(null);
+  const [status, setStatus] = useState<AuthStatus>("loading");
+  const [, startTransition] = useTransition();
+
+  const handleSessionExpired = useCallback(() => {
+    tokenStore.clear();
+    queryClient.clear();
+    startTransition(() => {
+      setUser(null);
+      setStatus("unauthenticated");
+    });
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await authService.logout({ refreshToken: tokenStore.getRefreshToken() ?? undefined });
+    } finally {
+      handleSessionExpired();
+    }
+  }, [handleSessionExpired]);
+
+  // Khôi phục phiên khi app khởi động
+  useEffect(() => {
+    let isMounted = true;
+    async function restoreSession() {
+      try {
+        const me = await authService.getMe();
+        if (isMounted) {
+          setUser(me);
+          setStatus("authenticated");
+        }
+      } catch {
+        if (isMounted) {
+          handleSessionExpired();
+        }
+      }
+    }
+
+    restoreSession();
+    const unsub = eventBus.on("auth:session-expired", handleSessionExpired);
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [handleSessionExpired]);
+
+  return (
+    <AuthContext.Provider value={{ user, status, setUser, logout }}>
       {children}
-      <Toaster position="top-right" />        // react-hot-toast — component UI, đặt đâu cũng chạy
-    </PrefetchProvider>
-  </AuthProvider>
-  <ReactQueryDevtools />                      // chỉ dev
-</QueryClientProvider>
+    </AuthContext.Provider>
+  );
+}
 ```
 
-Mount trong `app/layout.tsx`.
+#### 3.5.2 `providers/theme-provider.tsx`
 
-### 3.3 Route guard 2 lớp
+```tsx
+// src/providers/theme-provider.tsx
+"use client";
 
-**Lớp 1 — `middleware.ts` (server, nhẹ, nhanh):**
-- Chỉ check `request.cookies` có `accessToken` hoặc `refreshToken` (cookie httpOnly vẫn đọc được ở server).
-- Không có + đang truy cập route protected → `redirect("/login?next=<path>")`.
-- Đang có + truy cập `/login` → `redirect("/")` (tránh login khi đã đăng nhập).
-- **Không verify JWT ở đây** (tốn, không cần — verify thật do `/me` ở client lo).
+import { createContext, useContext, useEffect, useState } from "react";
 
-**Lớp 2 — `app/(auth)/layout.tsx` (client, chính xác):**
-- Chờ `status !== "loading"` (render skeleton) → nếu `unauthenticated` → redirect login.
-- Nếu `user.mustChangePassword === true` → redirect `/change-password` (trừ khi đang ở đó).
-- Nếu `user.isActive === false` → màn hình "tài khoản đã bị vô hiệu hóa".
-- Đây cũng là nơi mount `PrefetchProvider` (Bước 8).
+type Theme = "light" | "dark" | "system";
 
-### 3.4 Tiêu chí hoàn thành
+interface ThemeContextValue {
+  theme: Theme;
+  resolvedTheme: "light" | "dark";
+  setTheme: (t: Theme) => void;
+}
 
-- [ ] Reload trang ở route protected → giữ session (không nhảy về login)
-- [ ] Reload ở `/login` khi đã đăng nhập → tự về dashboard
-- [ ] Tắt cookie (devtools) → mọi route protected redirect `/login?next=...`
-- [ ] 3 request 401 đồng thời → refresh 1 lần → UI không giật (không logout oan)
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
+  const [theme, setThemeState] = useState<Theme>("system");
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
+
+  const applyTheme = (t: Theme) => {
+    const isDark =
+      t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.classList.toggle("dark", isDark);
+    setResolvedTheme(isDark ? "dark" : "light");
+  };
+
+  const setTheme = (next: Theme) => {
+    setThemeState(next);
+    localStorage.setItem("ppe.theme", next);
+    document.cookie = `ppe_theme=${next}; path=/; max-age=31536000; SameSite=Lax`;
+    applyTheme(next);
+  };
+
+  useEffect(() => {
+    const saved = (localStorage.getItem("ppe.theme") as Theme) || "system";
+    setThemeState(saved);
+    applyTheme(saved);
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const listener = () => {
+      if ((localStorage.getItem("ppe.theme") || "system") === "system") {
+        applyTheme("system");
+      }
+    };
+    media.addEventListener("change", listener);
+    return () => media.removeEventListener("change", listener);
+  }, []);
+
+  return (
+    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+}
+
+export const useTheme = () => {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
+  return ctx;
+};
+```
+
+#### 3.5.3 `providers/locale-provider.tsx` + `i18n/`
+
+```ts
+// src/providers/locale-provider.tsx (Hợp đồng dữ liệu)
+export type Locale = "vi-VN" | "en-US";
+
+export interface LocaleContextValue {
+  locale: Locale;
+  setLocale: (l: Locale) => void;
+  t: (key: string) => string;
+  number: Intl.NumberFormat;
+  dateTime: Intl.DateTimeFormat;
+}
+```
+**Quy tắc khởi tạo:**
+1. Khởi tạo: Đọc `localStorage("ppe.locale")` → nếu không có, lấy `"app.locale"` từ query cache của `/system/public` → fallback `"vi-VN"`.
+2. Khi `setLocale`: Lưu `localStorage` + ghi cookie `ppe_locale` (để Server Components và Middleware đọc) + gán `document.documentElement.lang = locale`.
+3. Dict: `src/i18n/vi-VN.json` và `en-US.json`. Hàm `t(key)` hỗ trợ dot-notation (vd: `login.title`), fallback về `vi-VN` và cuối cùng là chính `key` nếu chưa dịch kịp.
+
+#### 3.5.4 `providers/toast-provider.tsx`
+
+```tsx
+// src/providers/toast-provider.tsx (Thin UI Wrapper over react-hot-toast)
+"use client";
+
+import { Toaster } from "react-hot-toast";
+import { useTheme } from "@/providers/theme-provider";
+
+export function ToastProvider() {
+  const { resolvedTheme } = useTheme();
+
+  return (
+    <Toaster
+      position="top-right"
+      reverseOrder={false}
+      gutter={8}
+      toastOptions={{
+        duration: 4000,
+        style: {
+          background: resolvedTheme === "dark" ? "var(--color-card, #1e293b)" : "#ffffff",
+          color: resolvedTheme === "dark" ? "#f8fafc" : "#0f172a",
+          border: `1px solid ${resolvedTheme === "dark" ? "var(--color-border, #334155)" : "#e2e8f0"}`,
+          borderRadius: "0.5rem",
+          fontSize: "0.875rem",
+          boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+        },
+        success: {
+          iconTheme: { primary: "#10b981", secondary: "#ffffff" },
+        },
+        error: {
+          iconTheme: { primary: "#ef4444", secondary: "#ffffff" },
+        },
+      }}
+    />
+  );
+}
+```
+
+#### 3.5.5 `providers/realtime-provider.tsx` (Scoped — Dùng tại Protected Layout)
+
+```tsx
+// src/providers/realtime-provider.tsx (Minh họa kiến trúc SSE/WebSocket)
+"use client";
+
+import { createContext, useContext, useEffect, useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { env } from "@/config/env";
+
+interface RealtimeContextValue {
+  isConnected: boolean;
+  lastAlert: PpeAlertEvent | null;
+}
+
+const RealtimeContext = createContext<RealtimeContextValue>({ isConnected: false, lastAlert: null });
+
+export function RealtimeProvider({ children }: { children: React.ReactNode }) {
+  const { status } = useAuth();
+  const [isConnected, setIsConnected] = useState(false);
+  const [lastAlert, setLastAlert] = useState<PpeAlertEvent | null>(null);
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
+
+    // Khởi tạo EventSource / WebSocket tới Gateway (/api/v1/notifications/stream)
+    const eventSource = new EventSource(`${env.NEXT_PUBLIC_API_BASE_URL}/notifications/stream`, {
+      withCredentials: true,
+    });
+
+    eventSource.onopen = () => setIsConnected(true);
+    eventSource.onerror = () => setIsConnected(false);
+    eventSource.addEventListener("ppe-violation", (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        setLastAlert(data);
+      } catch (err) {
+        console.error("Lỗi parse sự kiện PPE realtime:", err);
+      }
+    });
+
+    return () => {
+      eventSource.close();
+      setIsConnected(false);
+    };
+  }, [status]);
+
+  return (
+    <RealtimeContext.Provider value={{ isConnected, lastAlert }}>
+      {children}
+    </RealtimeContext.Provider>
+  );
+}
+
+export const useRealtime = () => useContext(RealtimeContext);
+```
+
+#### 3.5.6 `providers/prefetch-provider.tsx` (Scoped — Dùng tại Protected Layout)
+
+```tsx
+// src/providers/prefetch-provider.tsx (Role-based Dashboard Prefetch)
+"use client";
+
+import { useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { queryClient } from "@/lib/query-client";
+import { authKeys } from "@/hooks/auth/auth.query-keys";
+
+export function PrefetchProvider({ children }: { children: React.ReactNode }) {
+  const { user, status } = useAuth();
+
+  useEffect(() => {
+    if (status !== "authenticated" || !user) return;
+
+    // Prefetch dữ liệu tùy theo quyền hạn của Role
+    if (user.role === "ADMIN" || user.role === "SUPERVISOR") {
+      // Prefetch danh sách sessions bảo mật
+      queryClient.prefetchQuery({
+        queryKey: authKeys.sessions(),
+        queryFn: () => import("@/services/auth.service").then((m) => m.authService.getSessions()),
+        staleTime: 5 * 60 * 1000,
+      });
+      // Tương lai: prefetch sites, camera-list, alerts gần nhất từ các microservice tương ứng
+    }
+  }, [status, user]);
+
+  return <>{children}</>;
+}
+```
+
+#### 3.5.7 `providers/index.tsx` (Root Composition)
+
+```tsx
+// src/providers/index.tsx
+"use client";
+
+import { ThemeProvider } from "./theme-provider";
+import { ReactQueryProvider } from "./react-query-provider";
+import { LocaleProvider } from "./locale-provider";
+import { AuthProvider } from "./auth-provider";
+import { ToastProvider } from "./toast-provider";
+
+export function AppProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <ThemeProvider>
+      <ReactQueryProvider>
+        <LocaleProvider>
+          <AuthProvider>
+            {children}
+            <ToastProvider />
+          </AuthProvider>
+        </LocaleProvider>
+      </ReactQueryProvider>
+    </ThemeProvider>
+  );
+}
+```
+
+---
+
+### 3.6 Route Guard 2 Lớp (Defense in Depth)
+
+Hệ thống bảo vệ route phối hợp giữa Server và Client:
+
+1. **Lớp 1 — `middleware.ts` (Edge / Server-side, cực nhanh):**
+   - Đọc `request.cookies` kiểm tra sự hiện diện của `accessToken` hoặc `refreshToken` (cookie `httpOnly` vẫn đọc được tại Next.js middleware).
+   - Nếu truy cập route yêu cầu đăng nhập (`/(auth)/...`) mà không có cookie → `NextResponse.redirect(new URL("/login?next=" + encodeURIComponent(pathname), request.url))`.
+   - Nếu đã có cookie mà truy cập trang `/login`, `/register` → `NextResponse.redirect(new URL("/", request.url))`.
+   - *Lưu ý*: Không giải mã/verify chữ ký JWT nặng nề ở Edge; việc xác thực sâu do API `/auth/me` đảm nhiệm.
+
+2. **Lớp 2 — `app/(auth)/layout.tsx` (Client-side, chính xác):**
+   - Đọc `status` từ `useAuth()`:
+     - `status === "loading"`: Hiển thị Skeleton màn hình chờ (ngăn chặn chớp giao diện).
+     - `status === "unauthenticated"`: Chuyển hướng về `/login`.
+     - `user.mustChangePassword === true`: Ép buộc chuyển hướng sang `/change-password` (nếu đang ở trang khác).
+     - `user.isActive === false`: Render thông báo tài khoản bị vô hiệu hóa kèm nút liên hệ quản trị viên.
+   - Khi đã vượt qua kiểm tra: Khởi động `RealtimeProvider` và `PrefetchProvider`.
+
+---
+
+### 3.7 Tiêu chí hoàn thành (DoD) của Bước 3
+
+- [x] Cây `providers/` và `contexts/` được tổ chức đúng cấu trúc, tách rời rõ rệt giữa Root Providers và Scoped Providers.
+- [x] `ThemeProvider` xử lý mượt mà Light/Dark/System, không gây chớp trắng FOUC khi tải lại trang. *(E2E: đổi theme tức thì, F5 giữ lựa chọn, `data-theme` set trước first paint)*
+- [x] `LocaleProvider` khởi tạo thành công từ `localStorage` hoặc cấu hình `/system/public` của backend; chuyển đổi ngôn ngữ tức thì không cần reload trang. *(E2E: vi↔en tức thì, `documentElement.lang` đổi, F5 giữ lựa chọn)*
+- [x] Tải lại trang (F5) tại protected route vẫn duy trì phiên làm việc mượt mà thông qua `restoreSession()` của `AuthProvider`. *(E2E: reload vẫn ở /dashboard với user)*
+- [x] Đăng nhập rồi mở trang `/login` → tự động điều hướng về dashboard. *(E2E: proxy layer 1 thấy cookie → redirect `/`)*
+- [x] Bắn 3 request 401 đồng thời → chỉ có duy nhất 1 request `/auth/refresh` được gọi (Single-flight); giao diện người dùng không bị văng đăng xuất oan. *(Bước 2, test 11/11)*
+- [x] Khi refresh token hết hạn hoặc session bị revoke → Event Bus phát tín hiệu, `AuthProvider` lập tức clear cache và đẩy về màn hình login. *(Bước 2 test 5-6 + E2E logout)*
+- [x] Thông báo lỗi không bị trùng lặp: lỗi mạng/500/503 hiển thị qua toast tập trung, lỗi form 422 hiển thị inline tại trường tương ứng. *(Toast tập trung đã verify; 422 inline đến cùng form Bước 6 — `ApiError.errors` đã chuẩn hóa sẵn)*
+- [x] `RealtimeProvider` và `PrefetchProvider` chỉ được nạp tại `app/(auth)/layout.tsx`, hoàn toàn vắng mặt ở các trang công khai. *(Chỉ import trong (auth) layout — grep xác nhận)*
+
+> **Phát sinh thực tế (2026-10-19) — đã fix trong quá trình verify E2E (Playwright, `scripts/test-step3-e2e.py`, 18/18 đạt):**
+>
+> 1. **`src/config/env.ts` phải tham chiếu TĨNH `process.env.NEXT_PUBLIC_X`** — Turbopack chỉ inline tham chiếu tĩnh vào client bundle; `process.env[key]` động luôn `undefined` trên browser → app crash client-side trong khi SSR vẫn chạy (rất khó phát hiện nếu không test trình duyệt).
+> 2. **Toast phải đi qua `showToast()` của design system** (`@ui/toaster`) — gọi thẳng `react-hot-toast` render toast mặc định không theme gỗ, mất class `.ppe-toast`. `src/lib/toast.ts` đã wrap `showToast`; design system thêm option `{ id }` để dedup toast.
+> 3. **`AuthContext.setUser` phải đồng bộ CẢ `status`** — nếu chỉ set user, sau lần thăm dò 401 đầu tiên status vẫn `"unauthenticated"` → AuthGuard redirect nhầm ngay sau khi login thành công.
+> 4. **Next 16 `cacheComponents` + instant-navigation validation:** layout `(auth)` KHÔNG được chặn render children khi `status === "loading"` (page bị "dropped segment" trong pass prerender). Trang con tự lo skeleton; layout chỉ redirect qua effect. Page dashboard tạm = server component + `<Suspense>` + nội dung client ở `dashboard-content.tsx`.
+> 5. **ThemeProvider theo design system:** `data-theme` trên `<html>` + localStorage key `"theme"` (không phải class `dark` + `ppe.theme` như draft).
+> 6. **RealtimeProvider dùng luồng `stream-ticket`** (POST `/notifications/stream-ticket` → EventSource `?ticket=`). Hiện notification-service trả 500 "Cấu hình khóa công khai RS256 chưa sẵn sàng" (BE thiếu `JWT_PUBLIC_KEY`/`keys/public.key.pem` khớp cặp khóa identity-service) — FE xử lý graceful ("Mất kết nối"), cần BE fix để realtime chạy thật.
+> 7. **Test sai mật khẩu làm khóa tài khoản thật** (BE khóa sau 5 lần sai — `users.failed_login_attempts`, `locked_until`). E2E dùng email không tồn tại cho bước "login sai" để chạy lại được; nếu bị khóa: `UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE email = 'admin@ppe.local'`.
+> 8. **Cảnh báo cho Bước 7:** `/2fa` nằm trong nhóm `(auth)` — trong luồng 2FA user chưa có session cookies nên proxy layer 1 sẽ redirect `/2fa` về `/login`. Cần quyết định: đưa `/2fa` ra nhóm `(public)` (tempToken chỉ ở sessionStorage, guard không bảo vệ được gì thêm) hoặc thêm ngoại lệ cho `/2fa` ở proxy. **→ Đã quyết ở Bước 7.1: đưa `/2fa` ra nhóm `(public)`, proxy coi `/2fa` là public-auth.**
+> 9. `ThemeToggle` của design system giữ nguyên standalone (không refactor sang `useTheme`) — site design system (:3001) dùng nó không có provider.
+> 10. Placeholder `app/(public)/login/page.tsx` và `app/(auth)/dashboard/page.tsx` chỉ để verify Bước 3 — Bước 7 sẽ thay bằng trang thật.
 
 ---
 
@@ -338,6 +836,19 @@ export enum ErrorCode {
   CAPTCHA_REQUIRED = "CAPTCHA_REQUIRED", CAPTCHA_INVALID = "CAPTCHA_INVALID",
   CONFIGURATION_ERROR = "CONFIGURATION_ERROR", SYSTEM_MAINTENANCE = "SYSTEM_MAINTENANCE",
   GATEWAY_REQUIRED = "GATEWAY_REQUIRED",
+  // ── Bổ sung khi đối chiếu BE (2026-10-19): error-code.ts thật có 42 mã ──
+  INTERNAL_SERVER_ERROR = "INTERNAL_SERVER_ERROR", FEATURE_DISABLED = "FEATURE_DISABLED",
+  DEVICE_NOT_FOUND = "DEVICE_NOT_FOUND", TWO_FACTOR_REQUIRED = "TWO_FACTOR_REQUIRED",
+  FILE_NOT_FOUND = "FILE_NOT_FOUND",
+  // Cross-service (site/camera/incident/report/AI/gateway...)
+  SITE_NOT_FOUND = "SITE_NOT_FOUND", CAMERA_NOT_FOUND = "CAMERA_NOT_FOUND",
+  INCIDENT_NOT_FOUND = "INCIDENT_NOT_FOUND", EVIDENCE_NOT_FOUND = "EVIDENCE_NOT_FOUND",
+  INVALID_STATUS_TRANSITION = "INVALID_STATUS_TRANSITION",
+  REPORT_TEMPLATE_NOT_FOUND = "REPORT_TEMPLATE_NOT_FOUND", REPORT_GENERATION_NOT_FOUND = "REPORT_GENERATION_NOT_FOUND",
+  AI_MODEL_NOT_FOUND = "AI_MODEL_NOT_FOUND", AI_MODEL_VERSION_NOT_FOUND = "AI_MODEL_VERSION_NOT_FOUND",
+  IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT", RETRY_EXHAUSTED = "RETRY_EXHAUSTED",
+  REQUEST_TIMEOUT = "REQUEST_TIMEOUT", SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE",
+  BAD_GATEWAY = "BAD_GATEWAY", CIRCUIT_BREAKER_OPEN = "CIRCUIT_BREAKER_OPEN",
 }
 ```
 
@@ -366,15 +877,15 @@ export enum ErrorCode {
 | `AvatarConfirmPayload` | — | `{ key }` |
 | `DeactivateRequestPayload` | — | `{ password, reason? }` |
 | `DeactivateConfirmPayload` | — | `{ token }` |
-| `SystemPublicConfig` | `system-config.constant.ts` | `{ feature: { registration: { enabled }, social_login: { enabled } } }` — shape cần xác minh chính xác khi gọi thật |
+| `SystemPublicConfig` | `system-config.constant.ts` | `data` là `Record<string, unknown>` **phẳng** (đã xác minh 2026-10-19): `"app.locale"` (`"vi-VN"`), `"app.timezone"` (`"Asia/Ho_Chi_Minh"`), `"feature.registration.enabled"`, `"feature.social_login.enabled"`, `"app.name"`, `"app.support_email"`... — khai helper `getConfig(key)` thay vì type cố định |
 
 **Quy tắc:** type nào BE trả field nào thì khai đúng field đó; mọi chỗ "khác biệt giữa các endpoint trả cùng tên" phải ghi chú ngay trong type (như `mustChangePassword` ở trên) — đây là nguồn bug phổ biến nhất.
 
 ### 4.3 Tiêu chí hoàn thành
 
-- [ ] Mọi endpoint ở Bước 5 đều có type payload + response tương ứng
-- [ ] `LoginResponse` là discriminated union (TS bắt xử lý nhánh `requires2FA` ở mọi nơi dùng)
-- [ ] Có comment trích dẫn file BE cho mỗi type khó (để sau này đối chiếu khi BE đổi)
+- [x] Mọi endpoint ở Bước 5 đều có type payload + response tương ứng
+- [x] `LoginResponse` là discriminated union (TS bắt xử lý nhánh `requires2FA` ở mọi nơi dùng)
+- [x] Có comment trích dẫn file BE cho mỗi type khó (để sau này đối chiếu khi BE đổi)
 
 ---
 
@@ -420,8 +931,18 @@ export enum ErrorCode {
 
 ### Tiêu chí hoàn thành
 
-- [ ] Đủ 29 hàm trên, mỗi hàm đúng method/path/payload/return type
-- [ ] Không hàm nào import toast/router/queryClient (thuần I/O)
+- [x] Đủ 29 hàm trên, mỗi hàm đúng method/path/payload/return type
+- [x] Không hàm nào import toast/router/queryClient (thuần I/O)
+
+> **Phát sinh thực tế (2026-10-19) — đối chiếu trực tiếp với BE:**
+>
+> - 29/29 route khớp `auth.route.ts`; payload khớp `auth.validation.ts`; response khớp `auth.dto.ts` + controller. Login success trả `{ accessToken, refreshToken, user }` (không kèm `requires2FA`) → union FE vẫn đúng.
+> - `ErrorCode` BE thật có **42 mã** — đã bổ sung đủ vào `types/common.ts` (quan trọng: `INTERNAL_SERVER_ERROR` là mã các service thực tế trả khi lỗi 500, như notification-service đã thấy ở Bước 3).
+> - `LinkSocialPayload.provider`: bỏ `| string` (union với `string` tự thu gọn thành `string`, mất hết type safety) → enum `"GOOGLE" | "ZALO"` theo schema BE; `unlinkSocial()` cũng type enum.
+> - `SocialAccount.provider`: BE khai `string` (không phải enum) — giữ `string`.
+> - `SessionDto.isCurrent`: BE **luôn trả** (so khớp hash token) → required, không optional.
+> - Helper `getConfig(key)` + `SYSTEM_CONFIG_KEYS` đặt tại `src/lib/system-config.ts` (không nhét hàm vào file types); LocaleProvider đã dùng.
+> - `refresh()`: payload optional — nếu không truyền, BE route lấy từ cookie httpOnly (đã verify ở Bước 2).
 
 ---
 
@@ -449,7 +970,7 @@ export const authKeys = {
 | `useMe` | `authKeys.me()` | `staleTime` dài (5-10 phút); `enabled` theo auth status |
 | `useSessions` | `authKeys.sessions()` | settings/security |
 | `useSocialAccounts` | `authKeys.social()` | settings/security |
-| `usePublicConfig` | `authKeys.config()` | gọi 1 lần khi khởi động, cache dài |
+| `usePublicConfig` | `authKeys.config()` | gọi 1 lần khi khởi động, cache dài; LocaleProvider đọc `"app.locale"` từ đây (Bước 3.5.3) |
 | `useGoogleUrl(redirectUri, state)` | — | dùng `queryFn` hoặc gọi trong handler (nếu chỉ gọi khi click → đặt trong mutation/handler) |
 
 **Ghi (useMutation — quy tắc chung: `onSuccess` → invalidate + toast.success; `onError` → toast.error từ `ApiError.message`, KHÔNG toast ở service/interceptor):**
@@ -481,10 +1002,10 @@ export const authKeys = {
 
 ### 6.3 Tiêu chí hoàn thành
 
-- [ ] Không hook nào import trực tiếp `auth.service` vào component — component chỉ thấy hook
-- [ ] Mọi mutation có `onError` toast đúng ngữ cảnh; không toast trùng với interceptor
-- [ ] Login/GoogleLogin/Verify2FA đều trả discriminated union để trang xử lý nhánh 2FA
-- [ ] Sau logout/changePassword/resetPassword, cache bị clear hoàn toàn (không rò rỉ dữ liệu user cũ)
+- [x] Không hook nào import trực tiếp `auth.service` vào component — component chỉ thấy hook (27 hooks qua barrel `@/hooks/auth` và `@/hooks`).
+- [x] Mọi mutation có `onError` toast đúng ngữ cảnh; không toast trùng với interceptor (đã loại trừ status 0, >= 500, 429 RATE_LIMIT_EXCEEDED đã toast ở axios interceptor, và 422 inline form validation).
+- [x] Login/GoogleLogin/Verify2FA đều trả discriminated union để trang xử lý nhánh 2FA (`requires2FA: true` kèm `tempToken` vs `LoginSuccessResponse`).
+- [x] Sau logout/changePassword/resetPassword/confirmDeactivate, cache bị clear hoàn toàn (`queryClient.clear()`, `tokenStore.clear()`, không rò rỉ dữ liệu user cũ).
 
 ---
 
@@ -494,9 +1015,20 @@ export const authKeys = {
 
 ### 7.1 Route guards
 
-- `middleware.ts` — lớp 1 (server, check cookie tồn tại) — xem Bước 3.3
+- `middleware.ts` — lớp 1 (server, check cookie tồn tại) — xem Bước 3.6
 - `app/(auth)/layout.tsx` — lớp 2 (client: `/me`, `mustChangePassword`, `isActive`)
 - `app/(public)/layout.tsx` — nếu đã đăng nhập → redirect `/` (dùng `useMe`)
+
+> **Phát sinh thực tế (2026-10-20):**
+>
+> 1. **Next 16 đổi tên `middleware.ts` → `proxy.ts`** — file đã có sẵn từ Bước 3 với tên mới, 7.1 chỉ điều chỉnh logic.
+> 2. **Quyết định `/2fa` (cảnh báo #8 Bước 3):** đưa `/2fa` sang nhóm `(public)` — giữa luồng 2FA user chưa có session cookie, guard nhóm `(auth)` không bảo vệ được gì thêm (tempToken ở sessionStorage). Proxy xóa `/2fa` khỏi danh sách protected và thêm vào public-auth (user ĐÃ đăng nhập mở `/2fa` → về `/`). Trang 2FA tự guard bằng tempToken (placeholder đã làm mẫu, 7.2 hoàn thiện).
+> 3. **`app/(public)/layout.tsx` dùng `useAuth()` thay vì `useMe()`** như kế hoạch gốc: AuthProvider đã phục hồi session qua `/auth/me` ở root — `status` là nguồn duy nhất, dùng `useMe` sẽ gọi `/me` lần 2. Layout luôn render children (Next 16 constraint như (auth) layout), redirect qua effect — điều này chặn được điều hướng client-side (SPA), thứ proxy không chạy.
+> 4. **Purge cookie khi session hết hạn (fix bounce loop):** BE không clear cookie khi refresh fail (`auth.controller.ts` refresh → `next(error)`) → cookie cũ khiến proxy thấy "có session" và bounce `/login → / → /login` mỗi lần tải trang. Fix: `purgeSessionCookies()` trong `lib/axios.ts` — gọi `POST /auth/logout` bằng client trần (route không có `authMiddleware`, luôn xóa cookie, cần body `{}` vì `logoutSchema` là zod object). Gọi trong `AuthProvider.handleSessionExpired` (chỉ khi refresh bị BE từ chối thật sự — không gọi khi lỗi mạng, session còn hiệu lực).
+> 5. **Màn `isActive=false` của (auth) layout hiện không reachable qua `/me`:** BE `getMe` trả 404 `NOT_FOUND` khi user inactive → FE nhận `unauthenticated` chứ không thấy `MeDto.isActive=false`. Giữ code theo kế hoạch 3.6 (phòng khi BE đổi) + thêm nút Đăng xuất để user có lối thoát. Cần hỏi BE nếu muốn FE phân biệt trạng thái này.
+> 6. **Trang gốc `/`** chuyển thành server redirect → `/dashboard` (thay template mặc định) — điểm hạ cánh của các redirect guard.
+> 7. **Placeholder để guard kiểm thử được:** `app/(public)/2fa/page.tsx` + `app/(auth)/change-password/page.tsx` (trang tạm, 7.2 thay thật). Test E2E: `scripts/test-step7-1-e2e.py` (Playwright — proxy 2 lớp, /2fa 3 trạng thái, purge cookie chống bounce, mustChangePassword ép redirect, có flip DB tạm + restore).
+> 8. **Kết quả test (2026-10-20):** `test-step7-1-e2e.py` **17/17 đạt**; regression `test-step3-e2e.py` **18/18 đạt** (cập nhật 1 assertion: `/login` khi đã login giờ kết thúc ở `/dashboard` vì trang gốc `/` redirect tiếp — hành vi mới đúng). Lưu ý khi viết test: Playwright 1.60 cấm cookie dict có cả `url` lẫn `path`; forge token hết hạn phải dùng `JWT_REFRESH_SECRET` cho refresh (HS256) — tránh dùng refresh token đã rotate vì BE revoke toàn bộ session (reuse detection).
 
 ### 7.2 Chi tiết từng trang
 
@@ -522,6 +1054,26 @@ export const authKeys = {
 
 ### 7.3 Tiêu chí hoàn thành
 
+> **Phát sinh thực tế (2026-10-20) — trang /login hoàn thành (Bước 7.2):**
+>
+> - Dùng **react-hook-form + zod** (đã thêm `react-hook-form@^7`, `zod@^4`, `@hookform/resolvers@^5` — v6 resolvers xung đột peer effect nên chọn v5). Validation client: email định dạng + password bắt buộc; 422 từ BE map vào đúng field qua `setError`.
+> - Cấu trúc `src/components/features/auth/`: `auth-shell.tsx` (vỏ chung 4 trang form đơn giản), `auth-footer-link.tsx`, `turnstile-field.tsx` (wrapper widget Cloudflare, đọc `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — chưa cấu hình site key nên widget chưa render, BE sẽ trả CAPTCHA_REQUIRED để xử lý), `forms/login-form.tsx`.
+> - Logic lỗi: 401 → banner inline hiển thị nguyên message BE (kèm "còn n lần thử"), xóa mật khẩu để nhập lại; 423 → banner + **đếm ngược mm:ss** parse số phút từ message BE, disable nút đăng nhập trong lúc đếm; 403 → banner + nút "Gửi lại email xác minh" (useResendVerification + TurnstileField khi có site key); 429/5xx/mạng → chỉ toast toàn cục của interceptor (không banner đè).
+> - Luồng 2FA: tempToken lưu `sessionStorage["ppe.tempToken"]` (trang /2fa đọc lại — "state trang" sẽ xử lý khi làm trang /2fa thật); `next` query được bảo vệ open-redirect (`startsWith("/") && !startsWith("//")`).
+> - Form dùng hooks Bước 6 (`useLogin`, `useResendVerification` với `suppressToast: true` cho lỗi cần hiển thị inline) — đạt tiêu chí "không gọi auth.service trực tiếp".
+> - Lưu ý quan sát khi test 423: message BE báo "thử lại sau 25 phút" trong khi DB flip +5 phút — nghi ngờ lệch múi giờ giữa container identity (UTC) và psql session (+07) khi đọc cột `locked_until` → cần kiểm tra kiểu cột (timestamptz vs timestamp) phía BE.
+> - Test: `scripts/test-step7-2-login-e2e.py` 15/15 (render + zod + 401 + 423 đếm ngược + 403 banner + next redirect, có restore DB). Regression `test-step3-e2e.py` 18/18 (sửa assert: login sai giờ là banner `form [role=alert]` thay vì toast — **toast lỗi cũng có `role="alert"` nên selector phải scope trong form**), `test-step7-1-e2e.py` 17/17.
+> - **Bug full-width ＠ (2026-10-20):** nhập `admin＠ppe.local` (＠ U+FF20 từ copy-paste/IME) → zod `z.email()` reject → "Email không hợp lệ" dù nhìn đúng. Chrome strip ZWSP (U+200B) và chấm full-width (U+FF0E) khỏi input `type=email` nhưng **giữ nguyên ＠** → chỉ ＠ gây lỗi. Fix: `src/lib/email.ts` `normalizeEmail()` (＠→@, ．→., ideographic space→space, bỏ ký tự vô hình) — áp dụng schema login/register/forgot (`z.string().transform(normalizeEmail).pipe(z.string().min(1)).pipe(z.email())` — transform phải ĐẶT TRƯỚC để message "bắt buộc" đúng với giá trị đã chuẩn hóa). zodResolver trả values đã transform → API nhận email sạch. Regression: 3 suite E2E xanh (15/15 + 15/15 + 11/11), thêm `scripts/test-email-normalize.py`.
+>
+> **Phát sinh thực tế (2026-10-20) — trang /forgot-password hoàn thành (Bước 7.2):**
+>
+> - Cấu trúc bám theo register-form: `forms/forgot-password-form.tsx` + `app/(public)/forgot-password/page.tsx` (AuthShell), dùng `useForgotPassword` (Bước 6, `suppressToast: true`) — không gọi auth.service trực tiếp.
+> - Turnstile action `forgot_password` (khớp `TURNSTILE_ACTION` BE). 422 map field; CAPTCHA lỗi → banner vàng + reset widget; 429/5xx/mạng → chỉ toast interceptor.
+> - Anti-enum: màn "Kiểm tra email của bạn" luôn giống nhau — BE `forgotPassword` **luôn 200** kể cả email không tồn tại hay đang cooldown 60s (cooldown là *graceful*, KHÁC resend-verification trả 429 `TOO_MANY_REQUESTS` → không cần đếm ngược trên nút như ma trận lỗi ghi, BE đã nuốt).
+> - Test: `scripts/test-step7-2-forgot-password-e2e.py` 11/11 (render + zod + CAPTCHA_REQUIRED BE thật + mock 422 + mock 200 anti-enum + nút về login). Regression `test-step7-2-login-e2e.py` 15/15.
+
+### 7.3 Tiêu chí hoàn thành
+
 - [ ] Không trang nào gọi `auth.service` trực tiếp
 - [ ] Mọi form có trạng thái `isPending` (disable button, spinner) và `isError` (thông báo rõ ràng)
 - [ ] 422 hiển thị lỗi đúng field (map `errors[{field, message}]` vào từng input)
@@ -535,7 +1087,7 @@ export const authKeys = {
 
 ### 8.1 Thiết kế
 
-- `PrefetchProvider` mount trong `app/(auth)/layout.tsx` (sau AuthProvider — xem Bước 3.2).
+- `PrefetchProvider` mount trong `app/(auth)/layout.tsx` (sau AuthProvider — xem Bước 3.3).
 - Khi `status === "authenticated"`, dựa vào `user.role` + `user.permissions` → map ra danh sách query cần prefetch:
 
 ```ts
@@ -637,6 +1189,8 @@ Kiến trúc backend là nhiều service độc lập sau **Traefik gateway** �
 - [ ] Turnstile reset đúng sau lỗi CAPTCHA_*
 - [ ] Maintenance mode có trang toàn cục
 - [ ] Không gọi service trực tiếp trong component; không điều hướng trong hook
+- [ ] Mọi chuỗi UI auth qua `t()` (dict vi/en đầy đủ, không hardcode); đổi locale không cần reload, reload vẫn giữ lựa chọn
+- [ ] Số/ngày giờ (đếm ngược khóa tài khoản, hạn tempToken 2FA...) format qua `Intl` theo locale; locale mặc định lấy từ `app.locale` của BE
 
 **Microservice**
 - [ ] Cây thư mục domain-first; thêm domain mới không đụng core

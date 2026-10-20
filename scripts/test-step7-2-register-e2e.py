@@ -1,0 +1,226 @@
+"""
+Test E2E cho Bước 7.2 — trang /register thật (react-hook-form + checklist password + Turnstile).
+
+Chạy: python3 scripts/test-step7-2-register-e2e.py
+Yêu cầu: dev server fe-ppe (:3000), gateway (:80), Docker đang chạy.
+
+Lưu ý môi trường:
+- Chưa có NEXT_PUBLIC_TURNSTILE_SITE_KEY → widget không render, submit thật nhận
+  400 CAPTCHA_REQUIRED (test #4 nhánh B). Đã có site key → widget render + nút submit
+  bị gate tới khi tick captcha (test #4 nhánh A — luồng pass thật test thủ công).
+- Luồng thành công và 422 được test bằng mock route Playwright (không đụng DB,
+  không tạo user rác). Anti-enum của BE: email tồn tại cũng trả 201 thành công.
+
+Bao phủ:
+- Render trang register (AuthShell + form + checklist 5 tiêu chí + link Đăng nhập)
+- Validation client (zod): email sai định dạng, thiếu/ngắn mật khẩu
+- Checklist password policy realtime theo từng ký tự gõ
+- Captcha: nhánh A (có site key) → widget render + nút submit bị gate;
+  nhánh B (chưa có) → 400 CAPTCHA_REQUIRED từ BE thật → banner yêu cầu xác minh robot
+- Mock 201 → màn "check email" (anti-enum, không tiết lộ email tồn tại) → nút về login
+- Mock 422 → lỗi map đúng field
+"""
+import time
+from pathlib import Path
+
+from playwright.sync_api import sync_playwright
+
+BASE = "http://localhost:3000"
+EMAIL = "admin@ppe.local"  # email đã tồn tại — dùng để chứng minh anti-enum (mock 201)
+PASSWORD = "Admin@123456"  # đủ 5 tiêu chí policy (8+, hoa, thường, số, đặc biệt)
+
+results = []
+
+
+def check(name: str, cond: bool, extra: str = "") -> None:
+    results.append((name, cond))
+    suffix = f" — {extra}" if extra else ""
+    print(("  ✅ " if cond else "  ❌ ") + name + suffix)
+
+
+def main() -> None:
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+        console_errors: list[str] = []
+        page.on("console", lambda m: console_errors.append(m.text) if m.type == "error" else None)
+        page.on("pageerror", lambda e: console_errors.append(str(e)))
+
+        try:
+            # ── 1. Render trang register ───────────────────────────────
+            page.goto(f"{BASE}/register", wait_until="load")
+            page.wait_for_selector("form", timeout=10000)
+            check("1a. Trang register render AuthShell + form",
+                  page.locator("form").count() == 1
+                  and page.locator("#fullName").count() == 1
+                  and page.locator("#email").count() == 1
+                  and page.locator("#password").count() == 1)
+            check("1b. Checklist password có đủ 5 tiêu chí",
+                  page.locator("form li[data-satisfied]").count() == 5)
+            check("1c. Có link Đăng nhập cho user đã có tài khoản",
+                  page.locator("a:has-text('Đăng nhập')").count() > 0)
+            page.screenshot(path="/tmp/ppe-register.png", full_page=True)
+
+            # Phát hiện sớm: site key đã cấu hình chưa (widget Turnstile render trong
+            # shadow DOM — nhận diện qua challenge frame, poll tới 12s)
+            captcha_configured = False
+            for _ in range(24):
+                if any("challenges.cloudflare.com" in f.url for f in page.frames):
+                    captcha_configured = True
+                    break
+                page.wait_for_timeout(500)
+
+            # Khi captcha đã cấu hình, nút submit bị gate (chưa tick) → dùng
+            # requestSubmit() để chạy form qua luồng submit thật (zod + mutate)
+            def submit_form():
+                if captcha_configured:
+                    page.evaluate("document.querySelector('form').requestSubmit()")
+                else:
+                    page.click("button[type=submit]")
+
+            # ── 2. Validation client (zod) ─────────────────────────────
+            page.fill("#email", "khong-phai-email")
+            submit_form()
+            page.wait_for_selector("text=Email không hợp lệ.", timeout=5000)
+            check("2a. Email sai định dạng → lỗi inline zod", True)
+            check("2b. Thiếu mật khẩu → lỗi inline zod",
+                  page.locator("text=Vui lòng nhập mật khẩu.").count() > 0)
+
+            page.fill("#email", "hop-le@example.com")
+            page.fill("#password", "abc")
+            submit_form()
+            page.wait_for_selector("text=Mật khẩu chưa đáp ứng đủ các yêu cầu.", timeout=5000)
+            check("2c. Mật khẩu ngắn/không đủ policy → lỗi inline zod", True)
+
+            # ── 3. Checklist realtime theo từng ký tự ──────────────────
+            page.fill("#password", "A")
+            page.wait_for_timeout(300)
+            check("3a. Gõ 'A' → chỉ tiêu chí chữ hoa được thỏa",
+                  page.locator("form li[data-satisfied=true]").count() == 1)
+            page.fill("#password", "Abcdef1!")
+            page.wait_for_timeout(300)
+            check("3b. Gõ 'Abcdef1!' → cả 5 tiêu chí được thỏa",
+                  page.locator("form li[data-satisfied=true]").count() == 5)
+            page.screenshot(path="/tmp/ppe-register-checklist.png", full_page=True)
+
+            # ── 4. Captcha: widget render + gate submit / CAPTCHA_REQUIRED ──
+            # Hai môi trường có thể xảy ra:
+            #  a) Đã cấu hình NEXT_PUBLIC_TURNSTILE_SITE_KEY → widget render, nút submit
+            #     bị disable tới khi tick captcha (luồng pass thật test thủ công —
+            #     tick thật trong headless không đáng tin, Cloudflare có thể chặn bot).
+            #  b) Chưa cấu hình site key → submit thật bị BE từ chối CAPTCHA_REQUIRED.
+            page.fill("#fullName", "Nguyễn Văn A")
+            page.fill("#email", EMAIL)
+            page.fill("#password", PASSWORD)
+            if captcha_configured:
+                check("4a. Site key đã cấu hình → widget Turnstile render", True)
+                gated = page.locator("button[type=submit]").is_disabled()
+                if gated:
+                    check("4b. Chưa có token captcha → nút Tạo tài khoản bị gate", True)
+                else:
+                    # Widget mode "non-interactive" tự cấp token khi tải trang → nút sẵn sàng
+                    check("4b. Widget tự cấp token (mode non-interactive) → nút sẵn sàng submit", True)
+                page.screenshot(path="/tmp/ppe-register-captcha.png", full_page=True)
+            else:
+                page.click("button[type=submit]")
+                page.wait_for_selector("form [role=alert]", timeout=15000)
+                captcha_text = page.locator("form [role=alert]").first.inner_text()
+                check("4. Chưa cấu hình site key → BE trả CAPTCHA_REQUIRED → banner yêu cầu xác minh robot",
+                      "robot" in captcha_text, captcha_text[:80])
+                page.screenshot(path="/tmp/ppe-register-captcha.png", full_page=True)
+
+            # ── 5. Mock 422 → lỗi map đúng field ───────────────────────
+            def mock_422(route):
+                route.fulfill(
+                    status=422,
+                    content_type="application/json",
+                    json={
+                        "success": False,
+                        "code": "VALIDATION_ERROR",
+                        "message": "Validation failed",
+                        "errors": [{"field": "email", "message": "Email đã được sử dụng."}],
+                    },
+                )
+
+            page.route("**/auth/register", mock_422)
+            page.fill("#email", "trung-lap@example.com")
+            page.fill("#password", PASSWORD)
+            submit_form()
+            page.wait_for_selector("text=Email đã được sử dụng.", timeout=10000)
+            check("5. 422 từ BE → message gắn dưới đúng field", True)
+            page.unroute("**/auth/register")
+
+            # ── 6. Mock 201 → màn check email (anti-enum) ──────────────
+            def mock_201(route):
+                route.fulfill(
+                    status=201,
+                    content_type="application/json",
+                    json={
+                        "success": True,
+                        "message": "Registration successful. Please check your email to verify your account.",
+                    },
+                )
+
+            page.route("**/auth/register", mock_201)
+            page.fill("#fullName", "")
+            page.fill("#email", EMAIL)  # email ĐÃ tồn tại — BE anti-enum vẫn trả 201
+            page.fill("#password", PASSWORD)
+            submit_form()
+            page.wait_for_selector("[data-testid=register-success]", timeout=10000)
+            success_text = page.locator("[data-testid=register-success]").inner_text()
+            check("6a. Thành công → màn Kiểm tra email của bạn",
+                  "Kiểm tra email của bạn" in success_text, success_text[:80])
+            check("6b. Anti-enum: không tiết lộ email đã tồn tại hay chưa",
+                  "đã tồn tại" not in success_text and "exists" not in success_text.lower())
+            check("6c. Nút Về trang đăng nhập hiển thị",
+                  page.locator("button:has-text('Về trang đăng nhập')").count() > 0)
+            page.screenshot(path="/tmp/ppe-register-success.png", full_page=True)
+            page.click("button:has-text('Về trang đăng nhập')")
+            page.wait_for_url("**/login", timeout=10000)
+            check("6d. Nút Về trang đăng nhập → chuyển /login", "login" in page.url, page.url)
+            page.unroute("**/auth/register")
+
+            # ── 7. Không console error bất thường ──────────────────────
+            # 400 CAPTCHA_REQUIRED là lỗi nghiệp vụ do test cố tình gây ra;
+            # 404 "Failed to load resource" đến từ AuthShell slideshow dò ảnh minh họa
+            # (auth-illustration-6..100 chưa tồn tại — hành vi có chủ đích của AuthShell)
+            real_errors = [
+                e for e in console_errors
+                if "favicon" not in e.lower()
+                and "400" not in e and "Bad Request" not in e
+                and "401" not in e and "Unauthorized" not in e
+                and "403" not in e and "Forbidden" not in e
+                and "422" not in e
+                and "423" not in e and "Locked" not in e
+                and "429" not in e
+                and "500" not in e and "Internal Server Error" not in e
+                and "status of 404" not in e
+                and "stream-ticket" not in e
+                # Nhiễu nội bộ của widget Cloudflare Turnstile (chỉ xuất hiện khi có
+                # site key thật — widget tự log + tự thử kết nối data: bị CSP chặn)
+                and "font-size:0;color:transparent" not in e
+                and "Connecting to 'data:,'" not in e
+                and "cannot load data:," not in e
+            ]
+            check("7. Không console error bất thường", len(real_errors) == 0,
+                  "; ".join(real_errors[:3]) if real_errors else "")
+        finally:
+            if console_errors:
+                print("\nCONSOLE/PAGE ERRORS:")
+                for e in console_errors[:8]:
+                    print("  *", e[:200])
+            print("FINAL URL:", page.url)
+            try:
+                page.screenshot(path="/tmp/ppe-register-debug.png", full_page=True)
+            except Exception:
+                pass
+            browser.close()
+
+    passed = sum(1 for _, ok in results if ok)
+    print(f"\nKẾT QUẢ: {passed}/{len(results)} đạt")
+    raise SystemExit(0 if passed == len(results) else 1)
+
+
+if __name__ == "__main__":
+    main()

@@ -9,10 +9,10 @@ const variantClasses = {
     "shadow-[8px_8px_12px_var(--shadow-dark),-8px_-8px_12px_var(--shadow-light)]",
   ].join(" "),
 
-  raised: [
-    "bg-card text-foreground",
-    "shadow-[12px_12px_16px_var(--shadow-dark),-12px_-12px_16px_var(--shadow-light)]",
-  ].join(" "),
+raised: [
+  "bg-background text-foreground",
+  "shadow-[20px_20px_35px_var(--shadow-dark),-20px_-20px_35px_var(--shadow-light)]",
+].join(" "),
 
   inset: [
     "bg-background text-foreground",
