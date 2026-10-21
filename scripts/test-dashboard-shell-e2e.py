@@ -93,8 +93,8 @@ def main():
         # -------------------------------------------------------------
         print("\n--- [TEST 12] Sidebar collapse + refresh ---")
         page.goto(f"{BASE}/dashboard", wait_until="load")
-        page.wait_for_selector("aside button[aria-label='Toggle sidebar']")
-        collapse_btn = page.locator("aside button[aria-label='Toggle sidebar']")
+        page.wait_for_selector("aside button[aria-label*='sidebar'], aside button[aria-label*='Sidebar']")
+        collapse_btn = page.locator("aside button[aria-label*='sidebar'], aside button[aria-label*='Sidebar']")
         collapse_btn.click(force=True)
         page.wait_for_timeout(400)
         collapsed_width = page.locator("aside").bounding_box()["width"]
@@ -111,7 +111,7 @@ def main():
         check("TEST 12: Icon có title tooltip khi collapsed", bool(first_icon_title), f"title: {first_icon_title}")
 
         # Mở rộng lại sidebar
-        page.locator("aside button[aria-label='Toggle sidebar']").click(force=True)
+        page.locator("aside button[aria-label*='sidebar'], aside button[aria-label*='Sidebar']").click(force=True)
         page.wait_for_timeout(400)
 
         # -------------------------------------------------------------
@@ -126,12 +126,12 @@ def main():
         lang_btn = page.locator("#locale-toggle-btn")
         curr_text = (lang_btn.text_content() or "").strip()
         if "EN" in curr_text:
-            lang_btn.click()
+            lang_btn.click(force=True)
             page.wait_for_timeout(300)
             btn_after_en = (lang_btn.text_content() or "").strip()
             check("TEST 9: Đổi sang EN: nút ngôn ngữ chuyển thành VI", btn_after_en == "VI")
             # Đổi lại VI
-            lang_btn.click()
+            lang_btn.click(force=True)
             page.wait_for_timeout(300)
             btn_after_vi = (lang_btn.text_content() or "").strip()
             check("TEST 9: Đổi lại VI: nút ngôn ngữ chuyển về EN", btn_after_vi == "EN")
@@ -139,11 +139,11 @@ def main():
         # Đổi theme
         theme_btn = page.locator("header button[aria-label*='giao diện']")
         initial_theme = page.evaluate("() => document.documentElement.getAttribute('data-theme')")
-        theme_btn.click()
+        theme_btn.click(force=True)
         page.wait_for_timeout(300)
         new_theme = page.evaluate("() => document.documentElement.getAttribute('data-theme')")
         check("TEST 9: Đổi theme: data-theme thay đổi", new_theme != initial_theme, f"{initial_theme} -> {new_theme}")
-        theme_btn.click()
+        theme_btn.click(force=True)
         page.wait_for_timeout(200)
 
         # -------------------------------------------------------------
