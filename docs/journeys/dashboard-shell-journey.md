@@ -200,8 +200,8 @@ cd fe-ppe && npm run dev   # app :3000 + design system :3001
 
 **Kiểm tra:**
 
-- [ ] JSON hợp lệ (npm run dev không báo lỗi parse).
-- [ ] `t("nav.incidents")` trả đúng chuỗi theo locale (test tạm ở dashboard-content.tsx rồi bỏ).
+- [x] JSON hợp lệ (npm run dev không báo lỗi parse).
+- [x] `t("nav.incidents")` trả đúng chuỗi theo locale (test tạm ở dashboard-content.tsx rồi bỏ).
 
 ---
 
@@ -307,12 +307,12 @@ export const ROLE_LABELS: Record<string, string> = {
 
 **Kiểm tra:**
 
-- [ ] TypeScript không báo lỗi (mọi icon import tồn tại).
-- [ ] Test nhanh filter bằng console (node/tsx hoặc tạm trong dashboard-content):
+- [x] TypeScript không báo lỗi (mọi icon import tồn tại).
+- [x] Test nhanh filter bằng console (node/tsx hoặc tạm trong dashboard-content):
   - `getVisibleNavItems(["NOTIFICATION_READ"])` → 3 item (dashboard, notifications, settings)
   - `getVisibleNavItems(["PPE_INCIDENT_READ", "PPE_CAMERA_READ", "PPE_SITE_READ", "NOTIFICATION_READ"])` → 6 item (dashboard, incidents, cameras, sites, notifications, settings), không có nhóm analytics/admin
   - `getVisibleNavItems([...đủ quyền ADMIN])` → 12 item
-- [ ] `resolveRoutePermission("/incidents/abc")` → `"PPE_INCIDENT_READ"`; `resolveRoutePermission("/dashboard")` → `undefined`.
+- [x] `resolveRoutePermission("/incidents/abc")` → `"PPE_INCIDENT_READ"`; `resolveRoutePermission("/dashboard")` → `undefined`.
 
 ---
 
@@ -369,7 +369,7 @@ export function useSite(): SiteContextValue {
 
 **Kiểm tra:**
 
-- [ ] File compile không lỗi (chưa render — sẽ mount ở Bước 4).
+- [x] File compile không lỗi (chưa render — sẽ mount ở Bước 4).
 
 ---
 
@@ -383,6 +383,8 @@ export function useSite(): SiteContextValue {
 - Tạo `src/components/features/app-shell/app-header.tsx`
 - Tạo `src/components/features/app-shell/forbidden-view.tsx`
 - Sửa `app/(auth)/layout.tsx`
+- Tạo `app/(auth)/[...catchAll]/page.tsx` — bắt route chưa tồn tại → `notFound()` để 404 render **trong shell** (Next 16 không tự bọc layout cho URL không khớp; `export const instant = false` vì layout dùng `usePathname` chặn prerender). AppShell vẫn đè 403 cho route có quyền bắt buộc.
+- Tạo `app/(auth)/not-found.tsx` — UI 404 trong shell (i18n `guard.notFoundTitle/Body` + nút Về Tổng quan)
 
 ### 4.1 `app-sidebar.tsx`
 
@@ -633,12 +635,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
 **Kiểm tra (chạy `npm run dev`, mở :3000):**
 
-- [ ] Login `admin@ppe.local` → mọi trang (kể cả `/change-password`, `/settings/security`) có sidebar + header.
-- [ ] Sidebar hiện đủ 4 nhóm, 12 item (ADMIN).
-- [ ] Click item → chuyển trang, item active đổi style "pressed". Các route chưa tồn tại (VD `/incidents`) sẽ 404 nhưng shell vẫn bao quanh — chấp nhận (stub ở M2).
-- [ ] Login `user@ppe.local` → sidebar chỉ còn Tổng quan, Thông báo, Cài đặt; gõ `/users` trực tiếp → màn hình 403 với nút "Về Tổng quan".
-- [ ] Login `officer@ppe.local` → không thấy nhóm Quản trị/Phân tích; vào `/reports` → 403.
-- [ ] Đổi theme dark/light, chuyển EN/VI → shell đổi theo, không sót chuỗi cứng.
+- [x] Login `admin@ppe.local` → mọi trang (kể cả `/change-password`, `/settings/security`) có sidebar + header.
+- [x] Sidebar hiện đủ 4 nhóm, 12 item (ADMIN).
+- [x] Click item → chuyển trang, item active đổi style "pressed". Các route chưa tồn tại (VD `/incidents`) sẽ 404 nhưng shell vẫn bao quanh — chấp nhận (stub ở M2).
+- [x] Login `user@ppe.local` → sidebar chỉ còn Tổng quan, Thông báo, Cài đặt; gõ `/users` trực tiếp → màn hình 403 với nút "Về Tổng quan".
+- [x] Login `officer@ppe.local` → không thấy nhóm Quản trị/Phân tích; vào `/reports` → 403.
+- [x] Đổi theme dark/light, chuyển EN/VI → shell đổi theo, không sót chuỗi cứng.
 
 ---
 
@@ -746,9 +748,9 @@ Sửa `app-header.tsx`: thay comment `{/* Bước 5: <UserMenu /> */}` bằng `<
 
 **Kiểm tra:**
 
-- [ ] Avatar hiển thị ảnh (nếu có) hoặc chữ cái đầu; role badge đúng label tiếng Việt theo tài khoản.
-- [ ] Dropdown mở/đóng; click ra ngoài đóng; click "Đăng xuất" → về `/login`.
-- [ ] 2 link điều hướng đúng trang.
+- [x] Avatar hiển thị ảnh (nếu có) hoặc chữ cái đầu; role badge đúng label tiếng Việt theo tài khoản.
+- [x] Dropdown mở/đóng; click ra ngoài đóng; click "Đăng xuất" → về `/login`.
+- [x] 2 link điều hướng đúng trang.
 
 ---
 
@@ -828,8 +830,8 @@ Sửa `app-header.tsx`: thay comment `{/* Bước 6: <NotificationBell /> */}` b
 
 **Kiểm tra:**
 
-- [ ] Click chuông → dropdown hiện tiêu đề + "Chưa có thông báo" + link "Xem tất cả" → `/notifications` (404 ở M1 là chấp nhận — stub ở M2).
-- [ ] Click ra ngoài đóng dropdown.
+- [x] Click chuông → dropdown hiện tiêu đề + "Chưa có thông báo" + link "Xem tất cả" → `/notifications` (404 ở M1 là chấp nhận — stub ở M2).
+- [x] Click ra ngoài đóng dropdown.
 
 ---
 
@@ -905,9 +907,9 @@ Sửa `app-header.tsx`: thay comment `{/* Bước 7: <SiteSelector /> */}` bằn
 
 **Kiểm tra:**
 
-- [ ] `admin@ppe.local` / `manager@ppe.local` / `officer@ppe.local` → thấy "Tất cả sites" ở header.
-- [ ] `user@ppe.local` → **không thấy** site selector.
-- [ ] Dropdown mở hiện placeholder; đóng khi click ngoài.
+- [x] `admin@ppe.local` / `manager@ppe.local` / `officer@ppe.local` → thấy "Tất cả sites" ở header.
+- [x] `user@ppe.local` → **không thấy** site selector.
+- [x] Dropdown mở hiện placeholder; đóng khi click ngoài.
 
 ---
 
@@ -929,9 +931,9 @@ Sửa `app-header.tsx`: thay comment `{/* Bước 7: <SiteSelector /> */}` bằn
 
 **Kiểm tra:**
 
-- [ ] Không có console error/warning (React key, hydration).
-- [ ] Chạy `npm run build` (hoặc `npx tsc --noEmit`) không lỗi type.
-- [ ] Thử 3 kích thước màn hình (mobile/tablet/desktop) không vỡ layout.
+- [x] Không có console error/warning (React key, hydration).
+- [x] Chạy `npm run build` (hoặc `npx tsc --noEmit`) không lỗi type.
+- [x] Thử 3 kích thước màn hình (mobile/tablet/desktop) không vỡ layout.
 
 ---
 
@@ -961,13 +963,13 @@ Sửa `app-header.tsx`: thay comment `{/* Bước 7: <SiteSelector /> */}` bằn
 
 ## Checklist hoàn thiện M1
 
-- [ ] `navigation.ts` là nguồn duy nhất của menu + guard map (không điều kiện quyền rải rác trong component).
-- [ ] Sidebar: 4 nhóm, active = pressed, collapse + localStorage, nhóm rỗng tự ẩn.
-- [ ] Header: site selector (gated), realtime dot, chuông, theme, locale, avatar menu.
-- [ ] Guard 403 hoạt động với route con (`/incidents/:id`).
-- [ ] Layout `(auth)` giữ nguyên 3 nhánh guard cũ (unauth/mustChange/inactive) — không hồi quy auth.
-- [ ] i18n vi/en đầy đủ; không chuỗi cứng trong component shell.
-- [ ] `tsc --noEmit` sạch; không console error.
-- [ ] Đủ 13 test E2E ở Bước 9.
+- [x] `navigation.ts` là nguồn duy nhất của menu + guard map (không điều kiện quyền rải rác trong component).
+- [x] Sidebar: 4 nhóm, active = pressed, collapse + localStorage, nhóm rỗng tự ẩn.
+- [x] Header: site selector (gated), realtime dot, chuông, theme, locale, avatar menu.
+- [x] Guard 403 hoạt động với route con (`/incidents/:id`).
+- [x] Layout `(auth)` giữ nguyên 3 nhánh guard cũ (unauth/mustChange/inactive) — không hồi quy auth.
+- [x] i18n vi/en đầy đủ; không chuỗi cứng trong component shell.
+- [x] `tsc --noEmit` sạch; không console error.
+- [x] Đủ 13 test E2E ở Bước 9.
 
 **Sau M1 → chuyển M2** (stub pages cho 12 route — dashboard-journey.md Bước 3): lúc đó mọi item sidebar bấm được mà không 404.

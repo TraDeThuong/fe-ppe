@@ -11,7 +11,11 @@ const ALERT_EVENTS = ["notification:ppe_violation", "notification:new"] as const
 
 /** SSE không gửi được header/cookie an toàn → backend cấp ticket 1 lần qua REST */
 async function fetchStreamTicket(): Promise<string> {
-  const data = (await apiClient.post("/notifications/stream-ticket")) as {
+  const data = (await apiClient.post(
+    "/notifications/stream-ticket",
+    undefined,
+    { suppressToast: true } as any,
+  )) as {
     ticket: string;
     expiresIn: number;
   };

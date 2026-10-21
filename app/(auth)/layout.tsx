@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
 import { RealtimeProvider } from "@/providers/realtime-provider";
@@ -17,12 +17,12 @@ import { Button } from "@ui/button";
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { status, user, logout } = useAuth();
   const { t } = useLocale();
-  const pathname = usePathname();
   const router = useRouter();
 
   const mustChange = Boolean(user?.mustChangePassword);
 
   useEffect(() => {
+    const pathname = window.location.pathname;
     if (status === "unauthenticated") {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
       return;
@@ -34,7 +34,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     ) {
       router.replace("/change-password");
     }
-  }, [status, mustChange, pathname, router]);
+  }, [status, mustChange, router]);
 
   // Quan trọng: KHÔNG chặn render children khi loading/unauthenticated —
   // Next 16 (cacheComponents) cần page segment render trong pass prerender,
@@ -67,7 +67,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   }
 
   // mustChangePassword → chờ effect redirect ở trên
-  if (mustChange && pathname !== "/change-password") {
+  if (
+    mustChange &&
+    typeof window !== "undefined" &&
+    window.location.pathname !== "/change-password"
+  ) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
         <p>{t("guard.skeleton")}</p>

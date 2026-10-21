@@ -27,9 +27,11 @@ export function NotificationBell() {
     <div ref={ref} className="relative">
       <button
         type="button"
+        id="notification-bell-btn"
         onClick={() => setOpen((v) => !v)}
         aria-label={t("header.notifications.title")}
-        className="relative rounded-full p-2 text-foreground hover:shadow-nm-sm"
+        aria-expanded={open}
+        className="relative rounded-full p-2 text-foreground transition-shadow hover:shadow-nm-sm"
       >
         <Bell className="h-5 w-5" />
         {/* TODO M3: badge số chưa đọc — dùng useUnreadCount + SSE */}
@@ -48,7 +50,7 @@ export function NotificationBell() {
             <Link
               href="/notifications"
               onClick={() => setOpen(false)}
-              className="block rounded-lg px-3 py-2 text-center text-sm text-primary hover:shadow-nm-sm"
+              className="block rounded-lg px-3 py-2 text-center text-sm text-primary transition-shadow hover:shadow-nm-sm"
             >
               {t("header.notifications.viewAll")}
             </Link>

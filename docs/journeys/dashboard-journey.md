@@ -317,8 +317,8 @@ AuthGuard > RealtimeProvider > SiteProvider > PrefetchProvider
 
 ### Tiêu chí hoàn thành
 
-- [ ] Đi qua mọi route trong sidebar (theo role ADMIN) không lỗi, không 404.
-- [ ] Mỗi trang hiển thị đúng tiêu đề + mô tả, breadcrumb đơn giản.
+- [x] Đi qua mọi route trong sidebar (theo role ADMIN) không lỗi, không 404.
+- [x] Mỗi trang hiển thị đúng tiêu đề + mô tả, breadcrumb đơn giản.
 
 ---
 
@@ -450,10 +450,10 @@ Row 5: Card "Vi phạm mới nhất" (realtime: lastAlert + snapshotUrl) — ph�
 
 ## Checklist hoàn thiện
 
-- [ ] Sidebar/Navbar hoàn chỉnh theo thiết kế 4.2–4.3, gating đúng theo bảng 3.1.
+- [x] Sidebar/Navbar hoàn chỉnh theo thiết kế 4.2–4.3, gating đúng theo bảng 3.1.
 - [ ] Role USER mới đăng ký thấy empty state "chờ phân quyền" (2.2).
-- [ ] Trang 403 + guard route hoạt động.
-- [ ] Đủ 12 route nhóm `(auth)`, không 404.
+- [x] Trang 403 + guard route hoạt động.
+- [x] Đủ 12 route nhóm `(auth)`, không 404.
 - [ ] Services + hooks 6 domain theo pattern, gọi data thật thành công.
 - [ ] Dashboard 5 hàng bố cục (5.1), mock statistics có badge rõ ràng.
 - [ ] Prefetch đúng role, i18n vi/en đầy đủ.

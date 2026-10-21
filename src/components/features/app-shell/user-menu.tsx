@@ -28,14 +28,17 @@ export function UserMenu() {
   const roleLabelKey = ROLE_LABELS[user.role] ?? "roles.USER";
 
   const itemClass =
-    "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:shadow-nm-sm";
+    "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground transition-shadow hover:shadow-nm-sm";
 
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
+        id="user-menu-btn"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-full p-1 pr-2 hover:shadow-nm-sm"
+        aria-label={t("userMenu.label")}
+        aria-expanded={open}
+        className="flex items-center gap-2 rounded-full p-1 pr-2 transition-shadow hover:shadow-nm-sm"
       >
         {user.avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -87,6 +90,7 @@ export function UserMenu() {
             </Link>
             <button
               type="button"
+              id="user-logout-btn"
               onClick={() => void logout()}
               className={itemClass}
             >

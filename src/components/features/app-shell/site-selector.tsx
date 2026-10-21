@@ -33,8 +33,11 @@ export function SiteSelector() {
     <div ref={ref} className="relative">
       <button
         type="button"
+        id="site-selector-btn"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-foreground hover:shadow-nm-sm"
+        aria-expanded={open}
+        aria-label={siteId ? t("siteSelector.selected") : t("siteSelector.all")}
+        className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-foreground transition-shadow hover:shadow-nm-sm"
       >
         <Building2 className="h-4 w-4 text-muted-foreground" />
         <span className="hidden sm:inline">

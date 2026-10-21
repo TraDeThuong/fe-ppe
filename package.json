@@ -7,7 +7,9 @@
     "dev:app": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:refresh": "tsx scripts/test-refresh-single-flight.ts"
+    "test:refresh": "tsx scripts/test-refresh-single-flight.ts",
+    "test:shell": "python3 scripts/test-dashboard-shell-e2e.py",
+    "test:m2": "python3 scripts/test-dashboard-m2-routes-e2e.py"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.2",

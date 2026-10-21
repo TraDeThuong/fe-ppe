@@ -33,7 +33,10 @@ export class ApiError extends Error {
 /** AuthContext lắng nghe sự kiện này để reset trạng thái và đưa user về /login */
 export const AUTH_SESSION_EXPIRED_EVENT = "auth:session-expired";
 
-type RetryableConfig = InternalAxiosRequestConfig & { _retry?: boolean };
+type RetryableConfig = InternalAxiosRequestConfig & {
+  _retry?: boolean;
+  suppressToast?: boolean;
+};
 
 /** Các endpoint đăng nhập không được trigger refresh khi 401 */
 const REFRESH_EXEMPT_PATHS = ["/auth/login", "/auth/refresh", "/auth/2fa/verify", "/auth/google"];
@@ -186,7 +189,7 @@ export function createApiClient(baseURL: string): AxiosInstance {
         }
       }
 
-      if (shouldGlobalToast(status, code)) {
+      if (!config?.suppressToast && shouldGlobalToast(status, code)) {
         toast.error(message, { id: "api-global-error" });
       }
 
