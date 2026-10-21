@@ -18,6 +18,7 @@
 6. [Bước 5 — `services/`: từng hàm API](#bước-5--services-từng-hàm-api)
 7. [Bước 6 — `hooks/`: useQuery / useMutation](#bước-6--hooks-usequery--usemutation)
 8. [Bước 7 — Pages / Components](#bước-7--pages--components)
+   - [7.5 Quy trình test tay đầu cuối](#75-quy-trình-test-tay-đầu-cuối)
 9. [Bước 8 — PrefetchProvider (nâng cao)](#bước-8--prefetchprovider-nâng-cao)
 10. [Ma trận xử lý lỗi toàn cục](#ma-trận-xử-lý-lỗi-toàn-cục)
 11. [Đảm bảo yếu tố microservice](#đảm-bảo-yếu-tố-microservice)
@@ -1041,7 +1042,7 @@ export const authKeys = {
 | `/verify-email` | Đọc `?token=` → gọi `verifyEmail` → thành công: nút về login; `TOKEN_EXPIRED`: nút gửi lại (resend) |
 | `/forgot-password` | Email + Turnstile → **luôn** hiện "nếu email tồn tại, link reset đã được gửi" (anti-enum) |
 | `/reset-password` | Đọc `?token=` → form mật khẩu mới + checklist policy → thành công → login (session đã bị revoke hết) |
-| `/auth/callback` | Google redirect về đây: đọc `code` + `state` từ query → gọi `googleLogin({ code, redirectUri })` → nhánh `requires2FA` như login. Xử lý lỗi `state` không khớp (CSRF) → hiển thị lỗi chung |
+| `/auth/callback` | Google redirect về đây: đọc `code` + `state` từ query. State có prefix `link:` → luồng **liên kết** (`linkSocial`) → về /settings/security; còn lại → `googleLogin({ code, redirectUri })` → nhánh `requires2FA` như login. Xử lý lỗi `state` không khớp (CSRF) → hiển thị lỗi chung |
 
 **Trang cần đăng nhập — `(auth)/`:**
 
@@ -1050,7 +1051,7 @@ export const authKeys = {
 | `/2fa` | Nhập 6 ô số (hoặc 1 ô chấp nhận backup code `XXXX-XXXX`). Đếm ngược 5 phút hiệu lực tempToken → hết hạn: nút "đăng nhập lại". Sai code: toast + vẫn giữ tempToken để thử lại |
 | `/change-password` | Form oldPassword+newPassword (checklist policy). Lưu ý user Google-only: BE trả 400 `BAD_REQUEST` "chưa có mật khẩu" → hướng dẫn dùng forgot-password. Thành công → toast + **về `/login`** (session bị revoke hết) |
 | `/settings/security` | Tabs: **2FA** (trạng thái từ `me.twoFactorEnabled`; bật → QR từ `otpauthUrl` → nhập code → **modal backupCodes 1 lần** bắt xác nhận "đã lưu" + nút tải .txt; tái tạo → yêu cầu TOTP + password; tắt → code + password) — **Sessions** (bảng thiết bị, nút thu hồi từng cái / tất cả thiết bị khác, đánh dấu `isCurrent`) — **Social** (danh sách đã link, nút link Google / unlink, cảnh báo anti-lockout) — **Password** (đổi mật khẩu) — **Vô hiệu hóa tài khoản** (nhập password + reason → xác nhận qua email) |
-| Trang xác nhận deactivate | Đọc token từ link email → gọi `confirmDeactivate` → màn "tạm biệt" (⚠️ link email hiện trỏ path không tồn tại — xem Tiền đề #3) |
+| `/verify-email/deactivate` (xác nhận deactivate) | Đọc token từ link email → gọi `confirmDeactivate` → màn "tạm biệt" (link email: `${APP_URL}/verify-email/deactivate?token=...` — notification-service). Guard 2 lớp có ngoại lệ cho path này (user đang đăng nhập bấm link không bị đá về "/") |
 
 ### 7.3 Tiêu chí hoàn thành
 
@@ -1071,6 +1072,78 @@ export const authKeys = {
 > - Turnstile action `forgot_password` (khớp `TURNSTILE_ACTION` BE). 422 map field; CAPTCHA lỗi → banner vàng + reset widget; 429/5xx/mạng → chỉ toast interceptor.
 > - Anti-enum: màn "Kiểm tra email của bạn" luôn giống nhau — BE `forgotPassword` **luôn 200** kể cả email không tồn tại hay đang cooldown 60s (cooldown là *graceful*, KHÁC resend-verification trả 429 `TOO_MANY_REQUESTS` → không cần đếm ngược trên nút như ma trận lỗi ghi, BE đã nuốt).
 > - Test: `scripts/test-step7-2-forgot-password-e2e.py` 11/11 (render + zod + CAPTCHA_REQUIRED BE thật + mock 422 + mock 200 anti-enum + nút về login). Regression `test-step7-2-login-e2e.py` 15/15.
+>
+> **Phát sinh thực tế (2026-10-21) — trang /reset-password hoàn thành (Bước 7.2):**
+>
+> - Cấu trúc bám theo register/forgot-password: `forms/reset-password-form.tsx` + `app/(public)/reset-password/page.tsx` (AuthShell), dùng `useResetPassword` (Bước 6, `suppressToast: true`) — không gọi auth.service trực tiếp.
+> - **Không có Turnstile**: `resetPasswordSchema` (BE) không nhận `turnstileToken` — token trong link email đã là yếu tố xác thực (spec 7.2 không yêu cầu captcha cho trang này).
+> - Token đọc từ `window.location.search` 1 lần duy nhất lúc mount (state `undefined` = đang xác định → render `Loader`; `null` = link thiếu token → màn "Liên kết không hợp lệ" + nút yêu cầu liên kết mới). KHÔNG dùng `useSearchParams` — bản Next này build production bắt buộc Suspense boundary cho page tĩnh dùng hook đó, trong khi `(public)` layout đang có constraint `cacheComponents` phải render page segment trong pass prerender.
+> - Checklist password policy realtime 5 tiêu chí (khớp `resetPasswordSchema` BE) — nhân bản cục bộ từ register-form với nhãn `resetPassword.checklist.*` (chưa tách shared component; cân nhắc khi làm change-password trang thứ 3).
+> - Lỗi: 400 `TOKEN_INVALID`/`TOKEN_EXPIRED` → banner đỏ i18n + nút "Yêu cầu liên kết mới" → `/forgot-password`; 422 map field `newPassword`; 429/5xx/mạng → chỉ toast interceptor. `autoComplete="new-password"` cho trình quản lý mật khẩu.
+> - Thành công: hook đã dọn `tokenStore` + `queryClient` + `setUser(null)` (BE revoke toàn bộ session) → màn "Đặt lại mật khẩu thành công" render bình thường dưới guard (public), nút "Đăng nhập ngay" → `/login`.
+> - Test: `scripts/test-step7-2-reset-password-e2e.py` 17/17 (render + màn link không hợp lệ + zod + checklist realtime + TOKEN_INVALID BE thật + mock TOKEN_EXPIRED/422/200 + nút về login). Regression forgot-password 12/12, register 16/16, step7-1 17/17, step3 18/18. Lưu ý: suite login & step7-1 thỉnh thoảng flaky trong môi trường hiện tại (đếm ngược 423 lệch giây gây hydration mismatch, Turnstile headless lúc cấp token lúc không) — chạy lại là xanh, không liên quan trang mới.
+> - ✅ BE đã sửa cho khớp (2026-10-21): `mail.config.ts` (identity + media) đổi `verificationUrl` → `${appUrl}/verify-email`, `resetPasswordUrl` → `${appUrl}/reset-password` (notification đã sửa trước đó); link deactivate tự động thành `${appUrl}/verify-email/deactivate?token=...` (khớp route FE). Identity `.env` + `.env.example` thêm `APP_URL="http://localhost:3000"` (origin FE — trước đó identity thiếu nên fallback `localhost:7777`). Container identity đã rebuild + recreate để nhận env mới (compose đọc env_file chỉ khi recreate).
+>
+> **Phát sinh thực tế (2026-10-21) — trang /verify-email hoàn thành + fix link email & register 500:**
+>
+> - Cấu trúc: `forms/verify-email-form.tsx` + `app/(public)/verify-email/page.tsx` (AuthShell), dùng `useVerifyEmail` + `useResendVerification` (Bước 6, `suppressToast: true`).
+> - Trang tự gọi `GET /auth/verify-email?token=` ngay khi mở — token dùng 1 lần nên có guard chống StrictMode double-fire (ref + E2E assert đếm request == 1). Token đọc trong `useEffect` (KHÔNG đọc `window.location` ở initial state — server render không thấy URL → hydration mismatch; pattern reset-password dùng state `undefined` "đang xác định" cũng tương đương).
+> - Trạng thái: `TOKEN_EXPIRED` → panel nhập email + Turnstile (action `resend_verification`) + nút gửi lại — resend luôn trả 200 (anti-enum) → màn "Kiểm tra email của bạn"; `TOKEN_INVALID`/thiếu token → màn link không hợp lệ; 5xx/mạng → màn lỗi + nút Thử lại; 422 map field; 429 → toast interceptor.
+> - **Fix BE đăng ký 500**: schema Prisma có cột `type` (`verification_tokens`) nhưng chưa migrate → mọi register 500 ở `verificationToken.create()` (user test thật phát hiện 2026-10-21). Đã chạy `prisma migrate dev --name add_verification_token_type` — kèm drift cũ (drop 4 bảng notification tàn dư trong identity DB do tách microservice).
+> - **Fix link email**: notification-service build link từ `mailConfig.appUrl` default `localhost:7777` + path API (`/api/v1/auth/verify-email`) → set `APP_URL=http://localhost:3000` trong `smart-ppe-notification-service/.env` + đổi `verificationUrl`/`resetPasswordUrl` thành trang FE (`/verify-email`, `/reset-password`) trong `mail.config.ts`, rebuild container notification_service. ⚠️ Email cũ gửi trước fix có link chết (7777) — phải dùng email gửi lại, hoặc tự ghép `http://localhost:3000/verify-email?token=<token cũ>` (token cũ vẫn còn hiệu lực 24h nếu chưa dùng).
+> - Test: `scripts/test-step7-2-verify-email-e2e.py` 16/16 (mock 200/TOKEN_EXPIRED/TOKEN_INVALID/500+retry/resend 200+422, widget gate, verify gọi đúng 1 lần, console sạch).
+>
+> **Phát sinh thực tế (2026-10-21) — trang /auth/callback (Google OAuth2) hoàn thành (Bước 7.2):**
+>
+> - Cấu trúc: `app/(public)/auth/callback/page.tsx` (không dùng AuthShell — trang trung chuyển, card lỗi gọn) + `src/lib/oauth.ts` (state OAuth, `TEMP_TOKEN_STORAGE_KEY` dùng chung với login-form và /2fa — trước đây mỗi nơi hardcode `"ppe.tempToken"`).
+> - Luồng: đọc `code`/`state`/`error` từ query (đọc trong `useEffect`, không đọc URL ở initial state — tránh hydration mismatch như pattern verify-email) → `?error=` (user hủy) → màn hủy; thiếu `code` hoặc `state` không khớp bản lưu sessionStorage → màn lỗi chung (chống CSRF, state bị xóa sau 1 lần dùng — chống replay); hợp lệ → `useGoogleLogin({ code, redirectUri })` với `redirectUri = ${NEXT_PUBLIC_APP_URL}/auth/callback` → `requires2FA` → lưu tempToken → `/2fa`; thành công → hook đã lưu token + AuthContext → `/` (trang gốc chuyển tiếp /dashboard). Guard ref chống StrictMode double-fire (Google chỉ chấp nhận đổi code đúng 1 lần). Lỗi API hiển thị message BE inline (suppressToast).
+> - Nút "Đăng nhập bằng Google" trên /login (form): `useGoogleUrl` (`enabled` theo params + `retry: false` — click nút mới fetch), click → sinh `state` (`crypto.randomUUID`) → lưu sessionStorage → đổi URL → `window.location.assign`. Gate `feature.social_login.enabled` qua mounted-state (`useEffect setMounted`) — flag đến từ query async, render nút sau hydrate để tránh mismatch server/client HTML (Next prerender client components).
+> - **BE Google OAuth đã cấu hình (2026-10-21)** — `smart-ppe-identity-service/.env` thêm `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` (OAuth app Testing `ppe-monitoring-512306`) + `GOOGLE_OAUTH_ALLOWED_REDIRECT_URIS="http://localhost:3000/auth/callback"`. **Lưu ý vận hành:** `docker restart identity_service` KHÔNG nạp lại env_file — phải `docker compose up -d identity-service` (recreate container). Verify: `GET /auth/google/url?redirectUri=http://localhost:3000/auth/callback` → URL accounts.google.com thật (client_id, scope openid email profile, access_type=offline, prompt=consent); redirectUri ngoài allowlist (evil.com) → `VALIDATION_ERROR` (chống open redirect). ⚠️ Secret chỉ nằm ở .env dev — không commit git.
+> - Đường đi thành công (đổi code thật, kể cả nhánh 2FA) còn chờ **Test users trong Google Cloud Console** (OAuth app chế độ Testing chỉ cho phép email trong danh sách Test users — việc thủ công của người quản lý Google Cloud). Test thủ công theo `docs/test-cases/auth.md` mục 6 (GOOGLE-2xx) — milestone M4.
+> - Test: `scripts/test-step7-3-google-callback-e2e.py` **21/21** (2026-10-21, sau khi BE cấu hình) — nút Google render + click → điều hướng accounts.google.com THẬT (client_id/redirect_uri/scope/state khớp sessionStorage) + 3 nhánh lỗi callback + state khớp + code giả → BE đổi code với Google thật → invalid_grant hiển thị inline + replay + link mode mock 200/400 + console sạch. Regression: `test-step7-2-login-e2e.py` 15/15, `test-step7-1-e2e.py` 17/17. ⚠️ Lưu ý chạy suite dồn dập gặp 429 auth rate limit (BE: 30 req/15 phút) → login "kẹt" ở /login giả như bug — reset bằng `docker restart identity_service` (limiter in-memory, xem 7.4).
+>
+> **Phát sinh thực tế (2026-10-21) — trang /2fa thật hoàn thành (Bước 7.2):**
+>
+> - Cấu trúc: `forms/two-factor-form.tsx` + `app/(public)/2fa/page.tsx` (thay placeholder). Guard trang: mở `/2fa` không có tempToken (`sessionStorage["ppe.tempToken"]`) → redirect `/login`.
+> - Nhập mã: 6 ô OTP riêng (gõ tự nhảy, paste 6 số vào ô đầu, backspace lùi ô, `inputMode="numeric"`) — mode "Dùng mã dự phòng" chuyển sang 1 ô `autocomplete="one-time-code"`, chấp nhận `XXXX-XXXX` và tự uppercase trước khi gửi. Zod theo mode (`/^\d{6}$/` hoặc `/^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/`).
+> - Đếm ngược 5 phút hiệu lực tempToken (mm:ss, parse `exp` JWT nếu decode được — fallback 5:00 khi token rác) → hết hạn: màn "mã đã hết hạn" + nút "Đăng nhập lại" (xóa tempToken, về /login).
+> - Lỗi: 401 `TOKEN_EXPIRED`/`TOKEN_INVALID` (BE thật — tempToken rác) → màn hết hạn; 400 `TWO_FACTOR_INVALID_CODE` → toast + xóa các ô + **giữ tempToken** để thử lại; 401 `INVALID_CREDENTIALS` (backup code sai) → toast tương tự. Thành công → hook lưu token + AuthContext → redirect `next` (bảo vệ open-redirect) hoặc `/dashboard`, xóa tempToken.
+> - **Phát sinh — React warning `non-boolean attribute`:** `FormField` (ui/form) `cloneElement` inject `error: true` vào child — khi child là host element (`div role="group"` chứa 6 ô OTP) React 19 cảnh báo `Received true for a non-boolean attribute error`. Fix tại `form-field.tsx`: chỉ inject `error` khi `typeof child.type !== "string"` (component); host element nhận error qua `aria-invalid` + `FormMessage` như cũ.
+> - **Phát sinh — mock 200 phải kèm Set-Cookie:** token giả chỉ ở memory (tokenStore) — proxy LỚP 1 chỉ check SỰ HIỆN DIỆN cookie, RSC fetch `/dashboard` sau `router.replace` sẽ bị 307 đá về `/login` → loop vô hạn. Mock verify 2FA thành công phải `Set-Cookie` accessToken/refreshToken giả + catch-all 200 cho 2 origin API (đăng ký TRƯỚC — Playwright route LIFO) để prefetch không 401; trước bước quay lại luồng public phải `context.clear_cookies()` (cookie giả khiến proxy đá /login, /2fa về "/").
+> - Test: `scripts/test-step7-2-two-factor-e2e.py` **16/16** (guard + render 6 ô + countdown + zod 2 mode + auto-advance + 401 BE thật + mock sai mã giữ tempToken + mock 200 về dashboard + payload backup uppercase + console sạch).
+>
+> **Phát sinh thực tế (2026-10-21) — trang /change-password thật hoàn thành (Bước 7.2):**
+>
+> - Cấu trúc: `forms/change-password-form.tsx` + `app/(auth)/change-password/page.tsx` (thay placeholder); form cũng được tái dùng trong tab Password của /settings/security (`settings/password-panel.tsx`). Checklist policy 5 tiêu chí realtime = component `password-checklist.tsx` (tách dùng chung, label i18n theo prefix).
+> - Google-only: 400 `BAD_REQUEST` → banner vàng (message BE) + gợi ý i18n + nút "Tạo mật khẩu qua Quên mật khẩu" → `useLogout` rồi chuyển `/forgot-password`. **Phát sinh — phải hard navigation:** `router.replace` trong onSuccess thua race với guard `(auth)` layout (status → unauthenticated → `replace("/login?next=...")` chạy sau, hủy transition) → dùng `window.location.assign("/forgot-password")` (logout xong nhảy thẳng, guard không kịp chạy).
+> - 401 `INVALID_CREDENTIALS` (BE thật) → banner i18n "Mật khẩu hiện tại không chính xác." + xóa ô oldPassword + focus. **Phát sinh:** BE trả message tiếng Anh ("Invalid old password") → FE map sang i18n thay vì hiển thị nguyên message BE như login (UI dự án tiếng Việt).
+> - Thành công → hook đã dọn `tokenStore` + cache + `setUser(null)` + emit `auth:session-expired` (BE thu hồi TOÀN BỘ session) → `router.replace("/login")`.
+> - **⚠️ Phát sinh nghiêm trọng khi viết test:** endpoint thật là **PUT `/auth/password`** — mock pattern đầu tiên viết nhầm `**/auth/change-password` → request THẬT lọt qua và đổi mật khẩu admin thật. Đã restore mật khẩu gốc qua API (login bằng mật khẩu mới → PUT đổi lại). Bài học: luôn đối chiếu pattern mock với `auth.service.ts` trước khi chạy.
+> - **Phát sinh — mock 200 phải clear cookie TRONG handler:** Playwright áp dụng `Set-Cookie: Max-Age=0` TRỄ hơn JS onSuccess → `router.replace("/login")` chạy trước khi cookie bị xóa → proxy đá /login về "/". Fix: gọi `context.clear_cookies()` ngay đầu mock handler (trước `route.fulfill`).
+> - Test: `scripts/test-step7-2-change-password-e2e.py` **14/14** (render + checklist + zod + 401 BE thật + mock 422 map field + Google-only → logout → /forgot-password + mock 200 dọn session về /login + console sạch).
+>
+> **Phát sinh thực tế (2026-10-21) — trang /settings/security hoàn thành (Bước 7.2):**
+>
+> - Cấu trúc: `app/(auth)/settings/security/page.tsx` (server component + Suspense, pattern như dashboard để qua validation `cacheComponents`) + `security-settings-content.tsx` (tab shell client, skeleton khi `!user`) + 5 panel trong `components/features/auth/settings/`.
+> - **Tab 2FA:** 3 trạng thái — chưa bật (card + nút "Bật xác thực hai yếu tố"), đang setup (`useSetup2FA` → QR render từ `otpauthUrl` bằng `qrcode` lib + secret + ô nhập code), đã bật (nút "Tạo lại mã dự phòng" / "Tắt xác thực hai yếu tố"). Enable thành công → **modal backupCodes 1 lần** (8 mã, checkbox "đã lưu" mở khóa nút "Hoàn tất", nút tải .txt). Regenerate → TOTP + password (password OPTIONAL cho user Google-only). Disable → chấp nhận TOTP 6 số HOẶC backup `XXXX-XXXX` + password. Lỗi: `TWO_FACTOR_INVALID_CODE` → gắn dưới ô code + xóa; `INVALID_CREDENTIALS` → gắn dưới ô password + xóa.
+> - **Tab Sessions:** bảng thiết bị (`useSessions`, staleTime 60s), badge "Thiết bị hiện tại" (`isCurrent`), revoke từng phiên (2 bấm xác nhận inline), "Thu hồi tất cả thiết bị khác" chỉ hiện khi có phiên khác phiên hiện tại.
+> - **Tab Social:** danh sách đã liên kết, link Google (click → `state = "link:" + uuid` → `saveOAuthState` → `useGoogleUrl` → `window.location.assign`), unlink 2 bấm xác nhận, 400 anti-lockout → cảnh báo inline (không toast đè).
+> - **Tab Deactivate:** password + lý do (max 500). 400 `INVALID_CREDENTIALS` → banner + xóa ô; **400 `VALIDATION_ERROR` không có `errors` array (Google-only)** → banner hiển thị message BE; thành công → màn "Kiểm tra email của bạn".
+> - **Phát sinh khi test:** sessions/social có `staleTime: 60s` → mock đăng ký giữa trang KHÔNG được gọi — phải `page.reload()` để queryClient mới chạm mock. Bước "Liên kết Google" assign sang accounts.google.com bị abort → không đọc được sessionStorage trên trang lỗi — quay về cùng origin rồi đọc (sessionStorage giữ theo tab + origin). Check "nút thu hồi tất cả" phải nhất quán với số phiên THẬT (admin dev có nhiều phiên từ các lần login test — không giả định chỉ 1 phiên).
+> - Test: `scripts/test-step7-2-settings-security-e2e.py` **33/33** (5 tab render + 2FA enable/regenerate/disable mock + QR + modal backupCodes + sessions BE thật + revoke mock + social link/unlink + anti-lockout + password 401 BE thật + deactivate sai mật khẩu BE thật + mock 200 + console sạch).
+>
+> **Phát sinh thực tế (2026-10-21) — trang xác nhận vô hiệu hóa tài khoản hoàn thành (Bước 7.2):**
+>
+> - Cấu trúc: `app/(public)/verify-email/deactivate/page.tsx` — token đọc từ `window.location.search` trong `useEffect` (không đọc URL ở initial state — hydration mismatch), guard ref chống StrictMode double-fire (confirm gọi đúng 1 lần).
+> - Trạng thái: thiếu token / `TOKEN_INVALID` / `TOKEN_EXPIRED` (BE thật với token rác) → màn "Liên kết không hợp lệ" + nút về /login; 5xx/mạng → màn lỗi + nút "Thử lại" (đọc lại token, mutate lại); 200 → màn "tạm biệt" "Tài khoản đã được vô hiệu hóa" + nút về /login.
+> - **Ngoại lệ guard 2 lớp:** link email đến từ notification-service khi user ĐANG đăng nhập — `proxy.ts` (thêm `DEACTIVATE_CONFIRM_PREFIX = "/verify-email/deactivate"`) và `(public)` layout đều bỏ qua bounce về "/" cho path này (đồng bộ 2 tầng).
+> - Test: `scripts/test-step7-2-deactivate-confirm-e2e.py` **10/10** (thiếu token + TOKEN_INVALID BE thật + đếm request == 1 + mock TOKEN_EXPIRED/500→retry→200 + user đang đăng nhập mở link không bị bounce + console sạch).
+>
+> **Phát sinh thực tế (2026-10-21) — link mode Google (Social → callback) hoàn thành:**
+>
+> - `app/(public)/auth/callback/page.tsx`: state có prefix `link:` (lưu bởi SocialPanel qua `saveOAuthState`) → gọi `useLinkSocial({ provider: "GOOGLE", code, redirectUri })` thay vì `useGoogleLogin` → thành công `router.replace("/settings/security")`; lỗi → màn linkError + nút "Về cài đặt bảo mật" (không phải về /login).
+> - **Bug hệ thống phát hiện khi test:** user ĐANG đăng nhập bấm link Google → về `/auth/callback` mang theo cookie → proxy (nằm trong PUBLIC_AUTH_PREFIXES) + `(public)` layout đá về "/" → link flow hỏng. Fix 2 tầng: thêm `OAUTH_CALLBACK_PREFIX = "/auth/callback"` vào ngoại lệ proxy.ts + `(public)` layout (callback phải chạy được cho CẢ 2 chế độ: đăng nhập — chưa có cookie; liên kết — đang có cookie).
+> - Test: `scripts/test-step7-3-google-callback-e2e.py` nâng lên **17/17** (thêm bước 8-9: mock link 200 → payload GOOGLE + code → /settings/security; link lỗi → màn linkError + nút về cài đặt; cookie giả để proxy cho qua /settings).
 
 ### 7.3 Tiêu chí hoàn thành
 
@@ -1078,6 +1151,122 @@ export const authKeys = {
 - [ ] Mọi form có trạng thái `isPending` (disable button, spinner) và `isError` (thông báo rõ ràng)
 - [ ] 422 hiển thị lỗi đúng field (map `errors[{field, message}]` vào từng input)
 - [ ] Login flow E2E: sai 5 lần → khóa 15 phút hiển thị đếm ngược; có 2FA → nhập TOTP → vào app; hết hạn tempToken → quay lại login mượt
+
+### 7.4 Tài liệu test case E2E
+
+Tất cả test đặt trong `scripts/` (Playwright Python), chạy `python3 scripts/<file>.py`. Yêu cầu: dev server fe-ppe (:3000), gateway (:80), Docker đang chạy.
+
+**Nguyên tắc test (đảm bảo an toàn môi trường):**
+- Đường đi LỖI dùng BE thật (an toàn); đường đi THÀNH CÔNG dùng mock route — không đổi mật khẩu admin thật, không bật/tắt 2FA thật, không gửi request deactivate với mật khẩu ĐÚNG (BE sẽ gửi email thật), không gửi token xác nhận hợp lệ lên BE thật.
+- Login sai trong test luôn dùng email KHÔNG tồn tại (tránh khóa tài khoản admin thật); bước login thật chỉ dùng đúng credentials.
+- Mọi flip DB tạm phải có bước restore; mock theo đúng endpoint trong `src/services/auth.service.ts` (đối chiếu trước khi chạy — từng có sự cố mock sai pattern làm đổi mật khẩu thật).
+- Mock trả 200 kèm điều hướng phải tái hiện hành vi cookie của BE thật (Set-Cookie/clear cookie — proxy LỚP 1 check sự hiện diện cookie).
+- Query có `staleTime` (sessions/social 60s) → đăng ký mock xong phải `page.reload()`.
+- ⚠️ **Auth rate limit** (BE: 30 req/15 phút cho mọi request `/api/v1/auth/*` kể cả `/auth/me` — cạn là MỌI suite login đều crash vì guard đá redirect). `REDIS_ENABLED=false` trong identity-service → limiter nằm TRONG BỘ NHỚ container → reset bằng `docker restart identity_service` (không phải flush Redis). Chạy hồi quy đủ 14 suite liên tục sẽ vượt ngân sách — nên chạy nhóm nhỏ hoặc restart giữa chừng.
+
+| File | Trang / luồng | Kết quả | Bao phủ chính |
+|------|---------------|---------|---------------|
+| `test-step3-e2e.py` | Providers + guards + login cơ bản | 18/18 | Provider nesting, guard 2 lớp, login/logout, session-expired, redirect root |
+| `test-email-normalize.py` | normalizeEmail | ✓ chạy sạch | Ký tự full-width ＠．, ZWSP, ideographic space trên login/register/forgot (submit qua `form.requestSubmit()` — gate Turnstile) |
+| `test-step7-1-e2e.py` | Route guards Bước 7.1 | 17/17 | Proxy 2 lớp, /2fa 3 trạng thái, purge cookie chống bounce, mustChangePassword (flip DB + restore) |
+| `test-step7-2-login-e2e.py` | /login | 15/15 | Render, zod, 401 banner, 423 đếm ngược + khóa, 403 banner + resend, `next` redirect, requires2FA → /2fa |
+| `test-step7-2-register-e2e.py` | /register | 16/16 | Checklist policy realtime, Turnstile, mock 200 → check email, 422 map field |
+| `test-step7-2-forgot-password-e2e.py` | /forgot-password | 12/12 | Anti-enum luôn 200, CAPTCHA_REQUIRED BE thật, mock 422/200, nút về login |
+| `test-step7-2-reset-password-e2e.py` | /reset-password | 17/17 | Link không hợp lệ, TOKEN_INVALID BE thật, mock TOKEN_EXPIRED/422/200, checklist realtime |
+| `test-step7-2-verify-email-e2e.py` | /verify-email | 16/16 | Verify gọi đúng 1 lần (StrictMode), TOKEN_EXPIRED → resend, mock 200/500+retry, widget gate |
+| `test-step7-2-two-factor-e2e.py` | /2fa | 16/16 | Guard tempToken, 6 ô + auto-advance + paste, countdown mm:ss, mode backup XXXX-XXXX, 401 TOKEN_EXPIRED BE thật, mock sai mã giữ tempToken, mock 200 → dashboard |
+| `test-step7-2-change-password-e2e.py` | /change-password | 14/14 | Checklist, zod, 401 BE thật → banner i18n + xóa ô, mock 422 map field, Google-only → logout → /forgot-password, mock 200 dọn session → /login |
+| `test-step7-2-settings-security-e2e.py` | /settings/security | 33/33 | 5 tab, 2FA enable (QR + modal backupCodes 1 lần + .txt) / regenerate / disable, sessions BE thật + revoke mock, social link (`link:` state) + unlink + anti-lockout, password 401, deactivate sai mật khẩu + mock 200 |
+| `test-step7-2-deactivate-confirm-e2e.py` | /verify-email/deactivate | 10/10 | Thiếu token, TOKEN_INVALID BE thật (1 request), mock TOKEN_EXPIRED / 500 → Thử lại → 200, user đang đăng nhập không bị bounce |
+| `test-step7-3-google-callback-e2e.py` | /auth/callback + nút Google | 17/17 | Nút Google render, state CSRF + replay, 3 nhánh lỗi, login mode gọi API, **link mode** → /settings/security + màn linkError |
+| `test-step8-prefetch-e2e.py` | PrefetchProvider | 7/7 | Prefetch theo role khi authenticated, không prefetch khi 2FA/mustChangePassword |
+
+### 7.5 Quy trình test tay đầu cuối (tự bấm trình duyệt, đi qua mọi trang)
+
+> Mục đích: 1 người test đi từ đầu đến cuối toàn bộ hành trình auth bằng tay, không cần chạy Playwright. Nhánh lỗi dùng BE thật (an toàn); nhánh "sai mật khẩu" KHÔNG dùng admin thật. Môi trường: FE :3000 + gateway :80 + Docker đang chạy.
+
+#### 7.5.0 Chuẩn bị
+
+| Mục | Trạng thái |
+|-----|-----------|
+| FE app | http://localhost:3000 (design system :3001) |
+| Gateway + Docker | :80; `docker ps` thấy `identity_service`, `notification_service`... |
+| Email | BE gửi qua SMTP Gmail thật → dùng 1 hộp thư THẬT của bạn; chậm thì check Spam |
+| Turnstile | BẬT (site key thật) → register/forgot/resend có widget, tick bình thường |
+| Google OAuth | **CHƯA cấu hình BE** → luồng Google thật chưa test được (mục 7.5.5) |
+| Chính sách mật khẩu | ≥ 8 ký tự, có hoa + thường + số + ký tự đặc biệt |
+| Rate limit | 30 req/15 phút cho MỌI request `/api/v1/auth/*` — dính 429 (bị đá khỏi app) → `docker restart identity_service` rồi chạy tiếp |
+| Tài khoản seed | `admin@ppe.local` / `Admin@123456`; `user@template.local` / `User@123456` (role USER) |
+
+⚠️ Ghi lại mật khẩu sau MỖI bước đổi (đổi mật khẩu thu hồi toàn bộ session). Sai mật khẩu 5 lần = khóa 15 phút; nếu lỡ khóa tài khoản test:
+
+```bash
+docker exec ppe_postgres psql -U postgres -d ppe_identity_db -c \
+  "UPDATE users SET failed_login_attempts=0, locked_until=NULL WHERE email='<email>';"
+```
+
+#### 7.5.1 Hành trình chính A — vòng đời 1 user mới
+
+> Thứ tự các bước được sắp để trạng thái không bị phá giữa chừng. Bước A18 giết tài khoản test — để cuối.
+
+| # | Thao tác | Kỳ vọng |
+|---|----------|---------|
+| A1 | Mở `/register`, gõ email thật + mật khẩu yếu dần | Checklist 5 tiêu chí tick realtime theo từng ký tự. Đủ mạnh + tick Turnstile + submit → màn "Kiểm tra email của bạn" (không phân biệt email đã tồn tại — anti-enum) |
+| A2 | `/login` bằng email vừa đăng ký (CHƯA verify) | Banner 403 "Tài khoản chưa được kích hoạt..." + nút "Gửi lại email xác minh" → bấm (tick Turnstile nếu có) → email mới trong hộp thư |
+| A3 | Bấm link trong email → `/verify-email?token=...` | Màn "Email đã được xác minh" + nút về đăng nhập. Bấm lại link đó lần 2 → "Liên kết không hợp lệ" (token dùng 1 lần) |
+| A4 | Login đúng credentials | Vào `/dashboard` |
+| A5 | Đang login, mở `/login`, `/register`, `/forgot-password`, `/2fa` | Tất cả bị đá về `/dashboard` (guard 2 lớp) |
+| A6 | `/settings/security` → tab **Sessions** | Bảng phiên, ít nhất 1 dòng badge "Thiết bị hiện tại" |
+| A7 | Tab **Password**: nhập SAI mật khẩu hiện tại → nhập đúng + mật khẩu mới | Sai → banner "Mật khẩu hiện tại không chính xác." + ô bị xóa. Đúng → toast + bị đá về `/login` (mọi phiên thu hồi). ⚠️ GHI LẠI mật khẩu mới |
+| A8 | Login lại bằng mật khẩu mới | Vào `/dashboard` |
+| A9 | Tab **2FA** → "Bật xác thực hai yếu tố" | Hiện QR + secret → quét bằng Google Authenticator/Aegis → nhập TOTP → modal 8 backup codes. ⚠️ Secret hết hạn sau 10 phút (thao tác nhanh); backup codes CHỈ hiện 1 lần → tải .txt + tick "đã lưu" → Hoàn tất. Card chuyển trạng thái "Đã bật" |
+| A10 | Logout → login → tới `/2fa` | 6 ô OTP + đếm ngược 5:00. Nhập mã SAI → toast lỗi + xóa ô, VẪN ở `/2fa` → nhập đúng TOTP → `/dashboard` |
+| A11 | Logout → login → `/2fa` → "Dùng mã dự phòng" | Nhập 1 mã `XXXX-XXXX` từ .txt (tự uppercase) → vào app. ⚠️ Mã đó mất hiệu lực |
+| A12 | Tab 2FA → "Tạo lại mã dự phòng" | Yêu cầu TOTP + mật khẩu → modal 8 mã mới → tải + tick → Hoàn tất |
+| A13 | Tab 2FA → "Tắt xác thực hai yếu tố" (TOTP + mật khẩu) → logout → login lại | Login vào thẳng `/dashboard`, KHÔNG còn màn `/2fa` |
+| A14 | Mở `/change-password` | Sai mật khẩu hiện tại → banner. Đúng → về `/login` (session thu hồi hết). ⚠️ Ghi mật khẩu mới → login lại |
+| A15 | Logout → `/forgot-password` (thử cả 1 email không tồn tại) | Luôn màn "Kiểm tra email của bạn" (anti-enum). Mở email → link `/reset-password?token=` → checklist realtime → mật khẩu mới → màn thành công → "Đăng nhập ngay" → login. ⚠️ Ghi lại |
+| A16 | Mở cửa sổ ẩn danh, login cùng tài khoản | Tab Sessions cửa sổ chính (reload) thấy 2 phiên. Revoke phiên kia (2 bấm) → cửa sổ ẩn danh thao tác tiếp bị đá về `/login`. Login lại ở ẩn danh → "Thu hồi tất cả thiết bị khác" → ẩn danh bị logout, cửa sổ chính vẫn hoạt động |
+| A17 | Tab **Social** → "Liên kết Google" | Hiện tại lỗi vì BE chưa cấu hình Google (7.5.5) — ghi nhận, bỏ qua |
+| A18 | Tab **Vô hiệu hóa tài khoản** (bước cuối — tài khoản test sẽ CHẾT) | Nhập SAI mật khẩu → banner + xóa ô. Nhập đúng + lý do → màn "Kiểm tra email". Mở email → link `/verify-email/deactivate?token=` → màn tạm biệt "Tài khoản đã được vô hiệu hóa" → "Về đăng nhập". Login lại → 403 "tài khoản chưa được kích hoạt hoặc đã bị vô hiệu hóa". ✅ HẾT — chạy lại thì tạo user mới ở A1 |
+
+#### 7.5.2 Nhánh lỗi /login (không đụng tài khoản thật)
+
+| # | Thao tác | Kỳ vọng |
+|---|----------|---------|
+| B1 | `/login` với email KHÔNG tồn tại + mật khẩu bất kỳ | Banner 401 "sai thông tin, còn n lần thử" (anti-enum) |
+| B2 | Sai mật khẩu 5 lần với 1 tài khoản test riêng | Banner 423 + đếm ngược mm:ss, nút đăng nhập bị disable. Mở khóa bằng lệnh ở 7.5.0 |
+| B3 | Chưa login, mở `/settings/security` | Về `/login?next=%2Fsettings%2Fsecurity` → login xong về ĐÚNG trang đó |
+| B4 | Chưa login, mở `/2fa` | Về `/login` (không có tempToken) |
+| B5 | Chưa login, mở `/dashboard`, `/change-password` | Về `/login?next=...` |
+| B6 | (Tùy chọn) Chờ 5 phút ở `/2fa` | Màn "mã đã hết hạn" + nút "Đăng nhập lại" (xóa tempToken, về /login) |
+
+#### 7.5.3 Nhánh lỗi link email
+
+| # | Thao tác | Kỳ vọng |
+|---|----------|---------|
+| C1 | Mở `/verify-email` (không token) | "Liên kết không hợp lệ" + nút về login |
+| C2 | `/verify-email?token=abc` | TOKEN_INVALID → "Liên kết không hợp lệ" |
+| C3 | Gửi lại email xác minh 2 lần trong < 60s | Lần 2: toast 429 "thao tác quá nhanh" |
+| C4 | Mở `/reset-password` (không token / token rác) | "Liên kết không hợp lệ" + nút "Yêu cầu liên kết mới" → `/forgot-password` |
+| C5 | Mở `/verify-email/deactivate` (không token / token rác) | "Liên kết không hợp lệ" + nút về login |
+
+#### 7.5.4 Guard & session (kiểm nhanh)
+
+- F5 ở `/dashboard` → giữ session (cookie httpOnly + restore qua `/auth/me`).
+- Logout → cache sạch → về `/login`; đang login mở trang public → đá về `/dashboard`.
+
+#### 7.5.5 Google OAuth (CHƯA test được — điều kiện để test sau)
+
+- Hiện tại BE thiếu `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` + allowlist redirect → click nút Google sẽ 500 `CONFIGURATION_ERROR` (FE hiển thị toast "tính năng đang bảo trì").
+- Khi BE cấu hình xong (thêm `http://localhost:3000/auth/callback` vào allowlist): login Google → `/auth/callback` → `/dashboard` (user có 2FA thì qua `/2fa`); liên kết Google ở Tab Social → về `/settings/security`.
+
+#### 7.5.6 Checklist tổng kết
+
+- [ ] `/register` (A1) — [ ] `/login` (A2, A4, B1-B3) — [ ] `/verify-email` (A3, C1-C3) — [ ] `/forgot-password` (A15, C4) — [ ] `/reset-password` (A15)
+- [ ] `/auth/callback` (7.5.5 — bị giới hạn bởi cấu hình BE) — [ ] `/2fa` (A10-A11, B4, B6) — [ ] `/change-password` (A14)
+- [ ] `/settings/security` 5 tab: 2FA (A9, A12-A13) — Sessions (A6, A16) — Social (A17) — Password (A7) — Deactivate (A18)
+- [ ] `/verify-email/deactivate` (A18, C5) — [ ] `/dashboard` + guards (A4-A5, B3-B5, F5)
 
 ---
 
@@ -1109,9 +1298,21 @@ const ROLE_PREFETCH: Record<Role, Array<() => Promise<unknown>>> = {
 
 ### 8.3 Tiêu chí hoàn thành
 
-- [ ] Vào dashboard → Network tab thấy các query prefetch chạy song song, không chặn render
-- [ ] Reload trang → query từ cache hiển thị tức thì, refetch nền nếu hết staleTime
-- [ ] User role khác nhau → prefetch đúng danh sách của role đó
+- [x] Vào dashboard → Network tab thấy các query prefetch chạy song song, không chặn render
+- [x] Reload trang → query từ cache hiển thị tức thì, refetch nền nếu hết staleTime
+- [x] User role khác nhau → prefetch đúng danh sách của role đó
+
+> **Phát sinh thực tế (2026-10-21) — Bước 8 (PrefetchProvider) hoàn thành — KHÔNG phụ thuộc phần còn lại của Bước 7:**
+>
+> - **Bước 8 xây được độc lập với 7.2**: PrefetchProvider chỉ cần AuthProvider (Bước 3.3) + guard `(auth)` layout (7.1) — cả hai đã xong. Các trang 7.2 còn thiếu (/2fa, /change-password, /settings/security) không chặn bước này.
+> - **Cấu trúc**: `src/config/prefetch-jobs.ts` (registry + `resolvePrefetchJobs`) + `src/providers/prefetch-provider.tsx` viết lại. Chọn **job-centric** (mỗi job khai `roles?`/`permissions?`) thay vì map `Record<Role, jobs[]>` trong kế hoạch gốc — job dùng chung cho nhiều role khai 1 lần, không nhân bản; role BE thêm mới tự động nhận job không ràng buộc role.
+> - **Sửa bug bản cũ**: prefetch-provider sơ khai (từ Bước 3.3) hardcode `["ADMIN", "SUPERVISOR"]` — **SUPERVISOR không tồn tại** (role hệ thống thật: ADMIN, SAFETY_MANAGER, SAFETY_OFFICER, MANAGER, USER — xem prisma/seed.ts).
+> - **Registry hiện tại**: 1 job duy nhất `auth.sessions` (GET /auth/sessions, staleTime 5m) áp dụng **mọi role** — /settings/security là trang cá nhân mà role nào cũng có; chưa có job domain khác (sites/incidents/notifications chưa có FE). Không prefetch `authKeys.me()` (AuthProvider đã fetch) hay `social` (chỉ cần khi mở tab Social).
+> - **Cơ chế chạy**: chỉ khi `status === "authenticated"` (luồng 2FA chưa có session → tự bỏ qua, kể cả nếu sau này mount nhầm); bỏ qua khi `mustChangePassword` (sắp bị đá sang đổi mật khẩu — prefetch vô ích). Chạy qua `requestIdleCallback` (timeout 3s, fallback setTimeout) — không tranh chấp render/điều hướng đầu tiên; chạy lại khi tab quay lại `visible` (bù `refetchOnWindowFocus: false` toàn cục — `prefetchQuery` tự no-op nếu cache còn tươi). `retry: false` cho prefetch nền (trang cần sẽ tự fetch lại). StrictMode double-run vô hại (GET idempotent + prefetchQuery dedup) — khác verify-email cần guard vì token dùng 1 lần.
+> - **Tiêu chí 8.3 đối chiếu thực tế**: (1) mock sessions delay 4s → dashboard render trước khi response về (E2E đo heading xuất hiện trước lúc fulfill); (2) "từ cache hiển thị tức thì" áp dụng trong SPA session — navigation nội bộ không gọi lại khi cache tươi (đã test bằng visibilitychange synthetic), reload thì prefetch chạy lại nền không chặn render (cache memory mất khi reload, KHÔNG thêm persistQueryClient — kế hoạch không yêu cầu); (3) phân kỳ role được chứng minh ở tầng unit (jobMatchesUser với job synthetic: lọc role, permission ANY-of, kết hợp cả hai).
+> - **Test**: `scripts/test-step8-prefetch-unit.ts` (tsx, chạy kèm `--env-file=.env.local`) — registry hợp lệ, 5 role hệ thống đều nhận sessions, role tương lai không crash, lọc role/permission đúng. `scripts/test-step8-prefetch-e2e.py` **7/7** — dùng `async_playwright` (khác convention sync: cần delay route sessions mà không chặn request khác để chứng minh "không chặn render"); flip must_change_password của admin (có restore). Lưu ý test user: `user@ppe.local` KHÔNG có trong DB (seed cũ để lại `user@template.local` / User@123456, role USER) — dùng template user cho test role.
+> - **Regression toàn bộ auth (2026-10-21, sau Bước 8)**: 7/8 suite xanh — step3 18/18, step7-1 15/17, login 15/15, register 16/16, forgot 12/12, reset 17/17, verify-email 16/16, google-callback 11/11. 2 check đỏ của step7-1 (check 2: `[data-testid=two-factor-form]` trên /2fa; check 11a: text "Trang đổi mật khẩu tạm" trên /change-password) là do **placeholder 7.1 đang được thay bằng trang thật của 7.2** (hai form mới chưa có testid/text cũ) — KHÔNG phải regression từ PrefetchProvider (các check guard còn lại của step7-1 đều xanh, và check 11b/11c về hành vi mustChange vẫn đạt). Khi hoàn thành trang /2fa và /change-password thật phải cập nhật lại 2 assertion này của step7-1.
+> - Lưu ý: cột `must_change_password` nullable — test psql phải `COALESCE(must_change_password, false)` khi đọc/restore.
 
 ---
 

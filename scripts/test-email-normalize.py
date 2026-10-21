@@ -17,7 +17,9 @@ with sync_playwright() as p:
             page.fill("#password", PASSWORD)
         if route == "/register":
             page.fill("#password", PASSWORD)
-        page.click("button[type=submit]")
+        # Turnstile gate: nút submit trên /register bị disable khi chưa tick
+        # captcha (headless không tick được) → submit qua form.requestSubmit()
+        page.evaluate("document.querySelector('form').requestSubmit()")
         page.wait_for_timeout(2500)
         body = page.inner_text("body")
         email_err = "Email không hợp lệ" in body or "Invalid email address" in body

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AuthContext, type AuthStatus } from "@/contexts/AuthContext";
 import type { MeDto } from "@/types/auth.types";
 import { authService } from "@/services/auth.service";
-import { purgeSessionCookies } from "@/lib/axios";
+import { ApiError, purgeSessionCookies } from "@/lib/axios";
 import { tokenStore } from "@/lib/token";
 import { queryClient } from "@/lib/query-client";
 import { eventBus } from "@/lib/event-bus";
@@ -60,13 +60,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(me);
           setStatus("authenticated");
         }
-      } catch {
+      } catch (error) {
         // 401 + refresh fail: interceptor đã clear token + phát auth:session-expired.
         // Lỗi mạng cũng rơi vào đây — trạng thái an toàn là unauthenticated.
         if (!cancelled) {
           tokenStore.clear();
           setUser(null);
-          setStatus("unauthenticated");
+          // Purge session cookies nếu lỗi là 401/403 (phiên không còn hợp lệ trên server)
+          // TRƯỚC KHI setStatus("unauthenticated") để proxy.ts không bị bounce loop /login -> / -> /login
+          if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+            await purgeSessionCookies();
+          }
+          if (!cancelled) {
+            setStatus("unauthenticated");
+          }
         }
       }
     }

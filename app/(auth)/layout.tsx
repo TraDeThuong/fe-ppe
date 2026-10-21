@@ -6,6 +6,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
 import { RealtimeProvider } from "@/providers/realtime-provider";
 import { PrefetchProvider } from "@/providers/prefetch-provider";
+import { SiteProvider } from "@/contexts/SiteContext";
+import { AppShell } from "@/components/features/app-shell/app-shell";
 import { Button } from "@ui/button";
 
 /**
@@ -75,7 +77,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <RealtimeProvider>
-      <PrefetchProvider>{children}</PrefetchProvider>
+      <SiteProvider>
+        <PrefetchProvider>
+          <AppShell>{children}</AppShell>
+        </PrefetchProvider>
+      </SiteProvider>
     </RealtimeProvider>
   );
 }

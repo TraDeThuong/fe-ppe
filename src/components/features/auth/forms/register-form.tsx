@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, Loader2, Mail, MailCheck, User } from "lucide-react";
+import { Loader2, Mail, MailCheck, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -15,6 +15,7 @@ import { ApiError } from "@/lib/axios";
 import { normalizeEmail } from "@/lib/email";
 import { useLocale } from "@/providers/locale-provider";
 import { ErrorCode } from "@/types";
+import { PasswordChecklist } from "../password-checklist";
 import {
   isTurnstileConfigured,
   TurnstileField,
@@ -31,24 +32,6 @@ type RegisterFailure =
   | { kind: "none" }
   | { kind: "captcha"; message: string }
   | { kind: "generic"; message: string };
-
-/** 5 tiêu chí password policy — khớp registerSchema phía BE (auth.validation.ts) */
-const PASSWORD_RULES: Array<{
-  id: string;
-  labelKey:
-    | "register.checklist.length"
-    | "register.checklist.lowercase"
-    | "register.checklist.uppercase"
-    | "register.checklist.number"
-    | "register.checklist.special";
-  test: (password: string) => boolean;
-}> = [
-  { id: "length", labelKey: "register.checklist.length", test: (p) => p.length >= 8 },
-  { id: "lowercase", labelKey: "register.checklist.lowercase", test: (p) => /[a-z]/.test(p) },
-  { id: "uppercase", labelKey: "register.checklist.uppercase", test: (p) => /[A-Z]/.test(p) },
-  { id: "number", labelKey: "register.checklist.number", test: (p) => /[0-9]/.test(p) },
-  { id: "special", labelKey: "register.checklist.special", test: (p) => /[^a-zA-Z0-9]/.test(p) },
-];
 
 export function RegisterForm() {
   const { t } = useLocale();
@@ -168,10 +151,6 @@ export function RegisterForm() {
   }
 
   const password = form.watch("password") ?? "";
-  const checks = PASSWORD_RULES.map((rule) => ({
-    ...rule,
-    pass: rule.test(password),
-  }));
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
@@ -215,29 +194,11 @@ export function RegisterForm() {
       </FormField>
 
       {/* Checklist password policy realtime — cập nhật theo từng ký tự gõ */}
-      <div>
-        <p className="text-xs font-semibold text-muted-foreground">
-          {t("register.checklistTitle")}
-        </p>
-        <ul className="mt-2 space-y-1.5">
-          {checks.map((check) => (
-            <li
-              key={check.id}
-              data-satisfied={check.pass}
-              className={[
-                "flex items-center gap-2 text-xs transition-colors",
-                check.pass ? "text-success" : "text-muted-foreground",
-              ].join(" ")}
-            >
-              <Check
-                className={["size-3.5", check.pass ? "text-success" : "opacity-30"].join(" ")}
-                aria-hidden="true"
-              />
-              {t(check.labelKey)}
-            </li>
-          ))}
-        </ul>
-      </div>
+      <PasswordChecklist
+        titleKey="register.checklistTitle"
+        labelPrefix="register.checklist"
+        password={password}
+      />
 
       <TurnstileField
         ref={turnstileRef}

@@ -123,7 +123,8 @@ def main() -> None:
         page.goto(f"{BASE}/login", wait_until="load")
         page.evaluate("sessionStorage.setItem('ppe.tempToken', 'e2e-temp-token')")
         page.goto(f"{BASE}/2fa", wait_until="load")
-        ok = "/2fa" in page.url and page.locator("text=Trang 2FA tạm").count() > 0
+        page.wait_for_selector("[data-testid=two-factor-form]", timeout=10000)
+        ok = "/2fa" in page.url and page.locator("[data-testid=two-factor-form]").count() > 0
         check("2. /2fa có tempToken (không cookie) → vào trang", ok, page.url)
 
         # ── 3. /2fa KHÔNG tempToken → guard của trang đưa về /login ──────
@@ -230,7 +231,7 @@ def main() -> None:
             page.fill("#password", PASSWORD)
             page.click("button[type=submit]")
             page.wait_for_url("**/change-password", timeout=20000)
-            ok = "/change-password" in page.url and page.locator("text=Trang đổi mật khẩu tạm").count() > 0
+            ok = "/change-password" in page.url and page.locator('input[autocomplete="current-password"]').count() > 0
             check("11a. mustChangePassword → ép về /change-password", ok, page.url)
 
             # F5 giữ nguyên trang change-password (không bị đá)

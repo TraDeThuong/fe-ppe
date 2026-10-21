@@ -1,30 +1,29 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { AuthFooterLink } from "@/components/features/auth/auth-footer-link";
+import { AuthShell } from "@/components/features/auth/auth-shell";
+import { TwoFactorForm } from "@/components/features/auth/forms/two-factor-form";
 import { useLocale } from "@/providers/locale-provider";
 
 /**
- * Trang tạm để kiểm thử guard Bước 7.1 — /2fa nằm nhóm (public):
- * giữa luồng 2FA user CHƯA có session cookie (tempToken ở sessionStorage)
- * nên proxy phải cho qua, không đá về /login.
- * Bước 7.2 sẽ thay bằng trang 2FA thật (6 ô TOTP, đếm ngược tempToken...).
+ * Trang nhập mã 2FA sau login (nhóm public — giữa luồng 2FA user chưa có
+ * session cookie, tempToken nằm ở sessionStorage; proxy không được đá về /login).
+ * Trang tự guard: thiếu tempToken → redirect /login (trong TwoFactorForm).
  */
 export default function TwoFactorPage() {
   const { t } = useLocale();
-  const router = useRouter();
-
-  // Guard riêng của trang 2FA: không có tempToken nghĩa là không trong
-  // luồng 2FA — đưa về /login (guard thật sẽ chi tiết hơn ở Bước 7.2).
-  useEffect(() => {
-    if (!sessionStorage.getItem("ppe.tempToken")) {
-      router.replace("/login");
-    }
-  }, [router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6">
-      <p className="text-muted-foreground">{t("2fa.placeholderNote")}</p>
-    </div>
+    <AuthShell
+      title={t("2fa.title")}
+      description={t("2fa.subtitle")}
+      footer={
+        <p className="text-sm text-muted-foreground">
+          <AuthFooterLink href="/login">{t("2fa.backToLogin")}</AuthFooterLink>
+        </p>
+      }
+    >
+      <TwoFactorForm />
+    </AuthShell>
   );
 }

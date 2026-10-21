@@ -70,7 +70,9 @@ function FormField({
   const control = cloneElement(child, {
     id: controlId,
     required: required ?? childProps.required,
-    error: hasError ? true : childProps.error,
+    ...(typeof child.type === "string"
+      ? {}
+      : { error: hasError ? true : childProps.error }),
     "aria-describedby": describedBy,
     "aria-invalid": hasError
       ? true

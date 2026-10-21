@@ -21,6 +21,13 @@ function matchesPrefix(pathname: string, prefixes: string[]): boolean {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+// Trang xác nhận vô hiệu hóa tài khoản — user đang đăng nhập bấm link trong
+// email; không được đá về "/" dù nằm trong prefix public /verify-email
+const DEACTIVATE_CONFIRM_PREFIX = "/verify-email/deactivate";
+// Callback OAuth phải chạy được cho CẢ user đang đăng nhập (link Google từ
+// /settings/security) lẫn user chưa đăng nhập (đăng nhập bằng Google)
+const OAUTH_CALLBACK_PREFIX = "/auth/callback";
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSessionCookie = Boolean(
@@ -32,7 +39,12 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(`/login?next=${next}`, request.url));
   }
 
-  if (matchesPrefix(pathname, PUBLIC_AUTH_PREFIXES) && hasSessionCookie) {
+  if (
+    matchesPrefix(pathname, PUBLIC_AUTH_PREFIXES) &&
+    !pathname.startsWith(DEACTIVATE_CONFIRM_PREFIX) &&
+    !pathname.startsWith(OAUTH_CALLBACK_PREFIX) &&
+    hasSessionCookie
+  ) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 

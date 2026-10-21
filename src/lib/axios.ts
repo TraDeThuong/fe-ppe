@@ -167,7 +167,9 @@ export function createApiClient(baseURL: string): AxiosInstance {
 
       const shouldRefresh =
         status === 401 &&
-        code === ErrorCode.TOKEN_EXPIRED &&
+        (code === ErrorCode.TOKEN_EXPIRED ||
+          code === ErrorCode.UNAUTHORIZED ||
+          code === ErrorCode.TOKEN_INVALID) &&
         config !== undefined &&
         !config._retry &&
         !REFRESH_EXEMPT_PATHS.some((path) => config.url?.startsWith(path));
