@@ -28,6 +28,7 @@ export interface SelectProps {
   placeholder?: string;
   disabled?: boolean;
   required?: boolean;
+  error?: boolean | string;
   size?: "sm" | "md" | "lg";
   className?: string;
   triggerClassName?: string;
@@ -53,6 +54,7 @@ function Select({
   placeholder = "Chọn một giá trị",
   disabled = false,
   required = false,
+  error = false,
   size = "md",
   className = "",
   triggerClassName = "",
@@ -64,6 +66,7 @@ function Select({
   const generatedId = useId();
   const triggerId = id ?? `select-${generatedId}`;
   const listboxId = `${triggerId}-listbox`;
+  const hasError = Boolean(error);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -255,6 +258,7 @@ function Select({
             : undefined
         }
         aria-required={required || undefined}
+        aria-invalid={hasError || undefined}
         disabled={disabled}
         onClick={() => {
           if (open) closeMenu();
@@ -263,12 +267,14 @@ function Select({
         onKeyDown={handleKeyDown}
         className={[
           "flex w-full items-center justify-between gap-3",
-          "border border-border/70 bg-background",
+          "border bg-background",
+          hasError
+            ? "border-danger/70 focus-visible:border-danger focus-visible:ring-2 focus-visible:ring-danger/20"
+            : "border-border/70 focus-visible:ring-primary/40",
           "text-left text-foreground",
           "shadow-[var(--nm-inset)]",
           "transition-[border-color,box-shadow] duration-200",
           "focus-visible:outline-none focus-visible:ring-2",
-          "focus-visible:ring-primary/40",
           "disabled:cursor-not-allowed disabled:opacity-50",
           triggerSizes[size],
           triggerClassName,

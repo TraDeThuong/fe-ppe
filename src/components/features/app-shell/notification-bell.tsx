@@ -2,26 +2,92 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Bell } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bell, CheckCheck, ShieldAlert, AlertTriangle, AlertCircle, Info, ExternalLink } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import {
+  useUnreadCount,
+  useNotifications,
+  useMarkAllAsRead,
+  useMarkAsRead,
+} from "@/hooks/notifications";
+import type { NotificationItemDto, NotificationSeverity } from "@/types";
 
-/**
- * M1: UI placeholder — chưa gọi API notification (M3).
- * Badge unread: tạm ẩn cho tới khi có useUnreadCount (M3).
- */
+function formatRelativeTimeShort(
+  dateString: string | Date | null | undefined,
+  isVietnamese: boolean,
+): string {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffMin < 1) return isVietnamese ? "Vừa xong" : "Just now";
+  if (diffMin < 60) return `${diffMin}m`;
+  if (diffHour < 24) return `${diffHour}h`;
+  if (diffDay < 7) return `${diffDay}d`;
+  return date.toLocaleDateString(isVietnamese ? "vi-VN" : "en-US", {
+    month: "numeric",
+    day: "numeric",
+  });
+}
+
+function getSeverityDot(severity?: NotificationSeverity) {
+  switch (severity) {
+    case "CRITICAL":
+      return "bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.6)]";
+    case "HIGH":
+      return "bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.5)]";
+    case "NORMAL":
+      return "bg-sky-500";
+    case "LOW":
+    default:
+      return "bg-slate-400";
+  }
+}
+
 export function NotificationBell() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
+  const router = useRouter();
+
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const { data: unreadCount = 0 } = useUnreadCount();
+  const { data: notificationData, isLoading } = useNotifications(
+    { limit: 5 },
+    { enabled: open },
+  );
+
+  const markAllMutation = useMarkAllAsRead();
+  const markAsReadMutation = useMarkAsRead();
+
+  const notifications = notificationData?.data || [];
 
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
     };
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
+
+  const handleItemClick = (item: NotificationItemDto) => {
+    if (!item.isRead) {
+      markAsReadMutation.mutate(item.id);
+    }
+    setOpen(false);
+    if (item.actionUrl) {
+      router.push(item.actionUrl);
+    }
+  };
 
   return (
     <div ref={ref} className="relative">
@@ -31,26 +97,101 @@ export function NotificationBell() {
         onClick={() => setOpen((v) => !v)}
         aria-label={t("header.notifications.title")}
         aria-expanded={open}
-        className="relative rounded-full p-2 text-foreground transition-shadow hover:shadow-nm-sm"
+        className="relative flex size-10 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_2px_2px_4px_var(--shadow-dark)]"
       >
-        <Bell className="h-5 w-5" />
-        {/* TODO M3: badge số chưa đọc — dùng useUnreadCount + SSE */}
+        <Bell className="size-4.5" />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-[0_0_8px_rgba(244,63,94,0.7)] animate-pulse">
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-2xl bg-card p-2 shadow-nm">
-          <p className="px-3 py-2 text-sm font-semibold text-foreground">
-            {t("header.notifications.title")}
-          </p>
-          {/* TODO M3: danh sách 10 thông báo gần nhất + nút đọc tất cả */}
-          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-            {t("header.notifications.empty")}
-          </p>
-          <div className="border-t border-(--shadow-dark) p-1">
+        <div className="absolute right-0 top-full z-50 mt-2.5 w-84 sm:w-96 rounded-2xl border border-border/50 bg-background p-3 shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-border/30 pb-2.5 px-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-foreground">
+                {t("header.notifications.title")}
+              </span>
+              {unreadCount > 0 && (
+                <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-500">
+                  {unreadCount} {isVietnamese ? "mới" : "new"}
+                </span>
+              )}
+            </div>
+
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={() => markAllMutation.mutate()}
+                disabled={markAllMutation.isPending}
+                className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+              >
+                <CheckCheck className="size-3.5" />
+                <span>{isVietnamese ? "Đọc tất cả" : "Mark all read"}</span>
+              </button>
+            )}
+          </div>
+
+          {/* List Content */}
+          <div className="my-2 max-h-80 overflow-y-auto divide-y divide-border/20">
+            {isLoading ? (
+              <div className="space-y-2.5 p-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="animate-pulse flex items-start gap-2.5">
+                    <div className="size-2 rounded-full bg-muted mt-1.5 shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3.5 w-3/4 rounded bg-muted" />
+                      <div className="h-2.5 w-1/2 rounded bg-muted/70" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : notifications.length === 0 ? (
+              <p className="px-3 py-8 text-center text-xs text-muted-foreground">
+                {t("header.notifications.empty")}
+              </p>
+            ) : (
+              notifications.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => handleItemClick(item)}
+                  className={[
+                    "group flex cursor-pointer items-start gap-2.5 p-2.5 rounded-xl transition-all",
+                    item.isRead
+                      ? "hover:bg-muted/15 opacity-80"
+                      : "bg-primary/5 hover:bg-primary/10 font-medium",
+                  ].join(" ")}
+                >
+                  <span
+                    className={`mt-1.5 size-2 shrink-0 rounded-full ${getSeverityDot(item.severity)}`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-xs font-bold text-foreground group-hover:text-primary">
+                        {item.title}
+                      </p>
+                      <span className="shrink-0 text-[10px] text-muted-foreground font-mono">
+                        {formatRelativeTimeShort(item.createdAt, isVietnamese)}
+                      </span>
+                    </div>
+                    <p className="line-clamp-2 text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                      {item.content}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-border/30 pt-2 px-1">
             <Link
               href="/notifications"
               onClick={() => setOpen(false)}
-              className="block rounded-lg px-3 py-2 text-center text-sm text-primary transition-shadow hover:shadow-nm-sm"
+              className="block w-full rounded-xl border border-border/40 bg-background py-2 text-center text-xs font-bold text-primary shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] transition-all hover:shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
             >
               {t("header.notifications.viewAll")}
             </Link>

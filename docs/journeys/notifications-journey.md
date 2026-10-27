@@ -669,14 +669,14 @@ Tạo kịch bản kiểm thử tự động `fe-ppe/scripts/test-notifications-
 
 ## 8. Checklist hoàn thiện nghiệm thu
 
-- [ ] **Data Contract & Types:** Đã định nghĩa đầy đủ DTOs trong `src/types/notification.types.ts` và export tại `src/types/index.ts`.
-- [ ] **Service Client:** Đã hoàn thiện `src/services/notification.service.ts` gọi đầy đủ 18 endpoint qua Axios `apiClient`.
-- [ ] **React Query Hooks:** Đã tạo thư mục `src/hooks/notifications/` với đầy đủ query keys, hooks list, unread count, preferences, mutations.
-- [ ] **Đa ngôn ngữ i18n:** Đã thêm đầy đủ từ điển tiếng Việt (`vi-VN.json`) và tiếng Anh (`en-US.json`).
-- [ ] **Giao diện Neumorphic:** Đã xây dựng các components hiển thị: KPI Cards, Filter Toolbar, Notification Item, List, Skeleton, Empty State.
-- [ ] **Cấu hình Alert Fatigue:** Giao diện cho phép tinh chỉnh ngưỡng nghiêm trọng từng kênh trong tab Preferences.
-- [ ] **Tab Quản trị Admin:** Hiển thị danh sách mẫu (Templates), xem trước preview, và nhật ký hàng đợi email kèm nút thử lại.
-- [ ] **Modal Broadcast:** Modal cho phép gửi thông báo khẩn cấp hệ thống khi có quyền `NOTIFICATION_CREATE`.
-- [ ] **Chuông Header (NotificationBell):** Hiển thị badge số lượng chưa đọc realtime và popover xem nhanh.
-- [ ] **Ghép nối trang chính:** Hoàn thiện `app/(auth)/notifications/notifications-content.tsx`.
-- [ ] **Kiểm thử E2E:** Chạy thành công toàn bộ kịch bản kiểm thử Playwright trên cả desktop và mobile.
+- [x] **Data Contract & Types:** Đã định nghĩa đầy đủ DTOs trong `src/types/notification.types.ts` và export tại `src/types/index.ts`.
+- [x] **Service Client:** Đã hoàn thiện `src/services/notification.service.ts` gọi đầy đủ 18 endpoint qua Axios `apiClient`.
+- [x] **React Query Hooks:** Đã tạo thư mục `src/hooks/notifications/` với đầy đủ query keys, hooks list, unread count, preferences, mutations.
+- [x] **Đa ngôn ngữ i18n:** Đã thêm đầy đủ từ điển tiếng Việt (`vi-VN.json`) và tiếng Anh (`en-US.json`).
+- [x] **Giao diện Neumorphic:** Đã xây dựng các components hiển thị: KPI Cards, Filter Toolbar, Notification Item, List, Skeleton, Empty State.
+- [x] **Cấu hình Alert Fatigue:** Giao diện cho phép tinh chỉnh ngưỡng nghiêm trọng từng kênh trong tab Preferences.
+- [x] **Tab Quản trị Admin:** Hiển thị danh sách mẫu (Templates), xem trước preview, và nhật ký hàng đợi email kèm nút thử lại.
+- [x] **Modal Broadcast:** Modal cho phép gửi thông báo khẩn cấp hệ thống khi có quyền `NOTIFICATION_CREATE`.
+- [x] **Chuông Header (NotificationBell):** Hiển thị badge số lượng chưa đọc realtime và popover xem nhanh.
+- [x] **Ghép nối trang chính:** Hoàn thiện `app/(auth)/notifications/notifications-content.tsx`.
+- [x] **Kiểm thử E2E:** Chạy thành công toàn bộ kịch bản kiểm thử Playwright trên cả desktop và mobile (20/20 checks passed).

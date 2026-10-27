@@ -1,9 +1,17 @@
 "use client";
 
-import { useState, useId } from "react";
-import { UserPlus, Mail, Lock, User, Phone, Shield, Eye, EyeOff } from "lucide-react";
+import { useState, useMemo } from "react";
+import { UserPlus, Mail, Lock, User, Phone } from "lucide-react";
 import { SculptedModal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import {
+  FormField,
+  Input,
+  PasswordInput,
+  Select,
+  Checkbox,
+  type SelectOption,
+} from "@ui/form";
 import { useCreateUser } from "@/hooks/users";
 import { useRoles } from "@/hooks/rbac";
 import { useLocale } from "@/providers/locale-provider";
@@ -15,7 +23,7 @@ export interface CreateUserModalProps {
 }
 
 export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
-  const { t, locale } = useLocale();
+  const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
   const [email, setEmail] = useState("");
@@ -24,10 +32,23 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [roleId, setRoleId] = useState("");
   const [mustChangePassword, setMustChangePassword] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
+
+  const [errors, setErrors] = useState<{
+    email?: string;
+    password?: string;
+    roleId?: string;
+  }>({});
 
   const { data: roles = [], isLoading: isLoadingRoles } = useRoles();
   const createUserMutation = useCreateUser();
+
+  const roleOptions: SelectOption[] = useMemo(() => {
+    return roles.map((r) => ({
+      value: r.id,
+      label: r.name,
+      description: r.description || undefined,
+    }));
+  }, [roles]);
 
   const resetForm = () => {
     setEmail("");
@@ -36,25 +57,46 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
     setPhoneNumber("");
     setRoleId("");
     setMustChangePassword(true);
-    setShowPassword(false);
+    setErrors({});
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim() || !roleId) {
-      toast.error(
-        isVietnamese
-          ? "Vui lòng điền đầy đủ Email, Mật khẩu và chọn Vai trò."
-          : "Please enter Email, Password, and select a Role.",
-      );
-      return;
+
+    const newErrors: { email?: string; password?: string; roleId?: string } = {};
+
+    if (!email.trim()) {
+      newErrors.email = isVietnamese
+        ? "Vui lòng nhập email đăng nhập."
+        : "Login email is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      newErrors.email = isVietnamese
+        ? "Email không đúng định dạng."
+        : "Invalid email format.";
     }
 
-    if (password.length < 8) {
+    if (!password.trim()) {
+      newErrors.password = isVietnamese
+        ? "Vui lòng nhập mật khẩu khởi tạo."
+        : "Initial password is required.";
+    } else if (password.length < 8) {
+      newErrors.password = isVietnamese
+        ? "Mật khẩu phải có tối thiểu 8 ký tự."
+        : "Password must be at least 8 characters.";
+    }
+
+    if (!roleId) {
+      newErrors.roleId = isVietnamese
+        ? "Vui lòng chọn vai trò cho tài khoản."
+        : "Please select a system role.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       toast.error(
         isVietnamese
-          ? "Mật khẩu phải có tối thiểu 8 ký tự."
-          : "Password must be at least 8 characters.",
+          ? "Vui lòng điền đầy đủ và chính xác các thông tin bắt buộc."
+          : "Please fill in all required fields accurately.",
       );
       return;
     }
@@ -75,13 +117,6 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
       // Error handled by mutation hook toast
     }
   };
-
-  const inputSocketClass = [
-    "flex items-center gap-2.5 rounded-xl px-3.5 py-2",
-    "border border-[var(--shadow-dark)]/30 dark:border-white/10 bg-background",
-    "shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]",
-    "focus-within:ring-2 focus-within:ring-primary/40 transition-all",
-  ].join(" ");
 
   return (
     <SculptedModal
@@ -125,121 +160,142 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
         </>
       }
     >
-      <form id="create-user-form" onSubmit={handleSubmit} className="space-y-4 text-xs">
+      <form id="create-user-form" onSubmit={handleSubmit} noValidate className="space-y-4">
         {/* Email */}
-        <div>
-          <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
-            {isVietnamese ? "Email đăng nhập" : "Login Email"} <span className="text-danger">*</span>
-          </label>
-          <div className={inputSocketClass}>
-            <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="user@example.com"
-              className="w-full bg-transparent text-xs sm:text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
-            />
-          </div>
-        </div>
+        <FormField
+          id="create-user-email"
+          label={isVietnamese ? "Email đăng nhập" : "Login Email"}
+          required
+          error={errors.email}
+        >
+          <Input
+            id="create-user-email"
+            type="email"
+            size="sm"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
+            }}
+            placeholder="user@example.com"
+            prefix={<Mail className="h-4 w-4" />}
+            disabled={createUserMutation.isPending}
+            autoComplete="off"
+          />
+        </FormField>
 
-        {/* Mật khẩu */}
-        <div>
-          <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
-            {isVietnamese ? "Mật khẩu khởi tạo" : "Initial Password"} <span className="text-danger">*</span>
-          </label>
-          <div className={inputSocketClass}>
-            <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <input
-              type={showPassword ? "text" : "password"}
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={isVietnamese ? "Tối thiểu 8 ký tự..." : "At least 8 characters..."}
-              className="w-full bg-transparent text-xs sm:text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-        </div>
+        {/* Mật khẩu khởi tạo */}
+        <FormField
+          id="create-user-password"
+          label={isVietnamese ? "Mật khẩu khởi tạo" : "Initial Password"}
+          required
+          error={errors.password}
+          helperText={
+            !errors.password
+              ? isVietnamese
+                ? "Tối thiểu 8 ký tự"
+                : "Minimum 8 characters"
+              : undefined
+          }
+        >
+          <PasswordInput
+            id="create-user-password"
+            size="sm"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
+            }}
+            placeholder={isVietnamese ? "Tối thiểu 8 ký tự..." : "At least 8 characters..."}
+            prefix={<Lock className="h-4 w-4" />}
+            disabled={createUserMutation.isPending}
+            autoComplete="new-password"
+            toggleLabel={{
+              show: isVietnamese ? "Hiện mật khẩu" : "Show password",
+              hide: isVietnamese ? "Ẩn mật khẩu" : "Hide password",
+            }}
+          />
+        </FormField>
 
         {/* Họ và tên & Số điện thoại */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
-              {isVietnamese ? "Họ và tên" : "Full Name"}
-            </label>
-            <div className={inputSocketClass}>
-              <User className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder={isVietnamese ? "Nguyễn Văn A" : "John Doe"}
-                className="w-full bg-transparent text-xs sm:text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
-              />
-            </div>
-          </div>
+          <FormField
+            id="create-user-fullname"
+            label={isVietnamese ? "Họ và tên" : "Full Name"}
+          >
+            <Input
+              id="create-user-fullname"
+              type="text"
+              size="sm"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder={isVietnamese ? "Nguyễn Văn A" : "John Doe"}
+              prefix={<User className="h-4 w-4" />}
+              disabled={createUserMutation.isPending}
+            />
+          </FormField>
 
-          <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
-              {isVietnamese ? "Số điện thoại" : "Phone Number"}
-            </label>
-            <div className={inputSocketClass}>
-              <Phone className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="0912345678"
-                className="w-full bg-transparent text-xs sm:text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
-              />
-            </div>
-          </div>
+          <FormField
+            id="create-user-phone"
+            label={isVietnamese ? "Số điện thoại" : "Phone Number"}
+          >
+            <Input
+              id="create-user-phone"
+              type="tel"
+              size="sm"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              placeholder="0912345678"
+              prefix={<Phone className="h-4 w-4" />}
+              disabled={createUserMutation.isPending}
+            />
+          </FormField>
         </div>
 
         {/* Chọn Vai trò */}
-        <div>
-          <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
-            {isVietnamese ? "Vai trò hệ thống" : "System Role"} <span className="text-danger">*</span>
-          </label>
-          <div className={inputSocketClass}>
-            <Shield className="h-4 w-4 shrink-0 text-primary" />
-            <select
-              required
-              value={roleId}
-              onChange={(e) => setRoleId(e.target.value)}
-              className="w-full bg-transparent text-xs sm:text-sm text-foreground outline-none cursor-pointer"
-              disabled={isLoadingRoles}
-            >
-              <option value="" disabled>
-                {isVietnamese ? "-- Chọn vai trò (Role) --" : "-- Select a role --"}
-              </option>
-              {roles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name} {r.description ? `(${r.description})` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <FormField
+          id="create-user-role"
+          label={isVietnamese ? "Vai trò hệ thống" : "System Role"}
+          required
+          error={errors.roleId}
+        >
+          <Select
+            id="create-user-role"
+            size="sm"
+            value={roleId}
+            onValueChange={(val) => {
+              setRoleId(val);
+              if (errors.roleId) setErrors((prev) => ({ ...prev, roleId: "" }));
+            }}
+            placeholder={
+              isLoadingRoles
+                ? isVietnamese
+                  ? "Đang tải vai trò..."
+                  : "Loading roles..."
+                : isVietnamese
+                ? "-- Chọn vai trò (Role) --"
+                : "-- Select a role --"
+            }
+            options={roleOptions}
+            disabled={isLoadingRoles || createUserMutation.isPending}
+            emptyMessage={isVietnamese ? "Không có vai trò khả dụng" : "No roles available"}
+          />
+        </FormField>
 
         {/* Bắt buộc đổi mật khẩu */}
         <div className="pt-1">
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input
-              type="checkbox"
+          <label
+            htmlFor="must-change-password-checkbox"
+            className="inline-flex cursor-pointer select-none items-center gap-2.5"
+          >
+            <Checkbox
+              id="must-change-password-checkbox"
+              size="sm"
               checked={mustChangePassword}
-              onChange={(e) => setMustChangePassword(e.target.checked)}
-              className="rounded border-border text-primary focus:ring-primary"
+              onCheckedChange={(checked) => setMustChangePassword(checked)}
+              disabled={createUserMutation.isPending}
             />
-            <span className="text-xs text-foreground font-medium">
+            <span className="text-xs font-medium text-foreground">
               {isVietnamese
                 ? "Yêu cầu đổi mật khẩu ở lần đăng nhập đầu tiên"
                 : "Force password change on first login"}
