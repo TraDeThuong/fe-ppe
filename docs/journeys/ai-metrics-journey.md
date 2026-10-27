@@ -301,12 +301,12 @@ Thay thế placeholder hiện tại bằng component hoàn chỉnh kết nối t
 
 ## 8. Checklist hoàn thiện nghiệm thu
 
-- [ ] Route `/ai-metrics` được bảo vệ bằng Route Guard với quyền `PPE_AI_METRICS_READ`.
-- [ ] 4 thẻ Bento Console phản ánh trung thực số liệu mAP, Latency, FPS từ backend.
-- [ ] Banner Phiên bản Active hiển thị đúng mô hình đang phục vụ trên production.
-- [ ] Bảng Ma trận Nhầm lẫn (Confusion Matrix) tính toán tỷ lệ % chuẩn xác và hiển thị màu sắc trực quan.
-- [ ] Biểu đồ biến thiên độ trễ suy luận hiển thị mượt mà.
-- [ ] Bảng Quản trị Phiên bản (Model Governance) liệt kê đầy đủ các bản weights.
-- [ ] Thao tác Triển khai Mô hình mới (Deploy Hot-swap) hoạt động chuẩn mực với quyền `PPE_MODEL_MANAGE`.
-- [ ] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) chuyển đổi mượt mà.
-- [ ] Giao diện Neumorphic thẩm mỹ cao, tương thích hoàn hảo Dark Mode và Light Mode.
+- [x] Route `/ai-metrics` được bảo vệ bằng Route Guard với quyền `PPE_AI_METRICS_READ`.
+- [x] 4 thẻ Bento Console phản ánh trung thực số liệu mAP, Latency, FPS từ backend.
+- [x] Banner Phiên bản Active hiển thị đúng mô hình đang phục vụ trên production.
+- [x] Bảng Ma trận Nhầm lẫn (Confusion Matrix) tính toán tỷ lệ % chuẩn xác và hiển thị màu sắc trực quan.
+- [x] Biểu đồ biến thiên độ trễ suy luận hiển thị mượt mà.
+- [x] Bảng Quản trị Phiên bản (Model Governance) liệt kê đầy đủ các bản weights.
+- [x] Thao tác Triển khai Mô hình mới (Deploy Hot-swap) hoạt động chuẩn mực với quyền `PPE_MODEL_MANAGE`.
+- [x] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) chuyển đổi mượt mà.
+- [x] Giao diện Neumorphic thẩm mỹ cao, tương thích hoàn hảo Dark Mode và Light Mode.

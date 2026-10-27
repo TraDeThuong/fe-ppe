@@ -274,13 +274,13 @@ Thay thế placeholder hiện tại bằng component hoàn chỉnh kết nối t
 
 ## 8. Checklist hoàn thiện nghiệm thu
 
-- [ ] Route `/reports` được bảo vệ bằng Route Guard với quyền `PPE_REPORTING_READ`.
-- [ ] 4 thẻ Bento Console hiển thị đúng số liệu thống kê tổng hợp từ API.
-- [ ] Biểu đồ Xu hướng (Trends) và Phân bố Vi phạm (Donut) hiển thị trực quan, mượt mà.
-- [ ] Bảng xếp hạng rủi ro Camera phản ánh chính xác các điểm nóng.
-- [ ] Tính năng Kích hoạt Tạo Báo cáo hoạt động hoàn hảo cho cả định dạng PDF và Excel.
-- [ ] Cơ chế Polling tự động bắt được trạng thái `COMPLETED` và mở nút Download.
-- [ ] Bảng Lịch sử Báo cáo hiển thị đầy đủ các file đã xuất trong quá khứ.
-- [ ] Phân quyền RBAC chặt chẽ cho hành động xuất file với quyền `PPE_REPORTING_EXPORT`.
-- [ ] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) đồng bộ 100%.
-- [ ] Thiết kế Neumorphism chuẩn mực, tương thích hoàn hảo Dark Mode và Light Mode.
+- [x] Route `/reports` được bảo vệ bằng Route Guard với quyền `PPE_REPORTING_READ`.
+- [x] 4 thẻ Bento Console hiển thị đúng số liệu thống kê tổng hợp từ API.
+- [x] Biểu đồ Xu hướng (Trends) và Phân bố Vi phạm (Donut) hiển thị trực quan, mượt mà.
+- [x] Bảng xếp hạng rủi ro Camera phản ánh chính xác các điểm nóng.
+- [x] Tính năng Kích hoạt Tạo Báo cáo hoạt động hoàn hảo cho cả định dạng PDF và Excel.
+- [x] Cơ chế Polling tự động bắt được trạng thái `COMPLETED` và mở nút Download.
+- [x] Bảng Lịch sử Báo cáo hiển thị đầy đủ các file đã xuất trong quá khứ.
+- [x] Phân quyền RBAC chặt chẽ cho hành động xuất file với quyền `PPE_REPORTING_EXPORT`.
+- [x] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) đồng bộ 100%.
+- [x] Thiết kế Neumorphism chuẩn mực, tương thích hoàn hảo Dark Mode và Light Mode.

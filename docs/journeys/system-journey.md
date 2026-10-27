@@ -313,11 +313,11 @@ Thay thế placeholder hiện tại bằng component hoàn chỉnh kết nối t
 
 ## 8. Checklist hoàn thiện nghiệm thu
 
-- [ ] Route `/system` được bảo vệ đúng quyền `SYSTEM_CONFIG_READ`.
-- [ ] 4 thẻ Bento Console hiển thị số liệu thực tế từ API.
-- [ ] Tab Công tắc Tính năng (Feature Flags) hiển thị đúng 5 cờ mặc định và toggle mượt mà không cần reload trang.
-- [ ] Bảng Biến cấu hình (System Configs) hỗ trợ lọc theo danh mục, tìm kiếm debounced và phân trang.
-- [ ] Modal Thêm/Sửa cấu hình validate đúng định dạng JSON/Boolean/String.
-- [ ] Tab Nhịp tim Dịch vụ quét được trạng thái của cụm 8 services và báo độ trễ chính xác.
-- [ ] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) chuyển đổi tức thì không sót chuỗi.
-- [ ] Thiết kế Neumorphism chuẩn mực, tương thích hoàn hảo Dark Mode và Light Mode.
+- [x] Route `/system` được bảo vệ đúng quyền `SYSTEM_CONFIG_READ`.
+- [x] 4 thẻ Bento Console hiển thị số liệu thực tế từ API.
+- [x] Tab Công tắc Tính năng (Feature Flags) hiển thị đúng 5 cờ mặc định và toggle mượt mà không cần reload trang.
+- [x] Bảng Biến cấu hình (System Configs) hỗ trợ lọc theo danh mục, tìm kiếm debounced và phân trang.
+- [x] Modal Thêm/Sửa cấu hình validate đúng định dạng JSON/Boolean/String.
+- [x] Tab Nhịp tim Dịch vụ quét được trạng thái của cụm 8 services và báo độ trễ chính xác.
+- [x] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) chuyển đổi tức thì không sót chuỗi.
+- [x] Thiết kế Neumorphism chuẩn mực, tương thích hoàn hảo Dark Mode và Light Mode.

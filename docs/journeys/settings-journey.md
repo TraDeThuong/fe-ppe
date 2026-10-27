@@ -258,12 +258,12 @@ Cập nhật `vi-VN.json` và `en-US.json`:
 
 ## 8. Checklist hoàn thiện nghiệm thu
 
-- [ ] Cả 2 route `/settings/profile` và `/settings/security` được bảo vệ bằng Auth Guard.
-- [ ] Cập nhật Họ tên và Số điện thoại cá nhân lưu thành công vào cơ sở dữ liệu.
-- [ ] Tải lên ảnh đại diện Avatar thành công và tự động đồng bộ lên User Menu trên Header.
-- [ ] Đổi mật khẩu hoạt động chuẩn xác với thanh Checklist 4 tiêu chuẩn mật khẩu mạnh.
-- [ ] Kích hoạt 2FA TOTP quét mã QR và tải về 8 mã dự phòng thành công.
-- [ ] Tắt 2FA yêu cầu xác thực lại mật khẩu an toàn.
-- [ ] Danh sách các phiên làm việc (Sessions) hiển thị đúng thiết bị hiện tại và cho phép đăng xuất từ xa.
-- [ ] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) đồng bộ 100%.
-- [ ] Thiết kế Neumorphism chuẩn mực, tương thích hoàn hảo Dark Mode và Light Mode.
+- [x] Cả 2 route `/settings/profile` và `/settings/security` được bảo vệ bằng Auth Guard.
+- [x] Cập nhật Họ tên và Số điện thoại cá nhân lưu thành công vào cơ sở dữ liệu.
+- [x] Tải lên ảnh đại diện Avatar thành công và tự động đồng bộ lên User Menu trên Header.
+- [x] Đổi mật khẩu hoạt động chuẩn xác với thanh Checklist 4 tiêu chuẩn mật khẩu mạnh.
+- [x] Kích hoạt 2FA TOTP quét mã QR và tải về 8 mã dự phòng thành công.
+- [x] Tắt 2FA yêu cầu xác thực lại mật khẩu an toàn.
+- [x] Danh sách các phiên làm việc (Sessions) hiển thị đúng thiết bị hiện tại và cho phép đăng xuất từ xa.
+- [x] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) đồng bộ 100%.
+- [x] Thiết kế Neumorphism chuẩn mực, tương thích hoàn hảo Dark Mode và Light Mode.

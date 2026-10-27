@@ -310,13 +310,13 @@ Cập nhật `vi-VN.json` và `en-US.json`:
 
 ## 8. Checklist hoàn thiện nghiệm thu
 
-- [ ] Cả 2 route `/incidents` và `/incidents/[id]` được bảo vệ bằng Route Guard với quyền `PPE_INCIDENT_READ`.
-- [ ] 4 thẻ Bento Console phản ánh số liệu thực tế từ API.
-- [ ] Bộ lọc đa tiêu chí lọc chính xác sự cố theo Công trường, Camera, Mức độ và Trạng thái.
-- [ ] Khung xem bằng chứng hiển thị rõ nét ảnh snapshot kèm Bounding Box SVG nhận diện người và vật thể vi phạm.
-- [ ] Trục tiến trình vòng đời (Lifecycle Stepper) cập nhật trạng thái chuẩn xác qua từng bước.
-- [ ] Thao tác Thẩm duyệt (Xác nhận / Bác bỏ) hoạt động mượt mà.
-- [ ] Thao tác Phân công cán bộ và Đóng sự cố kiểm soát đúng quyền hạn RBAC.
-- [ ] Tính năng Giám định Mã băm Checksum SHA-256 chứng minh tính toàn vẹn của bằng chứng thành công.
-- [ ] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) chuyển đổi tức thì không sót chuỗi.
-- [ ] Thiết kế Neumorphism chuẩn mực, tương thích hoàn hảo Dark Mode và Light Mode.
+- [x] Cả 2 route `/incidents` và `/incidents/[id]` được bảo vệ bằng Route Guard với quyền `PPE_INCIDENT_READ`.
+- [x] 4 thẻ Bento Console phản ánh số liệu thực tế từ API.
+- [x] Bộ lọc đa tiêu chí lọc chính xác sự cố theo Công trường, Camera, Mức độ và Trạng thái.
+- [x] Khung xem bằng chứng hiển thị rõ nét ảnh snapshot kèm Bounding Box SVG nhận diện người và vật thể vi phạm.
+- [x] Trục tiến trình vòng đời (Lifecycle Stepper) cập nhật trạng thái chuẩn xác qua từng bước.
+- [x] Thao tác Thẩm duyệt (Xác nhận / Bác bỏ) hoạt động mượt mà.
+- [x] Thao tác Phân công cán bộ và Đóng sự cố kiểm soát đúng quyền hạn RBAC.
+- [x] Tính năng Giám định Mã băm Checksum SHA-256 chứng minh tính toàn vẹn của bằng chứng thành công.
+- [x] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) chuyển đổi tức thì không sót chuỗi.
+- [x] Thiết kế Neumorphism chuẩn mực, tương thích hoàn hảo Dark Mode và Light Mode.

@@ -298,12 +298,12 @@ Thay thế placeholder hiện tại bằng component hoàn chỉnh kết nối t
 
 ## 8. Checklist hoàn thiện nghiệm thu
 
-- [ ] Route `/sites` được bảo vệ bằng Route Guard với quyền `PPE_SITE_READ`.
-- [ ] 4 thẻ Bento Console hiển thị đúng số liệu thống kê công trường và phân khu.
-- [ ] Danh sách công trường hiển thị trực quan dưới cả 2 dạng: Thẻ 3D và Bảng dữ liệu.
-- [ ] Modal Cấu hình Tiêu chuẩn An toàn (PPE Requirements) lưu thành công các tùy chọn bảo hộ bắt buộc.
-- [ ] Drawer Quản lý Phân khu & Vùng cấm cho phép thêm/xóa Zone và Restricted Area mượt mà.
-- [ ] Đồng bộ hóa chuẩn xác với thành phần `SiteSelector` trên Header.
-- [ ] Thao tác Thêm, Sửa, Xóa công trường thực thi chuẩn mực với quyền `PPE_SITE_MANAGE`.
-- [ ] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) đồng bộ 100%.
-- [ ] Giao diện Neumorphic thẩm mỹ cao, tương thích hoàn hảo Dark Mode và Light Mode.
+- [x] Route `/sites` được bảo vệ bằng Route Guard với quyền `PPE_SITE_READ`.
+- [x] 4 thẻ Bento Console hiển thị đúng số liệu thống kê công trường và phân khu.
+- [x] Danh sách công trường hiển thị trực quan dưới cả 2 dạng: Thẻ 3D và Bảng dữ liệu.
+- [x] Modal Cấu hình Tiêu chuẩn An toàn (PPE Requirements) lưu thành công các tùy chọn bảo hộ bắt buộc.
+- [x] Drawer Quản lý Phân khu & Vùng cấm cho phép thêm/xóa Zone và Restricted Area mượt mà.
+- [x] Đồng bộ hóa chuẩn xác với thành phần `SiteSelector` trên Header.
+- [x] Thao tác Thêm, Sửa, Xóa công trường thực thi chuẩn mực với quyền `PPE_SITE_MANAGE`.
+- [x] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) đồng bộ 100%.
+- [x] Giao diện Neumorphic thẩm mỹ cao, tương thích hoàn hảo Dark Mode và Light Mode.

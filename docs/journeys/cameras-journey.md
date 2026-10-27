@@ -294,13 +294,13 @@ Thay thế placeholder hiện tại bằng component hoàn chỉnh kết nối t
 
 ## 8. Checklist hoàn thiện nghiệm thu
 
-- [ ] Route `/cameras` được bảo vệ bằng Route Guard với quyền `PPE_CAMERA_READ`.
-- [ ] 4 thẻ Bento Console hiển thị chính xác số lượng camera và trạng thái kết nối.
-- [ ] Chuyển đổi mượt mà giữa Chế độ Danh sách và Chế độ Video Wall (1x1, 2x2, 3x3).
-- [ ] Trình phát video HLS hoạt động trơn tru với độ trễ thấp trên các camera mẫu.
-- [ ] Tính năng chụp ảnh snapshot tức thời hoạt động chuẩn xác.
-- [ ] Drawer Cấu hình AI ROI cho phép vẽ và lưu tọa độ đa giác thành công.
-- [ ] Nút Ping Test đo được độ trễ và tỷ lệ rớt gói tin thực tế.
-- [ ] Thêm mới, chỉnh sửa và xóa camera hoạt động đầy đủ với quyền `PPE_CAMERA_MANAGE`.
-- [ ] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) đồng bộ hoàn toàn.
-- [ ] Giao diện Neumorphic thẩm mỹ cao, tương thích hoàn hảo Dark Mode và Light Mode.
+- [x] Route `/cameras` được bảo vệ bằng Route Guard với quyền `PPE_CAMERA_READ`.
+- [x] 4 thẻ Bento Console hiển thị chính xác số lượng camera và trạng thái kết nối.
+- [x] Chuyển đổi mượt mà giữa Chế độ Danh sách và Chế độ Video Wall (1x1, 2x2, 3x3).
+- [x] Trình phát video HLS hoạt động trơn tru với độ trễ thấp trên các camera mẫu.
+- [x] Tính năng chụp ảnh snapshot tức thời hoạt động chuẩn xác.
+- [x] Drawer Cấu hình AI ROI cho phép vẽ và lưu tọa độ đa giác thành công.
+- [x] Nút Ping Test đo được độ trễ và tỷ lệ rớt gói tin thực tế.
+- [x] Thêm mới, chỉnh sửa và xóa camera hoạt động đầy đủ với quyền `PPE_CAMERA_MANAGE`.
+- [x] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) đồng bộ hoàn toàn.
+- [x] Giao diện Neumorphic thẩm mỹ cao, tương thích hoàn hảo Dark Mode và Light Mode.

@@ -298,12 +298,12 @@ Thay thế placeholder hiện tại bằng component hoàn chỉnh kết nối t
 
 ## 8. Checklist hoàn thiện nghiệm thu
 
-- [ ] Route `/audit-logs` được bảo vệ bằng Route Guard với quyền `AUDIT_LOG_READ`.
-- [ ] 4 thẻ Bento Console hiển thị đúng số liệu thống kê từ API `/api/v1/audit-logs/summary`.
-- [ ] Chuyển đổi mượt mà giữa 3 Tab: Tất cả, Thay đổi Cấu hình, và Thẩm duyệt Sự cố PPE.
-- [ ] Bộ lọc Hành động, Loại tài nguyên và Khoảng ngày hoạt động chính xác.
-- [ ] Drawer Chi tiết hiển thị rõ ràng thông tin người dùng, IP, User-Agent và bộ so sánh JSON Diff (old vs new).
-- [ ] Tính năng Xuất báo cáo tải về thành công file CSV và JSON định dạng chuẩn.
-- [ ] Tuyệt đối không có hành động sửa hoặc xóa bản ghi kiểm toán trên giao diện.
-- [ ] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) đồng bộ 100%.
-- [ ] Giao diện Neumorphic thẩm mỹ cao, tương thích hoàn hảo Dark Mode và Light Mode.
+- [x] Route `/audit-logs` được bảo vệ bằng Route Guard với quyền `AUDIT_LOG_READ`.
+- [x] 4 thẻ Bento Console hiển thị đúng số liệu thống kê từ API `/api/v1/audit-logs/summary`.
+- [x] Chuyển đổi mượt mà giữa 3 Tab: Tất cả, Thay đổi Cấu hình, và Thẩm duyệt Sự cố PPE.
+- [x] Bộ lọc Hành động, Loại tài nguyên và Khoảng ngày hoạt động chính xác.
+- [x] Drawer Chi tiết hiển thị rõ ràng thông tin người dùng, IP, User-Agent và bộ so sánh JSON Diff (old vs new).
+- [x] Tính năng Xuất báo cáo tải về thành công file CSV và JSON định dạng chuẩn.
+- [x] Tuyệt đối không có hành động sửa hoặc xóa bản ghi kiểm toán trên giao diện.
+- [x] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) đồng bộ 100%.
+- [x] Giao diện Neumorphic thẩm mỹ cao, tương thích hoàn hảo Dark Mode và Light Mode.

@@ -267,12 +267,12 @@ Thay thế placeholder hiện tại bằng component hoàn chỉnh kết nối t
 
 ## 8. Checklist hoàn thiện nghiệm thu
 
-- [ ] Route `/roles` được bảo vệ bằng Route Guard với quyền `ROLE_READ`.
-- [ ] 4 thẻ Bento Console hiển thị đúng thống kê từ API.
-- [ ] Hỗ trợ chuyển đổi linh hoạt giữa Dạng Thẻ (Grid) và Dạng Bảng (Table).
-- [ ] Drawer Ma trận Phân quyền hiển thị đầy đủ 42 quyền hạn phân theo 9 phân hệ.
-- [ ] Tính năng chọn tất cả / bỏ chọn theo phân hệ hoạt động chuẩn xác.
-- [ ] Cơ chế Anti-lockout bảo vệ vai trò `ADMIN` không thể bị xóa hoặc tước quyền cốt lõi.
-- [ ] Tạo mới, chỉnh sửa và xóa vai trò tùy chỉnh thành công.
-- [ ] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) chuyển đổi mượt mà.
-- [ ] Thiết kế Neumorphism chuẩn mực, tương thích hoàn hảo Dark Mode và Light Mode.
+- [x] Route `/roles` được bảo vệ bằng Route Guard với quyền `ROLE_READ`.
+- [x] 4 thẻ Bento Console hiển thị đúng thống kê từ API.
+- [x] Hỗ trợ chuyển đổi linh hoạt giữa Dạng Thẻ (Grid) và Dạng Bảng (Table).
+- [x] Drawer Ma trận Phân quyền hiển thị đầy đủ 42 quyền hạn phân theo 9 phân hệ.
+- [x] Tính năng chọn tất cả / bỏ chọn theo phân hệ hoạt động chuẩn xác.
+- [x] Cơ chế Anti-lockout bảo vệ vai trò `ADMIN` không thể bị xóa hoặc tước quyền cốt lõi.
+- [x] Tạo mới, chỉnh sửa và xóa vai trò tùy chỉnh thành công.
+- [x] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) chuyển đổi mượt mà.
+- [x] Thiết kế Neumorphism chuẩn mực, tương thích hoàn hảo Dark Mode và Light Mode.
