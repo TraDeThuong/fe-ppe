@@ -23,7 +23,7 @@ export interface InputProps
 
 const sizeClasses: Record<InputSize, string> = {
   sm: "h-9 rounded-xl px-3 text-xs",
-  md: "h-11 rounded-2xl px-3.5 text-sm",
+  md: "h-11 rounded-2xl px-3.5 text-base sm:text-sm",
   lg: "h-[52px] rounded-2xl px-4 text-base",
 };
 

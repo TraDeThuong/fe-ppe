@@ -1,9 +1,8 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { Languages, Sun, Moon } from "lucide-react";
+import { HardHat, Languages, Sun, Moon } from "lucide-react";
 
 import { Typography } from "@ui/typography";
 import { NeumorphicSurface } from "@ui/neumorphic-surface";
@@ -104,7 +103,7 @@ function NeumorphicTileWall() {
   return (
     <div
       aria-label="Interactive Neumorphism tiles"
-      className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+      className="pointer-events-none absolute inset-0 z-0 overflow-hidden hidden md:block"
     >
       {tiles.map((tile) => {
         const tileStyle = {
@@ -112,14 +111,14 @@ function NeumorphicTileWall() {
           top: `${tile.y}%`,
           opacity: tile.opacity,
           transform: `translate(-50%, -50%) rotate(${tile.rotation}deg)`,
-            "--tile-delay": `${(tile.id % 13) * -2.5}s`,
-            "--tile-duration": `${40 + (tile.id % 11) * 5}s`,
+          "--tile-delay": `${(tile.id % 13) * -2.5}s`,
+          "--tile-duration": `${40 + (tile.id % 11) * 5}s`,
         } as CSSProperties;
 
         return (
           <div
             key={tile.id}
-              className="pointer-events-auto absolute animate-neumorphic-breathe"
+            className="pointer-events-auto absolute animate-neumorphic-breathe"
             style={tileStyle}
           >
             <NeumorphicSurface
@@ -146,9 +145,13 @@ function AuthImageSlideshow() {
   const [images, setImages] = useState<string[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // Automatically discover images numbered from 1 to MAX_IMAGES.
-  // Missing numbers are allowed.
+  // Automatically discover images numbered from 1 to MAX_IMAGES on desktop screen.
   useEffect(() => {
+    // Tiết kiệm băng thông và RAM trên mobile: không tải ảnh khi ở màn hình nhỏ
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      return;
+    }
+
     let cancelled = false;
 
     async function discoverImages() {
@@ -262,7 +265,7 @@ function AuthImageSlideshow() {
 ======================================== */
 
 const controlClassName = [
-  "inline-flex h-10 items-center justify-center gap-2 rounded-xl",
+  "inline-flex h-9 sm:h-10 items-center justify-center gap-2 rounded-xl",
   "border border-border/50 bg-background text-foreground",
   "shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)]",
   "transition-all duration-300",
@@ -294,45 +297,40 @@ export function AuthShell({
   }
 
   return (
-    <main className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-4 py-8 sm:px-6 sm:py-10">
+    <main className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-x-hidden bg-background px-4 py-8 sm:px-6 sm:py-10">
       {/* Ambient background */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
       >
-        <div className="absolute -left-32 top-10 size-80 rounded-full bg-primary/[0.035] blur-3xl" />
-        <div className="absolute -bottom-32 -right-20 size-96 rounded-full bg-primary/[0.045] blur-3xl" />
+        <div className="absolute -left-32 top-10 size-80 rounded-full bg-primary/[0.035] blur-3xl opacity-60 md:opacity-100" />
+        <div className="absolute -bottom-32 -right-20 size-96 rounded-full bg-primary/[0.045] blur-3xl opacity-60 md:opacity-100" />
       </div>
 
-      {/* Neumorphic background */}
+      {/* Neumorphic background tiles (chỉ render trên desktop md: để tối ưu pin và 60fps trên mobile) */}
       <NeumorphicTileWall />
 
-      {/* Main content */}
-      <div className="relative z-10 flex w-full max-w-7xl flex-col items-center gap-7">
-        {/* Brand */}
-        <div className="rounded-xl px-3 py-1">
-          <Typography
-            variant="embossed"
-            className="!text-background text-center text-3xl font-black tracking-[0.18em] sm:text-5xl lg:text-6xl"
-          >
-            PPA MONITORING
-          </Typography>
-        </div>
+      {/* Main Container */}
+      <div className="relative z-10 flex w-full max-w-md flex-col items-center gap-5 sm:gap-6 md:max-w-7xl">
+        {/* Top Header Bar: Logo & Theme/Language controls */}
+        <header className="flex w-full items-center justify-between px-1">
+          {/* Brand */}
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <span className="flex size-9 sm:size-10 shrink-0 items-center justify-center rounded-xl bg-card text-primary shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)]">
+              <HardHat className="size-4 sm:size-5" aria-hidden="true" />
+            </span>
+            <div className="flex flex-col">
+              <span className="text-sm sm:text-base font-black tracking-wider text-foreground uppercase">
+                SMART PPE
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                Monitoring System
+              </span>
+            </div>
+          </div>
 
-        {/* Main Card */}
-        <Card
-          variant="raised"
-          className={[
-            "relative w-full overflow-hidden rounded-[1.75rem]",
-            "border border-border/40 bg-background",
-            "shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]",
-            cardClassName,
-          ]
-            .filter(Boolean)
-            .join(" ")}
-        >
           {/* Language and theme controls */}
-          <div className="absolute right-4 top-4 z-20 flex items-center gap-2 sm:right-6 sm:top-6">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={toggleLocale}
@@ -342,9 +340,9 @@ export function AuthShell({
               title={
                 isVietnamese ? "Switch to English" : "Chuyển sang tiếng Việt"
               }
-              className={`${controlClassName} px-3`}
+              className={`${controlClassName} px-2.5 sm:px-3`}
             >
-              <Languages className="size-4" aria-hidden="true" />
+              <Languages className="size-3.5 sm:size-4" aria-hidden="true" />
               <span className="text-xs font-bold">
                 {isVietnamese ? "VI" : "EN"}
               </span>
@@ -355,25 +353,37 @@ export function AuthShell({
               onClick={toggleTheme}
               aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
               title={isDark ? "Light mode" : "Dark mode"}
-              className={`${controlClassName} size-10`}
+              className={`${controlClassName} size-9 sm:size-10`}
             >
               {isDark ? (
-                <Sun className="size-4" aria-hidden="true" />
+                <Sun className="size-3.5 sm:size-4" aria-hidden="true" />
               ) : (
-                <Moon className="size-4" aria-hidden="true" />
+                <Moon className="size-3.5 sm:size-4" aria-hidden="true" />
               )}
             </button>
           </div>
+        </header>
 
+        {/* Main Card */}
+        <Card
+          variant="raised"
+          className={[
+            "relative w-full overflow-hidden rounded-2xl md:rounded-[1.75rem]",
+            "border border-border/40 bg-background",
+            "shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]",
+            cardClassName,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
           <div className="grid grid-cols-1 md:grid-cols-2">
-            {/* Left: Recessed Image Slideshow */}
-            <div className="p-4 sm:p-6 lg:p-7">
+            {/* Left: Recessed Image Slideshow (ẨN TRÊN MOBILE, CHỈ HIỆN TỪ md TRỞ LÊN) */}
+            <div className="hidden md:block p-4 sm:p-6 lg:p-7">
               <div
                 className={[
-                  "group relative h-[320px] rounded-[1.4rem] p-[6px]",
+                  "group relative h-full min-h-[580px] rounded-[1.4rem] p-[6px]",
                   "bg-background",
                   "shadow-[inset_5px_5px_10px_var(--shadow-dark),inset_-5px_-5px_10px_var(--shadow-light)]",
-                  "md:h-full md:min-h-[580px]",
                 ].join(" ")}
               >
                 <div
@@ -428,12 +438,12 @@ export function AuthShell({
               </div>
             </div>
 
-            {/* Right: Form */}
-            <div className="flex flex-col justify-center px-6 pb-9 pt-20 sm:px-10 sm:pb-12 sm:pt-20 lg:px-14 xl:px-16">
-              <CardHeader className="space-y-3 px-0 pb-7 pt-0">
+            {/* Right: Form (Căn chỉnh cân đối trên Mobile, bỏ khoảng trống pt-20 thừa thãi) */}
+            <div className="flex flex-col justify-center px-5 py-7 sm:px-8 sm:py-9 md:px-10 md:py-12 lg:px-14 xl:px-16">
+              <CardHeader className="space-y-2 px-0 pb-6 pt-0">
                 <Typography
                   variant="embossed"
-                  className="!text-card text-2xl font-black sm:text-3xl lg:text-5xl"
+                  className="!text-card text-2xl font-black sm:text-3xl lg:text-4xl"
                 >
                   {title}
                 </Typography>
@@ -454,7 +464,7 @@ export function AuthShell({
 
         {/* Footer */}
         {footer != null && (
-          <div className="w-full text-center">{footer}</div>
+          <div className="w-full text-center pb-2">{footer}</div>
         )}
       </div>
     </main>

@@ -6,6 +6,7 @@ import { ChevronRight, Home } from "lucide-react";
 
 import { Typography } from "@ui/typography";
 import { useLocale } from "@/providers/locale-provider";
+import { MobileHeaderSettings } from "./mobile-header-settings";
 
 export interface BreadcrumbItem {
   label: string;

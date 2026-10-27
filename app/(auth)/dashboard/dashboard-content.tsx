@@ -32,7 +32,7 @@ export default function DashboardContent() {
       <PagePanel
         icon={LayoutDashboard}
         title="Tổng quan (Dashboard Grid Container)"
-        description="Nội dung chi tiết được tạm ẩn để phục vụ thiết kế lại layout chung (Sidebar, Header, Grid spacing)."
+        description=""
       />
     </div>
   );

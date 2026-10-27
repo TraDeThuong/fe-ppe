@@ -10,6 +10,7 @@ import {
   Fingerprint,
   Link2,
   Loader2,
+  Mail,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -17,6 +18,8 @@ import {
 } from "lucide-react";
 
 import { Button } from "@ui/button";
+
+import { useAuth } from "@/contexts/AuthContext";
 
 import {
   handleMutationError,
@@ -48,6 +51,7 @@ function formatDate(iso: string): string {
 
 export function SocialPanel() {
   const { t } = useLocale();
+  const { user } = useAuth();
   const accounts = useSocialAccounts();
 
   const [confirmUnlink, setConfirmUnlink] = useState<string | null>(null);
@@ -133,9 +137,9 @@ export function SocialPanel() {
     return (
       <div
         data-testid="social-loading"
-        className="relative flex items-center gap-4 overflow-hidden rounded-[24px] border border-border/50 bg-background p-5 shadow-[8px_8px_20px_rgba(0,0,0,0.06),-7px_-7px_18px_rgba(255,255,255,0.65)]"
+        className="relative flex items-center gap-4 overflow-hidden rounded-2xl border border-border/30 bg-background p-5"
       >
-        <div className="flex size-12 items-center justify-center rounded-2xl bg-muted/50 text-primary shadow-[inset_4px_4px_8px_rgba(0,0,0,0.06),inset_-4px_-4px_8px_rgba(255,255,255,0.65)]">
+        <div className="flex size-12 items-center justify-center rounded-2xl border border-border/30 bg-background text-primary">
           <Loader2 className="size-5 animate-spin" aria-hidden="true" />
         </div>
 
@@ -154,7 +158,7 @@ export function SocialPanel() {
   return (
     <section
       data-testid="social-panel"
-      className="relative isolate flex flex-col gap-5 overflow-hidden rounded-[28px] border border-border/60 bg-background p-4 shadow-[14px_14px_36px_-18px_rgba(0,0,0,0.22),-10px_-10px_30px_-18px_rgba(255,255,255,0.9)] sm:gap-6 sm:p-6"
+      className="relative isolate flex flex-col gap-5 overflow-hidden rounded-2xl border border-border/30 bg-transparent p-4 shadow-[4px_4px_12px_var(--shadow-dark),-4px_-4px_12px_var(--shadow-light)] sm:gap-6 sm:p-6"
     >
       {/* Ambient lighting */}
       <div
@@ -168,8 +172,7 @@ export function SocialPanel() {
 
       {/* Header */}
       <header className="relative flex items-start gap-4">
-        <div className="relative flex size-14 shrink-0 items-center justify-center rounded-[19px] border border-primary/15 bg-background text-primary shadow-[5px_5px_12px_rgba(0,0,0,0.08),-5px_-5px_12px_rgba(255,255,255,0.7)]">
-          <div className="absolute inset-1 rounded-[14px] border border-primary/10" />
+        <div className="relative flex size-14 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-transparent text-primary shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
           <Link2
             className="relative size-6"
             strokeWidth={1.8}
@@ -204,9 +207,9 @@ export function SocialPanel() {
 
       {/* Summary */}
       <div className="relative grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-border/50 bg-muted/[0.12] p-3.5 shadow-[inset_3px_3px_8px_rgba(0,0,0,0.035),inset_-3px_-3px_8px_rgba(255,255,255,0.4)] sm:p-4">
+        <div className="rounded-2xl border border-border/30 bg-transparent p-3.5 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:p-4">
           <div className="flex items-center gap-2">
-            <div className="flex size-8 items-center justify-center rounded-xl bg-background text-primary shadow-[3px_3px_7px_rgba(0,0,0,0.07),-3px_-3px_7px_rgba(255,255,255,0.65)]">
+            <div className="flex size-8 items-center justify-center rounded-xl border border-border/30 bg-transparent text-primary shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)]">
               <Fingerprint className="size-4" aria-hidden="true" />
             </div>
             <span className="text-[10px] font-semibold text-muted-foreground sm:text-xs">
@@ -222,9 +225,9 @@ export function SocialPanel() {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.035] p-3.5 shadow-[inset_3px_3px_8px_rgba(0,0,0,0.025),inset_-3px_-3px_8px_rgba(255,255,255,0.4)] sm:p-4">
+        <div className="rounded-2xl border border-emerald-500/20 bg-transparent p-3.5 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:p-4">
           <div className="flex items-center gap-2">
-            <div className="flex size-8 items-center justify-center rounded-xl bg-background text-emerald-600 shadow-[3px_3px_7px_rgba(0,0,0,0.06),-3px_-3px_7px_rgba(255,255,255,0.65)] dark:text-emerald-400">
+            <div className="flex size-8 items-center justify-center rounded-xl border border-emerald-500/20 bg-transparent text-emerald-600 shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)] dark:text-emerald-400">
               <ShieldCheck className="size-4" aria-hidden="true" />
             </div>
             <span className="text-[10px] font-semibold text-muted-foreground sm:text-xs">
@@ -246,9 +249,9 @@ export function SocialPanel() {
       {linkError && (
         <div
           role="alert"
-          className="relative flex items-start gap-3 rounded-2xl border border-danger/25 bg-danger/[0.055] p-4 text-danger shadow-[inset_3px_3px_8px_rgba(0,0,0,0.035),inset_-3px_-3px_8px_rgba(255,255,255,0.4)]"
+          className="relative flex items-start gap-3 rounded-2xl border border-danger/25 bg-danger/[0.055] p-4 text-danger"
         >
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background shadow-[3px_3px_7px_rgba(0,0,0,0.06),-3px_-3px_7px_rgba(255,255,255,0.65)]">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-danger/20 bg-background">
             <AlertCircle className="size-4" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
@@ -270,7 +273,7 @@ export function SocialPanel() {
             </p>
           </div>
 
-          <span className="rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-[10px] font-semibold tabular-nums text-muted-foreground shadow-[3px_3px_7px_rgba(0,0,0,0.045),-3px_-3px_7px_rgba(255,255,255,0.6)]">
+          <span className="rounded-lg border border-border/30 bg-background px-2.5 py-1.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
             {linkedAccounts.length}{" "}
             {linkedAccounts.length === 1 ? "account" : "accounts"}
           </span>
@@ -280,15 +283,16 @@ export function SocialPanel() {
           {linkedAccounts.map((account) => {
             const pending = confirmUnlink === account.provider;
             const isGoogle = account.provider === "GOOGLE";
+            const accountEmail = account.email || (isGoogle ? user?.email : user?.email);
 
             return (
               <li
                 key={account.id}
                 data-testid={`social-item-${account.provider.toLowerCase()}`}
-                className={`group relative overflow-hidden rounded-2xl border bg-background p-3.5 transition-all duration-300 sm:p-4 ${
+                className={`group relative overflow-hidden rounded-2xl border p-3.5 transition-all duration-200 sm:p-4 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] hover:shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)] ${
                   pending
-                    ? "border-danger/30 shadow-[inset_4px_4px_10px_rgba(220,38,38,0.055),inset_-4px_-4px_10px_rgba(255,255,255,0.5)]"
-                    : "border-border/50 shadow-[6px_6px_14px_rgba(0,0,0,0.055),-5px_-5px_13px_rgba(255,255,255,0.55)] hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-[9px_10px_20px_rgba(0,0,0,0.075),-5px_-5px_13px_rgba(255,255,255,0.6)]"
+                    ? "border-danger/40 bg-transparent"
+                    : "border-border/30 bg-transparent hover:border-border/60"
                 }`}
               >
                 <div
@@ -301,10 +305,10 @@ export function SocialPanel() {
                 <div className="flex flex-col gap-4 pl-1 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 items-center gap-3">
                     <div
-                      className={`relative flex size-12 shrink-0 items-center justify-center rounded-2xl border shadow-[4px_4px_9px_rgba(0,0,0,0.07),-4px_-4px_9px_rgba(255,255,255,0.65)] ${
+                      className={`relative flex size-12 shrink-0 items-center justify-center rounded-2xl border shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] ${
                         isGoogle
-                          ? "border-blue-500/15 bg-blue-500/[0.06] text-blue-600 dark:text-blue-400"
-                          : "border-primary/15 bg-primary/[0.06] text-primary"
+                          ? "border-blue-500/20 bg-blue-500/[0.06] text-blue-600 dark:text-blue-400"
+                          : "border-primary/20 bg-primary/[0.06] text-primary"
                       }`}
                     >
                       {isGoogle ? (
@@ -354,7 +358,16 @@ export function SocialPanel() {
                         </span>
                       </div>
 
-                      <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      {accountEmail && (
+                        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Mail className="size-3.5 shrink-0 text-muted-foreground/80" aria-hidden="true" />
+                          <span className="truncate font-medium text-foreground/85">
+                            {accountEmail}
+                          </span>
+                        </p>
+                      )}
+
+                      <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <Clock3 className="size-3.5 shrink-0" aria-hidden="true" />
                         {t("security.social.linkedAt")}{" "}
                         <span className="font-medium text-foreground/75">
@@ -372,7 +385,7 @@ export function SocialPanel() {
                         size="sm"
                         disabled={unlink.isPending}
                         onClick={() => setConfirmUnlink(null)}
-                        className="rounded-xl border-border/60 bg-background text-xs shadow-[3px_3px_7px_rgba(0,0,0,0.05),-3px_-3px_7px_rgba(255,255,255,0.5)] transition-all hover:bg-muted/40"
+                        className="rounded-xl border-border/40 bg-background text-xs transition-all hover:bg-muted/40"
                       >
                         Cancel
                       </Button>
@@ -384,10 +397,10 @@ export function SocialPanel() {
                       size="sm"
                       disabled={unlink.isPending}
                       onClick={() => handleUnlink(account.provider)}
-                      className={`group/action min-h-9 flex-1 rounded-xl transition-all duration-300 sm:flex-none ${
+                      className={`group/action min-h-9 flex-1 rounded-xl transition-all duration-200 sm:flex-none ${
                         pending
-                          ? "border-danger/30 bg-danger/10 text-danger shadow-[inset_3px_3px_7px_rgba(0,0,0,0.045),inset_-3px_-3px_7px_rgba(255,255,255,0.35)] hover:bg-danger/15 hover:text-danger"
-                          : "border-border/60 bg-background text-muted-foreground shadow-[3px_3px_7px_rgba(0,0,0,0.055),-3px_-3px_7px_rgba(255,255,255,0.55)] hover:border-danger/25 hover:bg-danger/[0.06] hover:text-danger"
+                          ? "border-danger/40 bg-danger/10 text-danger hover:bg-danger/15 hover:text-danger"
+                          : "border-border/40 bg-background text-muted-foreground hover:border-danger/30 hover:bg-danger/[0.06] hover:text-danger"
                       }`}
                     >
                       {unlink.isPending && pending ? (
@@ -428,8 +441,8 @@ export function SocialPanel() {
         </ul>
 
         {linkedAccounts.length === 0 && (
-          <div className="relative overflow-hidden rounded-2xl border border-dashed border-border/70 bg-muted/[0.12] px-5 py-8 text-center shadow-[inset_4px_4px_10px_rgba(0,0,0,0.035),inset_-4px_-4px_10px_rgba(255,255,255,0.4)]">
-            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-border/50 bg-background text-muted-foreground shadow-[5px_5px_12px_rgba(0,0,0,0.07),-5px_-5px_12px_rgba(255,255,255,0.6)]">
+          <div className="relative overflow-hidden rounded-2xl border border-dashed border-border/60 bg-background px-5 py-8 text-center">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-border/40 bg-background text-muted-foreground">
               <Link2 className="size-6" aria-hidden="true" />
             </div>
 
@@ -445,9 +458,9 @@ export function SocialPanel() {
       </div>
 
       {/* Anti-lockout warning */}
-      <div className="relative overflow-hidden rounded-2xl border border-warning/25 bg-warning/[0.045] p-4 shadow-[inset_3px_3px_8px_rgba(0,0,0,0.03),inset_-3px_-3px_8px_rgba(255,255,255,0.4)] sm:p-4">
+      <div className="relative overflow-hidden rounded-2xl border border-warning/25 bg-transparent p-4 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] sm:p-4">
         <div className="flex items-start gap-3">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background text-warning shadow-[3px_3px_7px_rgba(0,0,0,0.06),-3px_-3px_7px_rgba(255,255,255,0.6)]">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-warning/20 bg-transparent text-warning shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
             <ShieldAlert className="size-4" aria-hidden="true" />
           </div>
 
@@ -464,10 +477,10 @@ export function SocialPanel() {
 
       {/* Google linking */}
       {!googleLinked && (
-        <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-muted/[0.12] p-4 shadow-[inset_3px_3px_8px_rgba(0,0,0,0.035),inset_-3px_-3px_8px_rgba(255,255,255,0.4)] sm:p-5">
+        <div className="relative overflow-hidden rounded-2xl border border-border/30 bg-transparent p-4 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-background shadow-[4px_4px_9px_rgba(0,0,0,0.065),-4px_-4px_9px_rgba(255,255,255,0.65)]">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-border/30 bg-transparent shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
                 <svg
                   viewBox="0 0 48 48"
                   className="size-5"
@@ -510,7 +523,7 @@ export function SocialPanel() {
               variant="outline"
               disabled={googleParams !== null}
               onClick={handleLinkGoogle}
-              className="group/google min-h-11 w-full shrink-0 rounded-xl border-primary/20 bg-background font-semibold text-primary shadow-[5px_5px_11px_rgba(0,0,0,0.065),-4px_-4px_10px_rgba(255,255,255,0.65)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/35 hover:bg-primary/[0.045] hover:shadow-[7px_8px_14px_rgba(0,0,0,0.08),-4px_-4px_10px_rgba(255,255,255,0.65)] active:translate-y-0 disabled:translate-y-0 disabled:opacity-60 sm:w-auto sm:min-w-44"
+              className="group/google min-h-11 w-full shrink-0 rounded-xl border-primary/20 bg-background font-semibold text-primary transition-all duration-200 hover:border-primary/40 hover:bg-primary/[0.045] disabled:opacity-60 sm:w-auto sm:min-w-44"
             >
               {googleParams !== null ? (
                 <span className="inline-flex items-center gap-2">
@@ -520,7 +533,7 @@ export function SocialPanel() {
               ) : (
                 <span className="inline-flex items-center gap-2">
                   {t("security.social.linkGoogle")}
-                  <ArrowRight className="size-4 transition-transform duration-300 group-hover/google:translate-x-1" />
+                  <ArrowRight className="size-4 transition-transform duration-200 group-hover/google:translate-x-1" />
                 </span>
               )}
             </Button>

@@ -67,10 +67,10 @@ export function SessionsPanel() {
     return (
       <div
         data-testid="sessions-loading"
-        className="relative flex min-h-36 items-center justify-center overflow-hidden rounded-3xl border border-border/50 bg-background p-6 shadow-[8px_8px_20px_rgba(0,0,0,0.06),-8px_-8px_20px_rgba(255,255,255,0.65)]"
+        className="relative flex min-h-36 items-center justify-center overflow-hidden rounded-2xl border border-border/30 bg-background p-6"
       >
         <div className="flex flex-col items-center gap-3">
-          <div className="flex size-14 items-center justify-center rounded-2xl border border-border/50 bg-background shadow-[inset_4px_4px_9px_rgba(0,0,0,0.07),inset_-4px_-4px_9px_rgba(255,255,255,0.7)]">
+          <div className="flex size-14 items-center justify-center rounded-2xl border border-border/30 bg-background">
             <Loader2 className="size-6 animate-spin text-primary" />
           </div>
           <p className="text-sm font-medium text-muted-foreground">
@@ -83,9 +83,9 @@ export function SessionsPanel() {
 
   if (sessions.isError || !sessions.data?.length) {
     return (
-      <div className="relative overflow-hidden rounded-3xl border border-border/50 bg-background p-6 shadow-[7px_7px_18px_rgba(0,0,0,0.06),-7px_-7px_18px_rgba(255,255,255,0.6)] sm:p-8">
+      <div className="relative overflow-hidden rounded-2xl border border-border/30 bg-background p-6 sm:p-8">
         <div className="flex flex-col items-center py-5 text-center">
-          <div className="mb-4 flex size-16 items-center justify-center rounded-3xl border border-border/40 bg-background shadow-[inset_4px_4px_9px_rgba(0,0,0,0.06),inset_-4px_-4px_9px_rgba(255,255,255,0.65)]">
+          <div className="mb-4 flex size-16 items-center justify-center rounded-2xl border border-border/30 bg-background">
             <MonitorSmartphone
               className="size-7 text-muted-foreground"
               strokeWidth={1.6}
@@ -105,13 +105,13 @@ export function SessionsPanel() {
   return (
     <div data-testid="sessions-panel" className="flex w-full flex-col gap-5">
       {/* Overview */}
-      <section className="relative isolate overflow-hidden rounded-3xl border border-border/50 bg-background p-5 shadow-[9px_9px_22px_rgba(0,0,0,0.07),-8px_-8px_22px_rgba(255,255,255,0.65)] sm:p-6">
+      <section className="relative isolate overflow-hidden rounded-2xl border border-border/30 bg-transparent p-5 shadow-[4px_4px_12px_var(--shadow-dark),-4px_-4px_12px_var(--shadow-light)] sm:p-6">
         <div className="pointer-events-none absolute -right-12 -top-16 -z-10 size-48 rounded-full bg-primary/[0.07] blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 -left-10 -z-10 size-40 rounded-full bg-emerald-500/[0.06] blur-3xl" />
 
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <div className="relative flex size-14 shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-background shadow-[inset_3px_3px_8px_rgba(0,0,0,0.05),inset_-3px_-3px_8px_rgba(255,255,255,0.7),5px_5px_12px_rgba(0,0,0,0.06)]">
+            <div className="relative flex size-14 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-transparent shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
               <Fingerprint className="size-7 text-primary" strokeWidth={1.7} />
               <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border-2 border-background bg-emerald-500 text-white shadow-sm">
                 <ShieldCheck className="size-3" strokeWidth={2.5} />
@@ -128,7 +128,7 @@ export function SessionsPanel() {
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-border/40 bg-background/80 px-4 py-3 shadow-[inset_3px_3px_7px_rgba(0,0,0,0.04),inset_-3px_-3px_7px_rgba(255,255,255,0.55)]">
+          <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-border/30 bg-transparent px-4 py-3 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
             <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
               <Globe2 className="size-4" />
             </div>
@@ -144,8 +144,8 @@ export function SessionsPanel() {
         </div>
 
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <div className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/20 p-3.5">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background text-emerald-600 shadow-[3px_3px_7px_rgba(0,0,0,0.05),-3px_-3px_7px_rgba(255,255,255,0.5)] dark:text-emerald-400">
+          <div className="flex items-center gap-3 rounded-2xl border border-border/30 bg-transparent p-3.5 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/30 bg-transparent text-emerald-600 shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)] dark:text-emerald-400">
               <ShieldCheck className="size-4" />
             </div>
             <div className="min-w-0">
@@ -158,8 +158,8 @@ export function SessionsPanel() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/20 p-3.5">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background text-primary shadow-[3px_3px_7px_rgba(0,0,0,0.05),-3px_-3px_7px_rgba(255,255,255,0.5)]">
+          <div className="flex items-center gap-3 rounded-2xl border border-border/30 bg-transparent p-3.5 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/30 bg-transparent text-primary shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)]">
               <MonitorSmartphone className="size-4" />
             </div>
             <div className="min-w-0">
@@ -186,7 +186,7 @@ export function SessionsPanel() {
               {sessions.data.length === 1 ? "" : "s"} connected to your account
             </p>
           </div>
-          <div className="flex size-9 items-center justify-center rounded-xl border border-border/40 bg-background text-muted-foreground shadow-[3px_3px_8px_rgba(0,0,0,0.05),-3px_-3px_8px_rgba(255,255,255,0.55)]">
+          <div className="flex size-9 items-center justify-center rounded-xl border border-border/30 bg-transparent text-muted-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
             <Laptop className="size-4" />
           </div>
         </div>
@@ -201,15 +201,14 @@ export function SessionsPanel() {
                 key={session.id}
                 data-testid={`session-item${isCurrent ? "-current" : ""}`}
                 className={[
-                  "group relative overflow-hidden rounded-2xl border bg-background p-4",
-                  "transition-all duration-300 ease-out",
-                  "shadow-[6px_6px_15px_rgba(0,0,0,0.055),-5px_-5px_14px_rgba(255,255,255,0.55)]",
-                  "hover:-translate-y-0.5 hover:shadow-[9px_9px_20px_rgba(0,0,0,0.08),-7px_-7px_18px_rgba(255,255,255,0.65)]",
+                  "group relative overflow-hidden rounded-2xl border p-4",
+                  "transition-all duration-200",
+                  "shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] hover:shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)]",
                   isCurrent
-                    ? "border-emerald-500/25 ring-1 ring-emerald-500/[0.06]"
+                    ? "border-emerald-500/30 bg-transparent"
                     : pendingConfirm
-                      ? "border-danger/30 ring-1 ring-danger/10"
-                      : "border-border/50",
+                      ? "border-danger/40 bg-transparent"
+                      : "border-border/30 bg-transparent hover:border-border/60",
                 ].join(" ")}
                 style={{ animationDelay: `${index * 70}ms` }}
               >
@@ -222,11 +221,11 @@ export function SessionsPanel() {
                     <div
                       className={[
                         "relative flex size-12 shrink-0 items-center justify-center rounded-2xl border",
-                        "transition-transform duration-300 group-hover:scale-[1.04]",
-                        "shadow-[inset_3px_3px_7px_rgba(0,0,0,0.045),inset_-3px_-3px_7px_rgba(255,255,255,0.6),3px_3px_8px_rgba(0,0,0,0.04)]",
+                        "transition-transform duration-200 group-hover:scale-[1.03]",
+                        "shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]",
                         isCurrent
-                          ? "border-emerald-500/15 bg-emerald-500/[0.07] text-emerald-600 dark:text-emerald-400"
-                          : "border-border/40 bg-muted/30 text-muted-foreground",
+                          ? "border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-600 dark:text-emerald-400"
+                          : "border-border/30 bg-transparent text-muted-foreground",
                       ].join(" ")}
                     >
                       <Laptop className="size-5" strokeWidth={1.8} />
@@ -276,8 +275,8 @@ export function SessionsPanel() {
                         className={[
                           "min-w-28 rounded-xl transition-all duration-200",
                           pendingConfirm
-                            ? "border-danger/40 bg-danger/10 font-semibold text-danger shadow-[inset_2px_2px_5px_rgba(0,0,0,0.045)] hover:bg-danger/15 hover:text-danger"
-                            : "border-border/60 bg-background shadow-[3px_3px_7px_rgba(0,0,0,0.045),-3px_-3px_7px_rgba(255,255,255,0.5)] hover:border-danger/30 hover:text-danger",
+                            ? "border-danger/40 bg-danger/10 font-semibold text-danger hover:bg-danger/15 hover:text-danger"
+                            : "border-border/40 bg-background hover:border-danger/30 hover:text-danger",
                         ].join(" ")}
                         disabled={revokeSession.isPending}
                         onClick={() => handleRevoke(session.id)}
@@ -294,7 +293,7 @@ export function SessionsPanel() {
                           </>
                         ) : (
                           <>
-                            Revoke session
+                            {t("security.sessions.revoke")}
                             <ChevronRight className="ml-1 size-3.5 transition-transform group-hover:translate-x-0.5" />
                           </>
                         )}
@@ -322,17 +321,18 @@ export function SessionsPanel() {
       {otherSessions.length > 0 && (
         <section
           className={[
-            "relative overflow-hidden rounded-3xl border p-4 transition-all duration-300 sm:p-5",
+            "relative overflow-hidden rounded-2xl border p-4 transition-all duration-300 sm:p-5",
+            "shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)]",
             confirmRevokeAll
-              ? "border-danger/30 bg-danger/[0.055] shadow-[inset_4px_4px_10px_rgba(0,0,0,0.045),inset_-4px_-4px_10px_rgba(255,255,255,0.35)]"
-              : "border-danger/15 bg-background shadow-[7px_7px_18px_rgba(0,0,0,0.055),-6px_-6px_18px_rgba(255,255,255,0.55)]",
+              ? "border-danger/30 bg-danger/[0.055]"
+              : "border-danger/20 bg-transparent",
           ].join(" ")}
         >
           <div className="pointer-events-none absolute -right-8 -top-10 size-32 rounded-full bg-danger/[0.06] blur-2xl" />
 
           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-danger/15 bg-danger/[0.06] text-danger shadow-[inset_2px_2px_5px_rgba(0,0,0,0.035),inset_-2px_-2px_5px_rgba(255,255,255,0.35)]">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-danger/20 bg-transparent text-danger shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
                 {confirmRevokeAll ? (
                   <ShieldAlert className="size-5" />
                 ) : (
@@ -361,8 +361,8 @@ export function SessionsPanel() {
               className={[
                 "relative z-10 shrink-0 rounded-xl transition-all duration-200",
                 confirmRevokeAll
-                  ? "border-danger bg-danger text-white shadow-[3px_3px_8px_rgba(180,35,35,0.2)] hover:bg-danger/90 hover:text-white"
-                  : "border-danger/25 bg-background text-danger shadow-[3px_3px_8px_rgba(0,0,0,0.045),-3px_-3px_8px_rgba(255,255,255,0.5)] hover:border-danger/40 hover:bg-danger/[0.06] hover:text-danger",
+                  ? "border-danger bg-danger text-white hover:bg-danger/90 hover:text-white"
+                  : "border-danger/25 bg-background text-danger hover:border-danger/40 hover:bg-danger/[0.06] hover:text-danger",
               ].join(" ")}
               disabled={revokeOthers.isPending}
               onClick={handleRevokeAll}

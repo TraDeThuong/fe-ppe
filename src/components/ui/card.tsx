@@ -39,6 +39,16 @@ raised: [
     "bg-primary text-primary-foreground",
     "shadow-[8px_8px_12px_var(--shadow-dark),-8px_-8px_12px_var(--shadow-light)]",
   ].join(" "),
+
+  transparent: [
+    "bg-transparent text-foreground",
+    "shadow-[4px_4px_12px_var(--shadow-dark),-4px_-4px_12px_var(--shadow-light)]",
+  ].join(" "),
+
+  "inset-transparent": [
+    "bg-transparent text-foreground",
+    "shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]",
+  ].join(" "),
 } as const;
 
 

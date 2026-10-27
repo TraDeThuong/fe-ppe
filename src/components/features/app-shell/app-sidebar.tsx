@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -27,7 +28,6 @@ export function AppSidebar() {
   const pathname = usePathname();
 
   const [collapsed, setCollapsed] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(COLLAPSED_KEY);
@@ -35,14 +35,6 @@ export function AppSidebar() {
     if (stored === "1") {
       setCollapsed(true);
     }
-
-    const mq = window.matchMedia("(max-width: 767px)");
-    const update = () => setIsMobile(mq.matches);
-
-    update();
-    mq.addEventListener("change", update);
-
-    return () => mq.removeEventListener("change", update);
   }, []);
 
   const toggle = () => {
@@ -67,12 +59,15 @@ export function AppSidebar() {
   const isActive = (route: string) =>
     pathname === route || pathname.startsWith(`${route}/`);
 
-  const iconOnly = collapsed || isMobile;
+  // Chỉ thu gọn trên desktop. Mobile ẩn toàn bộ sidebar bằng CSS.
+  const iconOnly = collapsed;
 
   return (
     <aside
       className={[
-        "group/sidebar relative z-30 flex h-full shrink-0 flex-col",
+        // Responsive: ẩn hoàn toàn dưới breakpoint md (768px).
+        "flex",
+        "group/sidebar relative z-30 h-full shrink-0 flex-col",
         "isolate overflow-hidden bg-background",
         "border-r border-white/40 dark:border-white/5",
         "shadow-[8px_0_28px_-16px_var(--shadow-dark),inset_-1px_0_0_var(--shadow-light)]",
@@ -160,6 +155,7 @@ export function AppSidebar() {
                   className="h-1.5 w-1.5 rounded-full bg-primary
                     shadow-[0_0_7px_var(--shadow-dark)]"
                 />
+
                 <span
                   className="truncate text-[9px] font-semibold uppercase
                     tracking-[0.19em] text-muted-foreground"
@@ -178,7 +174,7 @@ export function AppSidebar() {
         className="relative z-10 flex-1 space-y-3 overflow-x-hidden
           overflow-y-auto px-3 py-3"
       >
-        {groups.map((group, groupIndex) => {
+        {groups.map((group) => {
           const groupItems = items.filter(
             (item) => item.group === group.key,
           );
@@ -195,12 +191,14 @@ export function AppSidebar() {
                     className="h-px w-3 bg-gradient-to-r
                       from-primary/50 to-transparent"
                   />
+
                   <p
                     className="truncate text-[12px] font-bold uppercase
                       tracking-[0.19em] text-muted-foreground/80"
                   >
                     {t(group.i18nKey)}
                   </p>
+
                   <span
                     aria-hidden="true"
                     className="h-px flex-1 bg-gradient-to-r
@@ -216,7 +214,7 @@ export function AppSidebar() {
               )}
 
               <ul className="space-y-2">
-                {groupItems.map((item, itemIndex) => {
+                {groupItems.map((item) => {
                   const active = isActive(item.route);
                   const Icon = item.icon;
 
@@ -311,7 +309,7 @@ export function AppSidebar() {
                           </span>
                         )}
 
-                        {/* Tooltip for icon-only sidebar */}
+                        {/* Tooltip for collapsed desktop sidebar */}
                         {iconOnly && (
                           <span
                             aria-hidden="true"
@@ -358,6 +356,7 @@ export function AppSidebar() {
               <span className="block truncate text-[10px] font-semibold text-foreground">
                 Smart PPE
               </span>
+
               <span className="mt-0.5 block text-[9px] text-muted-foreground">
                 Safety workspace
               </span>

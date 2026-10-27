@@ -22,7 +22,7 @@ export default function IncidentsContent() {
       <PagePanel
         icon={ShieldAlert}
         title="Sự cố vi phạm PPE (Incidents Grid Container)"
-        description="Bảng danh sách sự cố và KPI tạm ẩn để phục vụ thiết kế lại layout chung (Sidebar, Header, Spacing)."
+        description=""
       />
     </div>
   );

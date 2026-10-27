@@ -22,7 +22,7 @@ export default function CamerasContent() {
       <PagePanel
         icon={Cctv}
         title="Giám sát Cameras (Cameras Grid Container)"
-        description="Lưới danh sách camera và trạng thái kết nối tạm ẩn để phục vụ thiết kế layout chung."
+        description="Lưới danh sách camera và trạng thái kết nối "
       />
     </div>
   );

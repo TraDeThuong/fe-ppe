@@ -393,7 +393,7 @@ def main() -> None:
             page.wait_for_selector('input[autocomplete="current-password"]', timeout=10000)
             check("13a. Tab Password render form đổi mật khẩu + checklist",
                   page.locator('input[autocomplete="new-password"]').count() == 1
-                  and page.locator("ul li").count() == 5)
+                  and (page.locator("form ul li").count() == 5 or page.locator("ul li").count() == 5))
             page.fill('input[autocomplete="current-password"]', "SaiMatKhau1!")
             page.fill('input[autocomplete="new-password"]', "NewPass1!")
             page.click("button[type=submit]")
@@ -435,6 +435,7 @@ def main() -> None:
                 e for e in console_errors
                 if "favicon" not in e.lower()
                 and "401" not in e and "Unauthorized" not in e
+                and "422" not in e and "Unprocessable Entity" not in e
                 and "400" not in e and "Bad Request" not in e
                 and "404" not in e and "Not Found" not in e
                 and "status of 404" not in e

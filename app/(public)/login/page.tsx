@@ -14,18 +14,12 @@ export default function LoginPage() {
       title={t("login.title")}
       description={t("login.subtitle")}
       footer={
-        <div className="flex flex-col items-center gap-2">
-          <AuthFooterLink href="/forgot-password">
-            {t("login.forgotPassword")}
+        <p className="text-sm text-muted-foreground">
+          {t("login.noAccount")}{" "}
+          <AuthFooterLink href="/register">
+            {t("login.registerNow")}
           </AuthFooterLink>
-
-          <p className="text-sm text-muted-foreground">
-            {t("login.noAccount")}{" "}
-            <AuthFooterLink href="/register">
-              {t("login.registerNow")}
-            </AuthFooterLink>
-          </p>
-        </div>
+        </p>
       }
     >
       <LoginForm />

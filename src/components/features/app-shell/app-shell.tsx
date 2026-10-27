@@ -17,19 +17,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* 1. Sidebar nhô cao */}
-      <AppSidebar />
+      {/* Desktop sidebar */}
+      <div className="hidden md:flex">
+        <AppSidebar />
+      </div>
 
-      {/* 2. Dải gờ dốc thoai thoải (Vertical Slope Ramp) vật lý nối giữa Sidebar và Trang chính */}
+      {/* Desktop vertical transition */}
       <div
         aria-hidden="true"
-        className="relative z-20 hidden md:flex h-full w-4 lg:w-5 shrink-0 border-l border-white/95 dark:border-white/20 bg-gradient-to-r from-[var(--shadow-dark)]/50 via-[var(--shadow-dark)]/15 to-transparent shadow-[inset_2px_0_5px_-1px_rgba(0,0,0,0.08)]"
+        className="
+          relative z-20 hidden h-full w-4 shrink-0
+          border-l border-white/95
+          bg-gradient-to-r from-[var(--shadow-dark)]/50
+          via-[var(--shadow-dark)]/15 to-transparent
+          shadow-[inset_2px_0_5px_-1px_rgba(0,0,0,0.08)]
+          dark:border-white/20
+          md:flex lg:w-5
+        "
       />
 
-      {/* 3. Trang chính (Navbar + Main Content) */}
+      {/* Main content */}
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         <AppHeader />
-        <main className="relative z-10 flex-1 overflow-y-auto p-6 lg:p-8 bg-background">
+
+        <main className="relative z-10 flex-1 overflow-y-auto bg-background p-6 lg:p-8">
           {forbidden ? <ForbiddenView /> : children}
         </main>
       </div>

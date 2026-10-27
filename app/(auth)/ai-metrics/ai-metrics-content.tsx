@@ -22,7 +22,7 @@ export default function AiMetricsContent() {
       <PagePanel
         icon={Cpu}
         title="Hiệu năng Mô hình AI (AI Metrics Grid Container)"
-        description="Chỉ số FPS, latency và ma trận camera tạm ẩn để phục vụ thiết kế layout chung."
+        description="Chỉ số FPS, latency và ma trận camera "
       />
     </div>
   );

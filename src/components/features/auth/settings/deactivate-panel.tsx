@@ -150,7 +150,7 @@ export function DeactivatePanel() {
     return (
       <section
         data-testid="deactivate-requested"
-        className="relative isolate overflow-hidden rounded-[28px] border border-emerald-500/20 bg-background p-6 shadow-[12px_12px_30px_-12px_rgba(16,185,129,0.12),-10px_-10px_28px_-16px_rgba(255,255,255,0.8)] sm:p-8"
+        className="relative isolate overflow-hidden rounded-[28px] border border-emerald-500/20 bg-transparent p-6 shadow-[4px_4px_12px_var(--shadow-dark),-4px_-4px_12px_var(--shadow-light)] sm:p-8"
       >
         <div
           aria-hidden="true"
@@ -158,8 +158,8 @@ export function DeactivatePanel() {
         />
 
         <div className="relative flex flex-col items-center gap-5 py-3 text-center">
-          <div className="relative flex size-24 items-center justify-center rounded-full bg-background shadow-[inset_6px_6px_12px_rgba(0,0,0,0.07),inset_-6px_-6px_12px_rgba(255,255,255,0.8),0_12px_30px_-12px_rgba(16,185,129,0.3)]">
-            <div className="flex size-16 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 shadow-[4px_4px_10px_rgba(16,185,129,0.12),-3px_-3px_8px_rgba(255,255,255,0.65)] dark:text-emerald-400">
+          <div className="relative flex size-24 items-center justify-center rounded-full border border-emerald-500/20 bg-transparent shadow-[inset_2px_2px_6px_var(--shadow-dark),inset_-2px_-2px_6px_var(--shadow-light)]">
+            <div className="flex size-16 items-center justify-center rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 shadow-sm dark:text-emerald-400">
               <MailCheck
                 className="size-8"
                 strokeWidth={1.7}
@@ -187,7 +187,7 @@ export function DeactivatePanel() {
             </p>
           </div>
 
-          <div className="flex w-full max-w-md items-start gap-3 rounded-2xl border border-border/50 bg-muted/20 p-4 text-left shadow-[inset_3px_3px_7px_rgba(0,0,0,0.035),inset_-3px_-3px_7px_rgba(255,255,255,0.45)]">
+          <div className="flex w-full max-w-md items-start gap-3 rounded-2xl border border-border/30 bg-transparent p-4 text-left shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
             <Clock3 className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
             <p className="text-xs leading-5 text-muted-foreground">
               Check your inbox and follow the confirmation link to
@@ -202,7 +202,7 @@ export function DeactivatePanel() {
   return (
     <section
       data-testid="deactivate-panel"
-      className="relative isolate overflow-hidden rounded-[28px] border border-border/60 bg-background shadow-[14px_14px_36px_-18px_rgba(0,0,0,0.22),-10px_-10px_30px_-18px_rgba(255,255,255,0.9)]"
+      className="relative isolate overflow-hidden rounded-[28px] border border-border/30 bg-transparent shadow-[4px_4px_12px_var(--shadow-dark),-4px_-4px_12px_var(--shadow-light)]"
     >
       {/* Ambient lighting */}
       <div
@@ -215,9 +215,9 @@ export function DeactivatePanel() {
       />
 
       {/* Header */}
-      <div className="relative border-b border-border/50 px-5 pb-5 pt-6 sm:px-7 sm:pb-6 sm:pt-7">
+      <div className="relative border-b border-border/30 px-5 pb-5 pt-6 sm:px-7 sm:pb-6 sm:pt-7">
         <div className="flex items-start gap-4">
-          <div className="relative flex size-14 shrink-0 items-center justify-center rounded-[18px] border border-danger/15 bg-background text-danger shadow-[5px_5px_12px_rgba(0,0,0,0.09),-4px_-4px_10px_rgba(255,255,255,0.7)]">
+          <div className="relative flex size-14 shrink-0 items-center justify-center rounded-[18px] border border-danger/20 bg-transparent text-danger shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
             <div className="absolute inset-1 rounded-[13px] border border-danger/10" />
             <UserRoundX
               className="relative size-6"
@@ -253,14 +253,14 @@ export function DeactivatePanel() {
 
       {/* Warning card */}
       <div className="relative px-5 pt-5 sm:px-7 sm:pt-6">
-        <div className="group relative overflow-hidden rounded-2xl border border-danger/20 bg-danger/[0.035] p-4 shadow-[inset_4px_4px_10px_rgba(0,0,0,0.035),inset_-4px_-4px_10px_rgba(255,255,255,0.5)] transition-colors duration-300 hover:bg-danger/[0.055] sm:p-5">
+        <div className="group relative overflow-hidden rounded-2xl border border-danger/20 bg-transparent p-4 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] transition-colors duration-300 hover:bg-danger/[0.04] sm:p-5">
           <div
             aria-hidden="true"
             className="absolute bottom-0 left-0 top-0 w-1 bg-gradient-to-b from-danger/80 via-danger/40 to-transparent"
           />
 
           <div className="flex gap-3.5">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-danger/15 bg-background text-danger shadow-[3px_3px_7px_rgba(0,0,0,0.07),-3px_-3px_7px_rgba(255,255,255,0.7)]">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-danger/15 bg-transparent text-danger shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)]">
               <ShieldAlert className="size-5" aria-hidden="true" />
             </div>
 
@@ -286,7 +286,7 @@ export function DeactivatePanel() {
       >
         {/* Form section title */}
         <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground shadow-[inset_3px_3px_6px_rgba(0,0,0,0.06),inset_-3px_-3px_6px_rgba(255,255,255,0.65)]">
+          <div className="flex size-9 items-center justify-center rounded-xl border border-border/30 bg-transparent text-muted-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
             <Fingerprint className="size-[18px]" aria-hidden="true" />
           </div>
           <div>
@@ -300,20 +300,19 @@ export function DeactivatePanel() {
         </div>
 
         {/* Password */}
-        <div className="rounded-2xl border border-border/50 bg-muted/[0.12] p-3.5 shadow-[inset_3px_3px_8px_rgba(0,0,0,0.035),inset_-3px_-3px_8px_rgba(255,255,255,0.35)] sm:p-4">
+        <div className="rounded-2xl border border-border/30 bg-transparent p-3.5 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:p-4">
           <FormField
             id="deactivatePassword"
             label={t("security.deactivate.password")}
             required
             error={form.formState.errors.password?.message}
           >
-            <div className="mt-2 rounded-xl border border-border/40 bg-background shadow-[inset_4px_4px_9px_rgba(0,0,0,0.065),inset_-4px_-4px_9px_rgba(255,255,255,0.7)] transition-shadow duration-300 focus-within:border-danger/35 focus-within:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.055),inset_-3px_-3px_7px_rgba(255,255,255,0.5),0_0_0_3px_rgba(239,68,68,0.07)] [&_input]:border-0 [&_input]:bg-transparent [&_input]:shadow-none [&_input]:focus-visible:ring-0">
-              <PasswordInput
-                autoComplete="current-password"
-                disabled={isPending}
-                {...form.register("password")}
-              />
-            </div>
+            <PasswordInput
+              autoComplete="current-password"
+              disabled={isPending}
+              className="mt-2"
+              {...form.register("password")}
+            />
           </FormField>
           <p className="mt-2 flex items-center gap-1.5 text-[10px] leading-4 text-muted-foreground">
             <ShieldCheck className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -322,21 +321,20 @@ export function DeactivatePanel() {
         </div>
 
         {/* Reason */}
-        <div className="rounded-2xl border border-border/50 bg-muted/[0.12] p-3.5 shadow-[inset_3px_3px_8px_rgba(0,0,0,0.035),inset_-3px_-3px_8px_rgba(255,255,255,0.35)] sm:p-4">
+        <div className="rounded-2xl border border-border/30 bg-transparent p-3.5 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:p-4">
           <FormField
             id="deactivateReason"
             label={t("security.deactivate.reason")}
             error={form.formState.errors.reason?.message}
           >
-            <div className="mt-2 overflow-hidden rounded-xl border border-border/40 bg-background shadow-[inset_4px_4px_9px_rgba(0,0,0,0.065),inset_-4px_-4px_9px_rgba(255,255,255,0.7)] transition-shadow duration-300 focus-within:border-danger/35 focus-within:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.055),inset_-3px_-3px_7px_rgba(255,255,255,0.5),0_0_0_3px_rgba(239,68,68,0.07)] [&_textarea]:min-h-24 [&_textarea]:resize-y [&_textarea]:border-0 [&_textarea]:bg-transparent [&_textarea]:shadow-none [&_textarea]:focus-visible:ring-0">
-              <Textarea
-                rows={3}
-                maxLength={REASON_MAX_LENGTH}
-                placeholder={t("security.deactivate.reasonPlaceholder")}
-                disabled={isPending}
-                {...form.register("reason")}
-              />
-            </div>
+            <Textarea
+              rows={3}
+              maxLength={REASON_MAX_LENGTH}
+              placeholder={t("security.deactivate.reasonPlaceholder")}
+              disabled={isPending}
+              className="mt-2"
+              {...form.register("reason")}
+            />
           </FormField>
 
           <div className="mt-2.5 flex items-center justify-between gap-3">
@@ -344,10 +342,10 @@ export function DeactivatePanel() {
               Optional · Help us understand your decision.
             </p>
             <span
-              className={`shrink-0 rounded-lg px-2 py-1 font-mono text-[10px] tabular-nums shadow-[inset_2px_2px_4px_rgba(0,0,0,0.055),inset_-2px_-2px_4px_rgba(255,255,255,0.5)] ${
+              className={`shrink-0 rounded-lg border border-border/30 px-2 py-1 font-mono text-[10px] tabular-nums shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)] ${
                 reasonValue.length >= REASON_MAX_LENGTH
                   ? "bg-danger/10 text-danger"
-                  : "bg-muted/40 text-muted-foreground"
+                  : "bg-transparent text-muted-foreground"
               }`}
             >
               {reasonValue.length}/{REASON_MAX_LENGTH}
@@ -360,7 +358,7 @@ export function DeactivatePanel() {
           failure.kind === "generic") && (
           <div
             role="alert"
-            className="flex items-start gap-3 rounded-xl border border-danger/25 bg-danger/[0.06] p-3.5 text-danger shadow-[inset_3px_3px_7px_rgba(0,0,0,0.035),inset_-3px_-3px_7px_rgba(255,255,255,0.4)]"
+            className="flex items-start gap-3 rounded-xl border border-danger/25 bg-danger/[0.06] p-3.5 text-danger shadow-sm"
           >
             <AlertTriangle
               className="mt-0.5 size-4 shrink-0"
@@ -371,9 +369,9 @@ export function DeactivatePanel() {
         )}
 
         {/* Confirmation footer */}
-        <div className="rounded-2xl border border-border/50 bg-muted/[0.12] p-4 shadow-[inset_3px_3px_8px_rgba(0,0,0,0.035),inset_-3px_-3px_8px_rgba(255,255,255,0.35)]">
+        <div className="rounded-2xl border border-border/30 bg-transparent p-4 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)]">
           <div className="flex items-start gap-3">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-[3px_3px_6px_rgba(0,0,0,0.06),-3px_-3px_6px_rgba(255,255,255,0.6)]">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/30 bg-transparent text-muted-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)]">
               <Clock3 className="size-4" aria-hidden="true" />
             </div>
             <div>
@@ -395,7 +393,7 @@ export function DeactivatePanel() {
             type="submit"
             variant="outline"
             disabled={isPending}
-            className="group relative min-h-12 w-full overflow-hidden rounded-xl border border-danger/30 bg-danger/[0.055] font-semibold text-danger shadow-[5px_5px_12px_rgba(0,0,0,0.08),-4px_-4px_10px_rgba(255,255,255,0.7)] transition-all duration-300 hover:-translate-y-0.5 hover:border-danger/50 hover:bg-danger/10 hover:text-danger hover:shadow-[7px_9px_16px_rgba(220,38,38,0.12),-4px_-4px_10px_rgba(255,255,255,0.65)] active:translate-y-0 active:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.09),inset_-3px_-3px_8px_rgba(255,255,255,0.45)] disabled:translate-y-0 disabled:opacity-60"
+            className="group relative min-h-12 w-full overflow-hidden rounded-xl border border-danger/30 bg-danger/[0.055] font-semibold text-danger shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-danger/50 hover:bg-danger/10 hover:text-danger hover:shadow-md active:translate-y-0 active:shadow-inner disabled:translate-y-0 disabled:opacity-60"
           >
             <span
               aria-hidden="true"

@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useContext } from "react";
 import { AuthContext } from "@/contexts/AuthContext";
+import { setLoginPersistence } from "@/lib/session-manager";
 import { toast } from "@/lib/toast";
 import { tokenStore } from "@/lib/token";
 import { authService } from "@/services/auth.service";
@@ -101,6 +102,19 @@ export function useVerify2FA(
     mutationFn: (payload: Verify2FAPayload) => authService.verify2FA(payload),
     onSuccess: async (...args) => {
       const [data] = args;
+      const pendingRememberMe =
+        typeof window !== "undefined" &&
+        sessionStorage.getItem("ppe_pending_remember_me") === "true";
+      const pendingEmail =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem("ppe_pending_email")
+          : null;
+      setLoginPersistence(pendingRememberMe, pendingEmail ?? undefined);
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("ppe_pending_remember_me");
+        sessionStorage.removeItem("ppe_pending_email");
+      }
+
       tokenStore.setTokens(data.accessToken, data.refreshToken);
 
       try {

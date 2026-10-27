@@ -30,8 +30,15 @@ const OAUTH_CALLBACK_PREFIX = "/auth/callback";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const hasSessionCookie = Boolean(
+  const hasRawAuthCookie = Boolean(
     request.cookies.get("accessToken") ?? request.cookies.get("refreshToken"),
+  );
+  const hasRememberMe = Boolean(request.cookies.get("ppe_remember_me"));
+  const hasActiveSession = Boolean(request.cookies.get("ppe_session_active"));
+
+  // Phiên đăng nhập được coi là còn hiệu lực nếu có token VÀ (chọn ghi nhớ HOẶC tab/trình duyệt đang trong phiên làm việc)
+  const hasSessionCookie = Boolean(
+    hasRawAuthCookie && (hasRememberMe || hasActiveSession),
   );
 
   if (matchesPrefix(pathname, PROTECTED_PREFIXES) && !hasSessionCookie) {

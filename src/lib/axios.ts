@@ -137,6 +137,10 @@ export function createApiClient(baseURL: string): AxiosInstance {
       const body = response.data;
       if (body && typeof body === "object" && "success" in body) {
         if (body.success) {
+          // Endpoint có phân trang (trả data + meta) -> trả cả object để UI tính toán phân trang
+          if (body.meta !== undefined && body.data !== undefined) {
+            return { data: body.data, meta: body.meta };
+          }
           // Endpoint trả { data } → unwrap; trả { message } → trả nguyên body
           return body.data !== undefined ? body.data : body;
         }

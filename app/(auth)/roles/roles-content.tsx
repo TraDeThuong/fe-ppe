@@ -22,7 +22,7 @@ export default function RolesContent() {
       <PagePanel
         icon={ShieldCheck}
         title="Vai trò & Phân quyền (Roles Grid Container)"
-        description="Thẻ danh mục vai trò và ma trận quyền hạn tạm ẩn để phục vụ thiết kế layout chung."
+        description="Thẻ danh mục vai trò và ma trận quyền hạn"
       />
     </div>
   );

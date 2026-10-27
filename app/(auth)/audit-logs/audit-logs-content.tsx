@@ -22,7 +22,7 @@ export default function AuditLogsContent() {
       <PagePanel
         icon={ScrollText}
         title="Nhật ký Hệ thống (Audit Logs Grid Container)"
-        description="Bảng timeline và chỉ số kiểm toán tạm ẩn để phục vụ thiết kế layout chung."
+        description="Bảng timeline và chỉ số kiểm toán "
       />
     </div>
   );

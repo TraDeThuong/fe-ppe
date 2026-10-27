@@ -22,7 +22,7 @@ export default function ReportsContent() {
       <PagePanel
         icon={BarChart3}
         title="Báo cáo & Thống kê (Reports Grid Container)"
-        description="Form xuất báo cáo và lịch sử file tạm ẩn để phục vụ thiết kế layout chung."
+        description="Form xuất báo cáo và lịch sử file tạm ẩn ."
       />
     </div>
   );

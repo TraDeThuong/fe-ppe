@@ -94,6 +94,7 @@ export interface SessionDto {
 export interface LoginPayload {
   email: string;
   password: string;
+  rememberMe?: boolean;
 }
 
 /** Nguồn: auth.validation.ts:21-35 (POST /auth/register) */
@@ -206,6 +207,7 @@ export interface SocialAccount {
   provider: string;
   providerUserId: string;
   createdAt: string;
+  email?: string | null;
 }
 
 /**

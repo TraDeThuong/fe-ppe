@@ -22,7 +22,7 @@ export default function NotificationsContent() {
       <PagePanel
         icon={Bell}
         title="Trung tâm Thông báo (Notifications Grid Container)"
-        description="Danh sách thông báo và tab cài đặt nhận tin tạm ẩn để phục vụ thiết kế layout chung."
+        description="Danh sách thông báo và tab cài đặt"
       />
     </div>
   );

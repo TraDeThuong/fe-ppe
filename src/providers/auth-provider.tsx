@@ -9,6 +9,12 @@ import { tokenStore } from "@/lib/token";
 import { queryClient } from "@/lib/query-client";
 import { eventBus } from "@/lib/event-bus";
 import { authKeys } from "@/hooks/auth/auth.query-keys";
+import {
+  clearLoginPersistence,
+  isRememberMe,
+  recordActivity,
+  shouldRestoreSession,
+} from "@/lib/session-manager";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<MeDto | null>(null);
@@ -24,6 +30,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const handleSessionExpired = useCallback(() => {
     tokenStore.clear();
     queryClient.clear();
+    clearLoginPersistence();
     setUser(null);
     setStatus("unauthenticated");
     // Purge cookie httpOnly: BE không tự clear khi refresh fail, cookie cũ
@@ -41,6 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Phiên đã hết ở server — vẫn phải dọn sạch phía client
     } finally {
+      clearLoginPersistence();
       handleSessionExpired();
     }
   }, [handleSessionExpired]);
@@ -51,6 +59,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
 
     async function restoreSession() {
+      // Kiểm tra tính năng Ghi nhớ đăng nhập:
+      // Nếu không tích "Ghi nhớ đăng nhập" và phiên làm việc trước đó đã kết thúc
+      // thì không tự động phục hồi phiên, purge cookies và đưa về unauthenticated.
+      if (!shouldRestoreSession()) {
+        if (!cancelled) {
+          tokenStore.clear();
+          setUser(null);
+          await purgeSessionCookies();
+          clearLoginPersistence();
+          if (!cancelled) {
+            setStatus("unauthenticated");
+          }
+        }
+        return;
+      }
+
       try {
         const me = await queryClient.fetchQuery({
           queryKey: authKeys.me(),
@@ -59,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           setUser(me);
           setStatus("authenticated");
+          recordActivity();
         }
       } catch (error) {
         // 401 + refresh fail: interceptor đã clear token + phát auth:session-expired.
@@ -66,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           tokenStore.clear();
           setUser(null);
+          clearLoginPersistence();
           // Purge session cookies nếu lỗi là 401/403 (phiên không còn hợp lệ trên server)
           // TRƯỚC KHI setStatus("unauthenticated") để proxy.ts không bị bounce loop /login -> / -> /login
           if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
@@ -85,6 +111,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unsubscribe();
     };
   }, [handleSessionExpired]);
+
+  // Khi đang đăng nhập và không bật "Ghi nhớ đăng nhập", duy trì timestamp hoạt động
+  useEffect(() => {
+    if (status !== "authenticated" || isRememberMe()) return;
+
+    const timer = setInterval(() => {
+      recordActivity();
+    }, 5000);
+
+    const handleUserActivity = () => {
+      recordActivity();
+    };
+
+    window.addEventListener("pointerdown", handleUserActivity, { passive: true });
+    window.addEventListener("keydown", handleUserActivity, { passive: true });
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("pointerdown", handleUserActivity);
+      window.removeEventListener("keydown", handleUserActivity);
+    };
+  }, [status]);
 
   return (
     <AuthContext.Provider value={{ user, status, setUser: updateUser, logout }}>

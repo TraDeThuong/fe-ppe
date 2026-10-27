@@ -239,7 +239,7 @@ export function TwoFactorForm() {
       {mode === "totp" ? (
         <FormField id="otp" label={t("2fa.codeLabel")} required error={codeError}>
           <div
-            className="flex justify-between gap-2"
+            className="flex justify-between gap-1.5 sm:gap-2"
             role="group"
             aria-label={t("2fa.codeLabel")}
           >
@@ -261,7 +261,7 @@ export function TwoFactorForm() {
                 onKeyDown={(e) => handleDigitKeyDown(index, e)}
                 onPaste={index === 0 ? handleDigitPaste : undefined}
                 className={[
-                  "h-12 w-full rounded-xl border bg-background text-center text-lg font-semibold",
+                  "h-11 sm:h-12 w-full min-w-0 rounded-xl border bg-background text-center text-base sm:text-lg font-semibold",
                   "shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]",
                   "transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                   codeError ? "border-danger" : "border-border/50",

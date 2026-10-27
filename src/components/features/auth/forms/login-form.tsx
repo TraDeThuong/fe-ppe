@@ -8,7 +8,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { Button } from "@ui/button";
-import { FormField, Input, PasswordInput } from "@ui/form";
+import { Checkbox, FormField, Input, PasswordInput } from "@ui/form";
+import { AuthFooterLink } from "../auth-footer-link";
 
 import {
   handleMutationError,
@@ -26,6 +27,7 @@ import {
   getGoogleRedirectUri,
   saveOAuthState,
 } from "@/lib/oauth";
+import { getRememberedEmail, isRememberMe } from "@/lib/session-manager";
 import { getConfig, SYSTEM_CONFIG_KEYS } from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 import { ErrorCode, type GoogleAuthUrlParams } from "@/types";
@@ -38,6 +40,7 @@ import {
 interface LoginFormValues {
   email: string;
   password: string;
+  rememberMe: boolean;
 }
 
 type LoginFailure =
@@ -89,14 +92,25 @@ export function LoginForm() {
           .pipe(z.string().min(1, t("login.emailRequired")))
           .pipe(z.email(t("login.emailInvalid"))),
         password: z.string().min(1, t("login.passwordRequired")),
+        rememberMe: z.boolean().default(false),
       }),
     [t],
   );
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { email: "", password: "", rememberMe: false },
   });
+
+  // Tự động điền email và trạng thái ghi nhớ nếu đã từng tick ghi nhớ đăng nhập
+  useEffect(() => {
+    const rememberedEmail = getRememberedEmail();
+    const rememberMe = isRememberMe();
+    if (rememberedEmail) {
+      form.setValue("email", rememberedEmail);
+      form.setValue("rememberMe", rememberMe);
+    }
+  }, [form]);
 
   // Đếm ngược thời gian khóa tài khoản (spec 7.2: parse số phút từ message 423)
   useEffect(() => {
@@ -191,6 +205,12 @@ export function LoginForm() {
     if (googleParams !== null) return;
     const state = generateOAuthState();
     saveOAuthState(state);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(
+        "ppe_pending_remember_me",
+        form.getValues("rememberMe") ? "true" : "false",
+      );
+    }
     setGoogleParams({ redirectUri: getGoogleRedirectUri(), state });
   }
 
@@ -270,6 +290,26 @@ export function LoginForm() {
           {...form.register("password")}
         />
       </FormField>
+
+      <div className="flex items-center justify-between">
+        <label
+          htmlFor="rememberMe"
+          className="inline-flex cursor-pointer select-none items-center gap-2 text-sm text-foreground hover:text-foreground/80 transition-colors"
+        >
+          <Checkbox
+            id="rememberMe"
+            size="sm"
+            checked={form.watch("rememberMe")}
+            onCheckedChange={(checked) => form.setValue("rememberMe", checked)}
+            disabled={login.isPending}
+          />
+          <span>{t("login.rememberMe")}</span>
+        </label>
+
+        <AuthFooterLink href="/forgot-password" className="text-sm font-medium">
+          {t("login.forgotPassword")}
+        </AuthFooterLink>
+      </div>
 
       {(failure.kind === "invalid" || failure.kind === "generic") && (
         <div

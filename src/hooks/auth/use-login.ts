@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useContext } from "react";
 import { AuthContext } from "@/contexts/AuthContext";
 import { eventBus } from "@/lib/event-bus";
+import { clearLoginPersistence, setLoginPersistence } from "@/lib/session-manager";
 import { toast } from "@/lib/toast";
 import { tokenStore } from "@/lib/token";
 import { authService } from "@/services/auth.service";
@@ -38,12 +39,20 @@ export function useLogin(
     ...restOptions,
     mutationFn: (payload: LoginPayload) => authService.login(payload),
     onSuccess: async (...args) => {
-      const [data] = args;
+      const [data, variables] = args;
       if (data.requires2FA) {
         // Luồng 2FA: chưa lưu token chính thức, trang giữ tempToken để gọi verify2FA
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("ppe_pending_remember_me", variables?.rememberMe ? "true" : "false");
+          if (variables?.email) {
+            sessionStorage.setItem("ppe_pending_email", variables.email);
+          }
+        }
         await onSuccess?.(...args);
         return;
       }
+
+      setLoginPersistence(Boolean(variables?.rememberMe), variables?.email);
 
       // Lưu AccessToken & RefreshToken vào memory ngay lập tức
       tokenStore.setTokens(data.accessToken, data.refreshToken);
@@ -99,6 +108,14 @@ export function useGoogleLogin(
       if (data.requires2FA) {
         await onSuccess?.(...args);
         return;
+      }
+
+      const pendingRememberMe =
+        typeof window !== "undefined" &&
+        sessionStorage.getItem("ppe_pending_remember_me") === "true";
+      setLoginPersistence(pendingRememberMe);
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("ppe_pending_remember_me");
       }
 
       tokenStore.setTokens(data.accessToken, data.refreshToken);
@@ -159,6 +176,7 @@ export function useLogout(
       tokenStore.clear();
       queryClient.clear();
       auth?.setUser(null);
+      clearLoginPersistence();
       eventBus.emit("auth:session-expired");
       toast.success(data.message || "Đăng xuất thành công!");
       await onSuccess?.(...args);
@@ -169,6 +187,7 @@ export function useLogout(
       tokenStore.clear();
       queryClient.clear();
       auth?.setUser(null);
+      clearLoginPersistence();
       eventBus.emit("auth:session-expired");
       handleMutationError(error, options?.suppressToast);
       await onError?.(...args);

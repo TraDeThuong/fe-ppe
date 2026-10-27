@@ -251,9 +251,9 @@ export function TwoFactorPanel() {
       <BackupCodesModal codes={backupCodes} onClose={() => setBackupCodes(null)} />
 
       {!twoFactorEnabled && !setupData && (
-        <div className="flex flex-col gap-4 rounded-2xl border border-border/40 bg-muted/20 p-5">
+        <div className="flex flex-col gap-4 rounded-2xl border border-border/30 bg-transparent p-5 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)]">
           <div className="flex items-center gap-3">
-            <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <span className="flex size-10 items-center justify-center rounded-full border border-border/30 bg-transparent text-muted-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
               <ShieldOff className="size-5" aria-hidden="true" />
             </span>
             <div>
@@ -279,7 +279,7 @@ export function TwoFactorPanel() {
       {setupData && (
         <div
           data-testid="two-factor-setup"
-          className="flex flex-col gap-4 rounded-2xl border border-border/40 bg-muted/20 p-5"
+          className="flex flex-col gap-4 rounded-2xl border border-border/30 bg-transparent p-5 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)]"
         >
           <div className="flex flex-col items-center gap-3 text-center">
             <h3 className="font-semibold text-foreground">{t("security.2fa.scanQr")}</h3>
@@ -288,10 +288,10 @@ export function TwoFactorPanel() {
                 data-testid="two-factor-qr"
                 src={qrDataUrl}
                 alt={t("security.2fa.scanQr")}
-                className="size-52 rounded-xl border border-border/40 bg-background p-2"
+                className="size-52 rounded-xl border border-border/40 bg-white p-2 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]"
               />
             ) : (
-              <div className="flex size-52 items-center justify-center rounded-xl border border-border/40 bg-background">
+              <div className="flex size-52 items-center justify-center rounded-xl border border-border/40 bg-transparent shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
                 <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden="true" />
               </div>
             )}
@@ -352,7 +352,7 @@ export function TwoFactorPanel() {
 
       {twoFactorEnabled && (
         <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-3 rounded-2xl border border-success/30 bg-success/5 p-5">
+          <div className="flex items-center gap-3 rounded-2xl border border-success/30 bg-transparent p-5 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)]">
             <span className="flex size-10 items-center justify-center rounded-full bg-success/15 text-success">
               <ShieldCheck className="size-5" aria-hidden="true" />
             </span>
@@ -365,7 +365,7 @@ export function TwoFactorPanel() {
           </div>
 
           {/* ── Tạo lại mã dự phòng ── */}
-          <div className="rounded-2xl border border-border/40 bg-muted/20 p-5">
+          <div className="rounded-2xl border border-border/30 bg-transparent p-5 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)]">
             <Button
               type="button"
               variant="outline"
@@ -439,7 +439,7 @@ export function TwoFactorPanel() {
           </div>
 
           {/* ── Tắt 2FA ── */}
-          <div className="rounded-2xl border border-danger/20 bg-danger/5 p-5">
+          <div className="rounded-2xl border border-danger/20 bg-transparent p-5 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)]">
             <Button
               type="button"
               variant="outline"

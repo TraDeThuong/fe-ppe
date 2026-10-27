@@ -11,10 +11,10 @@ export function PasswordPanel() {
       data-testid="password-panel"
       className="flex w-full justify-center"
     >
-      <section className="relative w-full max-w-md overflow-hidden rounded-3xl border border-border/50 bg-background p-5 shadow-[8px_8px_20px_rgba(0,0,0,0.07),-6px_-6px_18px_rgba(255,255,255,0.65)] sm:p-7">
+      <section className="relative w-full max-w-md overflow-hidden rounded-2xl border border-border/30 bg-transparent p-5 sm:p-7 shadow-[4px_4px_12px_var(--shadow-dark),-4px_-4px_12px_var(--shadow-light)]">
         {/* Header */}
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="mb-4 flex size-14 items-center justify-center rounded-2xl border border-primary/15 bg-background text-primary shadow-[inset_3px_3px_7px_rgba(0,0,0,0.04),inset_-3px_-3px_7px_rgba(255,255,255,0.7),4px_4px_10px_rgba(0,0,0,0.05)]">
+          <div className="mb-4 flex size-14 items-center justify-center rounded-2xl border border-primary/20 bg-transparent text-primary shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
             <KeyRound
               className="size-6"
               strokeWidth={1.8}
@@ -32,7 +32,7 @@ export function PasswordPanel() {
         </div>
 
         {/* Password form */}
-        <div className="rounded-2xl border border-border/40 bg-muted/[0.12] p-4 shadow-[inset_3px_3px_7px_rgba(0,0,0,0.035),inset_-3px_-3px_7px_rgba(255,255,255,0.4)] sm:p-5">
+        <div className="rounded-2xl border border-border/30 bg-transparent p-4 sm:p-5 shadow-[inset_2px_2px_6px_var(--shadow-dark),inset_-2px_-2px_6px_var(--shadow-light)]">
           <ChangePasswordForm />
         </div>
 

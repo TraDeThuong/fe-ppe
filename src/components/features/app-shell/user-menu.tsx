@@ -151,6 +151,20 @@ export function UserMenu() {
           {/* Navigation */}
           <div className="mt-2 space-y-1 p-0.5">
             <Link
+              href="/settings/profile"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className={itemClass}
+            >
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-[2px_2px_5px_rgba(0,0,0,0.045),-2px_-2px_5px_rgba(255,255,255,0.5)] transition-colors group-hover:text-primary">
+                <UserRound className="size-4" />
+              </span>
+              <span className="flex-1 font-medium">
+                {t("userMenu.profile")}
+              </span>
+            </Link>
+
+            <Link
               href="/settings/security"
               role="menuitem"
               onClick={() => setOpen(false)}

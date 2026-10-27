@@ -3,7 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import { Sparkles } from "lucide-react";
 
-export interface PagePanelProps {
+export interface PagePanelProps extends React.HTMLAttributes<HTMLElement> {
   children?: React.ReactNode;
   icon?: LucideIcon;
   title?: string;
@@ -15,7 +15,6 @@ export interface PagePanelProps {
 
 /**
  * Khung chứa nội dung chuẩn Neumorphism (2 lớp: nổi bên ngoài + chìm bên trong)
- * đồng bộ với khung chứa nội dung của trang /settings/security.
  */
 export function PagePanel({
   children,
@@ -25,10 +24,12 @@ export function PagePanel({
   badge = "Milestone M2 Preview",
   className = "",
   innerClassName = "",
+  ...props
 }: PagePanelProps) {
   return (
     <section
       className={`min-w-0 rounded-2xl border border-border/30 bg-background p-2.5 shadow-[6px_6px_15px_var(--shadow-dark),-6px_-6px_15px_var(--shadow-light)] sm:p-4 ${className}`}
+      {...props}
     >
       <div
         className={`min-w-0 rounded-xl border border-border/20 bg-background p-4 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:p-5 lg:p-6 ${innerClassName}`}
