@@ -10,6 +10,8 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertTriangle,
+  Users,
+  UserCheck,
 } from "lucide-react";
 import { Typography } from "./typography";
 
@@ -629,9 +631,169 @@ export function BentoConsoleStats({
   const hasWarning = sentinel.isWarning ?? sentinel.count > 0;
 
   return (
-    <div className={cn("grid grid-cols-1 gap-5 lg:grid-cols-12", className)}>
-      {/* KHỐI 1 (5 CỘT): TRUNG TÂM CHỈ HUY QUY MÔ & TỶ LỆ HOẠT ĐỘNG */}
-      <div className="relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] lg:col-span-5 flex flex-col justify-between">
+    <div className={className}>
+      {/* MOBILE COMPACT 2x2 STATS (< md: Phone Screens) */}
+      <div className="grid grid-cols-2 gap-2.5 md:hidden">
+        {/* 1. Tổng người dùng */}
+        <div className="relative overflow-hidden rounded-2xl border border-white/70 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 flex flex-col justify-between">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20"
+          />
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+              {scale.totalLabel ?? "Tổng người dùng"}
+            </span>
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] text-primary border border-white/30 dark:border-white/10">
+              <Users className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <div className="mt-1">
+            <Typography
+              variant="embossed"
+              as="div"
+              className="text-2xl font-black font-mono tracking-tight text-foreground"
+            >
+              {loading ? "..." : scale.totalValue}
+            </Typography>
+            <p className="text-[10px] text-muted-foreground/80 font-medium truncate mt-0.5">
+              {scale.totalSub ?? "Toàn hệ thống"}
+            </p>
+          </div>
+        </div>
+
+        {/* 2. Đang hoạt động */}
+        <div className="relative overflow-hidden rounded-2xl border border-white/70 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 flex flex-col justify-between">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20"
+          />
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+              {scale.activeLabel ?? "Đang hoạt động"}
+            </span>
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] text-primary border border-white/30 dark:border-white/10">
+              <UserCheck className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <div className="mt-1">
+            <div className="flex items-baseline gap-1.5">
+              <Typography
+                variant="embossed"
+                as="div"
+                className="text-2xl font-black font-mono tracking-tight !text-primary"
+              >
+                {loading ? "..." : scale.activeValue}
+              </Typography>
+              <span className="text-[10px] font-extrabold text-primary">
+                {activePercent}%
+              </span>
+            </div>
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] flex">
+              <div
+                className="h-full rounded-full bg-primary shadow-[0_0_4px_var(--primary)] transition-all duration-700"
+                style={{ width: `${activePercent}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Bảo mật 2FA */}
+        <div className="relative overflow-hidden rounded-2xl border border-white/70 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 flex flex-col justify-between">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20"
+          />
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+              {security.badgeText ?? security.title ?? "Bảo mật 2FA"}
+            </span>
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] text-primary border border-white/30 dark:border-white/10">
+              <ShieldCheck className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <div className="mt-1">
+            <div className="flex items-baseline gap-1.5">
+              <Typography
+                variant="embossed"
+                as="div"
+                className="text-2xl font-black font-mono tracking-tight text-foreground"
+              >
+                {security.percent}%
+              </Typography>
+              <span className="text-[10px] font-medium text-muted-foreground truncate">
+                {loading ? "..." : `${security.currentValue}/${security.totalValue}`}
+              </span>
+            </div>
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] flex">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-primary to-[var(--accent)] transition-all duration-700"
+                style={{ width: `${security.percent}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Tạm khóa / Cảnh báo */}
+        <div
+          className={cn(
+            "relative overflow-hidden rounded-2xl border bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] flex flex-col justify-between",
+            hasWarning
+              ? "border-accent/40 bg-accent/[0.04]"
+              : "border-white/70 dark:border-white/10"
+          )}
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20"
+          />
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
+              {sentinel.label ?? "Tạm khóa"}
+            </span>
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] border border-white/30 dark:border-white/10">
+              <span
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  hasWarning ? "bg-accent animate-ping" : "bg-primary"
+                )}
+              />
+            </div>
+          </div>
+          <div className="mt-1">
+            <div className="flex items-baseline gap-1.5">
+              <Typography
+                variant="embossed"
+                as="div"
+                className={cn(
+                  "text-2xl font-black font-mono tracking-tight",
+                  hasWarning ? "!text-accent" : "!text-foreground"
+                )}
+              >
+                {loading ? "..." : sentinel.count}
+              </Typography>
+              <span
+                className={cn(
+                  "text-[9px] font-bold px-1.5 py-0.5 rounded-md",
+                  hasWarning
+                    ? "bg-accent/15 text-accent"
+                    : "bg-primary/10 text-primary"
+                )}
+              >
+                {sentinel.statusText ?? (hasWarning ? "Cần xử lý" : "An toàn")}
+              </span>
+            </div>
+            <p className="text-[10px] text-muted-foreground/80 font-medium truncate mt-0.5">
+              {hasWarning ? (sentinel.description ?? "Cần kiểm tra") : "Không có vi phạm"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* DESKTOP & TABLET BENTO CONSOLE (>= md) */}
+      <div className="hidden md:grid md:grid-cols-12 md:gap-4 lg:gap-5">
+        {/* KHỐI 1 (5 CỘT): TRUNG TÂM CHỈ HUY QUY MÔ & TỶ LỆ HOẠT ĐỘNG */}
+        <div className="relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-12 lg:col-span-5 flex flex-col justify-between">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-8 top-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent dark:via-white/30"
@@ -712,7 +874,7 @@ export function BentoConsoleStats({
       </div>
 
       {/* KHỐI 2 (4 CỘT): ĐỒNG HỒ TRẮC SINH BẢO MẬT 2FA (CIRCULAR DIAL) */}
-      <div className="relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] lg:col-span-4 flex flex-col justify-between">
+      <div className="relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-6 lg:col-span-4 flex flex-col justify-between">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-8 top-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent dark:via-white/30"
@@ -799,7 +961,7 @@ export function BentoConsoleStats({
       </div>
 
       {/* KHỐI 3 (3 CỘT): ĐÈN HẢI ĐĂNG BÁO NGUY HIỂM & KHÓA (SENTINEL BEACON) */}
-      <div className="relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] lg:col-span-3 flex flex-col justify-between">
+      <div className="relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-6 lg:col-span-3 flex flex-col justify-between">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-8 top-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent dark:via-white/30"
@@ -870,6 +1032,7 @@ export function BentoConsoleStats({
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }

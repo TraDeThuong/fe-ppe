@@ -2,7 +2,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import {
   KeyRound,
   Laptop,
@@ -10,8 +9,9 @@ import {
   ShieldCheck,
   UserX,
   Settings2,
-  UserRound,
 } from "lucide-react";
+
+import { SettingsTabNav } from "./settings-tab-nav";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
@@ -67,27 +67,8 @@ export function SecuritySettingsContent() {
         ]}
       />
 
-      {/* Settings Navigation Bar */}
-      <nav
-        aria-label="Cài đặt phân mục"
-        className="flex items-center gap-2 rounded-2xl border border-border/30 bg-background p-2 shadow-[5px_5px_12px_var(--shadow-dark),-5px_-5px_12px_var(--shadow-light)]"
-      >
-        <Link
-          href="/settings/profile"
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-transparent px-4 py-2.5 text-xs font-medium text-muted-foreground transition-all duration-200 hover:border-border/40 hover:bg-background hover:text-foreground hover:shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)] sm:text-sm"
-        >
-          <UserRound className="size-4 shrink-0" />
-          <span>{t("profile.tab.profile")}</span>
-        </Link>
-
-        <Link
-          href="/settings/security"
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--shadow-dark)]/15 bg-background px-4 py-2.5 text-xs font-semibold text-primary shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)] transition-all sm:text-sm"
-        >
-          <ShieldCheck className="size-4 shrink-0" />
-          <span>{t("profile.tab.security")}</span>
-        </Link>
-      </nav>
+      {/* Settings Navigation Bar (SegmentedControl) */}
+      <SettingsTabNav />
 
       {/* Compact security navigation */}
       <section className="rounded-2xl border border-border/30 bg-background p-2 shadow-[5px_5px_12px_var(--shadow-dark),-5px_-5px_12px_var(--shadow-light)]">

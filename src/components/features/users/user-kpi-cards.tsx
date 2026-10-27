@@ -108,7 +108,7 @@ export function UserKpiCards({
           }}
           security={{
             title: isVietnamese ? "Bảo mật xác thực hai bước" : "Two-factor authentication",
-            badgeText: "TOTP 2FA",
+            badgeText: isVietnamese ? "Bảo mật 2FA" : "2FA Security",
             percent: twoFactorRate,
             currentValue: computedStats.twoFactor,
             totalValue: computedStats.total,
@@ -137,8 +137,8 @@ export function UserKpiCards({
                   ? "Tài khoản bị khóa"
                   : "Locked accounts"
                 : isVietnamese
-                ? "Tài khoản ngưng hoạt động"
-                : "Inactive accounts",
+                ? "Tạm khóa / Ngưng"
+                : "Locked / Inactive",
             description:
               computedStats.locked > 0
                 ? isVietnamese
@@ -167,7 +167,7 @@ export function UserKpiCards({
   return (
     <section
       aria-label={isVietnamese ? "Thống kê người dùng" : "User directory statistics"}
-      className={`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 ${className}`}
+      className={`grid grid-cols-2 gap-2.5 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4 ${className}`}
     >
       {/* 1. Tổng người dùng */}
       <StatsCard

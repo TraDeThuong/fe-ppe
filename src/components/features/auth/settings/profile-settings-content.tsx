@@ -30,6 +30,7 @@ import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@ui/button";
 import { Typography } from "@ui/typography";
 import { toast } from "@/lib/toast";
+import { SettingsTabNav } from "./settings-tab-nav";
 
 const ROLE_DESCRIPTIONS: Record<string, { vi: string; en: string }> = {
   ADMIN: {
@@ -208,27 +209,8 @@ export function ProfileSettingsContent() {
         ]}
       />
 
-      {/* 2. Settings Tab Navigation Bar */}
-      <nav
-        aria-label="Cài đặt phân mục"
-        className="flex items-center gap-2 rounded-2xl border border-border/30 bg-background p-2 shadow-[5px_5px_12px_var(--shadow-dark),-5px_-5px_12px_var(--shadow-light)]"
-      >
-        <Link
-          href="/settings/profile"
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--shadow-dark)]/15 bg-background px-4 py-2.5 text-xs font-semibold text-primary shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)] transition-all sm:text-sm"
-        >
-          <UserRound className="size-4 shrink-0" />
-          <span>{t("profile.tab.profile")}</span>
-        </Link>
-
-        <Link
-          href="/settings/security"
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-transparent px-4 py-2.5 text-xs font-medium text-muted-foreground transition-all duration-200 hover:border-border/40 hover:bg-background hover:text-foreground hover:shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)] sm:text-sm"
-        >
-          <ShieldCheck className="size-4 shrink-0" />
-          <span>{t("profile.tab.security")}</span>
-        </Link>
-      </nav>
+      {/* 2. Settings Tab Navigation Bar (SegmentedControl) */}
+      <SettingsTabNav />
 
       {/* 3. Hero Identity & Avatar Banner */}
       <section className="rounded-2xl border border-border/30 bg-background p-3.5 shadow-[6px_6px_15px_var(--shadow-dark),-6px_-6px_15px_var(--shadow-light)] sm:p-5">
@@ -236,7 +218,7 @@ export function ProfileSettingsContent() {
           <div className="flex flex-col items-center gap-6 text-center sm:flex-row sm:text-left">
             {/* Avatar & Uploader — Circular & Highly Elevated Neumorphism */}
             <div className="relative group shrink-0">
-              {/* Outer Raised Pedestal (Nổi lồi cao) */}
+              {/* Outer Raised Pedestal (Nổi lồi cao với 2 vòng tròn đồng tâm 3D) */}
               <div
                 onClick={() => fileInputRef.current?.click()}
                 role="button"
@@ -246,43 +228,46 @@ export function ProfileSettingsContent() {
                     fileInputRef.current?.click();
                   }
                 }}
-                className="relative flex size-28 sm:size-32 cursor-pointer items-center justify-center rounded-full border-2 border-white/60 dark:border-white/10 bg-background p-1.5 shadow-[12px_12px_24px_var(--shadow-dark),-12px_-12px_24px_var(--shadow-light)] transition-all duration-300 hover:shadow-[14px_14px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] hover:scale-[1.03] active:scale-[0.98]"
+                className="relative flex size-28 sm:size-32 cursor-pointer items-center justify-center rounded-full border border-border/40 bg-background p-1.5 shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)] transition-all duration-300 hover:scale-[1.03] hover:shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)] active:scale-[0.98]"
                 title={t("profile.avatar.change")}
               >
-                {/* Inner Beveled Ring for 3D depth */}
-                <div className="relative size-full rounded-full overflow-hidden border border-border/40 bg-background shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
-                  {user.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={user.avatarUrl}
-                      alt={user.fullName || "Avatar"}
-                      className="size-full rounded-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex size-full items-center justify-center rounded-full bg-gradient-to-br from-amber-400 via-orange-500 to-amber-600 text-2xl sm:text-3xl font-black text-white shadow-inner select-none tracking-wider">
-                      <span className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]">
-                        {initials}
+                {/* Intermediate Beveled Contour Ring */}
+                <div className="relative flex size-full items-center justify-center rounded-full p-1 bg-gradient-to-br from-white/30 via-transparent to-black/15 dark:from-white/10 dark:to-black/35 shadow-[inset_1px_1px_2px_rgba(255,255,255,0.4),inset_-1px_-1px_2px_rgba(0,0,0,0.3)]">
+                  {/* Inner Avatar Container */}
+                  <div className="relative size-full rounded-full overflow-hidden border border-border/30 bg-background shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+                    {user.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={user.avatarUrl}
+                        alt={user.fullName || "Avatar"}
+                        className="size-full rounded-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex size-full items-center justify-center rounded-full bg-gradient-to-br from-amber-500 via-primary to-orange-600 text-2xl sm:text-3xl font-black text-white select-none tracking-wider">
+                        <span className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.35)]">
+                          {initials}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Hover Overlay with Camera Icon */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center rounded-full bg-black/45 backdrop-blur-[2px] opacity-0 transition-opacity duration-200 group-hover:opacity-100 text-white">
+                      <Camera className="size-5 sm:size-6 drop-shadow" />
+                      <span className="mt-1 text-[10px] sm:text-[11px] font-semibold drop-shadow">
+                        {t("profile.avatar.change") || "Đổi ảnh"}
                       </span>
                     </div>
-                  )}
 
-                  {/* Hover Overlay with Camera Icon */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center rounded-full bg-black/45 backdrop-blur-[2px] opacity-0 transition-opacity duration-200 group-hover:opacity-100 text-white">
-                    <Camera className="size-5 sm:size-6 drop-shadow" />
-                    <span className="mt-1 text-[10px] sm:text-[11px] font-semibold drop-shadow">
-                      {t("profile.avatar.change") || "Đổi ảnh"}
-                    </span>
+                    {/* Upload loading overlay */}
+                    {avatarUploadMutation.isPending && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center rounded-full bg-background/85 backdrop-blur-md">
+                        <Loader2 className="size-7 animate-spin text-primary" />
+                        <span className="mt-1 text-[10px] font-semibold text-primary">
+                          {t("profile.avatar.uploading")}
+                        </span>
+                      </div>
+                    )}
                   </div>
-
-                  {/* Upload loading overlay */}
-                  {avatarUploadMutation.isPending && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center rounded-full bg-background/85 backdrop-blur-md">
-                      <Loader2 className="size-7 animate-spin text-primary" />
-                      <span className="mt-1 text-[10px] font-semibold text-primary">
-                        {t("profile.avatar.uploading")}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -305,7 +290,7 @@ export function ProfileSettingsContent() {
                 disabled={avatarUploadMutation.isPending}
                 aria-label={t("profile.avatar.change")}
                 title={t("profile.avatar.change")}
-                className="absolute -bottom-1 -right-1 sm:bottom-0 sm:right-0 z-10 flex size-10 items-center justify-center rounded-full border border-border/60 bg-background text-foreground shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] transition-all duration-200 hover:scale-110 hover:text-primary hover:border-primary/50 hover:shadow-[5px_5px_12px_var(--shadow-dark),-5px_-5px_12px_var(--shadow-light)] active:scale-95 active:shadow-[inset_2px_2px_4px_var(--shadow-dark)] disabled:opacity-50"
+                className="absolute -bottom-1 -right-1 sm:bottom-0 sm:right-0 z-10 flex size-10 items-center justify-center rounded-full border border-border/60 bg-background text-foreground shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)] transition-all duration-200 hover:scale-110 hover:text-primary hover:border-primary/50 hover:shadow-[4px_4px_12px_var(--shadow-dark),-4px_-4px_12px_var(--shadow-light)] active:scale-95 active:shadow-[inset_2px_2px_4px_var(--shadow-dark)] disabled:opacity-50"
               >
                 <Camera className="size-4.5" />
               </button>
@@ -385,212 +370,518 @@ export function ProfileSettingsContent() {
       {/* 4. Grid Layout: Personal Info Form + RBAC & Security Cards */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left Column: Form Chỉnh sửa thông tin cá nhân (7 cols) */}
-        <div className="lg:col-span-7">
-          <section className="h-full rounded-2xl border border-border/30 bg-background p-3.5 shadow-[6px_6px_15px_var(--shadow-dark),-6px_-6px_15px_var(--shadow-light)] sm:p-5">
-            <div className="flex h-full flex-col rounded-xl border border-border/20 bg-background p-4 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:p-6">
-              {/* Header section */}
-              <div className="mb-5 border-b border-border/30 pb-3">
-                <div className="flex items-center gap-2">
-                  <User className="size-4 text-primary" />
-                  <h2 className="text-base font-bold text-foreground">
-                    {t("profile.personalInfo.title")}
-                  </h2>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t("profile.personalInfo.subtitle")}
-                </p>
-              </div>
+        
+<div className="lg:col-span-5">
+  <section
+    className="
+      relative h-full overflow-hidden rounded-[28px]
+      border border-border/30 bg-background
+      shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)]
+    "
+  >
+    {/* Top highlight */}
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-x-8 top-0 h-px bg-foreground/10"
+    />
 
-              <form onSubmit={handleSubmit} className="flex flex-1 flex-col justify-between space-y-4">
-                <div className="space-y-4">
-                  {/* Họ và tên */}
-                  <div className="space-y-1.5">
-                    <label
-                      htmlFor="profile-fullName"
-                      className="block text-xs font-semibold text-foreground"
-                    >
-                      {t("profile.personalInfo.fullName")}{" "}
-                      <span className="text-destructive">*</span>
-                    </label>
-                    <div className="relative">
-                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
-                        <User className="size-4" />
-                      </div>
-                      <input
-                        id="profile-fullName"
-                        type="text"
-                        value={fullName}
-                        onChange={(e) => {
-                          setFullName(e.target.value);
-                          if (formError.fullName) setFormError((prev) => ({ ...prev, fullName: undefined }));
-                        }}
-                        placeholder={t("profile.personalInfo.fullNamePlaceholder")}
-                        className="w-full rounded-xl border border-border/40 bg-background py-2.5 pl-9 pr-3 text-sm text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] outline-none transition-all placeholder:text-muted-foreground/60 focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
-                      />
-                    </div>
-                    {formError.fullName && (
-                      <p className="text-xs text-destructive">{formError.fullName}</p>
-                    )}
-                  </div>
-
-                  {/* Số điện thoại */}
-                  <div className="space-y-1.5">
-                    <label
-                      htmlFor="profile-phoneNumber"
-                      className="block text-xs font-semibold text-foreground"
-                    >
-                      {t("profile.personalInfo.phoneNumber")}
-                    </label>
-                    <div className="relative">
-                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
-                        <Phone className="size-4" />
-                      </div>
-                      <input
-                        id="profile-phoneNumber"
-                        type="tel"
-                        value={phoneNumber}
-                        onChange={(e) => {
-                          setPhoneNumber(e.target.value);
-                          if (formError.phoneNumber) setFormError((prev) => ({ ...prev, phoneNumber: undefined }));
-                        }}
-                        placeholder={t("profile.personalInfo.phonePlaceholder")}
-                        className="w-full rounded-xl border border-border/40 bg-background py-2.5 pl-9 pr-3 text-sm text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] outline-none transition-all placeholder:text-muted-foreground/60 focus:border-primary/50 focus:ring-2 focus:ring-primary/20"
-                      />
-                    </div>
-                    {formError.phoneNumber && (
-                      <p className="text-xs text-destructive">{formError.phoneNumber}</p>
-                    )}
-                  </div>
-
-                  {/* Email (Read-only) */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label
-                        htmlFor="profile-email"
-                        className="block text-xs font-semibold text-foreground"
-                      >
-                        {t("profile.personalInfo.email")}
-                      </label>
-                      <span className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-                        <Lock className="size-3" />
-                        {t("profile.identity.emailVerified")}
-                      </span>
-                    </div>
-                    <div className="relative">
-                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground">
-                        <Mail className="size-4" />
-                      </div>
-                      <input
-                        id="profile-email"
-                        type="email"
-                        value={user.email || ""}
-                        disabled
-                        readOnly
-                        className="w-full cursor-not-allowed rounded-xl border border-border/30 bg-muted/20 py-2.5 pl-9 pr-3 text-sm text-muted-foreground opacity-90 shadow-[inset_2px_2px_4px_var(--shadow-dark)]"
-                      />
-                    </div>
-                    <p className="text-[11px] leading-relaxed text-muted-foreground">
-                      {t("profile.personalInfo.emailLockedHint")}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Form Action Buttons */}
-                <div className="flex items-center justify-end gap-3 pt-6 border-t border-border/30">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={handleResetForm}
-                    disabled={!isDirty || updateProfileMutation.isPending}
-                    className="flex items-center gap-1.5 rounded-xl border border-transparent px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted/30 hover:text-foreground active:shadow-nm-pressed disabled:opacity-40"
-                  >
-                    <RotateCcw className="size-3.5" />
-                    <span>{t("profile.personalInfo.reset")}</span>
-                  </Button>
-
-                  <Button
-                    type="submit"
-                    disabled={!isDirty || updateProfileMutation.isPending}
-                    className="flex items-center gap-2 rounded-xl border border-primary/40 bg-primary px-5 py-2 text-xs font-bold text-primary-foreground shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)] transition-all hover:brightness-105 active:shadow-nm-pressed disabled:opacity-50"
-                  >
-                    {updateProfileMutation.isPending ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        <span>{t("profile.personalInfo.saving")}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="size-4" />
-                        <span>{t("profile.personalInfo.save")}</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </section>
+    <div className="flex h-full flex-col p-5 sm:p-7 lg:p-8">
+      {/* Header */}
+      <div className="mb-7 flex items-start gap-4">
+        <div
+          className="
+            flex size-12 shrink-0 items-center justify-center
+            rounded-2xl border border-border/30 bg-background
+            text-primary
+            shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]
+          "
+        >
+          <User className="size-5" strokeWidth={1.8} />
         </div>
 
-        {/* Right Column: Phân quyền RBAC & Lối tắt bảo mật (5 cols) */}
-        <div className="space-y-6 lg:col-span-5">
-          {/* Card Phân quyền RBAC */}
-          <section className="rounded-2xl border border-border/30 bg-background p-3.5 shadow-[6px_6px_15px_var(--shadow-dark),-6px_-6px_15px_var(--shadow-light)] sm:p-5">
-            <div className="rounded-xl border border-border/20 bg-background p-4 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:p-5">
-              <div className="mb-4 flex items-center justify-between border-b border-border/30 pb-3">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="size-4 text-primary" />
-                  <h3 className="text-sm font-bold text-foreground">
-                    {t("profile.rbac.title")}
-                  </h3>
-                </div>
-                <span className="rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                  {user.permissions.length} {t("profile.rbac.permissionsCount")}
-                </span>
-              </div>
+        <div className="min-w-0 flex-1 pt-0.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-bold tracking-tight text-foreground">
+              {t("profile.personalInfo.title")}
+            </h2>
 
-              {/* Role info */}
-              <div className="space-y-3">
-                <div className="rounded-xl border border-border/30 bg-muted/20 p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      {t("profile.rbac.currentRole")}
-                    </span>
-                    <span className="text-xs font-bold text-primary">
-                      {t(roleLabelKey)}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                    {roleDesc}
-                  </p>
-                </div>
+            <span
+              className="
+                inline-flex items-center gap-1.5 rounded-full
+                border border-border/30 bg-background/70
+                px-2.5 py-1 text-[10px] font-semibold
+                uppercase tracking-wider text-muted-foreground
+              "
+            >
+              <span className="size-1.5 rounded-full bg-primary" />
+              Profile
+            </span>
+          </div>
 
-                {/* Permissions chip list */}
-                <div>
-                  <p className="mb-2 text-xs font-semibold text-foreground">
-                    {t("profile.rbac.permissionsList")}
-                  </p>
-                  <div className="flex max-h-36 flex-wrap gap-1.5 overflow-y-auto pr-1">
-                    {user.permissions.map((perm) => (
-                      <span
-                        key={perm}
-                        className="rounded-lg border border-border/40 bg-background px-2 py-0.5 font-mono text-[10px] text-muted-foreground shadow-[1px_1px_3px_var(--shadow-dark)]"
-                      >
-                        {perm}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+          <p className="mt-1.5 max-w-sm text-xs leading-relaxed text-muted-foreground">
+            {t("profile.personalInfo.subtitle")}
+          </p>
+        </div>
+      </div>
 
-                {/* Security notice */}
-                <div className="flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-2.5 text-amber-700 dark:text-amber-400">
-                  <ShieldAlert className="mt-0.5 size-4 shrink-0" />
-                  <p className="text-[11px] leading-relaxed">
-                    {t("profile.rbac.notice")}
-                  </p>
-                </div>
-              </div>
+      {/* Divider */}
+      <div className="mb-6 h-px bg-border/40" />
+
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-1 flex-col justify-between gap-8"
+      >
+        <div className="space-y-6">
+          {/* Full name */}
+          <div className="space-y-2">
+            <label
+              htmlFor="profile-fullName"
+              className="flex items-center gap-1 text-xs font-semibold text-foreground"
+            >
+              {t("profile.personalInfo.fullName")}
+              <span className="text-destructive">*</span>
+            </label>
+
+            <div className="group relative">
+              <User
+                aria-hidden="true"
+                className="
+                  pointer-events-none absolute left-3.5 top-1/2
+                  size-[17px] -translate-y-1/2
+                  text-muted-foreground transition-colors
+                  group-focus-within:text-primary
+                "
+              />
+
+              <input
+                id="profile-fullName"
+                type="text"
+                value={fullName}
+                onChange={(e) => {
+                  setFullName(e.target.value);
+                  if (formError.fullName) {
+                    setFormError((prev) => ({
+                      ...prev,
+                      fullName: undefined,
+                    }));
+                  }
+                }}
+                placeholder={t("profile.personalInfo.fullNamePlaceholder")}
+                aria-invalid={!!formError.fullName}
+                aria-describedby={
+                  formError.fullName ? "profile-fullName-error" : undefined
+                }
+                className="
+                  w-full rounded-2xl border border-border/40
+                  bg-background py-3.5 pl-11 pr-4
+                  text-sm text-foreground
+                  shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)]
+                  outline-none transition-all duration-200
+                  placeholder:text-muted-foreground/55
+                  hover:border-border/70
+                  focus:border-primary/60
+                  focus:ring-2 focus:ring-primary/15
+                  focus:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]
+                  aria-[invalid=true]:border-destructive/70
+                  aria-[invalid=true]:focus:ring-destructive/15
+                "
+              />
             </div>
-          </section>
+
+            {formError.fullName && (
+              <p
+                id="profile-fullName-error"
+                role="alert"
+                className="flex items-center gap-1.5 text-xs text-destructive"
+              >
+                <span className="size-1 rounded-full bg-destructive" />
+                {formError.fullName}
+              </p>
+            )}
+          </div>
+
+          {/* Phone number */}
+          <div className="space-y-2">
+            <label
+              htmlFor="profile-phoneNumber"
+              className="block text-xs font-semibold text-foreground"
+            >
+              {t("profile.personalInfo.phoneNumber")}
+            </label>
+
+            <div className="group relative">
+              <Phone
+                aria-hidden="true"
+                className="
+                  pointer-events-none absolute left-3.5 top-1/2
+                  size-[17px] -translate-y-1/2
+                  text-muted-foreground transition-colors
+                  group-focus-within:text-primary
+                "
+              />
+
+              <input
+                id="profile-phoneNumber"
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => {
+                  setPhoneNumber(e.target.value);
+                  if (formError.phoneNumber) {
+                    setFormError((prev) => ({
+                      ...prev,
+                      phoneNumber: undefined,
+                    }));
+                  }
+                }}
+                // placeholder={t("profile.personalInfo.phonePlaceholder")}
+                aria-invalid={!!formError.phoneNumber}
+                aria-describedby={
+                  formError.phoneNumber
+                    ? "profile-phoneNumber-error"
+                    : undefined
+                }
+                className="
+                  w-full rounded-2xl border border-border/40
+                  bg-background py-3.5 pl-11 pr-4
+                  text-sm text-foreground
+                  shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)]
+                  outline-none transition-all duration-200
+                  placeholder:text-muted-foreground/55
+                  hover:border-border/70
+                  focus:border-primary/60
+                  focus:ring-2 focus:ring-primary/15
+                  aria-[invalid=true]:border-destructive/70
+                  aria-[invalid=true]:focus:ring-destructive/15
+                "
+              />
+            </div>
+
+            {formError.phoneNumber && (
+              <p
+                id="profile-phoneNumber-error"
+                role="alert"
+                className="flex items-center gap-1.5 text-xs text-destructive"
+              >
+                <span className="size-1 rounded-full bg-destructive" />
+                {formError.phoneNumber}
+              </p>
+            )}
+          </div>
+
+          {/* Email - Read only */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label
+                htmlFor="profile-email"
+                className="text-xs font-semibold text-foreground"
+              >
+                {t("profile.personalInfo.email")}
+              </label>
+
+              <span
+                className="
+                  inline-flex items-center gap-1.5 rounded-full
+                  border border-primary/20 bg-primary/5
+                  px-2.5 py-1 text-[10px] font-semibold
+                  text-primary
+                "
+              >
+                <ShieldCheck className="size-3" />
+                {t("profile.identity.emailVerified")}
+              </span>
+            </div>
+
+            <div className="relative">
+              <Mail
+                aria-hidden="true"
+                className="
+                  pointer-events-none absolute left-3.5 top-1/2
+                  size-[17px] -translate-y-1/2 text-muted-foreground/70
+                "
+              />
+
+              <input
+                id="profile-email"
+                type="email"
+                value={user.email || ""}
+                disabled
+                readOnly
+                className="
+                  w-full cursor-not-allowed rounded-2xl
+                  border border-border/20 bg-muted/25
+                  py-3.5 pl-11 pr-11 text-sm text-muted-foreground
+                  shadow-[inset_2px_2px_5px_var(--shadow-dark)]
+                  opacity-90
+                "
+              />
+
+              <Lock
+                aria-hidden="true"
+                className="
+                  pointer-events-none absolute right-3.5 top-1/2
+                  size-3.5 -translate-y-1/2 text-muted-foreground/60
+                "
+              />
+            </div>
+
+            <p className="pl-1 text-[11px] leading-relaxed text-muted-foreground">
+              {t("profile.personalInfo.emailLockedHint")}
+            </p>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div
+          className="
+            mt-auto flex flex-col-reverse gap-3
+            border-t border-border/30 pt-5
+            sm:flex-row sm:items-center sm:justify-between
+          "
+        >
+          <p className="hidden text-[11px] text-muted-foreground sm:block">
+            {isDirty ? (t("profile.personalInfo.reset")) : ""}
+          </p>
+
+          <div className="flex items-center justify-end gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleResetForm}
+              disabled={!isDirty || updateProfileMutation.isPending}
+              className="
+                inline-flex items-center justify-center gap-2
+                rounded-xl border border-border/30 bg-background
+                px-4 py-2.5 text-xs font-semibold text-muted-foreground
+                shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)]
+                transition-all duration-200
+                hover:text-foreground
+                active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]
+                disabled:cursor-not-allowed disabled:opacity-40
+              "
+            >
+              <RotateCcw className="size-3.5" />
+              <span>{t("profile.personalInfo.reset")}</span>
+            </Button>
+
+            <Button
+              type="submit"
+              disabled={!isDirty || updateProfileMutation.isPending}
+              className="
+                inline-flex items-center justify-center gap-2
+                rounded-xl border border-primary/30
+                bg-primary px-5 py-2.5
+                text-xs font-bold text-primary-foreground
+                shadow-[4px_4px_10px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]
+                transition-all duration-200
+                hover:-translate-y-0.5 hover:brightness-105
+                hover:shadow-[6px_6px_13px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]
+                active:translate-y-0 active:shadow-nm-pressed
+                disabled:cursor-not-allowed disabled:opacity-45
+              "
+            >
+              {updateProfileMutation.isPending ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  <span>{t("profile.personalInfo.saving")}</span>
+                </>
+              ) : (
+                <>
+                  <Check className="size-4" />
+                  <span>{t("profile.personalInfo.save")}</span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+</div>
+
+
+        {/* Right Column: Phân quyền RBAC & Lối tắt bảo mật (5 cols) */}
+        <div className="space-y-6 lg:col-span-7">
+
+{/* Card Phân quyền RBAC */}
+<section
+  className="
+    relative overflow-hidden rounded-[28px]
+    border border-border/30 bg-background p-5 sm:p-7
+    shadow-[9px_9px_22px_var(--shadow-dark),-9px_-9px_22px_var(--shadow-light)]
+  "
+>
+  {/* Top highlight */}
+  <div
+    aria-hidden="true"
+    className="pointer-events-none absolute inset-x-8 top-0 h-px bg-foreground/10"
+  />
+
+  <div className="space-y-6">
+    {/* Header */}
+    <div className="flex items-start justify-between gap-4">
+      <div className="flex min-w-0 items-center gap-3.5">
+        <div
+          className="
+            flex size-12 shrink-0 items-center justify-center
+            rounded-2xl border border-primary/20 bg-primary/10
+            text-primary
+            shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]
+          "
+        >
+          <ShieldCheck className="size-6" strokeWidth={1.8} />
+        </div>
+
+        <div className="min-w-0">
+          <h3 className="text-base font-bold tracking-tight text-foreground sm:text-lg">
+            {t("profile.rbac.title")}
+          </h3>
+          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+            {t("profile.rbac.currentRole")}
+          </p>
+        </div>
+      </div>
+
+      <div
+        className="
+          flex shrink-0 items-center gap-2 rounded-xl
+          border border-primary/20 bg-primary/5 px-3 py-2
+          text-primary
+          shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)]
+        "
+      >
+        <span className="text-sm font-bold tabular-nums">
+          {user.permissions.length}
+        </span>
+        <span className="hidden text-xs font-medium sm:inline">
+          {t("profile.rbac.permissionsCount")}
+        </span>
+      </div>
+    </div>
+
+    <div className="h-px bg-border/40" />
+
+    {/* Current role */}
+    <div
+      className="
+        relative overflow-hidden rounded-2xl
+        border border-primary/15 bg-primary/[0.045]
+        p-4 sm:p-5
+        shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]
+      "
+    >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-8 -top-12 size-36 rounded-full bg-primary/[0.06] blur-2xl"
+      />
+
+      <div className="relative flex items-start gap-3.5">
+
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+            {t("profile.rbac.currentRole")}
+          </p>
+
+          <p className="mt-1.5 text-base font-bold tracking-tight text-primary sm:text-lg">
+            {t(roleLabelKey)}
+          </p>
+
+          <p className="mt-2 text-xs leading-[1.8] text-muted-foreground sm:text-sm">
+            {roleDesc}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {/* Permissions */}
+    <div>
+      <div className="mb-3.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+
+          <h4 className="text-sm font-bold text-foreground">
+            {t("profile.rbac.permissionsList")}
+          </h4>
+        </div>
+
+        <span className="text-[11px] font-medium text-muted-foreground">
+          {user.permissions.length}
+        </span>
+      </div>
+
+      {user.permissions.length > 0 ? (
+        <div
+          className="
+            flex max-h-44 flex-wrap gap-2 overflow-y-auto
+            rounded-2xl border border-border/20 bg-muted/[0.08]
+            p-3
+            shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]
+          "
+        >
+          {user.permissions.map((perm) => (
+            <span
+              key={perm}
+              className="
+                inline-flex max-w-full items-center gap-2
+                rounded-lg border border-border/30 bg-background
+                px-2.5 py-1.5
+                font-mono text-[10px] leading-relaxed text-muted-foreground
+                break-all
+                shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]
+                transition-all duration-200
+                hover:-translate-y-0.5 hover:border-primary/30
+                hover:text-primary
+              "
+            >
+              <span className="size-1.5 shrink-0 rounded-full bg-primary/70" />
+              {perm}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div
+          className="
+            rounded-2xl border border-border/30 bg-muted/10
+            px-4 py-6 text-center
+            shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]
+          "
+        >
+          <ShieldCheck className="mx-auto size-6 text-muted-foreground/50" />
+          <p className="mt-2 text-xs text-muted-foreground">
+            {t("profile.rbac.permissionsList")}
+          </p>
+        </div>
+      )}
+    </div>
+
+    {/* Security notice */}
+    <div
+      className="
+        relative flex items-start gap-3 overflow-hidden
+        rounded-2xl border border-amber-500/20
+        bg-amber-500/[0.045] p-3.5 sm:p-4
+        shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]
+      "
+    >
+      <div
+        className="
+          flex size-9 shrink-0 items-center justify-center
+          rounded-xl border border-amber-500/20
+          bg-amber-500/[0.08] text-amber-600
+          dark:text-amber-400
+          shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]
+        "
+      >
+        <ShieldAlert className="size-[18px]" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-bold text-amber-700 dark:text-amber-400">
+          {t("profile.rbac.notice")}
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
 
           {/* Card Lối tắt An toàn & Bảo mật */}
           <section className="rounded-2xl border border-border/30 bg-background p-3.5 shadow-[6px_6px_15px_var(--shadow-dark),-6px_-6px_15px_var(--shadow-light)] sm:p-5">

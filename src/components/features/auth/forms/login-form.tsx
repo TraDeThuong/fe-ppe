@@ -92,7 +92,7 @@ export function LoginForm() {
           .pipe(z.string().min(1, t("login.emailRequired")))
           .pipe(z.email(t("login.emailInvalid"))),
         password: z.string().min(1, t("login.passwordRequired")),
-        rememberMe: z.boolean().default(false),
+        rememberMe: z.boolean(),
       }),
     [t],
   );

@@ -290,11 +290,22 @@ export const authService = {
     file: File | Blob,
     contentType: string,
   ): Promise<void> {
-    await axios.put(uploadUrl, file, {
-      headers: {
-        "Content-Type": contentType,
-      },
-    });
+    try {
+      await axios.put(uploadUrl, file, {
+        headers: {
+          "Content-Type": contentType,
+        },
+      });
+    } catch {
+      // Khi Cloudflare R2 bucket chưa cấu hình CORS cho origin trình duyệt,
+      // tự động chuyển tiếp qua Next.js Server-Side Route để hoàn tất tải lên
+      await axios.put("/api/avatar-upload", file, {
+        headers: {
+          "Content-Type": contentType,
+          "x-upload-url": uploadUrl,
+        },
+      });
+    }
   },
 
   /**

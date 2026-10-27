@@ -133,7 +133,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     key: "settings",
-    route: "/settings/security",
+    route: "/settings/profile",
     icon: KeyRound,
     i18nKey: "nav.settings",
     group: "personal",
