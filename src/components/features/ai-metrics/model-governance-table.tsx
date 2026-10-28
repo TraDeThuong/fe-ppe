@@ -18,7 +18,7 @@ export function ModelGovernanceTable({
   canDeploy = true,
   loading = false,
 }: ModelGovernanceTableProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
 
   // Flatten versions from models
   const allVersions = models.flatMap((m) =>
@@ -37,13 +37,13 @@ export function ModelGovernanceTable({
       case "CANDIDATE":
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-            CANDIDATE (Ứng viên)
+            {t("aiMetrics.governance.candidateBadge")}
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-            Lưu trữ (Archived)
+            {t("aiMetrics.governance.archivedBadge")}
           </span>
         );
     }
@@ -60,13 +60,13 @@ export function ModelGovernanceTable({
           </h4>
         </div>
         <span className="text-xs text-muted-foreground">
-          {allVersions.length} phiên bản đã đăng ký
+          {t("aiMetrics.governance.versionsRegistered", { count: allVersions.length })}
         </span>
       </div>
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
+        <table className="w-full min-w-[620px] text-left text-xs">
           <thead>
             <tr className="border-b border-border/40 text-muted-foreground">
               <th className="pb-3 font-semibold">{t("aiMetrics.governance.version")}</th>
@@ -89,7 +89,7 @@ export function ModelGovernanceTable({
               const latency = v.metrics?.latencyMs
                 ? `${(v.metrics.latencyMs as number).toFixed(1)} ms`
                 : "32.4 ms";
-              const date = new Date(v.createdAt).toLocaleDateString("vi-VN");
+              const date = new Date(v.createdAt).toLocaleDateString(locale === "vi-VN" ? "vi-VN" : "en-US");
 
               return (
                 <tr key={v.id} className="hover:bg-surface-elevated/40 transition-colors">

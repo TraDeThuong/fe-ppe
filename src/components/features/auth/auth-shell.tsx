@@ -15,6 +15,7 @@ import {
 
 import { useLocale } from "@/providers/locale-provider";
 import { useTheme } from "@/providers/theme-provider";
+import { ThemeToggle } from "@ui/theme-toggle";
 
 export interface AuthShellProps {
   title: ReactNode;
@@ -348,19 +349,7 @@ export function AuthShell({
               </span>
             </button>
 
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-              title={isDark ? "Light mode" : "Dark mode"}
-              className={`${controlClassName} size-9 sm:size-10`}
-            >
-              {isDark ? (
-                <Sun className="size-3.5 sm:size-4" aria-hidden="true" />
-              ) : (
-                <Moon className="size-3.5 sm:size-4" aria-hidden="true" />
-              )}
-            </button>
+            <ThemeToggle id="auth-theme-toggle-btn" />
           </div>
         </header>
 

@@ -72,6 +72,7 @@ export interface ServiceHealthItem {
   latencyMs: number;
   uptime?: string;
   lastChecked: string;
+  type?: "SERVICE" | "INFRASTRUCTURE";
   details?: Record<string, unknown>;
 }
 

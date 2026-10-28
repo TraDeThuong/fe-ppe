@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Cctv,
   Radio,
@@ -10,12 +10,17 @@ import {
   WifiOff,
   Activity,
   Camera,
-  Layers,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Typography } from "@ui/typography";
 import { StatsCard, type StatsCardVariant } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
 import type { CameraItem, CameraStatus } from "@/types";
+import {
+  CameraStatsDetailPanel,
+  type CameraStatKey,
+} from "./camera-stats-detail-panel";
 
 function cn(...classes: Array<string | null | undefined | false>) {
   return classes.filter(Boolean).join(" ");
@@ -32,6 +37,18 @@ export interface CameraKpiSummaryProps {
   activeFilter?: string;
   /** Hàm callback khi click vào thẻ để lọc danh sách camera */
   onFilterChange?: (status: CameraStatus | "ALL") => void;
+  /** Callback lọc theo công trường */
+  onFilterSite?: (siteId: string) => void;
+  /** Callback kiểm tra Ping camera */
+  onPing?: (camera: CameraItem) => void;
+  /** Callback mở cấu hình AI ROI */
+  onOpenRoi?: (camera: CameraItem) => void;
+  /** Callback mở chỉnh sửa camera */
+  onEditCamera?: (camera: CameraItem) => void;
+  /** Callback mở modal tạo camera */
+  onCreateCamera?: () => void;
+  /** Callback chuyển sang xem live */
+  onViewLive?: (camera: CameraItem) => void;
   className?: string;
 }
 
@@ -41,13 +58,26 @@ export function CameraKpiSummary({
   variant = "bento-console",
   activeFilter,
   onFilterChange,
+  onFilterSite,
+  onPing,
+  onOpenRoi,
+  onEditCamera,
+  onCreateCamera,
+  onViewLive,
   className = "",
 }: CameraKpiSummaryProps) {
   const { locale, t } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
+  // Quản lý tab nội dung chi tiết mở rộng bên dưới
+  const [activeStat, setActiveStat] = useState<CameraStatKey | null>(null);
+
+  const handleToggle = (key: CameraStatKey) => {
+    setActiveStat((prev) => (prev === key ? null : key));
+  };
+
   // Tính toán số liệu thống kê
-  const { total, online, offline, connecting, avgLatency, onlineRate, latencyScore } =
+  const { total, online, offline, avgLatency, onlineRate, latencyScore } =
     useMemo(() => {
       const tot = cameras.length;
       let onl = 0;
@@ -75,15 +105,14 @@ export function CameraKpiSummary({
               validLatencies.reduce((sum, val) => sum + val, 0) /
                 validLatencies.length
             )
-          : 42;
+          : 0;
 
-      const rate = tot > 0 ? Math.min(100, Math.round((onl / tot) * 100)) : 100;
+      const rate = tot > 0 ? Math.min(100, Math.round((onl / tot) * 100)) : 0;
 
       // Điểm sức khỏe mạng tính từ độ trễ (<=50ms: 100%, 100ms: ~85%, 250ms: ~30%)
-      const score = Math.max(
-        15,
-        Math.min(100, Math.round(100 - (calculatedAvgLatency / 250) * 75))
-      );
+      const score = validLatencies.length > 0
+        ? Math.max(15, Math.min(100, Math.round(100 - (calculatedAvgLatency / 250) * 75)))
+        : (tot > 0 ? 100 : 0);
 
       return {
         total: tot,
@@ -118,13 +147,14 @@ export function CameraKpiSummary({
             1. MOBILE COMPACT 2x2 TILES (< md: Phone Screens)
             ============================================================ */}
         <div className="grid grid-cols-2 gap-2.5 md:hidden">
-          {/* Tile 1: Tổng Camera */}
+          {/* Tile 1: Tổng Camera -> Mở Fleet Pulse */}
           <div
-            onClick={() => onFilterChange?.("ALL")}
+            onClick={() => handleToggle("fleetPulse")}
             className={cn(
-              "relative overflow-hidden rounded-2xl border border-white/70 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 flex flex-col justify-between transition-all duration-200",
-              onFilterChange && "cursor-pointer active:scale-[0.98]",
-              activeFilter === "ALL" && "ring-1 ring-primary/40 border-primary/30"
+              "relative overflow-hidden rounded-2xl border bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] flex flex-col justify-between transition-all duration-200 cursor-pointer active:scale-[0.98]",
+              activeStat === "fleetPulse"
+                ? "border-primary/50 ring-2 ring-primary/30"
+                : "border-white/70 dark:border-white/10"
             )}
           >
             <div
@@ -147,19 +177,25 @@ export function CameraKpiSummary({
               >
                 {loading ? "..." : total}
               </Typography>
-              <p className="text-[10px] text-muted-foreground/80 font-medium truncate mt-0.5">
-                {isVietnamese ? "Toàn hệ thống" : "Fleet-wide units"}
-              </p>
+              <div className="flex items-center justify-between mt-0.5">
+                <p className="text-[10px] text-muted-foreground/80 font-medium truncate">
+                  {isVietnamese ? "Toàn hệ thống" : "Fleet-wide units"}
+                </p>
+                <span className="text-[9px] font-bold text-primary flex items-center">
+                  {activeStat === "fleetPulse" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Tile 2: Đang phát sóng */}
+          {/* Tile 2: Đang phát sóng -> Mở Fleet Pulse */}
           <div
-            onClick={() => onFilterChange?.("ONLINE")}
+            onClick={() => handleToggle("fleetPulse")}
             className={cn(
-              "relative overflow-hidden rounded-2xl border border-white/70 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 flex flex-col justify-between transition-all duration-200",
-              onFilterChange && "cursor-pointer active:scale-[0.98]",
-              activeFilter === "ONLINE" && "ring-1 ring-primary/40 border-primary/30"
+              "relative overflow-hidden rounded-2xl border bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] flex flex-col justify-between transition-all duration-200 cursor-pointer active:scale-[0.98]",
+              activeStat === "fleetPulse"
+                ? "border-primary/50 ring-2 ring-primary/30"
+                : "border-white/70 dark:border-white/10"
             )}
           >
             <div
@@ -196,8 +232,16 @@ export function CameraKpiSummary({
             </div>
           </div>
 
-          {/* Tile 3: Độ trễ AI */}
-          <div className="relative overflow-hidden rounded-2xl border border-white/70 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 flex flex-col justify-between">
+          {/* Tile 3: Độ trễ AI -> Mở Edge Telemetry */}
+          <div
+            onClick={() => handleToggle("edgeTelemetry")}
+            className={cn(
+              "relative overflow-hidden rounded-2xl border bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] flex flex-col justify-between transition-all duration-200 cursor-pointer active:scale-[0.98]",
+              activeStat === "edgeTelemetry"
+                ? "border-primary/50 ring-2 ring-primary/30"
+                : "border-white/70 dark:border-white/10"
+            )}
+          >
             <div
               aria-hidden="true"
               className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20"
@@ -223,32 +267,37 @@ export function CameraKpiSummary({
                   ms
                 </span>
               </div>
-              <p className="text-[10px] text-muted-foreground/80 font-medium truncate mt-0.5">
-                {isLatencyFast
-                  ? isVietnamese
-                    ? "Cực nhanh (< 60ms)"
-                    : "Ultra-fast (< 60ms)"
-                  : isLatencyOptimal
-                  ? isVietnamese
-                    ? "Ổn định"
-                    : "Optimal"
-                  : isVietnamese
-                  ? "Độ trễ cao"
-                  : "High latency"}
-              </p>
+              <div className="flex items-center justify-between mt-0.5">
+                <p className="text-[10px] text-muted-foreground/80 font-medium truncate">
+                  {isLatencyFast
+                    ? isVietnamese
+                      ? "Cực nhanh (< 60ms)"
+                      : "Ultra-fast"
+                    : isLatencyOptimal
+                    ? isVietnamese
+                      ? "Ổn định"
+                      : "Optimal"
+                    : isVietnamese
+                    ? "Độ trễ cao"
+                    : "High latency"}
+                </p>
+                <span className="text-[9px] font-bold text-primary flex items-center">
+                  {activeStat === "edgeTelemetry" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Tile 4: Mất kết nối / Sự cố */}
+          {/* Tile 4: Mất kết nối / Sự cố -> Mở Signal Diagnostics */}
           <div
-            onClick={() => onFilterChange?.(hasWarning ? "OFFLINE" : "ALL")}
+            onClick={() => handleToggle("signalDiagnostics")}
             className={cn(
-              "relative overflow-hidden rounded-2xl border bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] flex flex-col justify-between transition-all duration-200",
-              hasWarning
+              "relative overflow-hidden rounded-2xl border bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] flex flex-col justify-between transition-all duration-200 cursor-pointer active:scale-[0.98]",
+              activeStat === "signalDiagnostics"
+                ? "border-accent/60 ring-2 ring-accent/40"
+                : hasWarning
                 ? "border-accent/40 bg-accent/[0.04]"
-                : "border-white/70 dark:border-white/10",
-              onFilterChange && "cursor-pointer active:scale-[0.98]",
-              activeFilter === "OFFLINE" && "ring-1 ring-accent/60"
+                : "border-white/70 dark:border-white/10"
             )}
           >
             <div
@@ -297,15 +346,20 @@ export function CameraKpiSummary({
                     : "Normal"}
                 </span>
               </div>
-              <p className="text-[10px] text-muted-foreground/80 font-medium truncate mt-0.5">
-                {hasWarning
-                  ? isVietnamese
-                    ? "Mất nguồn / Rớt mạng"
-                    : "Signal outages"
-                  : isVietnamese
-                  ? "Tất cả thông suốt"
-                  : "All streams clear"}
-              </p>
+              <div className="flex items-center justify-between mt-0.5">
+                <p className="text-[10px] text-muted-foreground/80 font-medium truncate">
+                  {hasWarning
+                    ? isVietnamese
+                      ? "Mất nguồn / Rớt mạng"
+                      : "Signal outages"
+                    : isVietnamese
+                    ? "Tất cả thông suốt"
+                    : "All clear"}
+                </p>
+                <span className="text-[9px] font-bold text-accent flex items-center">
+                  {activeStat === "signalDiagnostics" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -319,11 +373,13 @@ export function CameraKpiSummary({
               KHỐI 1 (5 CỘT): TRUNG TÂM CHỈ HUY HẠ TẦNG & TỶ LỆ TRỰC TUYẾN
               ------------------------------------------------------------ */}
           <div
-            onClick={() => onFilterChange?.("ALL")}
+            onClick={() => handleToggle("fleetPulse")}
             className={cn(
-              "relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-12 lg:col-span-5 flex flex-col justify-between",
-              onFilterChange && "cursor-pointer",
-              activeFilter === "ALL" && "border-primary/40 ring-1 ring-primary/30"
+              "relative group overflow-hidden rounded-[28px] border bg-background p-6 transition-all duration-300 cursor-pointer flex flex-col justify-between",
+              activeStat === "fleetPulse"
+                ? "border-primary/60 ring-2 ring-primary/40 shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)]"
+                : "border-white/80 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)]",
+              "md:col-span-12 lg:col-span-5"
             )}
           >
             {/* Top hairline highlight */}
@@ -346,10 +402,21 @@ export function CameraKpiSummary({
                     ? "Hạ tầng Camera & Trực tuyến"
                     : "Surveillance Fleet & Stream Pulse"}
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background px-2.5 py-0.5 text-[10px] font-bold text-foreground shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_var(--primary)] animate-pulse" />
-                  Live Stream Pulse
-                </span>
+
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background px-2.5 py-0.5 text-[10px] font-bold text-foreground shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_var(--primary)] animate-pulse" />
+                    Live Stream Pulse
+                  </span>
+
+                  <span className="text-[10px] font-bold text-primary flex items-center gap-0.5">
+                    {activeStat === "fleetPulse" ? (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    )}
+                  </span>
+                </div>
               </div>
 
               {/* Số liệu chính (2 cột) */}
@@ -374,16 +441,7 @@ export function CameraKpiSummary({
                 </div>
 
                 {/* Đang hoạt động / Phát sóng trực tiếp */}
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onFilterChange?.("ONLINE");
-                  }}
-                  className={cn(
-                    "space-y-1 border-l border-[var(--shadow-dark)]/20 pl-4 dark:border-white/10 rounded-r-xl transition-colors",
-                    onFilterChange && "hover:bg-primary/[0.03]"
-                  )}
-                >
+                <div className="space-y-1 border-l border-[var(--shadow-dark)]/20 pl-4 dark:border-white/10">
                   <span className="text-xs font-bold text-muted-foreground block">
                     {t("cameras.kpi.online")}
                   </span>
@@ -435,7 +493,16 @@ export function CameraKpiSummary({
           {/* ------------------------------------------------------------
               KHỐI 2 (4 CỘT): ĐỒNG HỒ ĐỘ TRỄ MẠNG & TẢI XỬ LÝ BIÊN AI (CIRCULAR DIAL)
               ------------------------------------------------------------ */}
-          <div className="relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-6 lg:col-span-4 flex flex-col justify-between">
+          <div
+            onClick={() => handleToggle("edgeTelemetry")}
+            className={cn(
+              "relative group overflow-hidden rounded-[28px] border bg-background p-6 transition-all duration-300 cursor-pointer flex flex-col justify-between",
+              activeStat === "edgeTelemetry"
+                ? "border-primary/60 ring-2 ring-primary/40 shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)]"
+                : "border-white/80 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)]",
+              "md:col-span-6 lg:col-span-4"
+            )}
+          >
             {/* Top hairline highlight */}
             <div
               aria-hidden="true"
@@ -456,9 +523,19 @@ export function CameraKpiSummary({
                     ? "Hiệu năng & Độ trễ luồng"
                     : "Edge Latency & Telemetry"}
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-                  Sub-Second Edge
-                </span>
+
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                    Sub-Second Edge
+                  </span>
+                  <span className="text-[10px] font-bold text-primary flex items-center gap-0.5">
+                    {activeStat === "edgeTelemetry" ? (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    )}
+                  </span>
+                </div>
               </div>
 
               {/* Nội dung trung tâm: Circular Dial SVG kết hợp thông số */}
@@ -559,11 +636,13 @@ export function CameraKpiSummary({
               KHỐI 3 (3 CỘT): ĐÈN HẢI ĐĂNG SENTINEL & CHẨN ĐOÁN LỖI LUỒNG
               ------------------------------------------------------------ */}
           <div
-            onClick={() => onFilterChange?.(hasWarning ? "OFFLINE" : "ALL")}
+            onClick={() => handleToggle("signalDiagnostics")}
             className={cn(
-              "relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-6 lg:col-span-3 flex flex-col justify-between",
-              onFilterChange && "cursor-pointer",
-              activeFilter === "OFFLINE" && "border-accent/50 ring-1 ring-accent/40"
+              "relative group overflow-hidden rounded-[28px] border bg-background p-6 transition-all duration-300 cursor-pointer flex flex-col justify-between",
+              activeStat === "signalDiagnostics"
+                ? "border-accent/60 ring-2 ring-accent/40 shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)]"
+                : "border-white/80 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)]",
+              "md:col-span-6 lg:col-span-3"
             )}
           >
             {/* Top hairline highlight */}
@@ -588,16 +667,26 @@ export function CameraKpiSummary({
                   {isVietnamese ? "Chẩn đoán tín hiệu" : "Signal Diagnostics"}
                 </span>
 
-                {/* Đèn báo hiệu Hải Đăng (Sentinel LED) */}
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] border border-white/40 dark:border-white/10">
-                  <span
-                    className={cn(
-                      "h-3 w-3 rounded-full transition-all",
-                      hasWarning
-                        ? "bg-accent shadow-[0_0_10px_var(--accent)] animate-ping"
-                        : "bg-primary shadow-[0_0_8px_var(--primary)]"
+                <div className="flex items-center gap-2">
+                  {/* Đèn báo hiệu Hải Đăng (Sentinel LED) */}
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] border border-white/40 dark:border-white/10">
+                    <span
+                      className={cn(
+                        "h-3 w-3 rounded-full transition-all",
+                        hasWarning
+                          ? "bg-accent shadow-[0_0_10px_var(--accent)] animate-ping"
+                          : "bg-primary shadow-[0_0_8px_var(--primary)]"
+                      )}
+                    />
+                  </div>
+
+                  <span className="text-[10px] font-bold text-accent flex items-center gap-0.5">
+                    {activeStat === "signalDiagnostics" ? (
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" />
                     )}
-                  />
+                  </span>
                 </div>
               </div>
 
@@ -660,6 +749,28 @@ export function CameraKpiSummary({
             </div>
           </div>
         </div>
+
+        {/* ============================================================
+            3. KHUNG NỘI DUNG CHI TIẾT MỞ RỘNG (EXPANDABLE DETAIL PANEL)
+            Xuất hiện ngay dưới các khối Bento Console khi người dùng click
+            ============================================================ */}
+        {activeStat && (
+          <div className="mt-4 sm:mt-5">
+            <CameraStatsDetailPanel
+              activeStat={activeStat}
+              cameras={cameras}
+              onSelectStat={setActiveStat}
+              onClose={() => setActiveStat(null)}
+              onFilterSite={onFilterSite}
+              onFilterStatus={onFilterChange}
+              onPing={onPing}
+              onOpenRoi={onOpenRoi}
+              onEditCamera={onEditCamera}
+              onCreateCamera={onCreateCamera}
+              onViewLive={onViewLive}
+            />
+          </div>
+        )}
       </section>
     );
   }
@@ -672,85 +783,109 @@ export function CameraKpiSummary({
       aria-label={
         isVietnamese ? "Thống kê Camera" : "Camera Infrastructure Statistics"
       }
-      className={`grid grid-cols-2 gap-2.5 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4 ${className}`}
+      className={`space-y-4 ${className}`}
     >
-      <StatsCard
-        variant={variant}
-        title={t("cameras.kpi.total")}
-        value={loading ? "..." : total}
-        icon={Camera}
-        tone="primary"
-        description={
-          isVietnamese
-            ? "Tổng số thiết bị trong hệ thống"
-            : "Connected surveillance units"
-        }
-        loading={loading}
-        hover
-        depth="medium"
-        border="subtle"
-        onClick={() => onFilterChange?.("ALL")}
-      />
+      <div className="grid grid-cols-2 gap-2.5 sm:gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatsCard
+          variant={variant}
+          title={t("cameras.kpi.total")}
+          value={loading ? "..." : total}
+          icon={Camera}
+          tone="primary"
+          description={
+            isVietnamese
+              ? "Tổng số thiết bị trong hệ thống"
+              : "Connected surveillance units"
+          }
+          loading={loading}
+          hover
+          depth="medium"
+          border="subtle"
+          onClick={() => handleToggle("fleetPulse")}
+          className={activeStat === "fleetPulse" ? "ring-2 ring-primary/40" : ""}
+        />
 
-      <StatsCard
-        variant={variant}
-        title={t("cameras.kpi.online")}
-        value={loading ? "..." : online}
-        icon={Activity}
-        tone="success"
-        progress={onlineRate}
-        progressLabel={`${onlineRate}%`}
-        description={
-          isVietnamese
-            ? `${onlineRate}% luồng RTSP phát trực tiếp`
-            : "Real-time RTSP streams"
-        }
-        loading={loading}
-        hover
-        depth="medium"
-        border="subtle"
-        onClick={() => onFilterChange?.("ONLINE")}
-      />
+        <StatsCard
+          variant={variant}
+          title={t("cameras.kpi.online")}
+          value={loading ? "..." : online}
+          icon={Activity}
+          tone="success"
+          progress={onlineRate}
+          progressLabel={`${onlineRate}%`}
+          description={
+            isVietnamese
+              ? `${onlineRate}% luồng RTSP phát trực tiếp`
+              : "Real-time RTSP streams"
+          }
+          loading={loading}
+          hover
+          depth="medium"
+          border="subtle"
+          onClick={() => handleToggle("fleetPulse")}
+          className={activeStat === "fleetPulse" ? "ring-2 ring-primary/40" : ""}
+        />
 
-      <StatsCard
-        variant={variant}
-        title={t("cameras.kpi.offline")}
-        value={loading ? "..." : offline}
-        icon={offline > 0 ? AlertTriangle : WifiOff}
-        tone={offline > 0 ? "danger" : "default"}
-        accentColor={offline > 0 ? "var(--accent)" : undefined}
-        description={
-          offline > 0
-            ? isVietnamese
-              ? "Cần kiểm tra kết nối mạng"
-              : "Needs inspection / network"
-            : isVietnamese
-              ? "Tất cả camera ổn định"
-              : "All units connected"
-        }
-        loading={loading}
-        hover
-        depth="medium"
-        border="subtle"
-        onClick={() => onFilterChange?.(offline > 0 ? "OFFLINE" : "ALL")}
-      />
+        <StatsCard
+          variant={variant}
+          title={t("cameras.kpi.offline")}
+          value={loading ? "..." : offline}
+          icon={offline > 0 ? AlertTriangle : WifiOff}
+          tone={offline > 0 ? "danger" : "default"}
+          accentColor={offline > 0 ? "var(--accent)" : undefined}
+          description={
+            offline > 0
+              ? isVietnamese
+                ? "Cần kiểm tra kết nối mạng"
+                : "Needs inspection / network"
+              : isVietnamese
+                ? "Tất cả camera ổn định"
+                : "All units connected"
+          }
+          loading={loading}
+          hover
+          depth="medium"
+          border="subtle"
+          onClick={() => handleToggle("signalDiagnostics")}
+          className={activeStat === "signalDiagnostics" ? "ring-2 ring-accent/40" : ""}
+        />
 
-      <StatsCard
-        variant={variant}
-        title={t("cameras.kpi.avgLatency")}
-        value={loading ? "..." : `${avgLatency} ms`}
-        icon={Zap}
-        tone="info"
-        description={
-          isVietnamese
-            ? "Phản hồi AI thời gian thực"
-            : "Sub-second edge response"
-        }
-        loading={loading}
-        hover
-        depth="medium"
-        border="subtle"
-      />
+        <StatsCard
+          variant={variant}
+          title={t("cameras.kpi.avgLatency")}
+          value={loading ? "..." : `${avgLatency} ms`}
+          icon={Zap}
+          tone="info"
+          description={
+            isVietnamese
+              ? "Phản hồi AI thời gian thực"
+              : "Sub-second edge response"
+          }
+          loading={loading}
+          hover
+          depth="medium"
+          border="subtle"
+          onClick={() => handleToggle("edgeTelemetry")}
+          className={activeStat === "edgeTelemetry" ? "ring-2 ring-primary/40" : ""}
+        />
+      </div>
+
+      {/* Khung nội dung chi tiết mở rộng cho biến thể cổ điển */}
+      {activeStat && (
+        <CameraStatsDetailPanel
+          activeStat={activeStat}
+          cameras={cameras}
+          onSelectStat={setActiveStat}
+          onClose={() => setActiveStat(null)}
+          onFilterSite={onFilterSite}
+          onFilterStatus={onFilterChange}
+          onPing={onPing}
+          onOpenRoi={onOpenRoi}
+          onEditCamera={onEditCamera}
+          onCreateCamera={onCreateCamera}
+          onViewLive={onViewLive}
+        />
+      )}
     </section>
   );
 }

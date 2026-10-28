@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Cpu, RefreshCw, Zap } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
   LatencyChartCard,
   ModelGovernanceTable,
   DeployModelDialog,
+  type AiMetricStatKey,
 } from "@/components/features/ai-metrics";
 import {
   useAiPerformance,
@@ -23,8 +25,42 @@ import {
 } from "@/hooks";
 import type { AiModelVersionDto, AiPerformanceFilter } from "@/types";
 
+const STAT_TO_URL: Record<AiMetricStatKey, string> = {
+  map50: "map50",
+  latency: "latency",
+  fps: "fps",
+  samples: "samples",
+};
+
+const URL_TO_STAT: Record<string, AiMetricStatKey> = {
+  map50: "map50",
+  map: "map50",
+  latency: "latency",
+  fps: "fps",
+  samples: "samples",
+  inferences: "samples",
+};
+
 export default function AiMetricsContent() {
   const { t } = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // URL state synchronization for stats (giống trang Roles)
+  const statParam = searchParams.get("stat");
+  const selectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
+
+  const handleSelectStat = (stat: AiMetricStatKey | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (stat) {
+      params.set("stat", STAT_TO_URL[stat]);
+    } else {
+      params.delete("stat");
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
 
   // Filters
   const [selectedModelId, setSelectedModelId] = useState("");
@@ -72,11 +108,10 @@ export default function AiMetricsContent() {
     refetchModels();
   };
 
-  const isLoading = isPerfLoading || isActiveLoading || isModelsLoading;
   const isRefetching = isPerfRefetching;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Page Header */}
       <PageHeader
         icon={Cpu}
@@ -89,9 +124,9 @@ export default function AiMetricsContent() {
             variant="ghost"
             onClick={handleRefreshAll}
             disabled={isRefetching}
-            className="gap-2"
+            className="gap-2 text-xs sm:text-sm h-8 sm:h-9"
           >
-            <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isRefetching ? "animate-spin" : ""}`} />
             <span>{t("common.refresh")}</span>
           </Button>
         }
@@ -100,8 +135,13 @@ export default function AiMetricsContent() {
       {/* Active Serving Model Banner */}
       <ActiveModelBanner activeVersion={activeVersion} loading={isActiveLoading} />
 
-      {/* Bento Console KPI Summary */}
-      <AiMetricsKpiSummary performance={performance} loading={isPerfLoading} />
+      {/* Bento Console KPI Summary với hiệu ứng sunken và Panel giải thích chi tiết */}
+      <AiMetricsKpiSummary
+        performance={performance}
+        loading={isPerfLoading}
+        selectedStat={selectedStat}
+        onSelectStat={handleSelectStat}
+      />
 
       {/* Filter Toolbar */}
       <AiMetricsToolbar
@@ -115,32 +155,40 @@ export default function AiMetricsContent() {
       />
 
       {/* 2-Column: Per-Class Breakdown (Left) & Confusion Matrix Heatmap (Right) */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <PerClassMetricsCard
-          metrics={performance?.perClassMetrics}
-          loading={isPerfLoading}
-        />
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
+        <div id="per-class-breakdown" className="scroll-mt-20">
+          <PerClassMetricsCard
+            metrics={performance?.perClassMetrics}
+            loading={isPerfLoading}
+          />
+        </div>
 
-        <ConfusionMatrixHeatmap
-          confusionMatrix={performance?.confusionMatrix}
-          loading={isPerfLoading}
-        />
+        <div id="confusion-matrix" className="scroll-mt-20">
+          <ConfusionMatrixHeatmap
+            confusionMatrix={performance?.confusionMatrix}
+            loading={isPerfLoading}
+          />
+        </div>
       </div>
 
       {/* Inference Latency & FPS Stability Chart */}
-      <LatencyChartCard
-        latencyHistory={performance?.latencyHistory}
-        avgLatencyMs={performance?.averageLatencyMs}
-        avgFps={performance?.averageFps}
-      />
+      <div id="latency-timeline" className="scroll-mt-20">
+        <LatencyChartCard
+          latencyHistory={performance?.latencyHistory}
+          avgLatencyMs={performance?.averageLatencyMs}
+          avgFps={performance?.averageFps}
+        />
+      </div>
 
       {/* Model Governance & Registered Versions Table */}
-      <ModelGovernanceTable
-        models={models}
-        onDeploy={handleOpenDeploy}
-        canDeploy={true}
-        loading={isModelsLoading}
-      />
+      <div id="model-governance" className="scroll-mt-20">
+        <ModelGovernanceTable
+          models={models}
+          onDeploy={handleOpenDeploy}
+          canDeploy={true}
+          loading={isModelsLoading}
+        />
+      </div>
 
       {/* Deploy Hot-Swap Confirmation Dialog */}
       <DeployModelDialog

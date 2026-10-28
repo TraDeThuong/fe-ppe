@@ -1,6 +1,7 @@
 "use client";
 
-import { Activity, Camera, Edit2, Play, Sliders, Trash2, Wifi } from "lucide-react";
+import Link from "next/link";
+import { Activity, Building2, Camera, Edit2, Play, ShieldAlert, Sliders, Trash2, Wifi } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CameraVideoPlayer } from "./camera-video-player";
 import type { CameraItem } from "@/types";
@@ -41,22 +42,41 @@ export function CameraCard({
       <div className="space-y-3 px-4 pb-4">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h4 className="font-bold text-sm text-foreground line-clamp-1">
+            <Link
+              href={`/cameras/${camera.id}`}
+              className="font-bold text-sm text-foreground line-clamp-1 hover:text-primary transition hover:underline"
+              title="Mở Camera AI Intelligence Studio"
+            >
               {camera.name}
-            </h4>
-            <div className="mt-1 flex items-center gap-2">
-              <span className="font-mono text-[11px] font-semibold text-primary">
+            </Link>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span className="font-mono font-semibold text-primary">
                 {camera.code}
               </span>
-              <span className="text-[11px] text-muted-foreground">•</span>
-              <span className="text-[11px] text-muted-foreground line-clamp-1">
-                {camera.location || camera.siteName || "Khu vực giám sát"}
-              </span>
+              <span>•</span>
+              {camera.siteId ? (
+                <Link
+                  href={`/sites/${camera.siteId}`}
+                  className="inline-flex items-center gap-1 font-medium text-foreground hover:text-primary transition hover:underline"
+                  title="Mở trung tâm điều hành công trường này"
+                >
+                  <Building2 className="h-3 w-3 text-primary shrink-0" />
+                  <span className="line-clamp-1">{camera.siteName || "Công trường"}</span>
+                </Link>
+              ) : (
+                <span className="line-clamp-1">{camera.siteName || "Công trường"}</span>
+              )}
+              {camera.location && (
+                <>
+                  <span>•</span>
+                  <span className="line-clamp-1">{camera.location}</span>
+                </>
+              )}
             </div>
           </div>
 
           <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold shrink-0 ${
               isOnline
                 ? "bg-emerald-500/10 text-emerald-500"
                 : "bg-danger/10 text-danger"
@@ -71,17 +91,29 @@ export function CameraCard({
           </span>
         </div>
 
-        {/* Specs Pill List */}
-        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-          <span className="rounded-lg bg-surface-elevated/60 px-2 py-1 font-mono">
-            {camera.sourceType}
-          </span>
-          <span className="rounded-lg bg-surface-elevated/60 px-2 py-1 font-mono">
-            {camera.config?.resolution || "1080p"}
-          </span>
-          <span className="rounded-lg bg-surface-elevated/60 px-2 py-1 font-mono">
-            {camera.config?.captureFps || 25} FPS
-          </span>
+        {/* Specs Pill List & Incident Shortcut */}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="rounded-lg bg-surface-elevated/60 px-2 py-0.5 font-mono">
+              {camera.sourceType}
+            </span>
+            <span className="rounded-lg bg-surface-elevated/60 px-2 py-0.5 font-mono">
+              {camera.config?.resolution || "1080p"}
+            </span>
+            <span className="rounded-lg bg-surface-elevated/60 px-2 py-0.5 font-mono">
+              {camera.config?.captureFps || 25} FPS
+            </span>
+          </div>
+
+          {/* Quick link to this Camera's Incidents */}
+          <Link
+            href={`/incidents?cameraId=${camera.id}&cameraCode=${camera.code}`}
+            className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-600 hover:bg-amber-500/20 transition hover:underline dark:text-amber-400"
+            title={`Xem danh sách các sự cố do ${camera.code} phát hiện`}
+          >
+            <ShieldAlert className="h-3 w-3 shrink-0" />
+            <span>Sự cố</span>
+          </Link>
         </div>
 
         {/* Action Row */}
@@ -124,15 +156,14 @@ export function CameraCard({
             </button>
           </div>
 
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onViewLive(camera)}
-            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary"
+          <Link
+            href={`/cameras/${camera.id}`}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/[0.08] px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition shadow-sm"
+            title="Mở Camera AI Intelligence Studio riêng biệt"
           >
-            <Play className="h-3.5 w-3.5" />
-            <span>Xem trực tiếp</span>
-          </Button>
+            <Play className="h-3 w-3 fill-primary" />
+            <span>AI Studio</span>
+          </Link>
         </div>
       </div>
     </div>

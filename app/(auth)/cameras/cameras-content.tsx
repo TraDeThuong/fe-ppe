@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Camera, Cctv, Radio } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import {
@@ -27,13 +28,35 @@ import type { CameraItem, CreateCameraPayload, UpdateCameraPayload } from "@/typ
 
 export default function CamerasContent() {
   const { t } = useLocale();
+  const searchParams = useSearchParams();
+
+  const urlSearch = searchParams.get("search") || "";
+  const urlSiteId = searchParams.get("siteId") || "";
+  const urlView = searchParams.get("view");
+  const urlLayout = searchParams.get("layout");
 
   // Filter & View State
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(urlSearch);
   const [statusFilter, setStatusFilter] = useState("");
-  const [siteFilter, setSiteFilter] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "table" | "wall">("grid");
-  const [wallLayout, setWallLayout] = useState<"1x1" | "2x2" | "3x3">("2x2");
+  const [siteFilter, setSiteFilter] = useState(urlSiteId);
+  const [viewMode, setViewMode] = useState<"grid" | "table" | "wall">(
+    urlView === "wall" || urlView === "table" ? urlView : "grid"
+  );
+  const [wallLayout, setWallLayout] = useState<"1x1" | "2x2" | "3x3">(
+    urlLayout === "1x1" || urlLayout === "3x3" ? urlLayout : "2x2"
+  );
+
+  // Sync state whenever URL searchParams change
+  useEffect(() => {
+    const s = searchParams.get("search");
+    if (s !== null) setSearch(s);
+    const sid = searchParams.get("siteId");
+    if (sid !== null) setSiteFilter(sid);
+    const v = searchParams.get("view");
+    if (v === "wall" || v === "table" || v === "grid") setViewMode(v);
+    const l = searchParams.get("layout");
+    if (l === "1x1" || l === "2x2" || l === "3x3") setWallLayout(l);
+  }, [searchParams]);
 
   // Fetch Cameras
   const { data, isLoading } = useCameras({
@@ -135,6 +158,12 @@ export default function CamerasContent() {
         loading={isLoading}
         activeFilter={statusFilter}
         onFilterChange={setStatusFilter}
+        onFilterSite={setSiteFilter}
+        onPing={handleOpenPing}
+        onOpenRoi={handleOpenRoi}
+        onEditCamera={handleOpenEdit}
+        onCreateCamera={handleOpenCreate}
+        onViewLive={handleViewLive}
       />
 
       {/* Toolbar & Controls */}

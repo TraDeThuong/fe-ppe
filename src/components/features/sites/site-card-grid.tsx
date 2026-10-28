@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import {
   AlertOctagon,
   Building2,
@@ -34,6 +35,7 @@ export function SiteCardGrid({
   onDelete,
   loading = false,
 }: SiteCardGridProps) {
+  const router = useRouter();
   const { t } = useLocale();
 
   if (loading) {
@@ -67,7 +69,8 @@ export function SiteCardGrid({
         return (
           <div
             key={site.id}
-            className="group flex flex-col justify-between rounded-xl sm:rounded-2xl border border-border/40 bg-surface p-3.5 sm:p-5 shadow-[4px_4px_10px_rgba(0,0,0,0.06),-4px_-4px_10px_rgba(255,255,255,0.7)] transition-all duration-300 hover:-translate-y-1 sm:hover:-translate-y-1.5 hover:shadow-[8px_14px_24px_rgba(0,0,0,0.1),-6px_-6px_14px_rgba(255,255,255,0.9)] dark:border-black/60 dark:bg-card/90 dark:shadow-[5px_5px_14px_rgba(0,0,0,0.55)] dark:hover:border-black dark:hover:bg-card dark:hover:shadow-[0_20px_36px_rgba(0,0,0,0.9),8px_12px_24px_rgba(0,0,0,0.85)]"
+            onClick={() => router.push(`/sites/${site.id}`)}
+            className="group flex flex-col justify-between cursor-pointer rounded-xl sm:rounded-2xl border border-border/40 bg-surface p-3.5 sm:p-5 shadow-[4px_4px_10px_rgba(0,0,0,0.06),-4px_-4px_10px_rgba(255,255,255,0.7)] transition-all duration-300 hover:-translate-y-1 sm:hover:-translate-y-1.5 hover:shadow-[8px_14px_24px_rgba(0,0,0,0.1),-6px_-6px_14px_rgba(255,255,255,0.9)] dark:border-black/60 dark:bg-card/90 dark:shadow-[5px_5px_14px_rgba(0,0,0,0.55)] dark:hover:border-black dark:hover:bg-card dark:hover:shadow-[0_20px_36px_rgba(0,0,0,0.9),8px_12px_24px_rgba(0,0,0,0.85)]"
           >
             <div className="space-y-2.5 sm:space-y-3">
               {/* Header */}
@@ -115,7 +118,34 @@ export function SiteCardGrid({
               </div>
 
               {/* Personnel / Contact info */}
-              {(site.contactPerson || site.contactPhone) && (
+              {site.contactOfficers && site.contactOfficers.length > 0 ? (
+                <div className="space-y-1 text-[11px] sm:text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="flex items-center gap-1 font-semibold text-foreground">
+                      <User className="h-3 w-3 text-primary shrink-0" />
+                      <span>{site.contactOfficers[0].name}</span>
+                      {site.contactOfficers[0].roleTitle && (
+                        <span className="text-[10px] text-primary/80 font-normal">
+                          ({site.contactOfficers[0].roleTitle})
+                        </span>
+                      )}
+                    </span>
+
+                    {site.contactOfficers[0].phones && site.contactOfficers[0].phones.length > 0 && (
+                      <span className="flex items-center gap-1 font-mono text-[10.5px]">
+                        <Phone className="h-3 w-3 text-muted-foreground shrink-0" />
+                        <span>{site.contactOfficers[0].phones.join(", ")}</span>
+                      </span>
+                    )}
+
+                    {site.contactOfficers.length > 1 && (
+                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9.5px] font-bold text-primary">
+                        +{site.contactOfficers.length - 1} cán bộ khác
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (site.contactPerson || site.contactPhone) ? (
                 <div className="flex flex-wrap items-center gap-2.5 text-[11px] sm:text-xs text-muted-foreground">
                   {site.contactPerson && (
                     <span className="flex items-center gap-1">
@@ -130,7 +160,7 @@ export function SiteCardGrid({
                     </span>
                   )}
                 </div>
-              )}
+              ) : null}
 
               {/* Spatial Stats Badges Bar */}
               <div className="flex flex-wrap items-center gap-2 sm:gap-3 rounded-xl border border-border/30 bg-surface-elevated/40 p-2 sm:p-2.5 text-[11px] sm:text-xs dark:border-black/50 dark:bg-background/50">
@@ -174,7 +204,10 @@ export function SiteCardGrid({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => onManageZones(site)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onManageZones(site);
+                  }}
                   className="flex items-center gap-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs h-7 sm:h-8 px-2 sm:px-2.5 text-primary hover:text-primary dark:border-black/60 dark:hover:border-black"
                 >
                   <Layers className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
@@ -184,7 +217,10 @@ export function SiteCardGrid({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => onSafetyConfig(site)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSafetyConfig(site);
+                  }}
                   className="flex items-center gap-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs h-7 sm:h-8 px-2 sm:px-2.5 text-muted-foreground hover:text-foreground dark:border-black/60 dark:hover:border-black"
                 >
                   <Shield className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-accent" />
@@ -195,7 +231,10 @@ export function SiteCardGrid({
               <div className="flex items-center gap-1 sm:gap-1.5 ml-auto">
                 <button
                   type="button"
-                  onClick={() => onEdit(site)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(site);
+                  }}
                   aria-label={`${t("sites.actions.edit")} ${site.name}`}
                   title={`${t("sites.actions.edit")} ${site.name}`}
                   className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary dark:border-black/50 dark:hover:border-black dark:bg-background/40"
@@ -205,7 +244,10 @@ export function SiteCardGrid({
 
                 <button
                   type="button"
-                  onClick={() => onDelete(site)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(site);
+                  }}
                   aria-label={`${t("sites.actions.delete")} ${site.name}`}
                   title={`${t("sites.actions.delete")} ${site.name}`}
                   className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary dark:border-black/50 dark:hover:border-black dark:bg-background/40"

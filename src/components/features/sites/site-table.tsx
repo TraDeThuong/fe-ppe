@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Building2, Edit2, Layers, Shield, Trash2 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 import type { SiteItem } from "@/types";
@@ -21,6 +22,7 @@ export function SiteTable({
   onDelete,
   loading = false,
 }: SiteTableProps) {
+  const router = useRouter();
   const { t } = useLocale();
 
   if (loading) {
@@ -65,12 +67,15 @@ export function SiteTable({
             return (
               <tr
                 key={site.id}
-                className="transition-colors duration-150 hover:bg-surface-elevated/30"
+                onClick={() => router.push(`/sites/${site.id}`)}
+                className="cursor-pointer transition-colors duration-150 hover:bg-surface-elevated/30"
               >
                 {/* Site Name & Code */}
                 <td className="px-5 py-4">
                   <div className="flex flex-col">
-                    <span className="font-bold text-foreground">{site.name}</span>
+                    <span className="font-bold text-foreground hover:text-primary transition-colors">
+                      {site.name}
+                    </span>
                     <span className="font-mono text-xs text-primary">{site.code}</span>
                   </div>
                 </td>
@@ -120,7 +125,10 @@ export function SiteTable({
 
                 {/* Actions */}
                 <td className="px-5 py-4 text-right">
-                  <div className="flex items-center justify-end gap-1">
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center justify-end gap-1"
+                  >
                     <button
                       type="button"
                       onClick={() => onManageZones(site)}

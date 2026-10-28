@@ -10,6 +10,7 @@ export interface SystemConfigToolbarProps {
   category: string;
   onCategoryChange: (value: string) => void;
   onAddConfig: () => void;
+  canManage?: boolean;
 }
 
 export function SystemConfigToolbar({
@@ -18,6 +19,7 @@ export function SystemConfigToolbar({
   category,
   onCategoryChange,
   onAddConfig,
+  canManage = true,
 }: SystemConfigToolbarProps) {
   const { t } = useLocale();
 
@@ -61,15 +63,17 @@ export function SystemConfigToolbar({
         </div>
       </div>
 
-      {/* Add Config Button */}
-      <Button
-        variant="primary"
-        onClick={onAddConfig}
-        className="flex items-center gap-2 rounded-xl"
-      >
-        <Plus className="h-4 w-4" />
-        <span>{t("system.addConfig")}</span>
-      </Button>
+      {/* Add Config Button - Only for users with manage permission */}
+      {canManage && (
+        <Button
+          variant="primary"
+          onClick={onAddConfig}
+          className="flex items-center gap-2 rounded-xl"
+        >
+          <Plus className="h-4 w-4" />
+          <span>{t("system.addConfig")}</span>
+        </Button>
+      )}
     </div>
   );
 }

@@ -20,20 +20,20 @@ export function ActiveModelBanner({
   activeVersion,
   loading = false,
 }: ActiveModelBannerProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
 
-  const version = activeVersion?.version || "v2.1.0-STABLE";
-  const framework = activeVersion?.framework || "TENSORRT";
-  const inputSize = activeVersion?.inputSize || "640x640";
+  const version = activeVersion?.version || "--";
+  const framework = activeVersion?.framework || "--";
+  const inputSize = activeVersion?.inputSize || "--";
   const deployedAt = activeVersion?.deployedAt
-    ? new Date(activeVersion.deployedAt).toLocaleDateString("vi-VN")
-    : "20/10/2026";
+    ? new Date(activeVersion.deployedAt).toLocaleDateString(locale === "vi-VN" ? "vi-VN" : "en-US")
+    : "--";
 
   const specs = [
     {
       icon: Layers,
       label: t("aiMetrics.activeBanner.framework"),
-      value: `${framework} FP16`,
+      value: framework !== "--" ? `${framework} FP16` : "--",
     },
     {
       icon: HardDrive,
@@ -144,7 +144,7 @@ export function ActiveModelBanner({
             </div>
 
             <h3 className="truncate text-sm font-bold tracking-tight text-foreground sm:text-[15px]">
-              {loading ? "Đang tải phiên bản..." : version}
+              {loading ? (locale === "vi-VN" ? "Đang tải phiên bản..." : "Loading version...") : version}
             </h3>
           </div>
         </div>

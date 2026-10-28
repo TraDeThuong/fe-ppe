@@ -76,6 +76,7 @@ export function SystemHealthMatrix({
           <thead className="border-b border-border/40 bg-surface-elevated/40 text-xs font-semibold uppercase text-muted-foreground">
             <tr>
               <th className="px-5 py-3.5">{t("system.health.tableService")}</th>
+              <th className="px-5 py-3.5">Phân loại</th>
               <th className="px-5 py-3.5">{t("system.health.tableCode")}</th>
               <th className="px-5 py-3.5">{t("system.health.tablePort")}</th>
               <th className="px-5 py-3.5">{t("system.health.tableStatus")}</th>
@@ -89,7 +90,31 @@ export function SystemHealthMatrix({
                 key={svc.serviceCode}
                 className="transition-colors duration-150 hover:bg-surface-elevated/30"
               >
-                <td className="px-5 py-4 font-medium text-foreground">{svc.name}</td>
+                <td className="px-5 py-4 font-medium text-foreground">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        svc.status === "HEALTHY"
+                          ? "bg-success animate-pulse"
+                          : svc.status === "DEGRADED"
+                          ? "bg-warning"
+                          : "bg-danger"
+                      }`}
+                    />
+                    <span>{svc.name}</span>
+                  </div>
+                </td>
+                <td className="px-5 py-4">
+                  <span
+                    className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${
+                      svc.type === "INFRASTRUCTURE"
+                        ? "border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                        : "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                    }`}
+                  >
+                    {svc.type === "INFRASTRUCTURE" ? "Hạ tầng" : "Dịch vụ"}
+                  </span>
+                </td>
                 <td className="px-5 py-4 font-mono text-xs text-primary">{svc.serviceCode}</td>
                 <td className="px-5 py-4 font-mono text-xs text-muted-foreground">:{svc.port}</td>
                 <td className="px-5 py-4">{getStatusBadge(svc.status)}</td>

@@ -209,7 +209,7 @@ export function AppHeader() {
             </div>
 
             {/* Theme: desktop only */}
-            <div className={`hidden sm:flex ${headerActionClass}`}>
+            <div className="relative hidden sm:flex">
               <ThemeToggle />
             </div>
 

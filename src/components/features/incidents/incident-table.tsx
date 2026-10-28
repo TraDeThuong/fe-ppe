@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, CheckSquare, Eye, Shield, UserCheck } from "lucide-react";
+import { AlertTriangle, Building2, Camera, CheckSquare, Eye, Shield, UserCheck, Video } from "lucide-react";
 import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
 import { useLocale } from "@/providers/locale-provider";
@@ -134,13 +134,34 @@ export function IncidentTable({
 
                 {/* Location & Camera */}
                 <td className="px-5 py-4">
-                  <div className="flex flex-col text-xs">
-                    <span className="font-medium text-foreground">
-                      {incident.siteName || "Công trường"}
-                    </span>
-                    <span className="font-mono text-[11px] text-muted-foreground">
-                      {incident.cameraCode || incident.cameraId.slice(0, 8)}
-                    </span>
+                  <div className="flex flex-col gap-0.5 text-xs">
+                    {incident.siteId ? (
+                      <Link
+                        href={`/sites/${incident.siteId}`}
+                        className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-primary transition hover:underline"
+                        title="Mở trung tâm điều hành của công trường này"
+                      >
+                        <Building2 className="h-3 w-3 text-primary shrink-0" />
+                        <span>{incident.siteName || "Công trường"}</span>
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-foreground">
+                        {incident.siteName || "Công trường"}
+                      </span>
+                    )}
+
+                    <Link
+                      href={
+                        incident.cameraId
+                          ? `/cameras/${incident.cameraId}`
+                          : `/cameras?search=${incident.cameraCode}&view=wall`
+                      }
+                      className="inline-flex items-center gap-1 font-mono text-[11px] text-muted-foreground hover:text-primary transition hover:underline"
+                      title="Mở Camera AI Intelligence Studio"
+                    >
+                      <Camera className="h-2.5 w-2.5 shrink-0" />
+                      <span>{incident.cameraCode || incident.cameraId.slice(0, 8)}</span>
+                    </Link>
                   </div>
                 </td>
 
@@ -159,6 +180,15 @@ export function IncidentTable({
                 {/* Actions */}
                 <td className="px-5 py-4 text-right">
                   <div className="flex items-center justify-end gap-1">
+                    {/* Xem trực tiếp luồng Camera */}
+                    <Link
+                      href={`/cameras?search=${incident.cameraCode || incident.cameraId}&view=wall`}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-primary transition"
+                      title="Mở camera phát hiện sự cố này trên Video Wall"
+                    >
+                      <Video className="h-4 w-4" />
+                    </Link>
+
                     <Link
                       href={`/incidents/${incident.id}`}
                       className="rounded-lg p-1.5 text-primary hover:bg-primary/10 transition"

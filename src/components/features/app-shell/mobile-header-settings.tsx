@@ -43,7 +43,7 @@ export function MobileHeaderSettings() {
       {/* Mobile settings trigger */}
       <button
         type="button"
-        aria-label="Cài đặt giao diện và ngôn ngữ"
+        aria-label="Cài đặt hệ thống và ngôn ngữ"
         aria-expanded={isOpen}
         aria-haspopup="menu"
         onClick={() => setIsOpen((previous) => !previous)}
@@ -72,47 +72,41 @@ export function MobileHeaderSettings() {
           role="menu"
           aria-label="Cài đặt nhanh"
           className="
-            absolute right-0 top-[calc(100%+12px)] w-[min(280px,calc(100vw-24px))]
+            absolute right-0 top-[calc(100%+12px)] w-[min(320px,calc(100vw-24px))]
             overflow-hidden rounded-2xl border
             border-[color-mix(in_srgb,var(--shadow-light)_40%,transparent)]
-            bg-background p-2
+            bg-background p-2.5
             shadow-[8px_10px_24px_color-mix(in_srgb,var(--shadow-dark)_22%,transparent),-4px_-4px_12px_color-mix(in_srgb,var(--shadow-light)_55%,transparent)]
             animate-in fade-in slide-in-from-top-2 duration-200
           "
         >
-          <div className="px-3 pb-2 pt-2">
+          <div className="px-2 pb-2 pt-1">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
               Preferences
             </p>
-            <p className="mt-1 text-sm font-semibold text-foreground">
+            <p className="mt-0.5 text-sm font-semibold text-foreground">
               {isVietnamese ? "Tùy chỉnh giao diện" : "Display settings"}
             </p>
           </div>
 
           {/* Theme */}
-          <div
-            role="none"
-            className="
-              flex min-h-[54px] items-center gap-3 rounded-xl px-3
-              transition-colors hover:bg-muted/40
-            "
-          >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-background text-muted-foreground shadow-[2px_2px_4px_color-mix(in_srgb,var(--shadow-dark)_16%,transparent),-2px_-2px_4px_color-mix(in_srgb,var(--shadow-light)_65%,transparent)]">
-              <Settings2 className="h-4 w-4" />
+          <div className="rounded-xl px-2 py-2 transition-colors hover:bg-muted/20">
+            <div className="flex items-center gap-3 pb-2">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-background text-muted-foreground shadow-[2px_2px_4px_color-mix(in_srgb,var(--shadow-dark)_16%,transparent),-2px_-2px_4px_color-mix(in_srgb,var(--shadow-light)_65%,transparent)]">
+                <Settings2 className="h-4 w-4" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-foreground">
+                  {isVietnamese ? "Giao diện" : "Appearance"}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {isVietnamese ? "Sáng • Tối • Tự động Ngày/Đêm" : "Light • Dark • Realtime Auto"}
+                </p>
+              </div>
             </div>
 
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-foreground">
-                {isVietnamese ? "Giao diện" : "Appearance"}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {isVietnamese ? "Sáng / tối" : "Light / dark"}
-              </p>
-            </div>
-
-            <div className="shrink-0">
-              <ThemeToggle />
-            </div>
+            <ThemeToggle variant="segmented" />
           </div>
 
           <div className="mx-2 my-1 h-px bg-[color-mix(in_srgb,var(--shadow-dark)_10%,transparent)]" />

@@ -1,0 +1,14 @@
+{
+  "job_id": "40218c7d67ca",
+  "source": "video2.mp4",
+  "fps": 29.688581314878892,
+  "size": [
+    900,
+    1596
+  ],
+  "total_frames": 429,
+  "model": "models/best.pt",
+  "confirmation_duration_s": 3.0,
+  "status": "done",
+  "processed_at": "2026-10-13 12:26:15"
+}

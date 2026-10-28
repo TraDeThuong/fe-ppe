@@ -136,14 +136,20 @@ def main():
             btn_after_vi = (lang_btn.text_content() or "").strip()
             check("TEST 9: Đổi lại VI: nút ngôn ngữ chuyển về EN", btn_after_vi == "EN")
 
-        # Đổi theme
-        theme_btn = page.locator("header button[aria-label*='giao diện']")
+        # Đổi theme qua dropdown (Sáng / Tối / Hệ thống)
+        theme_btn = page.locator("#theme-toggle-btn")
         initial_theme = page.evaluate("() => document.documentElement.getAttribute('data-theme')")
         theme_btn.click(force=True)
         page.wait_for_timeout(300)
+        target_opt = "#theme-option-dark" if initial_theme == "light" else "#theme-option-light"
+        page.locator(target_opt).click(force=True)
+        page.wait_for_timeout(300)
         new_theme = page.evaluate("() => document.documentElement.getAttribute('data-theme')")
         check("TEST 9: Đổi theme: data-theme thay đổi", new_theme != initial_theme, f"{initial_theme} -> {new_theme}")
+        # Đổi về Hệ thống (Tự động Ngày/Đêm)
         theme_btn.click(force=True)
+        page.wait_for_timeout(300)
+        page.locator("#theme-option-system").click(force=True)
         page.wait_for_timeout(200)
 
         # -------------------------------------------------------------

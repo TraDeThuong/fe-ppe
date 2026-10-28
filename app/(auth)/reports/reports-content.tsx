@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BarChart3, FilePlus2, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
   ReportTemplateCards,
   ReportHistoryTable,
   GenerateReportModal,
+  type ReportStatKey,
 } from "@/components/features/reports";
 import {
   useReportSummary,
@@ -27,8 +29,46 @@ import {
 } from "@/hooks";
 import type { ReportTemplateDto, ReportingFilterParams } from "@/types";
 
+const STAT_TO_URL: Record<ReportStatKey, string> = {
+  totalViolations: "violations",
+  complianceRate: "compliance",
+  mttr: "mttr",
+  reportsCount: "reports",
+};
+
+const URL_TO_STAT: Record<string, ReportStatKey> = {
+  violations: "totalViolations",
+  "total-violations": "totalViolations",
+  totalViolations: "totalViolations",
+  compliance: "complianceRate",
+  "compliance-rate": "complianceRate",
+  complianceRate: "complianceRate",
+  mttr: "mttr",
+  reports: "reportsCount",
+  "reports-count": "reportsCount",
+  reportsCount: "reportsCount",
+};
+
 export default function ReportsContent() {
   const { t } = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // URL state synchronization for stats
+  const statParam = searchParams.get("stat");
+  const selectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
+
+  const handleSelectStat = (stat: ReportStatKey | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (stat) {
+      params.set("stat", STAT_TO_URL[stat]);
+    } else {
+      params.delete("stat");
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
 
   // Filter States
   const [selectedSiteId, setSelectedSiteId] = useState("");
@@ -137,11 +177,20 @@ export default function ReportsContent() {
         }
       />
 
-      {/* Bento Console KPI Summary */}
+      {/* Bento Console KPI Summary with Interactive Detail Panel */}
       <ReportKpiSummary
         summary={summary}
         reportsCount={history.length}
         loading={isSummaryLoading}
+        selectedStat={selectedStat}
+        onSelectStat={handleSelectStat}
+        distribution={distribution}
+        trends={trends}
+        cameraRankings={cameraRankings}
+        templates={templates}
+        history={history}
+        sites={sites}
+        onGenerateReport={(tpl) => handleOpenGenerate(tpl)}
       />
 
       {/* Filter Toolbar */}
@@ -176,7 +225,9 @@ export default function ReportsContent() {
       />
 
       {/* Export History & Queue Table */}
-      <ReportHistoryTable history={history} loading={isHistoryLoading} />
+      <div id="reports-history-section">
+        <ReportHistoryTable history={history} loading={isHistoryLoading} />
+      </div>
 
       {/* Generate Report Modal */}
       <GenerateReportModal

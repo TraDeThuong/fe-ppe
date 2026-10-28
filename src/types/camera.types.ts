@@ -85,6 +85,7 @@ export interface CameraConfigItem {
   resolution: string;
   processingEnabled: boolean;
   roiPolygon?: RoiPolygon | null;
+  dangerZoneCoordinates?: unknown;
   motionSensitivity?: number;
   createdAt: string;
   updatedAt: string;

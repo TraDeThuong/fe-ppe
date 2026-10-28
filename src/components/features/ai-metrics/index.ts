@@ -6,3 +6,4 @@ export * from "./confusion-matrix-heatmap";
 export * from "./latency-chart-card";
 export * from "./model-governance-table";
 export * from "./deploy-model-dialog";
+export * from "./ai-metrics-stats-detail-panel";

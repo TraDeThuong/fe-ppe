@@ -12,7 +12,7 @@ export function useFeatureFlags() {
     queryKey: systemQueryKeys.featureFlags(),
     queryFn: async () => {
       const res = await systemService.getConfigs({ category: "FEATURE_FLAG", limit: 50 });
-      return res.items;
+      return res?.items ?? [];
     },
     staleTime: 60 * 1000,
   });

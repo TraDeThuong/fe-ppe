@@ -6,3 +6,4 @@ export * from "./report-camera-ranking";
 export * from "./report-template-cards";
 export * from "./report-history-table";
 export * from "./generate-report-modal";
+export * from "./report-stats-detail-panel";

@@ -1,6 +1,7 @@
 "use client";
 
-import { Activity, Edit2, Play, Sliders, Trash2, Wifi } from "lucide-react";
+import Link from "next/link";
+import { Activity, Building2, Edit2, Play, ShieldAlert, Sliders, Trash2, Wifi } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
 import type { CameraItem } from "@/types";
@@ -69,7 +70,13 @@ export function CameraTable({
                 {/* Camera Name & Code */}
                 <td className="px-5 py-4">
                   <div className="flex flex-col">
-                    <span className="font-bold text-foreground">{camera.name}</span>
+                    <Link
+                      href={`/cameras/${camera.id}`}
+                      className="font-bold text-foreground hover:text-primary transition hover:underline"
+                      title="Mở Camera AI Intelligence Studio"
+                    >
+                      {camera.name}
+                    </Link>
                     <span className="font-mono text-xs text-primary">{camera.code}</span>
                   </div>
                 </td>
@@ -77,9 +84,20 @@ export function CameraTable({
                 {/* Site & Zone */}
                 <td className="px-5 py-4">
                   <div className="flex flex-col">
-                    <span className="text-xs font-medium text-foreground">
-                      {camera.siteName || "Công trường chính"}
-                    </span>
+                    {camera.siteId ? (
+                      <Link
+                        href={`/sites/${camera.siteId}`}
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-foreground hover:text-primary transition hover:underline"
+                        title="Mở trung tâm điều hành công trường này"
+                      >
+                        <Building2 className="h-3 w-3 text-primary shrink-0" />
+                        <span>{camera.siteName || "Công trường chính"}</span>
+                      </Link>
+                    ) : (
+                      <span className="text-xs font-medium text-foreground">
+                        {camera.siteName || "Công trường chính"}
+                      </span>
+                    )}
                     <span className="text-[11px] text-muted-foreground">
                       {camera.location || camera.zoneName || "Khu vực chung"}
                     </span>
@@ -131,14 +149,22 @@ export function CameraTable({
                 {/* Actions */}
                 <td className="px-5 py-4 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    <button
-                      type="button"
-                      onClick={() => onViewLive(camera)}
-                      title={t("cameras.actions.viewLive")}
+                    {/* Xem sự cố của Camera */}
+                    <Link
+                      href={`/incidents?cameraId=${camera.id}&cameraCode=${camera.code}`}
+                      title={`Xem danh sách các sự cố do ${camera.code} phát hiện`}
+                      className="rounded-lg p-1.5 text-amber-500 hover:bg-amber-500/10 transition"
+                    >
+                      <ShieldAlert className="h-4 w-4" />
+                    </Link>
+
+                    <Link
+                      href={`/cameras/${camera.id}`}
+                      title="Mở Camera AI Intelligence Studio"
                       className="rounded-lg p-1.5 text-primary hover:bg-primary/10 transition"
                     >
-                      <Play className="h-4 w-4" />
-                    </button>
+                      <Play className="h-4 w-4 fill-primary" />
+                    </Link>
 
                     <button
                       type="button"

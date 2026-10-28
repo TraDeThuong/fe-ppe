@@ -1,6 +1,7 @@
 "use client";
 
-import { Building2, Calendar, Camera, Clock, MapPin, ShieldAlert } from "lucide-react";
+import Link from "next/link";
+import { Building2, Calendar, Camera, Clock, ExternalLink, MapPin, ShieldAlert } from "lucide-react";
 import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
 import type { IncidentItem } from "@/types";
@@ -40,9 +41,20 @@ export function IncidentMetaCard({ incident }: IncidentMetaCardProps) {
             <Building2 className="h-3.5 w-3.5 text-primary" />
             <span>Công trường</span>
           </span>
-          <p className="font-semibold text-foreground">
-            {incident.siteName || "Công trường xây dựng"}
-          </p>
+          {incident.siteId ? (
+            <Link
+              href={`/sites/${incident.siteId}`}
+              className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-primary transition hover:underline"
+              title="Mở trung tâm điều hành của công trường này"
+            >
+              <span>{incident.siteName || "Công trường xây dựng"}</span>
+              <ExternalLink className="h-3 w-3 text-muted-foreground" />
+            </Link>
+          ) : (
+            <p className="font-semibold text-foreground">
+              {incident.siteName || "Công trường xây dựng"}
+            </p>
+          )}
         </div>
 
         {/* Zone */}
@@ -62,9 +74,14 @@ export function IncidentMetaCard({ incident }: IncidentMetaCardProps) {
             <Camera className="h-3.5 w-3.5 text-primary" />
             <span>Camera giám sát</span>
           </span>
-          <p className="font-mono font-bold text-primary">
-            {incident.cameraCode || incident.cameraId.slice(0, 8)}
-          </p>
+          <Link
+            href={`/cameras/${incident.cameraId}`}
+            className="inline-flex items-center gap-1 font-mono font-bold text-primary hover:underline"
+            title="Mở Camera AI Intelligence Studio"
+          >
+            <span>{incident.cameraCode || incident.cameraId.slice(0, 8)}</span>
+            <ExternalLink className="h-3 w-3" />
+          </Link>
         </div>
 
         {/* Detected At */}

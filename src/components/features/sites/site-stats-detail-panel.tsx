@@ -134,7 +134,7 @@ export function SiteStatsDetailPanel({
                 {activeStat === "totalSites" && `${totalSites}`}
                 {activeStat === "totalZones" && `${totalZones}`}
                 {activeStat === "restrictedAreas" && `${totalRestricted}`}
-                {activeStat === "complianceRate" && "95.4%"}
+                {activeStat === "complianceRate" && "--"}
               </Badge>
             </div>
             <p className="text-[11px] sm:text-xs text-muted-foreground truncate hidden sm:block">
@@ -534,7 +534,6 @@ export function SiteStatsDetailPanel({
         <div className="space-y-2.5">
           <div className="flex items-center justify-between text-[11px] text-muted-foreground px-0.5">
             <span>{t("sites.detail.complianceDesc")}</span>
-            <span className="font-semibold text-primary">TB: 95.4%</span>
           </div>
 
           <div className="max-h-[270px] overflow-y-auto space-y-2 pr-0.5">

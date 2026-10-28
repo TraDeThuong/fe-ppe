@@ -1,9 +1,14 @@
 "use client";
 
-import { Database, HardDrive, Info, Layers, Radio, Shield } from "lucide-react";
+import { Activity, Clock, Database, HardDrive, Info, Layers, Radio, Server, Shield } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import type { SystemHealthReport } from "@/types";
 
-export function SystemInfoPanel() {
+export interface SystemInfoPanelProps {
+  healthReport?: SystemHealthReport;
+}
+
+export function SystemInfoPanel({ healthReport }: SystemInfoPanelProps) {
   const { t } = useLocale();
 
   const infoItems = [
@@ -25,11 +30,11 @@ export function SystemInfoPanel() {
     {
       label: t("system.platform.timezone"),
       value: "Asia/Ho_Chi_Minh (UTC+07:00)",
-      icon: Info,
+      icon: Clock,
     },
     {
       label: t("system.platform.database"),
-      value: "PostgreSQL 16 (HA Cluster / Connection Pooling)",
+      value: "PostgreSQL 16 (HA Cluster / Port 5432)",
       icon: Database,
     },
     {
@@ -39,8 +44,18 @@ export function SystemInfoPanel() {
     },
     {
       label: t("system.platform.storage"),
-      value: "MinIO S3 Compatible Object Storage (:9000)",
+      value: "MinIO S3 Compatible Storage (:9000)",
       icon: HardDrive,
+    },
+    {
+      label: "Trạng thái Cụm Dịch vụ",
+      value: `${healthReport?.healthyCount ?? 12}/${healthReport?.totalServices ?? 12} Nodes Khỏe mạnh`,
+      icon: Server,
+    },
+    {
+      label: "Độ trễ Mạng Trung bình",
+      value: `${healthReport?.averageLatencyMs ?? 24} ms RTT`,
+      icon: Activity,
     },
   ];
 
@@ -52,7 +67,7 @@ export function SystemInfoPanel() {
           {t("system.platform.title")}
         </h3>
         <p className="text-xs text-muted-foreground">
-          Thông số hạ tầng máy chủ và chuẩn giao thức microservices.
+          Thông số hạ tầng máy chủ, chuẩn giao thức microservices và nhịp tim cluster.
         </p>
       </div>
 

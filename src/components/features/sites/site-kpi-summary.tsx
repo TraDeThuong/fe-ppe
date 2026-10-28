@@ -154,7 +154,7 @@ export function SiteKpiSummary({
         {/* 4. Tuân thủ an toàn TB */}
         <StatsCard
           title={t("sites.kpi.complianceRate")}
-          value={loading ? "..." : "95.4%"}
+          value={loading ? "..." : "--"}
           icon={ShieldCheck}
           variant="soft-extruded"
           tone="primary"

@@ -35,6 +35,11 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
 
 export function useSite(): SiteContextValue {
   const ctx = useContext(SiteContext);
-  if (!ctx) throw new Error("useSite must be used within SiteProvider");
+  if (!ctx) {
+    return {
+      siteId: null,
+      setSiteId: () => {},
+    };
+  }
   return ctx;
 }

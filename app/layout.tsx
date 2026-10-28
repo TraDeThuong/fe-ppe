@@ -20,8 +20,8 @@ export const metadata: Metadata = {
   description: "Hệ thống giám sát an toàn lao động Smart PPE",
 };
 
-// Đặt data-theme trước first paint để tránh flash sai theme
-const themeScript = `(function(){try{var t=localStorage.getItem("theme");if(t!=="dark"&&t!=="light"){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`;
+// Đặt data-theme trước first paint để tránh flash sai theme (hệ thống tự động theo ngày 06:00-18:00 và đêm 18:00-06:00)
+const themeScript = `(function(){try{var t=localStorage.getItem("theme");if(t!=="dark"&&t!=="light"){var h=new Date().getHours();t=(h>=6&&h<18)?"light":"dark"}document.documentElement.setAttribute("data-theme",t)}catch(e){}})()`;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

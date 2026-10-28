@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { AlertOctagon, AlertTriangle, ChevronLeft, ChevronRight, RefreshCw, ShieldAlert, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AlertOctagon, AlertTriangle, Building2, Camera, ChevronLeft, ChevronRight, RefreshCw, ShieldAlert, Trash2, X } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -27,6 +28,13 @@ import type { IncidentItem, IncidentQueryParams } from "@/types";
 
 export default function IncidentsContent() {
   const { t } = useLocale();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const urlCameraId = searchParams.get("cameraId") || "";
+  const urlCameraCode = searchParams.get("cameraCode") || "";
+  const urlSiteId = searchParams.get("siteId") || "";
+  const urlSiteName = searchParams.get("siteName") || "";
 
   // Filter States
   const [page, setPage] = useState(1);
@@ -35,6 +43,14 @@ export default function IncidentsContent() {
   const [statusFilter, setStatusFilter] = useState("");
   const [severityFilter, setSeverityFilter] = useState("");
   const [violationFilter, setViolationFilter] = useState("");
+  const [cameraIdFilter, setCameraIdFilter] = useState(urlCameraId);
+  const [siteIdFilter, setSiteIdFilter] = useState(urlSiteId);
+
+  // Sync state when searchParams change
+  useEffect(() => {
+    setCameraIdFilter(searchParams.get("cameraId") || "");
+    setSiteIdFilter(searchParams.get("siteId") || "");
+  }, [searchParams]);
 
   // Query Params
   const queryParams: IncidentQueryParams = {
@@ -44,6 +60,8 @@ export default function IncidentsContent() {
     status: statusFilter || undefined,
     severity: severityFilter || undefined,
     violationType: violationFilter || undefined,
+    siteId: siteIdFilter || undefined,
+    cameraId: cameraIdFilter || undefined,
     sortBy: "detectedAt",
     sortOrder: "desc",
   };
@@ -128,6 +146,43 @@ export default function IncidentsContent() {
 
       {/* KPI Overview */}
       <IncidentKpiSummary incidents={incidents} loading={isLoading} />
+
+      {/* Contextual Filter Chip (When arrived from Camera or Site) */}
+      {(cameraIdFilter || siteIdFilter) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/[0.08] p-3 text-xs shadow-sm">
+          <div className="flex flex-wrap items-center gap-2 text-foreground font-semibold">
+            {cameraIdFilter && (
+              <span className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-surface px-3 py-1.5 text-primary shadow-sm">
+                <Camera className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Đang lọc theo Camera: <strong>{urlCameraCode || cameraIdFilter.slice(0, 8)}</strong>
+                </span>
+              </span>
+            )}
+            {siteIdFilter && (
+              <span className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-surface px-3 py-1.5 text-primary shadow-sm">
+                <Building2 className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Đang lọc theo Công trường: <strong>{urlSiteName || siteIdFilter}</strong>
+                </span>
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setCameraIdFilter("");
+              setSiteIdFilter("");
+              router.replace("/incidents");
+            }}
+            className="inline-flex items-center gap-1 rounded-xl border border-border/50 bg-surface px-3 py-1.5 font-semibold text-muted-foreground hover:bg-surface-elevated hover:text-foreground transition shadow-sm"
+          >
+            <X className="h-3.5 w-3.5" />
+            <span>Xóa bộ lọc ngữ cảnh</span>
+          </button>
+        </div>
+      )}
 
       {/* Filter Toolbar */}
       <IncidentFilterToolbar

@@ -6,7 +6,7 @@ import { aiMetricsKeys } from "./ai-metrics.query-keys";
 import type { AiPerformanceDto, AiPerformanceFilter } from "@/types";
 
 export function useAiPerformance(filter?: AiPerformanceFilter) {
-  return useQuery<AiPerformanceDto>({
+  return useQuery<AiPerformanceDto | null>({
     queryKey: aiMetricsKeys.performance(filter),
     queryFn: () => aiMetricsService.getAiPerformance(filter),
     staleTime: 30 * 1000,

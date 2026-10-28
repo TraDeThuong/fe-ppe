@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   Archive,
   ArrowLeft,
+  Building2,
   CheckCircle2,
   CheckSquare,
   Clock,
@@ -14,6 +15,7 @@ import {
   RefreshCw,
   ShieldAlert,
   UserCheck,
+  Video,
 } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
@@ -116,6 +118,36 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
               <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
               <span>{t("common.refresh")}</span>
             </Button>
+
+            {/* Quick Action: Xem luồng Camera */}
+            <Button
+              variant="outline"
+              onClick={() =>
+                router.push(
+                  incident.cameraId
+                    ? `/cameras/${incident.cameraId}`
+                    : `/cameras?search=${incident.cameraCode}&view=wall`
+                )
+              }
+              className="gap-1.5"
+              title="Mở Camera AI Intelligence Studio"
+            >
+              <Video className="h-4 w-4 text-primary" />
+              <span className="hidden sm:inline">Xem Camera</span>
+            </Button>
+
+            {/* Quick Action: Mở Command Center Site */}
+            {incident.siteId && (
+              <Button
+                variant="outline"
+                onClick={() => router.push(`/sites/${incident.siteId}?tab=live-cameras`)}
+                className="gap-1.5"
+                title="Mở trung tâm điều hành công trường này"
+              >
+                <Building2 className="h-4 w-4 text-primary" />
+                <span className="hidden sm:inline">Mở Công trường</span>
+              </Button>
+            )}
 
             {incident.status === "PENDING_REVIEW" && (
               <Button
