@@ -43,7 +43,7 @@ export function EditRoleModal({
 
     const formattedName = name.trim().toUpperCase().replace(/\s+/g, "_");
     if (!formattedName) {
-      setError("Vui lòng nhập tên vai trò.");
+      setError(t("roles.modals.nameRequired"));
       return;
     }
 
@@ -54,7 +54,7 @@ export function EditRoleModal({
       });
       onOpenChange(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Đã có lỗi xảy ra khi cập nhật vai trò";
+      const msg = err instanceof Error ? err.message : t("roles.modals.updateError");
       setError(msg);
     }
   };
@@ -92,8 +92,8 @@ export function EditRoleModal({
             value={name}
             onChange={(e) => setName(e.target.value)}
             disabled={loading || role?.isSystem}
-            placeholder="VD: SAFETY_AUDITOR"
-            className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 font-mono text-xs uppercase tracking-wide shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
+            placeholder={t("roles.modals.namePlaceholder")}
+            className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 font-mono text-xs uppercase tracking-wide shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60 dark:border-black/50"
             required
           />
         </div>
@@ -105,9 +105,9 @@ export function EditRoleModal({
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Mô tả phạm vi trách nhiệm và quyền hạn của vai trò này..."
+            placeholder={t("roles.modals.descPlaceholder")}
             rows={3}
-            className="w-full resize-none rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            className="w-full resize-none rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-black/50"
             disabled={loading}
           />
         </div>

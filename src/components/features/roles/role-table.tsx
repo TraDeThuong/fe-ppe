@@ -3,6 +3,7 @@
 import { Edit2, Key, Lock, Shield, Trash2, Users } from "lucide-react";
 import type { RoleDto } from "@/types";
 import { Button } from "@/components/ui/button";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface RoleTableProps {
   roles: RoleDto[];
@@ -19,6 +20,8 @@ export function RoleTable({
   onDelete,
   loading = false,
 }: RoleTableProps) {
+  const { t } = useLocale();
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -32,7 +35,7 @@ export function RoleTable({
   if (roles.length === 0) {
     return (
       <div className="rounded-2xl border border-border/30 bg-surface p-12 text-center">
-        <p className="text-sm text-muted-foreground">Không tìm thấy vai trò nào phù hợp.</p>
+        <p className="text-sm text-muted-foreground">{t("roles.empty.title")}</p>
       </div>
     );
   }
@@ -42,12 +45,12 @@ export function RoleTable({
       <table className="w-full text-left text-sm">
         <thead className="border-b border-border/40 bg-surface-elevated/40 text-xs font-semibold uppercase text-muted-foreground">
           <tr>
-            <th className="px-5 py-3.5">Vai trò</th>
-            <th className="px-5 py-3.5">Mô tả</th>
-            <th className="px-5 py-3.5">Số quyền</th>
-            <th className="px-5 py-3.5">Nhân sự gán</th>
-            <th className="px-5 py-3.5">Loại</th>
-            <th className="px-5 py-3.5 text-right">Thao tác</th>
+            <th className="px-5 py-3.5">{t("roles.table.roleName")}</th>
+            <th className="px-5 py-3.5">{t("roles.table.description")}</th>
+            <th className="px-5 py-3.5">{t("roles.table.permsCount")}</th>
+            <th className="px-5 py-3.5">{t("roles.table.personnel")}</th>
+            <th className="px-5 py-3.5">{t("roles.table.type")}</th>
+            <th className="px-5 py-3.5 text-right">{t("roles.table.actions")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/30">
@@ -69,7 +72,9 @@ export function RoleTable({
               </td>
 
               <td className="px-5 py-4 text-xs text-foreground/80 max-w-xs truncate">
-                {role.description || "—"}
+                {t(`roles.desc.${role.name}`) !== `roles.desc.${role.name}`
+                  ? t(`roles.desc.${role.name}`)
+                  : role.description || "—"}
               </td>
 
               <td className="px-5 py-4">
@@ -80,21 +85,21 @@ export function RoleTable({
               </td>
 
               <td className="px-5 py-4">
-                <span className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-success">
-                  <Users className="h-3 w-3" />
+                <span className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-foreground">
+                  <Users className="h-3 w-3 text-primary" />
                   {role.userCount ?? 0}
                 </span>
               </td>
 
               <td className="px-5 py-4">
                 {role.isSystem ? (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
-                    <Lock className="h-3 w-3" />
-                    Hệ thống
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-background/60 px-2 py-0.5 text-[11px] font-semibold text-foreground shadow-[inset_1px_1px_2px_var(--shadow-dark)]">
+                    <Lock className="h-3 w-3 text-primary" />
+                    {t("roles.badge.system")}
                   </span>
                 ) : (
-                  <span className="inline-flex rounded-full border border-border/40 bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                    Tùy chỉnh
+                  <span className="inline-flex rounded-full border border-border/40 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    {t("roles.badge.custom")}
                   </span>
                 )}
               </td>
@@ -108,14 +113,15 @@ export function RoleTable({
                     className="flex items-center gap-1 rounded-lg text-xs"
                   >
                     <Key className="h-3 w-3 text-primary" />
-                    <span>Quyền</span>
+                    <span>{t("roles.actions.permissions")}</span>
                   </Button>
 
                   <button
                     type="button"
                     onClick={() => onEdit(role)}
                     className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary"
-                    aria-label={`Edit ${role.name}`}
+                    aria-label={`${t("roles.actions.edit")} ${role.name}`}
+                    title={`${t("roles.actions.edit")} ${role.name}`}
                   >
                     <Edit2 className="h-3.5 w-3.5" />
                   </button>
@@ -125,7 +131,8 @@ export function RoleTable({
                       type="button"
                       onClick={() => onDelete(role)}
                       className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-danger hover:text-danger"
-                      aria-label={`Delete ${role.name}`}
+                      aria-label={`${t("roles.actions.delete")} ${role.name}`}
+                      title={`${t("roles.actions.delete")} ${role.name}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

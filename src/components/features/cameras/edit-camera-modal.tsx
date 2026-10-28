@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Camera, Edit2, Loader2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { useSites, useSiteZones } from "@/hooks/sites";
 import { useLocale } from "@/providers/locale-provider";
 import type { CameraItem, CameraSourceType, CameraStatus, UpdateCameraPayload } from "@/types";
 
@@ -24,8 +25,13 @@ export function EditCameraModal({
 }: EditCameraModalProps) {
   const { t } = useLocale();
 
+  const { data: sitesData } = useSites();
+  const sites = sitesData?.items || [];
+
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [zoneId, setZoneId] = useState("");
   const [sourceType, setSourceType] = useState<CameraSourceType>("RTSP");
   const [status, setStatus] = useState<CameraStatus>("ONLINE");
   const [streamUrl, setStreamUrl] = useState("");
@@ -33,10 +39,14 @@ export function EditCameraModal({
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const { data: zones = [] } = useSiteZones(siteId, Boolean(siteId));
+
   useEffect(() => {
     if (camera) {
       setName(camera.name);
       setCode(camera.code);
+      setSiteId(camera.siteId || "");
+      setZoneId(camera.zoneId || "");
       setSourceType((camera.sourceType as CameraSourceType) || "RTSP");
       setStatus(camera.status);
       setStreamUrl(camera.streamUrl || "");
@@ -60,6 +70,11 @@ export function EditCameraModal({
       await onSubmit(camera.id, {
         name: name.trim(),
         code: code.trim().toUpperCase() || undefined,
+        siteId:
+          siteId ||
+          camera.siteId ||
+          (sites.length > 0 ? sites[0].id : "0192d6e3-8f0a-7bb1-8c4d-91b53f608a11"),
+        zoneId: zoneId.trim() ? zoneId.trim() : null,
         sourceType,
         status,
         streamUrl: streamUrl.trim() || undefined,
@@ -121,6 +136,58 @@ export function EditCameraModal({
           </div>
         </div>
 
+        {/* Site and Zone Selection */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Site Selection */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Công trường <span className="text-danger">*</span>
+            </label>
+            <select
+              value={siteId}
+              onChange={(e) => {
+                setSiteId(e.target.value);
+                setZoneId("");
+              }}
+              className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              disabled={loading}
+              required
+            >
+              {sites.length === 0 ? (
+                <option value={camera?.siteId || "0192d6e3-8f0a-7bb1-8c4d-91b53f608a11"}>
+                  {camera?.siteName || "Công trường Landmark 81"}
+                </option>
+              ) : (
+                sites.map((site) => (
+                  <option key={site.id} value={site.id}>
+                    {site.name} ({site.code})
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          {/* Zone Selection */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Phân khu (Tùy chọn)
+            </label>
+            <select
+              value={zoneId}
+              onChange={(e) => setZoneId(e.target.value)}
+              className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              disabled={loading || zones.length === 0}
+            >
+              <option value="">-- Toàn công trường --</option>
+              {zones.map((zone) => (
+                <option key={zone.id} value={zone.id}>
+                  {zone.name} ({zone.code})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {/* Source Type */}
           <div className="space-y-1.5">
@@ -135,7 +202,7 @@ export function EditCameraModal({
             >
               <option value="RTSP">RTSP (Real-Time Streaming)</option>
               <option value="HLS">HLS (HTTP Live Streaming)</option>
-              <option value="HTTP">HTTP (MJPEG Feed)</option>
+              <option value="HTTP">HTTP (MJPEG / Web Feed)</option>
             </select>
           </div>
 
@@ -160,9 +227,14 @@ export function EditCameraModal({
 
         {/* Stream URL */}
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Địa chỉ URL Luồng Stream
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Địa chỉ URL Luồng Stream
+            </label>
+            <span className="text-[11px] text-muted-foreground/80">
+              Hỗ trợ RTSP, HTTP/MP4, YouTube, Webcam
+            </span>
+          </div>
           <input
             type="text"
             value={streamUrl}
@@ -170,6 +242,51 @@ export function EditCameraModal({
             className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 font-mono text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             disabled={loading}
           />
+
+          {/* Quick presets for testing */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[10px] text-muted-foreground">Chọn nhanh để test:</span>
+            <button
+              type="button"
+              onClick={() => {
+                setStreamUrl("http://localhost/webcam");
+                setSourceType("HTTP");
+              }}
+              className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
+            >
+              💻 Webcam máy tính
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStreamUrl("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
+                setSourceType("HTTP");
+              }}
+              className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
+            >
+              🎥 Mẫu MP4
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStreamUrl("https://www.youtube.com/watch?v=1-iS7LArMPA");
+                setSourceType("HLS");
+              }}
+              className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
+            >
+              🔴 YouTube Live
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStreamUrl("rtsp://admin:Pass@123@192.168.1.100:554/stream1");
+                setSourceType("RTSP");
+              }}
+              className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
+            >
+              📡 Luồng RTSP thực
+            </button>
+          </div>
         </div>
 
         {/* Location */}

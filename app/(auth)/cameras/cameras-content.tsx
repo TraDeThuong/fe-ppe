@@ -31,6 +31,7 @@ export default function CamerasContent() {
   // Filter & View State
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [siteFilter, setSiteFilter] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "table" | "wall">("grid");
   const [wallLayout, setWallLayout] = useState<"1x1" | "2x2" | "3x3">("2x2");
 
@@ -38,6 +39,7 @@ export default function CamerasContent() {
   const { data, isLoading } = useCameras({
     search: search.trim() || undefined,
     status: statusFilter || undefined,
+    siteId: siteFilter || undefined,
   });
   const cameras = data?.items || [];
 
@@ -64,9 +66,10 @@ export default function CamerasContent() {
         (cam.location && cam.location.toLowerCase().includes(search.toLowerCase()));
 
       const matchStatus = !statusFilter || cam.status === statusFilter;
-      return matchSearch && matchStatus;
+      const matchSite = !siteFilter || cam.siteId === siteFilter;
+      return matchSearch && matchStatus && matchSite;
     });
-  }, [cameras, search, statusFilter]);
+  }, [cameras, search, statusFilter, siteFilter]);
 
   // Handlers
   const handleOpenCreate = () => {
@@ -127,7 +130,12 @@ export default function CamerasContent() {
       />
 
       {/* KPI Bento Summary */}
-      <CameraKpiSummary cameras={cameras} loading={isLoading} />
+      <CameraKpiSummary
+        cameras={cameras}
+        loading={isLoading}
+        activeFilter={statusFilter}
+        onFilterChange={setStatusFilter}
+      />
 
       {/* Toolbar & Controls */}
       <CameraToolbar
@@ -135,6 +143,8 @@ export default function CamerasContent() {
         onSearchChange={setSearch}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
+        siteFilter={siteFilter}
+        onSiteFilterChange={setSiteFilter}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         wallLayout={wallLayout}

@@ -6,3 +6,6 @@ export * from "./permission-matrix-drawer";
 export * from "./create-role-modal";
 export * from "./edit-role-modal";
 export * from "./delete-role-dialog";
+export * from "./role-stats-detail-panel";
+export * from "./role-permissions-guide";
+export * from "./role-guide-data";

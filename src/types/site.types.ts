@@ -85,6 +85,13 @@ export interface SiteSafetyConfigItem {
   updatedAt: string;
 }
 
+export interface SiteContactOfficer {
+  userId?: string;
+  name: string;
+  roleTitle?: string;
+  phones: string[];
+}
+
 export interface SiteItem {
   id: string;
   name: string;
@@ -105,6 +112,7 @@ export interface SiteItem {
   complianceRate?: number;
   contactPerson?: string;
   contactPhone?: string;
+  contactOfficers?: SiteContactOfficer[];
 }
 
 // ============================================================================
@@ -130,6 +138,7 @@ export interface CreateSitePayload {
   endDate?: string;
   contactPerson?: string;
   contactPhone?: string;
+  contactOfficers?: SiteContactOfficer[];
 }
 
 export interface UpdateSitePayload {
@@ -142,6 +151,7 @@ export interface UpdateSitePayload {
   endDate?: string | null;
   contactPerson?: string;
   contactPhone?: string;
+  contactOfficers?: SiteContactOfficer[];
 }
 
 export interface CreateZonePayload {

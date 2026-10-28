@@ -78,39 +78,43 @@ export function SiteTable({
                 {/* Address */}
                 <td className="px-5 py-4">
                   <span className="text-xs text-muted-foreground line-clamp-1 max-w-xs">
-                    {site.address || "Chưa cập nhật địa chỉ"}
+                    {site.address || t("sites.card.noAddress")}
                   </span>
                 </td>
 
                 {/* Zones Count */}
                 <td className="px-5 py-4">
                   <span className="font-mono text-xs font-semibold text-foreground">
-                    {zoneCount} Phân khu
+                    {zoneCount} {t("sites.units.zones")}
                   </span>
                 </td>
 
                 {/* Restricted Count */}
                 <td className="px-5 py-4">
-                  <span className="font-mono text-xs font-semibold text-danger">
-                    {restrictedCount} Vùng cấm
+                  <span className="font-mono text-xs font-semibold text-accent">
+                    {restrictedCount} {t("sites.units.restricted")}
                   </span>
                 </td>
 
                 {/* Status */}
                 <td className="px-5 py-4">
                   <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold border ${
                       isActive
-                        ? "bg-emerald-500/10 text-emerald-500"
-                        : "bg-amber-500/10 text-amber-500"
+                        ? "bg-primary/10 text-primary border-primary/20"
+                        : "bg-muted/40 text-muted-foreground border-border/40"
                     }`}
                   >
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${
-                        isActive ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+                        isActive ? "bg-primary animate-pulse" : "bg-muted-foreground/60"
                       }`}
                     />
-                    {site.status}
+                    {isActive
+                      ? t("sites.status.active")
+                      : site.status === "INACTIVE"
+                        ? t("sites.status.inactive")
+                        : t("sites.status.suspended")}
                   </span>
                 </td>
 
@@ -132,7 +136,7 @@ export function SiteTable({
                       title={t("sites.actions.safetyConfig")}
                       className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-foreground transition"
                     >
-                      <Shield className="h-4 w-4" />
+                      <Shield className="h-4 w-4 text-accent" />
                     </button>
 
                     <button
@@ -148,7 +152,7 @@ export function SiteTable({
                       type="button"
                       onClick={() => onDelete(site)}
                       title={t("sites.actions.delete")}
-                      className="rounded-lg p-1.5 text-danger/80 hover:bg-danger/10 hover:text-danger transition"
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-primary transition"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>

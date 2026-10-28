@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertOctagon, Footprints, HardHat, Shield, Shirt } from "lucide-react";
+import { useLocale } from "@/providers/locale-provider";
 import type { SiteSafetyConfigItem } from "@/types";
 
 export interface SiteSafetyBadgesProps {
@@ -8,18 +9,20 @@ export interface SiteSafetyBadgesProps {
 }
 
 export function SiteSafetyBadges({ config }: SiteSafetyBadgesProps) {
+  const { t } = useLocale();
+
   if (!config) {
     return (
       <span className="text-[11px] text-muted-foreground italic">
-        Chưa thiết lập quy tắc PPE
+        {t("sites.badges.notConfigured")}
       </span>
     );
   }
 
   const items = [
-    { label: "Mũ bảo hộ", active: config.enableNoHelmet, icon: HardHat },
-    { label: "Áo phản quang", active: config.enableNoVest, icon: Shirt },
-    { label: "Vùng cấm", active: config.enableRestrictedArea, icon: AlertOctagon },
+    { label: t("sites.safetyConfig.hardHat"), active: config.enableNoHelmet, icon: HardHat },
+    { label: t("sites.safetyConfig.vest"), active: config.enableNoVest, icon: Shirt },
+    { label: t("sites.safetyConfig.restrictedArea"), active: config.enableRestrictedArea, icon: AlertOctagon },
   ];
 
   return (

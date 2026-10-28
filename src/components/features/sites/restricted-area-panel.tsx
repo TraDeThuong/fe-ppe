@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertOctagon, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCreateRestrictedArea, useDeleteRestrictedArea, useRestrictedAreas } from "@/hooks/sites";
+import { useLocale } from "@/providers/locale-provider";
 import type { RestrictedAreaItem } from "@/types";
 
 export interface RestrictedAreaPanelProps {
@@ -11,6 +12,7 @@ export interface RestrictedAreaPanelProps {
 }
 
 export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
+  const { t } = useLocale();
   const { data: areas = [], isLoading } = useRestrictedAreas(siteId, Boolean(siteId));
   const createArea = useCreateRestrictedArea();
   const deleteArea = useDeleteRestrictedArea();
@@ -60,34 +62,34 @@ export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
           variant="outline"
           size="sm"
           onClick={() => setIsAdding(true)}
-          className="flex items-center gap-1.5 text-xs w-full justify-center text-danger hover:text-danger"
+          className="flex items-center gap-1.5 text-xs w-full justify-center text-primary hover:text-primary"
         >
           <Plus className="h-4 w-4" />
-          <span>Thêm Vùng cấm Nguy hiểm</span>
+          <span>{t("sites.restricted.addArea")}</span>
         </Button>
       ) : (
         <form
           onSubmit={handleAdd}
-          className="space-y-3 rounded-xl border border-danger/30 bg-danger/5 p-3.5"
+          className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-3.5"
         >
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Tên vùng cấm (VD: Miệng hố thang máy tầng 10)"
-              className="rounded-lg border border-border/50 bg-background/80 px-3 py-1.5 text-xs shadow-nm-inset focus:border-danger focus:outline-none"
+              placeholder={t("sites.restricted.namePlaceholder")}
+              className="rounded-lg border border-border/50 bg-background/80 px-3 py-1.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
               required
             />
 
             <select
               value={severity}
               onChange={(e) => setSeverity(e.target.value as "CRITICAL" | "HIGH" | "MEDIUM")}
-              className="rounded-lg border border-border/50 bg-background/80 px-3 py-1.5 text-xs shadow-nm-inset focus:border-danger focus:outline-none"
+              className="rounded-lg border border-border/50 bg-background/80 px-3 py-1.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
             >
-              <option value="CRITICAL">Mức độ: CRITICAL (Khẩn cấp)</option>
-              <option value="HIGH">Mức độ: HIGH (Rủi ro cao)</option>
-              <option value="MEDIUM">Mức độ: MEDIUM (Cảnh báo)</option>
+              <option value="CRITICAL">{t("sites.restricted.severityCritical")}</option>
+              <option value="HIGH">{t("sites.restricted.severityHigh")}</option>
+              <option value="MEDIUM">{t("sites.restricted.severityMedium")}</option>
             </select>
           </div>
 
@@ -95,8 +97,8 @@ export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Mô tả mối nguy hiểm (VD: Nguy cơ rơi ngã từ độ cao 30m)..."
-            className="w-full rounded-lg border border-border/50 bg-background/80 px-3 py-1.5 text-xs shadow-nm-inset focus:border-danger focus:outline-none"
+            placeholder={t("sites.restricted.descPlaceholder")}
+            className="w-full rounded-lg border border-border/50 bg-background/80 px-3 py-1.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
           />
 
           <div className="flex items-center justify-end gap-2">
@@ -107,11 +109,11 @@ export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
               onClick={() => setIsAdding(false)}
               disabled={createArea.isPending}
             >
-              Hủy
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
-              variant="danger"
+              variant="primary"
               size="sm"
               disabled={createArea.isPending}
               className="flex items-center gap-1.5"
@@ -121,7 +123,7 @@ export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
               ) : (
                 <Plus className="h-3.5 w-3.5" />
               )}
-              <span>Tạo vùng cấm</span>
+              <span>{t("sites.restricted.create")}</span>
             </Button>
           </div>
         </form>
@@ -137,22 +139,22 @@ export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
           </div>
         ) : areas.length === 0 ? (
           <div className="rounded-xl border border-border/30 bg-surface/30 p-8 text-center text-xs text-muted-foreground">
-            Chưa có vùng cấm nguy hiểm nào được thiết lập cho công trường này.
+            {t("sites.restricted.empty")}
           </div>
         ) : (
           areas.map((area) => (
             <div
               key={area.id}
-              className="flex items-center justify-between rounded-xl border border-danger/20 bg-danger/5 p-3 shadow-nm-inset transition"
+              className="flex items-center justify-between rounded-xl border border-border/40 bg-surface/60 p-3 shadow-nm-inset transition"
             >
               <div className="flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-danger/10 text-danger">
-                  <AlertOctagon className="h-4 w-4" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <AlertOctagon className="h-4 w-4 text-accent" />
                 </span>
                 <div>
                   <div className="flex items-center gap-2">
                     <p className="text-xs font-bold text-foreground">{area.name}</p>
-                    <span className="rounded bg-danger/20 px-1.5 py-0.2 font-mono text-[9px] font-bold text-danger uppercase">
+                    <span className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-primary uppercase border border-primary/20">
                       {area.severity || "CRITICAL"}
                     </span>
                   </div>
@@ -168,7 +170,7 @@ export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
                 type="button"
                 onClick={() => handleDelete(area)}
                 disabled={deleteArea.isPending}
-                className="rounded-lg p-1.5 text-danger/70 hover:bg-danger/10 hover:text-danger transition"
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-primary transition"
               >
                 <Trash2 className="h-4 w-4" />
               </button>

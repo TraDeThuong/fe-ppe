@@ -66,7 +66,7 @@ const DEPTH_VALUES: Record<ModalDepth, number> = {
 };
 
 const RAISED =
-  "shadow-[6px_6px_16px_var(--shadow-dark),-6px_-6px_16px_var(--shadow-light)]";
+  "shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)]";
 
 const INSET =
   "shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]";
@@ -210,25 +210,33 @@ function ModalEngine({
   const borderClasses: Record<ModalBorder, string> = {
     none: "border-transparent",
     subtle: "border-border/40",
-    accent: "border-[color-mix(in_srgb,var(--nm-accent,var(--primary))_45%,var(--border))]",
+    accent:
+      "border-[color-mix(in_srgb,var(--nm-accent,var(--primary))_45%,var(--border))]",
     glow: [
       "border-[color-mix(in_srgb,var(--nm-accent,var(--primary))_60%,var(--border))]",
-      "shadow-[6px_6px_16px_var(--shadow-dark),-6px_-6px_16px_var(--shadow-light),0_0_22px_color-mix(in_srgb,var(--nm-accent,var(--primary))_12%,transparent)]",
+      "shadow-[0_4px_0_color-mix(in_srgb,var(--shadow-dark)_35%,var(--background)),0_5px_10px_color-mix(in_srgb,var(--shadow-dark)_25%,transparent)]",
     ].join(" "),
   };
 
   const modalShadow =
     variant === "sculpted"
-      ? "shadow-[calc(6px*var(--nm-depth))_calc(6px*var(--nm-depth))_calc(18px*var(--nm-depth))_var(--shadow-dark),calc(-6px*var(--nm-depth))_calc(-6px*var(--nm-depth))_calc(18px*var(--nm-depth))_var(--shadow-light)]"
-      : "shadow-[inset_3px_3px_8px_var(--shadow-dark),inset_-3px_-3px_8px_var(--shadow-light)]";
+      ? [
+          "shadow-[calc(2px*var(--nm-depth))_calc(2px*var(--nm-depth))_4px_var(--shadow-dark),calc(-2px*var(--nm-depth))_calc(-2px*var(--nm-depth))_4px_var(--shadow-light)]",
+        ].join(" ")
+      : [
+          "shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]",
+        ].join(" ");
 
   return createPortal(
     <div
       className="
-  fixed inset-0 z-[1000] flex items-center justify-center
-  overflow-y-auto bg-black/35 p-3
-  animate-in fade-in duration-200
-  dark:bg-black/60 sm:p-6
+        fixed inset-0 z-[1000]
+        flex items-center justify-center
+        overflow-y-auto
+        bg-black/30 p-3
+        animate-in fade-in duration-200
+        dark:bg-black/50
+        sm:p-6
       "
       style={style}
       onMouseDown={(event) => {
@@ -257,105 +265,147 @@ function ModalEngine({
           className,
         ].join(" ")}
       >
-        {/* Main shell */}
+        {/* 3D base: cạnh đáy nổi 4px */}
         <div
           className={[
-            "relative flex max-h-[calc(100dvh-1.5rem)] flex-col",
-            "overflow-hidden rounded-[26px] border",
-            "bg-background text-foreground",
-            borderClasses[border],
-            modalShadow,
+            "relative isolate rounded-[26px]",
+            variant === "sculpted"
+              ? [
+                  "pb-[4px]",
+                  "bg-[color-mix(in_srgb,var(--shadow-dark)_48%,var(--background))]",
+                  "shadow-[0_7px_12px_color-mix(in_srgb,var(--shadow-dark)_22%,transparent)]",
+                ].join(" ")
+              : "",
           ].join(" ")}
         >
-          {/* Top highlight */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-6 top-0 z-10 h-px bg-foreground/[0.08]"
-          />
-
-          {/* Header */}
-          <header className="flex shrink-0 items-start justify-between gap-4 px-5 pb-4 pt-5 sm:px-6 sm:pb-5 sm:pt-6">
-            <div className="flex min-w-0 items-start gap-3.5">
-              {icon && (
-                <div
-                  className={[
-                    "flex size-11 shrink-0 items-center justify-center",
-                    "rounded-2xl border border-border/40 bg-background",
-                    "text-[var(--nm-accent,var(--primary))]",
-                    effectClass(iconEffect),
-                  ].join(" ")}
-                >
-                  {icon}
-                </div>
-              )}
-
-              <div className="min-w-0 pt-0.5">
-                <h2
-                  id={titleId}
-                  className="text-base font-bold tracking-tight sm:text-lg"
-                >
-                  {title}
-                </h2>
-
-                {description && (
-                  <p
-                    id={descriptionId}
-                    className="mt-1.5 text-sm leading-relaxed text-muted-foreground"
-                  >
-                    {description}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {showCloseButton && (
-              <button
-                type="button"
-                aria-label="Đóng hộp thoại"
-                disabled={preventClose}
-                onClick={close}
-                className="
-                  flex size-9 shrink-0 items-center justify-center
-                  rounded-xl border border-border/40 bg-background
-                  text-muted-foreground
-                  shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)]
-                  transition-all duration-200
-                  hover:-translate-y-0.5 hover:text-destructive
-                  active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]
-                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40
-                  disabled:cursor-not-allowed disabled:opacity-40
-                "
-              >
-                <X size={17} strokeWidth={1.8} />
-              </button>
-            )}
-          </header>
-
-          {/* Content */}
+          {/* Main surface */}
           <div
             className={[
-              "min-h-0 flex-1 overflow-y-auto",
-              "border-y border-border/30 px-5 py-5 sm:px-6 sm:py-6",
-              effectClass(resolvedContentEffect),
-              contentClassName,
+              "relative flex max-h-[calc(100dvh-1.5rem)] flex-col",
+              "overflow-hidden rounded-[25px] border",
+              "bg-background text-foreground",
+              borderClasses[border],
+              modalShadow,
             ].join(" ")}
           >
-            {children}
-          </div>
+            {/* White reflection along the upper edge */}
+            {variant === "sculpted" && (
+              <>
+                <div
+                  aria-hidden="true"
+                  className="
+                    pointer-events-none absolute inset-x-5 top-0 z-20
+                    h-px bg-white/80
+                    dark:bg-white/20
+                  "
+                />
+                <div
+                  aria-hidden="true"
+                  className="
+                    pointer-events-none absolute bottom-1 left-0 top-5 z-20
+                    w-px bg-white/45
+                    dark:bg-white/10
+                  "
+                />
+              </>
+            )}
 
-          {/* Footer */}
-          {footer && (
-            <footer
+            {/* Header */}
+            <header
+              className="
+                flex shrink-0 items-start justify-between gap-4
+                px-5 pb-4 pt-5
+                sm:px-6 sm:pb-5 sm:pt-6
+              "
+            >
+              <div className="flex min-w-0 items-start gap-3.5">
+                {icon && (
+                  <div
+                    className={[
+                      "flex size-11 shrink-0 items-center justify-center",
+                      "rounded-2xl border border-border/40 bg-background",
+                      "text-[var(--nm-accent,var(--primary))]",
+                      effectClass(iconEffect),
+                    ].join(" ")}
+                  >
+                    {icon}
+                  </div>
+                )}
+
+                <div className="min-w-0 pt-0.5">
+                  <h2
+                    id={titleId}
+                    className="text-base font-bold tracking-tight sm:text-lg"
+                  >
+                    {title}
+                  </h2>
+
+                  {description && (
+                    <p
+                      id={descriptionId}
+                      className="
+                        mt-1.5 text-sm leading-relaxed
+                        text-muted-foreground
+                      "
+                    >
+                      {description}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {showCloseButton && (
+                <button
+                  type="button"
+                  aria-label="Đóng hộp thoại"
+                  disabled={preventClose}
+                  onClick={close}
+                  className="
+                    flex size-9 shrink-0 items-center justify-center
+                    rounded-xl border border-border/40 bg-background
+                    text-muted-foreground
+                    shadow-[3px_3px_5px_var(--shadow-dark),-3px_-3px_5px_var(--shadow-light)]
+                    transition-all duration-200
+                    hover:-translate-y-0.5 hover:text-destructive
+                    active:translate-y-0
+                    active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]
+                    focus-visible:outline-none
+                    focus-visible:ring-2 focus-visible:ring-primary/40
+                    disabled:cursor-not-allowed disabled:opacity-40
+                  "
+                >
+                  <X size={17} strokeWidth={1.8} />
+                </button>
+              )}
+            </header>
+
+            {/* Content */}
+            <div
               className={[
-                "flex shrink-0 flex-wrap items-center justify-end gap-2.5",
-                "px-5 py-4 sm:px-6",
-                effectClass(footerEffect),
-                footerClassName,
+                "min-h-0 flex-1 overflow-y-auto",
+                "border-y border-border/30",
+                "px-5 py-5 sm:px-6 sm:py-6",
+                effectClass(resolvedContentEffect),
+                contentClassName,
               ].join(" ")}
             >
-              {footer}
-            </footer>
-          )}
+              {children}
+            </div>
+
+            {/* Footer */}
+            {footer && (
+              <footer
+                className={[
+                  "flex shrink-0 flex-wrap items-center justify-end gap-2.5",
+                  "px-5 py-4 sm:px-6",
+                  effectClass(footerEffect),
+                  footerClassName,
+                ].join(" ")}
+              >
+                {footer}
+              </footer>
+            )}
+          </div>
         </div>
       </div>
     </div>,
@@ -363,7 +413,7 @@ function ModalEngine({
   );
 }
 
-/** Modal với khung nổi, phù hợp form và hộp thoại thông thường. */
+/** Modal với khung nổi 3D, phù hợp form và hộp thoại thông thường. */
 export function SculptedModal(props: ModalProps) {
   return <ModalEngine {...props} variant="sculpted" />;
 }

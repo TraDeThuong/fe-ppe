@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Building2, MapPin } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import {
@@ -13,6 +14,7 @@ import {
   SiteTable,
   SiteToolbar,
   SiteZonesDrawer,
+  type SiteStatKey,
 } from "@/components/features/sites";
 import {
   useCreateSite,
@@ -23,8 +25,44 @@ import {
 import { useLocale } from "@/providers/locale-provider";
 import type { CreateSitePayload, SiteItem, UpdateSitePayload } from "@/types";
 
+const STAT_TO_URL: Record<SiteStatKey, string> = {
+  totalSites: "total-sites",
+  totalZones: "zones",
+  restrictedAreas: "restricted",
+  complianceRate: "compliance",
+};
+
+const URL_TO_STAT: Record<string, SiteStatKey> = {
+  "total-sites": "totalSites",
+  zones: "totalZones",
+  restricted: "restrictedAreas",
+  compliance: "complianceRate",
+  totalSites: "totalSites",
+  totalZones: "totalZones",
+  restrictedAreas: "restrictedAreas",
+  complianceRate: "complianceRate",
+};
+
 export default function SitesContent() {
   const { t } = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // URL state synchronization for stats (matching /roles)
+  const statParam = searchParams.get("stat");
+  const selectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
+
+  const handleSelectStat = (stat: SiteStatKey | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (stat) {
+      params.set("stat", STAT_TO_URL[stat]);
+    } else {
+      params.delete("stat");
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
 
   // Filters & View State
   const [search, setSearch] = useState("");
@@ -114,7 +152,15 @@ export default function SitesContent() {
       />
 
       {/* KPI Bento Summary */}
-      <SiteKpiSummary sites={sites} loading={isLoading} />
+      <SiteKpiSummary
+        sites={sites}
+        loading={isLoading}
+        selectedStat={selectedStat}
+        onSelectStat={handleSelectStat}
+        onManageZones={handleManageZones}
+        onSafetyConfig={handleSafetyConfig}
+        onCreateSite={handleOpenCreate}
+      />
 
       {/* Toolbar & Filters */}
       <SiteToolbar

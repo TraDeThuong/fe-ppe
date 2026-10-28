@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Layers, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCreateZone, useDeleteZone, useSiteZones } from "@/hooks/sites";
+import { useLocale } from "@/providers/locale-provider";
 import type { ZoneItem } from "@/types";
 
 export interface ZoneListPanelProps {
@@ -11,6 +12,7 @@ export interface ZoneListPanelProps {
 }
 
 export function ZoneListPanel({ siteId }: ZoneListPanelProps) {
+  const { t } = useLocale();
   const { data: zones = [], isLoading } = useSiteZones(siteId, Boolean(siteId));
   const createZone = useCreateZone();
   const deleteZone = useDeleteZone();
@@ -58,7 +60,7 @@ export function ZoneListPanel({ siteId }: ZoneListPanelProps) {
           className="flex items-center gap-1.5 text-xs w-full justify-center"
         >
           <Plus className="h-4 w-4" />
-          <span>Thêm Phân khu mới</span>
+          <span>{t("sites.zones.addZone")}</span>
         </Button>
       ) : (
         <form
@@ -70,7 +72,7 @@ export function ZoneListPanel({ siteId }: ZoneListPanelProps) {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Tên phân khu (VD: Khu Giàn Giáo Phía Bắc)"
+              placeholder={t("sites.zones.namePlaceholder")}
               className="rounded-lg border border-border/50 bg-background/80 px-3 py-1.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
               required
             />
@@ -78,7 +80,7 @@ export function ZoneListPanel({ siteId }: ZoneListPanelProps) {
               type="text"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="Mã phân khu (VD: ZONE_SCAFFOLD_01)"
+              placeholder={t("sites.zones.codePlaceholder")}
               className="rounded-lg border border-border/50 bg-background/80 px-3 py-1.5 font-mono text-xs uppercase shadow-nm-inset focus:border-primary focus:outline-none"
             />
           </div>
@@ -91,7 +93,7 @@ export function ZoneListPanel({ siteId }: ZoneListPanelProps) {
               onClick={() => setIsAdding(false)}
               disabled={createZone.isPending}
             >
-              Hủy
+              {t("common.cancel")}
             </Button>
             <Button
               type="submit"
@@ -105,7 +107,7 @@ export function ZoneListPanel({ siteId }: ZoneListPanelProps) {
               ) : (
                 <Plus className="h-3.5 w-3.5" />
               )}
-              <span>Tạo phân khu</span>
+              <span>{t("sites.zones.create")}</span>
             </Button>
           </div>
         </form>
@@ -121,7 +123,7 @@ export function ZoneListPanel({ siteId }: ZoneListPanelProps) {
           </div>
         ) : zones.length === 0 ? (
           <div className="rounded-xl border border-border/30 bg-surface/30 p-8 text-center text-xs text-muted-foreground">
-            Chưa có phân khu nào được tạo cho công trường này.
+            {t("sites.zones.empty")}
           </div>
         ) : (
           zones.map((zone) => (
@@ -148,7 +150,7 @@ export function ZoneListPanel({ siteId }: ZoneListPanelProps) {
                   type="button"
                   onClick={() => handleDelete(zone)}
                   disabled={deleteZone.isPending}
-                  className="rounded-lg p-1.5 text-danger/70 hover:bg-danger/10 hover:text-danger transition"
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-primary transition"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>

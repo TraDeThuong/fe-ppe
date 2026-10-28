@@ -35,12 +35,12 @@ export function DeleteSiteDialog({
       onOpenChange={onOpenChange}
       title={t("sites.modals.deleteTitle")}
       description={t("sites.modals.deletePrompt")}
-      icon={<AlertTriangle className="h-5 w-5 text-danger" />}
+      icon={<AlertTriangle className="h-5 w-5 text-accent" />}
       size="sm"
     >
       <div className="space-y-4">
-        <div className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-center">
-          <p className="font-mono text-sm font-bold text-danger">
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center">
+          <p className="font-mono text-sm font-bold text-primary">
             {site?.code}
           </p>
           <p className="mt-1 text-xs text-foreground font-semibold">
@@ -65,7 +65,7 @@ export function DeleteSiteDialog({
 
           <Button
             type="button"
-            variant="danger"
+            variant="primary"
             onClick={handleConfirm}
             disabled={loading}
             className="flex items-center gap-2"
@@ -75,7 +75,7 @@ export function DeleteSiteDialog({
             ) : (
               <Trash2 className="h-4 w-4" />
             )}
-            <span>Xác nhận xóa</span>
+            <span>{t("sites.modals.confirmDelete")}</span>
           </Button>
         </div>
       </div>

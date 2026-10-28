@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, CheckSquare, Key, Lock, Shield, Square } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { useLocale } from "@/providers/locale-provider";
 import type { PermissionDto, RoleDto } from "@/types";
 import { RESOURCE_CATEGORY_MAP, type ResourceCategory } from "@/types";
 
@@ -24,6 +25,7 @@ export function PermissionMatrixDrawer({
   onSave,
   loading = false,
 }: PermissionMatrixDrawerProps) {
+  const { t } = useLocale();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const isAdminRole = role?.name?.toUpperCase() === "ADMIN";
@@ -109,18 +111,18 @@ export function PermissionMatrixDrawer({
   };
 
   const categoryTitles: Record<ResourceCategory, string> = {
-    MONITORING: "1. Giám sát An toàn Công trường (Cameras, Sites, Incidents)",
-    ANALYTICS: "2. Báo cáo & Trí tuệ Nhân tạo (Analytics, AI Metrics, Models)",
-    IDENTITY: "3. Định danh & Phân quyền (Users, Roles, Permissions)",
-    SYSTEM: "4. Cấu hình & Hạ tầng Hệ thống (Configs, Logs, Notifications)",
+    MONITORING: t("rbac.category.MONITORING"),
+    ANALYTICS: t("rbac.category.ANALYTICS"),
+    IDENTITY: t("rbac.category.IDENTITY"),
+    SYSTEM: t("rbac.category.SYSTEM"),
   };
 
   return (
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title={`Ma trận Phân quyền: ${role?.name || ""}`}
-      description="Cấp hoặc thu hồi chi tiết các quyền hạn truy cập API và chức năng cho vai trò này."
+      title={t("roles.matrix.title", { role: role?.name || "" })}
+      description={t("roles.matrix.description")}
       icon={<Key className="h-5 w-5 text-primary" />}
       size="xl"
     >
@@ -129,18 +131,17 @@ export function PermissionMatrixDrawer({
         {isAdminRole && (
           <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
             <Lock className="h-4 w-4 shrink-0" />
-            <span>
-              <strong>Cơ chế Anti-lockout kích hoạt:</strong> Các quyền quản trị cốt lõi của vai
-              trò ADMIN được khóa cố định nhằm bảo vệ hệ thống không bị tự tước quyền điều hành.
-            </span>
+            <span>{t("roles.matrix.antiLockout")}</span>
           </div>
         )}
 
         {/* Selected count badge */}
         <div className="flex items-center justify-between border-b border-border/30 pb-3">
           <span className="text-xs text-muted-foreground">
-            Đã chọn: <strong className="text-primary font-bold">{selectedIds.size}</strong> /{" "}
-            {allPermissions.length} quyền hạn
+            {t("roles.matrix.selectedCount", {
+              selected: selectedIds.size,
+              total: allPermissions.length,
+            })}
           </span>
 
           <div className="flex items-center gap-2">
@@ -151,7 +152,7 @@ export function PermissionMatrixDrawer({
               onClick={() => setSelectedIds(new Set(allPermissions.map((p) => p.id)))}
               className="text-xs h-7"
             >
-              Chọn tất cả
+              {t("roles.matrix.selectAll")}
             </Button>
             <Button
               type="button"
@@ -170,7 +171,7 @@ export function PermissionMatrixDrawer({
               }}
               className="text-xs h-7"
             >
-              Bỏ chọn tất cả
+              {t("roles.matrix.deselectAll")}
             </Button>
           </div>
         </div>
@@ -186,9 +187,9 @@ export function PermissionMatrixDrawer({
             return (
               <div
                 key={cat}
-                className="rounded-2xl border border-border/40 bg-surface p-4 shadow-[2px_2px_6px_rgba(0,0,0,0.04)]"
+                className="rounded-2xl border border-border/40 bg-surface p-4 shadow-[2px_2px_6px_rgba(0,0,0,0.04)] dark:border-black/50 dark:bg-card/70"
               >
-                <div className="flex items-center justify-between border-b border-border/30 pb-2.5 mb-3">
+                <div className="flex items-center justify-between border-b border-border/30 pb-2.5 mb-3 dark:border-black/40">
                   <h4 className="text-xs font-bold text-foreground">
                     {categoryTitles[cat]}
                   </h4>
@@ -200,11 +201,11 @@ export function PermissionMatrixDrawer({
                   >
                     {allSelected ? (
                       <>
-                        <CheckSquare className="h-3.5 w-3.5" /> Bỏ chọn nhóm
+                        <CheckSquare className="h-3.5 w-3.5" /> {t("roles.matrix.deselectGroup")}
                       </>
                     ) : (
                       <>
-                        <Square className="h-3.5 w-3.5" /> Chọn cả nhóm
+                        <Square className="h-3.5 w-3.5" /> {t("roles.matrix.selectGroup")}
                       </>
                     )}
                   </button>
@@ -221,15 +222,15 @@ export function PermissionMatrixDrawer({
                         onClick={() => handleToggle(perm)}
                         className={`flex items-start gap-2.5 rounded-xl border p-2.5 cursor-pointer transition ${
                           isChecked
-                            ? "border-primary/40 bg-primary/5 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.05)]"
-                            : "border-border/30 bg-surface hover:bg-surface-elevated/40"
+                            ? "border-primary/40 bg-primary/5 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.05)] dark:bg-primary/10"
+                            : "border-border/30 bg-surface hover:bg-surface-elevated/40 dark:border-black/40 dark:bg-background/40 dark:hover:border-black"
                         } ${isLocked ? "opacity-75 cursor-not-allowed" : ""}`}
                       >
                         <div
                           className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition mt-0.5 ${
                             isChecked
                               ? "border-primary bg-primary text-white"
-                              : "border-muted-foreground/40 bg-surface"
+                              : "border-muted-foreground/40 bg-surface dark:bg-background/60"
                           }`}
                         >
                           {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
@@ -253,19 +254,19 @@ export function PermissionMatrixDrawer({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/30">
+        <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/30 dark:border-black/40">
           <Button
             type="button"
             variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={loading}
           >
-            Hủy
+            {t("roles.matrix.cancel")}
           </Button>
 
           <Button type="button" variant="primary" onClick={handleSave} disabled={loading}>
             <Shield className="mr-1.5 h-4 w-4" />
-            <span>{loading ? "Đang lưu quyền..." : "Lưu Ma trận Quyền"}</span>
+            <span>{loading ? t("roles.matrix.saving") : t("roles.matrix.save")}</span>
           </Button>
         </div>
       </div>

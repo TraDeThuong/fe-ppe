@@ -93,7 +93,7 @@ export function SiteSafetyConfigModal({
         {/* Mandatory PPE Toggles */}
         <div className="space-y-3">
           <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Trang bị bảo hộ bắt buộc (Mandatory PPE)
+            {t("sites.safetyConfig.mandatoryPpe")}
           </label>
 
           <div className="space-y-2">
@@ -104,9 +104,9 @@ export function SiteSafetyConfigModal({
                   <HardHat className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-xs font-bold text-foreground">Mũ bảo hộ (Hard Hat)</p>
+                  <p className="text-xs font-bold text-foreground">{t("sites.safetyConfig.hardHatTitle")}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    Cảnh báo khi người lao động không đội mũ trong công trường
+                    {t("sites.safetyConfig.hardHatDesc")}
                   </p>
                 </div>
               </div>
@@ -121,13 +121,13 @@ export function SiteSafetyConfigModal({
             {/* Safety Vest */}
             <div className="flex items-center justify-between rounded-xl border border-border/30 bg-surface/40 p-3 shadow-nm-inset">
               <div className="flex items-center gap-2.5">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20 text-accent">
                   <Shirt className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-xs font-bold text-foreground">Áo phản quang (Safety Vest)</p>
+                  <p className="text-xs font-bold text-foreground">{t("sites.safetyConfig.vestTitle")}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    Yêu cầu mặc áo phản quang tại các phân khu thi công
+                    {t("sites.safetyConfig.vestDesc")}
                   </p>
                 </div>
               </div>
@@ -142,13 +142,13 @@ export function SiteSafetyConfigModal({
             {/* Restricted Area Alert */}
             <div className="flex items-center justify-between rounded-xl border border-border/30 bg-surface/40 p-3 shadow-nm-inset">
               <div className="flex items-center gap-2.5">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-danger/10 text-danger">
-                  <AlertOctagon className="h-4 w-4" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <AlertOctagon className="h-4 w-4 text-accent" />
                 </span>
                 <div>
-                  <p className="text-xs font-bold text-foreground">Cảnh báo Xâm nhập Vùng cấm</p>
+                  <p className="text-xs font-bold text-foreground">{t("sites.safetyConfig.restrictedTitle")}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    Kích hoạt cảnh báo tức thời khi phát hiện người trong khu vực nguy hiểm
+                    {t("sites.safetyConfig.restrictedDesc")}
                   </p>
                 </div>
               </div>
@@ -168,7 +168,7 @@ export function SiteSafetyConfigModal({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-muted-foreground">
-                Xác nhận vi phạm
+                {t("sites.safetyConfig.confirmViolation")}
               </label>
               <span className="font-mono text-xs font-bold text-primary">
                 {confirmationDuration}s
@@ -184,7 +184,7 @@ export function SiteSafetyConfigModal({
               className="w-full accent-primary"
             />
             <p className="text-[10px] text-muted-foreground">
-              Khoảng thời gian vi phạm liên tục trước khi tạo sự cố
+              {t("sites.safetyConfig.confirmViolationHelp")}
             </p>
           </div>
 
@@ -192,7 +192,7 @@ export function SiteSafetyConfigModal({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-muted-foreground">
-                Ngưỡng tin cậy AI
+                {t("sites.safetyConfig.aiConfidence")}
               </label>
               <span className="font-mono text-xs font-bold text-primary">
                 {Math.round(confidenceThreshold * 100)}%
@@ -208,7 +208,7 @@ export function SiteSafetyConfigModal({
               className="w-full accent-primary"
             />
             <p className="text-[10px] text-muted-foreground">
-              Độ tin cậy tối thiểu của mô hình phát hiện vi phạm
+              {t("sites.safetyConfig.aiConfidenceHelp")}
             </p>
           </div>
         </div>
@@ -235,7 +235,7 @@ export function SiteSafetyConfigModal({
             ) : (
               <Save className="h-4 w-4" />
             )}
-            <span>Lưu quy tắc an toàn</span>
+            <span>{t("sites.safetyConfig.save")}</span>
           </Button>
         </div>
       </form>

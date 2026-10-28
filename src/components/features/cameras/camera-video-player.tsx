@@ -25,6 +25,15 @@ export interface CameraVideoPlayerProps {
   className?: string;
 }
 
+function getYouTubeEmbedUrl(url?: string): string | null {
+  if (!url) return null;
+  const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|live\/)|youtu\.be\/)([^"&?\/\s]{11})/;
+  const match = url.match(regExp);
+  return match && match[1]
+    ? `https://www.youtube.com/embed/${match[1]}?autoplay=1&mute=1&controls=0&loop=1&playlist=${match[1]}&enablejsapi=1`
+    : null;
+}
+
 export function CameraVideoPlayer({
   camera,
   showControls = true,
@@ -36,11 +45,40 @@ export function CameraVideoPlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  const isWebcam = camera.streamUrl?.toLowerCase().includes("webcam") || false;
+  const youtubeEmbedUrl = getYouTubeEmbedUrl(camera.streamUrl);
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [streamError, setStreamError] = useState(camera.status === "OFFLINE" || camera.status === "ERROR");
   const [fps, setFps] = useState(camera.currentFps || (camera.status === "ONLINE" ? 25 : 0));
   const [latency, setLatency] = useState(camera.currentLatencyMs || (camera.status === "ONLINE" ? 42 : 0));
+
+  // Webcam stream lifecycle
+  useEffect(() => {
+    let localStream: MediaStream | null = null;
+    if (isWebcam && !streamError) {
+      if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+        navigator.mediaDevices
+          .getUserMedia({ video: true, audio: false })
+          .then((stream) => {
+            localStream = stream;
+            if (videoRef.current) {
+              videoRef.current.srcObject = stream;
+              videoRef.current.play().catch(() => {});
+            }
+          })
+          .catch(() => {
+            setStreamError(true);
+          });
+      }
+    }
+    return () => {
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [isWebcam, streamError]);
 
   useEffect(() => {
     setStreamError(camera.status === "OFFLINE" || camera.status === "ERROR");
@@ -77,11 +115,20 @@ export function CameraVideoPlayer({
     >
       {/* Aspect Ratio Wrapper (16:9) */}
       <div className="relative aspect-video w-full bg-slate-950 overflow-hidden">
-        {/* Real or Mock Video Element */}
-        {camera.streamUrl && !streamError ? (
+        {/* YouTube Embed Stream */}
+        {youtubeEmbedUrl && !streamError ? (
+          <iframe
+            src={youtubeEmbedUrl}
+            title={camera.name}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            className="h-full w-full pointer-events-none object-cover border-0"
+          />
+        ) : camera.streamUrl && !streamError ? (
+          /* Native HTML5 or Webcam Video Element */
           <video
             ref={videoRef}
-            src={camera.streamUrl.startsWith("http") ? camera.streamUrl : undefined}
+            src={!isWebcam && camera.streamUrl.startsWith("http") ? camera.streamUrl : undefined}
             autoPlay
             playsInline
             muted={isMuted}
@@ -92,10 +139,14 @@ export function CameraVideoPlayer({
         ) : null}
 
         {/* Ambient Simulated Feed (when streamUrl is RTSP or video not native) */}
-        {!streamError && (
+        {!streamError && !youtubeEmbedUrl && !isWebcam && !camera.streamUrl.startsWith("http") && (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/80 via-transparent to-black/50 pointer-events-none">
             {/* Grid Scanline Overlay for Industrial CCTV look */}
             <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] opacity-20" />
+            <div className="text-center font-mono text-xs text-white/50">
+              <p>LUỒNG RTSP NỘI BỘ</p>
+              <p className="text-[10px] text-white/30">{camera.streamUrl}</p>
+            </div>
           </div>
         )}
 

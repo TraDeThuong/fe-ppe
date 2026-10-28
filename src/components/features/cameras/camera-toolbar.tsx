@@ -2,6 +2,7 @@
 
 import { LayoutGrid, List, MonitorPlay, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useSites } from "@/hooks/sites";
 import { useLocale } from "@/providers/locale-provider";
 
 export interface CameraToolbarProps {
@@ -9,6 +10,8 @@ export interface CameraToolbarProps {
   onSearchChange: (value: string) => void;
   statusFilter: string;
   onStatusFilterChange: (value: string) => void;
+  siteFilter?: string;
+  onSiteFilterChange?: (value: string) => void;
   viewMode: "grid" | "table" | "wall";
   onViewModeChange: (mode: "grid" | "table" | "wall") => void;
   wallLayout: "1x1" | "2x2" | "3x3";
@@ -21,6 +24,8 @@ export function CameraToolbar({
   onSearchChange,
   statusFilter,
   onStatusFilterChange,
+  siteFilter = "",
+  onSiteFilterChange,
   viewMode,
   onViewModeChange,
   wallLayout,
@@ -28,6 +33,8 @@ export function CameraToolbar({
   onCreateCamera,
 }: CameraToolbarProps) {
   const { t } = useLocale();
+  const { data: sitesData } = useSites();
+  const sites = sitesData?.items || [];
 
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -44,6 +51,22 @@ export function CameraToolbar({
             className="w-full rounded-xl border border-border/40 bg-surface pl-10 pr-4 py-2 text-sm text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
           />
         </div>
+
+        {/* Site Filter */}
+        {sites.length > 0 && onSiteFilterChange && (
+          <select
+            value={siteFilter}
+            onChange={(e) => onSiteFilterChange(e.target.value)}
+            className="rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
+          >
+            <option value="">{t("cameras.toolbar.allSites")}</option>
+            {sites.map((site) => (
+              <option key={site.id} value={site.id}>
+                {site.name} ({site.code})
+              </option>
+            ))}
+          </select>
+        )}
 
         {/* Status Filter */}
         <select

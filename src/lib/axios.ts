@@ -125,6 +125,12 @@ export function createApiClient(baseURL: string): AxiosInstance {
   const client = axios.create({ baseURL, withCredentials: true, timeout: 15000 });
 
   client.interceptors.request.use((config) => {
+    // Tránh trùng lặp /api/v1 nếu baseURL đã kết thúc bằng /api/v1
+    const base = config.baseURL || baseURL || "";
+    if (base.endsWith("/api/v1") && config.url?.startsWith("/api/v1")) {
+      config.url = config.url.replace(/^\/api\/v1/, "") || "/";
+    }
+
     const token = tokenStore.getAccessToken();
     if (token) {
       config.headers.set("Authorization", `Bearer ${token}`);

@@ -82,6 +82,7 @@ export type StatsCardProps = {
   /** Control the intensity of the 3D shadows */
   depth?: "soft" | "medium" | "deep";
 
+  showGlow?: boolean;
   hover?: boolean;
   loading?: boolean;
   animate?: boolean;
@@ -399,6 +400,7 @@ export function SoftExtrudedStatsCard({
   className = "",
   footer,
   onClick,
+  showGlow = true,
 }: StatsCardProps) {
   const accent = tones[tone];
   const safeProgress = typeof progress === "number" ? Math.max(0, Math.min(100, progress)) : undefined;
@@ -407,9 +409,9 @@ export function SoftExtrudedStatsCard({
     <div
       onClick={onClick}
       className={cn(
-        "group relative overflow-hidden rounded-[24px] border border-white/60 bg-background p-5",
-        "shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)]",
-        "transition-all duration-300 hover:-translate-y-1 hover:shadow-[10px_14px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)]",
+        "group relative overflow-hidden rounded-[18px] sm:rounded-[24px] border border-white/60 bg-background p-3 sm:p-5",
+        "shadow-[5px_5px_12px_var(--shadow-dark),-5px_-5px_12px_var(--shadow-light)] sm:shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)]",
+        "transition-all duration-300 hover:-translate-y-0.5 sm:hover:-translate-y-1 hover:shadow-[8px_12px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]",
         "dark:border-white/10",
         onClick && "cursor-pointer",
         className,
@@ -418,43 +420,45 @@ export function SoftExtrudedStatsCard({
       {/* Specular top highlight */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20"
+        className="pointer-events-none absolute inset-x-4 sm:inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20"
       />
       {/* Ambient glow */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full blur-2xl transition-colors opacity-60"
-        style={{ backgroundColor: accent }}
-      />
+      {showGlow && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 sm:h-24 sm:w-24 rounded-full blur-2xl transition-colors opacity-60"
+          style={{ backgroundColor: accent }}
+        />
+      )}
 
-      <div className="relative flex items-center justify-between">
-        <div>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+      <div className="relative flex items-center justify-between gap-1.5">
+        <div className="min-w-0">
+          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-muted-foreground truncate block">
             {title}
           </span>
-          <p className="mt-1 text-3xl font-extrabold tracking-tight text-foreground font-mono">
+          <p className="mt-0.5 sm:mt-1 text-xl sm:text-3xl font-extrabold tracking-tight text-foreground font-mono">
             {loading ? "..." : value}
           </p>
         </div>
 
         {Icon && (
           <div
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/50 bg-background shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)] transition-transform duration-300 group-hover:scale-105 dark:border-white/10"
+            className="flex h-8 w-8 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl border border-white/50 bg-background shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] sm:shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)] transition-transform duration-300 group-hover:scale-105 dark:border-white/10"
             style={{ color: accent }}
           >
-            <Icon className="h-5 w-5" strokeWidth={2} />
+            <Icon className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={2} />
           </div>
         )}
       </div>
 
       {/* Inset Tray bottom */}
       {safeProgress !== undefined ? (
-        <div className="mt-4 rounded-xl border border-[var(--shadow-dark)]/20 bg-background/60 p-2.5 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
-          <div className="mb-1.5 flex items-center justify-between text-xs font-semibold">
-            <span className="text-[11px] text-muted-foreground font-medium">
+        <div className="mt-2 sm:mt-4 rounded-lg sm:rounded-xl border border-[var(--shadow-dark)]/20 bg-background/60 p-2 sm:p-2.5 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+          <div className="mb-1 sm:mb-1.5 flex items-center justify-between text-xs font-semibold">
+            <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium">
               {progressLabel ?? "Tiến độ"}
             </span>
-            <span className="text-[11px] font-bold" style={{ color: accent }}>
+            <span className="text-[10px] sm:text-[11px] font-bold" style={{ color: accent }}>
               {safeProgress}%
             </span>
           </div>
@@ -466,11 +470,22 @@ export function SoftExtrudedStatsCard({
           </div>
         </div>
       ) : description || footer ? (
-        <div className="mt-4 flex items-center justify-between rounded-xl border border-[var(--shadow-dark)]/20 bg-background/60 px-3 py-2 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
-          <span className="truncate text-xs text-muted-foreground font-medium">
-            {description}
-          </span>
-          {footer && <div className="shrink-0">{footer}</div>}
+        <div className="mt-2 sm:mt-4 flex items-center justify-between rounded-lg sm:rounded-xl border border-[var(--shadow-dark)]/20 bg-background/60 px-2.5 py-1.5 sm:px-3 sm:py-2 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+          {description && (
+            <span
+              className={cn(
+                "truncate text-xs text-muted-foreground font-medium",
+                footer ? "hidden sm:inline" : "text-[10px] sm:text-xs"
+              )}
+            >
+              {description}
+            </span>
+          )}
+          {footer && (
+            <div className={cn("shrink-0", !description ? "w-full text-center" : "w-full flex justify-end sm:w-auto")}>
+              {footer}
+            </div>
+          )}
         </div>
       ) : null}
     </div>
@@ -493,6 +508,7 @@ export function DeepElevationStatsCard({
   className = "",
   footer,
   onClick,
+  showGlow = true,
 }: StatsCardProps) {
   const accent = tones[tone];
   const safeProgress = typeof progress === "number" ? Math.max(0, Math.min(100, progress)) : undefined;
@@ -515,11 +531,13 @@ export function DeepElevationStatsCard({
         className="pointer-events-none absolute inset-x-8 top-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent dark:via-white/30"
       />
       {/* Corner flare */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full blur-2xl transition-colors opacity-70"
-        style={{ backgroundColor: accent }}
-      />
+      {showGlow && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full blur-2xl transition-colors opacity-70"
+          style={{ backgroundColor: accent }}
+        />
+      )}
 
       <div className="relative flex items-center justify-between">
         <span className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground/90">

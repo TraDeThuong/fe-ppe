@@ -19,6 +19,13 @@ interface ApiResponse<T> {
   meta?: PaginationMeta;
 }
 
+function unwrapData<T>(res: any): T {
+  if (res && typeof res === "object" && "data" in res && !("success" in res)) {
+    return res.data as T;
+  }
+  return res as T;
+}
+
 export const cameraService = {
   /**
    * GET /api/v1/cameras
@@ -27,13 +34,23 @@ export const cameraService = {
   async getCameras(
     params?: CameraQueryParams,
   ): Promise<{ items: CameraItem[]; meta?: PaginationMeta }> {
-    const res = await apiClient.get<ApiResponse<CameraItem[]>>("/api/v1/cameras", {
+    const res = await apiClient.get<unknown, any>("/cameras", {
       params,
     });
-    return {
-      items: res.data.data || [],
-      meta: res.data.meta,
-    };
+    if (res && typeof res === "object") {
+      const items = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.items)
+          ? res.items
+          : Array.isArray(res.data?.data)
+            ? res.data.data
+            : Array.isArray(res)
+              ? res
+              : [];
+      const meta = res.meta ?? res.data?.meta;
+      return { items, meta };
+    }
+    return { items: [], meta: undefined };
   },
 
   /**
@@ -41,8 +58,8 @@ export const cameraService = {
    * Lấy thông tin chi tiết camera kèm cấu hình và danh sách luồng stream.
    */
   async getCameraById(id: string): Promise<CameraItem> {
-    const res = await apiClient.get<ApiResponse<CameraItem>>(`/api/v1/cameras/${id}`);
-    return res.data.data;
+    const res = await apiClient.get<unknown, any>(`/cameras/${id}`);
+    return unwrapData<CameraItem>(res);
   },
 
   /**
@@ -50,8 +67,8 @@ export const cameraService = {
    * Thêm mới camera vào hệ thống.
    */
   async createCamera(payload: CreateCameraPayload): Promise<CameraItem> {
-    const res = await apiClient.post<ApiResponse<CameraItem>>("/api/v1/cameras", payload);
-    return res.data.data;
+    const res = await apiClient.post<unknown, any>("/cameras", payload);
+    return unwrapData<CameraItem>(res);
   },
 
   /**
@@ -59,8 +76,8 @@ export const cameraService = {
    * Cập nhật thông tin camera (tên, luồng RTSP, vị trí...).
    */
   async updateCamera(id: string, payload: UpdateCameraPayload): Promise<CameraItem> {
-    const res = await apiClient.put<ApiResponse<CameraItem>>(`/api/v1/cameras/${id}`, payload);
-    return res.data.data;
+    const res = await apiClient.put<unknown, any>(`/cameras/${id}`, payload);
+    return unwrapData<CameraItem>(res);
   },
 
   /**
@@ -68,8 +85,8 @@ export const cameraService = {
    * Xóa camera khỏi hệ thống.
    */
   async deleteCamera(id: string): Promise<{ message: string }> {
-    const res = await apiClient.delete<ApiResponse<{ message: string }>>(`/api/v1/cameras/${id}`);
-    return { message: res.data.message || "Camera deleted successfully" };
+    const res = await apiClient.delete<unknown, any>(`/cameras/${id}`);
+    return { message: res?.message || "Camera deleted successfully" };
   },
 
   /**
@@ -77,8 +94,8 @@ export const cameraService = {
    * Lấy thông số cấu hình AI ROI của camera.
    */
   async getCameraConfig(id: string): Promise<CameraConfigItem> {
-    const res = await apiClient.get<ApiResponse<CameraConfigItem>>(`/api/v1/cameras/${id}/config`);
-    return res.data.data;
+    const res = await apiClient.get<unknown, any>(`/cameras/${id}/config`);
+    return unwrapData<CameraConfigItem>(res);
   },
 
   /**
@@ -89,11 +106,11 @@ export const cameraService = {
     id: string,
     payload: UpdateCameraConfigPayload,
   ): Promise<CameraConfigItem> {
-    const res = await apiClient.put<ApiResponse<CameraConfigItem>>(
-      `/api/v1/cameras/${id}/config`,
+    const res = await apiClient.put<unknown, any>(
+      `/cameras/${id}/config`,
       payload,
     );
-    return res.data.data;
+    return unwrapData<CameraConfigItem>(res);
   },
 
   /**
@@ -101,8 +118,9 @@ export const cameraService = {
    * Lấy danh sách luồng stream (RTSP/HLS/WebRTC) của camera.
    */
   async getCameraStreams(id: string): Promise<CameraStreamItem[]> {
-    const res = await apiClient.get<ApiResponse<CameraStreamItem[]>>(`/api/v1/cameras/${id}/streams`);
-    return res.data.data || [];
+    const res = await apiClient.get<unknown, any>(`/cameras/${id}/streams`);
+    const data = unwrapData<CameraStreamItem[]>(res);
+    return Array.isArray(data) ? data : [];
   },
 
   /**
@@ -110,8 +128,8 @@ export const cameraService = {
    * Thực hiện Ping test tức thì kiểm tra độ trễ mạng và phản hồi camera.
    */
   async pingCamera(id: string): Promise<PingCameraResult> {
-    const res = await apiClient.post<ApiResponse<PingCameraResult>>(`/api/v1/cameras/${id}/ping`);
-    return res.data.data;
+    const res = await apiClient.post<unknown, any>(`/cameras/${id}/ping`);
+    return unwrapData<PingCameraResult>(res);
   },
 
   /**
@@ -122,10 +140,11 @@ export const cameraService = {
     id: string,
     params?: { page?: number; limit?: number },
   ): Promise<CameraHealthLogItem[]> {
-    const res = await apiClient.get<ApiResponse<CameraHealthLogItem[]>>(
-      `/api/v1/cameras/${id}/health-logs`,
+    const res = await apiClient.get<unknown, any>(
+      `/cameras/${id}/health-logs`,
       { params },
     );
-    return res.data.data || [];
+    const data = unwrapData<CameraHealthLogItem[]>(res);
+    return Array.isArray(data) ? data : [];
   },
 };

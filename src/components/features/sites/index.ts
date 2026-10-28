@@ -10,3 +10,4 @@ export * from "./edit-site-modal";
 export * from "./site-safety-config-modal";
 export * from "./site-zones-drawer";
 export * from "./delete-site-dialog";
+export * from "./site-stats-detail-panel";

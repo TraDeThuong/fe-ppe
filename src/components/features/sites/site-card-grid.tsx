@@ -67,52 +67,56 @@ export function SiteCardGrid({
         return (
           <div
             key={site.id}
-            className="flex flex-col justify-between rounded-2xl border border-border/40 bg-surface p-5 shadow-[4px_4px_10px_rgba(0,0,0,0.06),-4px_-4px_10px_rgba(255,255,255,0.7)] transition-all duration-200 hover:shadow-[6px_6px_14px_rgba(0,0,0,0.08),-6px_-6px_14px_rgba(255,255,255,0.9)] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.3)]"
+            className="group flex flex-col justify-between rounded-xl sm:rounded-2xl border border-border/40 bg-surface p-3.5 sm:p-5 shadow-[4px_4px_10px_rgba(0,0,0,0.06),-4px_-4px_10px_rgba(255,255,255,0.7)] transition-all duration-300 hover:-translate-y-1 sm:hover:-translate-y-1.5 hover:shadow-[8px_14px_24px_rgba(0,0,0,0.1),-6px_-6px_14px_rgba(255,255,255,0.9)] dark:border-black/60 dark:bg-card/90 dark:shadow-[5px_5px_14px_rgba(0,0,0,0.55)] dark:hover:border-black dark:hover:bg-card dark:hover:shadow-[0_20px_36px_rgba(0,0,0,0.9),8px_12px_24px_rgba(0,0,0,0.85)]"
           >
-            <div className="space-y-4">
+            <div className="space-y-2.5 sm:space-y-3">
               {/* Header */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-[inset_1px_1px_2px_rgba(0,0,0,0.1)]">
-                    <Building2 className="h-5 w-5" />
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                  <span className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg sm:rounded-xl bg-primary/10 text-primary shadow-[inset_1px_1px_2px_rgba(0,0,0,0.1)] dark:bg-primary/15 dark:shadow-[inset_1px_1px_2px_rgba(0,0,0,0.4)]">
+                    <Building2 className="h-4 w-4" />
                   </span>
-                  <div>
-                    <h4 className="font-bold text-sm text-foreground line-clamp-1">
+                  <div className="min-w-0">
+                    <h4 className="text-xs sm:text-sm font-bold text-foreground truncate">
                       {site.name}
                     </h4>
-                    <span className="font-mono text-xs font-semibold text-primary">
+                    <span className="font-mono text-[11px] sm:text-xs font-semibold text-primary">
                       {site.code}
                     </span>
                   </div>
                 </div>
 
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold shrink-0 ${
                     isActive
-                      ? "bg-emerald-500/10 text-emerald-500"
-                      : "bg-amber-500/10 text-amber-500"
+                      ? "border-primary/30 bg-primary/10 text-primary dark:border-primary/25"
+                      : "border-border/50 bg-background/60 text-muted-foreground dark:border-black/50 dark:bg-background/80"
                   }`}
                 >
                   <span
                     className={`h-1.5 w-1.5 rounded-full ${
-                      isActive ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+                      isActive ? "bg-primary animate-pulse" : "bg-muted-foreground/60"
                     }`}
                   />
-                  {site.status}
+                  {isActive
+                    ? t("sites.status.active")
+                    : site.status === "INACTIVE"
+                      ? t("sites.status.inactive")
+                      : t("sites.status.suspended")}
                 </span>
               </div>
 
               {/* Address */}
-              {site.address && (
-                <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                  <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground/70" />
-                  <span className="line-clamp-2">{site.address}</span>
-                </div>
-              )}
+              <div className="flex items-start gap-1.5 text-[11px] sm:text-xs text-muted-foreground">
+                <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5 text-muted-foreground/70" />
+                <span className="line-clamp-2">
+                  {site.address || t("sites.card.noAddress")}
+                </span>
+              </div>
 
               {/* Personnel / Contact info */}
               {(site.contactPerson || site.contactPhone) && (
-                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-2.5 text-[11px] sm:text-xs text-muted-foreground">
                   {site.contactPerson && (
                     <span className="flex items-center gap-1">
                       <User className="h-3 w-3" />
@@ -128,74 +132,85 @@ export function SiteCardGrid({
                 </div>
               )}
 
-              {/* Spatial Stats Badges */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1 rounded-lg bg-surface-elevated/70 px-2.5 py-1 text-xs text-foreground">
+              {/* Spatial Stats Badges Bar */}
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 rounded-xl border border-border/30 bg-surface-elevated/40 p-2 sm:p-2.5 text-[11px] sm:text-xs dark:border-black/50 dark:bg-background/50">
+                <div className="flex items-center gap-1 text-muted-foreground">
                   <Layers className="h-3.5 w-3.5 text-primary" />
-                  <span>{zoneCount} Phân khu</span>
-                </span>
+                  <span>
+                    <strong className="text-foreground">{zoneCount}</strong>{" "}
+                    {t("sites.units.zones").toLowerCase()}
+                  </span>
+                </div>
 
-                <span className="inline-flex items-center gap-1 rounded-lg bg-surface-elevated/70 px-2.5 py-1 text-xs text-foreground">
-                  <AlertOctagon className="h-3.5 w-3.5 text-danger" />
-                  <span>{restrictedCount} Vùng cấm</span>
-                </span>
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <AlertOctagon className="h-3.5 w-3.5 text-accent" />
+                  <span>
+                    <strong className="text-foreground">{restrictedCount}</strong>{" "}
+                    {t("sites.units.restricted").toLowerCase()}
+                  </span>
+                </div>
 
-                <span className="inline-flex items-center gap-1 rounded-lg bg-surface-elevated/70 px-2.5 py-1 text-xs text-foreground">
-                  <Camera className="h-3.5 w-3.5 text-info" />
-                  <span>{site.cameraCount || 0} Camera</span>
-                </span>
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Camera className="h-3.5 w-3.5 text-primary/80" />
+                  <span>
+                    <strong className="text-foreground">{site.cameraCount || 0}</strong>{" "}
+                    {t("sites.units.cameras").toLowerCase()}
+                  </span>
+                </div>
               </div>
 
               {/* PPE Safety Rules Badges */}
               <div className="space-y-1">
-                <span className="text-[11px] font-semibold uppercase text-muted-foreground">
-                  Tiêu chuẩn PPE:
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  {t("sites.card.ppeStandard")}
                 </span>
                 <SiteSafetyBadges config={safetyConfig} />
               </div>
             </div>
 
-            {/* Actions Bar */}
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-border/30 pt-3">
-              <div className="flex items-center gap-1">
+            {/* Actions Footer */}
+            <div className="flex items-center justify-between border-t border-border/30 dark:border-black/40 pt-2.5 sm:pt-3.5 mt-2.5 sm:mt-4 gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1.5">
                 <Button
+                  variant="outline"
                   size="sm"
-                  variant="ghost"
                   onClick={() => onManageZones(site)}
-                  className="flex items-center gap-1.5 text-xs text-primary hover:text-primary"
+                  className="flex items-center gap-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs h-7 sm:h-8 px-2 sm:px-2.5 text-primary hover:text-primary dark:border-black/60 dark:hover:border-black"
                 >
-                  <Layers className="h-3.5 w-3.5" />
-                  <span>Phân khu & Vùng cấm</span>
+                  <Layers className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  <span>{t("sites.card.zonesAndRestricted")}</span>
                 </Button>
 
                 <Button
+                  variant="outline"
                   size="sm"
-                  variant="ghost"
                   onClick={() => onSafetyConfig(site)}
-                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                  className="flex items-center gap-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs h-7 sm:h-8 px-2 sm:px-2.5 text-muted-foreground hover:text-foreground dark:border-black/60 dark:hover:border-black"
                 >
-                  <Shield className="h-3.5 w-3.5" />
-                  <span>Quy tắc PPE</span>
+                  <Shield className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-accent" />
+                  <span>{t("sites.card.ppeRules")}</span>
                 </Button>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 sm:gap-1.5 ml-auto">
                 <button
                   type="button"
                   onClick={() => onEdit(site)}
-                  title={t("sites.actions.edit")}
-                  className="rounded-xl p-2 text-muted-foreground hover:bg-surface-elevated hover:text-foreground transition"
+                  aria-label={`${t("sites.actions.edit")} ${site.name}`}
+                  title={`${t("sites.actions.edit")} ${site.name}`}
+                  className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary dark:border-black/50 dark:hover:border-black dark:bg-background/40"
                 >
-                  <Edit2 className="h-4 w-4" />
+                  <Edit2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 </button>
 
                 <button
                   type="button"
                   onClick={() => onDelete(site)}
-                  title={t("sites.actions.delete")}
-                  className="rounded-xl p-2 text-danger/80 hover:bg-danger/10 hover:text-danger transition"
+                  aria-label={`${t("sites.actions.delete")} ${site.name}`}
+                  title={`${t("sites.actions.delete")} ${site.name}`}
+                  className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary dark:border-black/50 dark:hover:border-black dark:bg-background/40"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
