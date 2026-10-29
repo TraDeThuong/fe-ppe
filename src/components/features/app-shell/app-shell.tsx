@@ -40,7 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         <AppHeader />
 
-        <main className="relative z-10 flex-1 overflow-y-auto bg-background p-6 lg:p-8">
+        <main className="relative z-10 flex-1 overflow-y-auto bg-background p-3 sm:p-6 lg:p-8">
           {forbidden ? <ForbiddenView /> : children}
         </main>
       </div>

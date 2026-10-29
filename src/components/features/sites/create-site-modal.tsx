@@ -39,7 +39,8 @@ export function CreateSiteModal({
   onSubmit,
   loading = false,
 }: CreateSiteModalProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   // Fetch users for the dropdown
   const { data: usersData, isLoading: usersLoading } = useUsers({ limit: 100 });
@@ -387,6 +388,16 @@ export function CreateSiteModal({
                       <option value="Cán bộ an toàn">
                         {t("sites.form.roles.custom")}
                       </option>
+                      {officer.roleTitle &&
+                        ![
+                          "Trưởng ban an toàn (Lead)",
+                          "Phó ban an toàn (Deputy)",
+                          "Cán bộ giám sát an toàn (Officer)",
+                          "Chỉ huy trưởng công trường",
+                          "Cán bộ an toàn",
+                        ].includes(officer.roleTitle) && (
+                          <option value={officer.roleTitle}>{officer.roleTitle}</option>
+                        )}
                     </select>
                   </div>
 
@@ -464,7 +475,7 @@ export function CreateSiteModal({
                             )
                           }
                           className="text-[11px] px-2 h-8 text-muted-foreground"
-                          title="Chọn lại từ danh sách user"
+                          title={isVietnamese ? "Chọn lại từ danh sách người dùng" : "Select from user list"}
                         >
                           User
                         </Button>
@@ -507,7 +518,7 @@ export function CreateSiteModal({
                               type="button"
                               onClick={() => handleRemovePhone(officer.id, pIdx)}
                               className="p-1 text-muted-foreground hover:text-danger rounded-lg transition"
-                              title="Xóa số này"
+                              title={isVietnamese ? "Xóa số này" : "Remove phone number"}
                             >
                               <Trash2 className="h-3 w-3" />
                             </button>

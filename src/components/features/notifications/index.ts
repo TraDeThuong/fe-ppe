@@ -1,4 +1,6 @@
 export * from "./notification-kpi-summary";
+export * from "./notification-stats-detail-panel";
+export * from "./notification-predefined-data";
 export * from "./notification-tabs";
 export * from "./notification-filter-toolbar";
 export * from "./notification-item";

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { Loader } from "@/components/ui/loader";
 import AuditLogsContent from "./audit-logs-content";
 
 export default function AuditLogsPage() {
@@ -6,7 +7,7 @@ export default function AuditLogsPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[400px] items-center justify-center text-muted-foreground">
-          <p>Đang tải nhật ký kiểm toán hệ thống...</p>
+          <Loader showLabel />
         </div>
       }
     >

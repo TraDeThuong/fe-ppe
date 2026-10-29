@@ -36,7 +36,8 @@ import type { SystemConfigItem } from "@/types";
 const VALID_TABS: SystemTabKey[] = ["flags", "configs", "health", "platform"];
 
 export default function SystemContent() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -128,7 +129,11 @@ export default function SystemContent() {
   // Handlers
   const handleOpenToggleDialog = (flag: SystemConfigItem, enabled: boolean) => {
     if (!canManage) {
-      toast.error("Bạn không có quyền thay đổi công tắc tính năng hệ thống.");
+      toast.error(
+        isVietnamese
+          ? "Bạn không có quyền thay đổi công tắc tính năng hệ thống."
+          : "You do not have permission to toggle system feature flags."
+      );
       return;
     }
     setPendingFlag(flag);
@@ -140,10 +145,16 @@ export default function SystemContent() {
     try {
       await toggleFlag({ key: flag.key, payload: { enabled } });
       toast.success(
-        `Tính năng ${flag.key} hiện đang ở trạng thái: ${enabled ? "BẬT" : "TẮT"}`,
+        isVietnamese
+          ? `Tính năng ${flag.key} hiện đang ở trạng thái: ${enabled ? "BẬT" : "TẮT"}`
+          : `Feature flag ${flag.key} is now: ${enabled ? "ENABLED" : "DISABLED"}`
       );
     } catch {
-      toast.error("Không thể thay đổi trạng thái lúc này. Vui lòng thử lại.");
+      toast.error(
+        isVietnamese
+          ? "Không thể thay đổi trạng thái lúc này. Vui lòng thử lại."
+          : "Unable to change status at this moment. Please try again."
+      );
     }
   };
 
@@ -161,7 +172,11 @@ export default function SystemContent() {
 
   const handleSaveCreate = async (payload: Parameters<typeof createConfig>[0]) => {
     await createConfig(payload);
-    toast.success(`Đã tạo biến cấu hình ${payload.key}`);
+    toast.success(
+      isVietnamese
+        ? `Đã tạo biến cấu hình ${payload.key}`
+        : `Created config variable ${payload.key}`
+    );
   };
 
   const handleSaveEdit = async (
@@ -169,12 +184,20 @@ export default function SystemContent() {
     payload: Parameters<typeof updateConfig>[0]["payload"],
   ) => {
     await updateConfig({ key, payload });
-    toast.success(`Đã cập nhật biến cấu hình ${key}`);
+    toast.success(
+      isVietnamese
+        ? `Đã cập nhật biến cấu hình ${key}`
+        : `Updated config variable ${key}`
+    );
   };
 
   const handleConfirmDelete = async (key: string) => {
     await deleteConfig(key);
-    toast.success(`Biến cấu hình ${key} đã được xóa thành công.`);
+    toast.success(
+      isVietnamese
+        ? `Biến cấu hình ${key} đã được xóa thành công.`
+        : `Config variable ${key} deleted successfully.`
+    );
   };
 
   const breadcrumbs = useMemo(
@@ -194,7 +217,7 @@ export default function SystemContent() {
           className="flex items-center gap-1.5 rounded-xl text-xs"
         >
           <ScrollText className="h-4 w-4 text-muted-foreground" />
-          <span>Nhật ký Cấu hình</span>
+          <span>{isVietnamese ? "Nhật ký Cấu hình" : "Config Audit Logs"}</span>
         </Button>
       </Link>
 
@@ -218,7 +241,7 @@ export default function SystemContent() {
         icon={Settings2}
         title={t("system.title")}
         description={t("system.description")}
-        badge={canManage ? t("system.badge") : "Chỉ xem (Read-only)"}
+        badge={canManage ? t("system.badge") : (isVietnamese ? "Chỉ xem (Read-only)" : "Read-only")}
         badgeIcon={Settings2}
         breadcrumbs={breadcrumbs}
         actions={headerActions}
@@ -229,9 +252,11 @@ export default function SystemContent() {
         <div className="flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-700 dark:text-amber-400 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.05)]">
           <ShieldAlert className="h-5 w-5 shrink-0" />
           <div className="text-xs">
-            <p className="font-semibold">Chế độ Chỉ xem (Read-only Mode)</p>
+            <p className="font-semibold">{isVietnamese ? "Chế độ Chỉ xem (Read-only Mode)" : "Read-only Mode"}</p>
             <p className="text-muted-foreground mt-0.5">
-              Bạn có quyền xem thông số hệ thống nhưng không thể thay đổi giá trị cấu hình hoặc gạt công tắc tính năng. Liên hệ Quản trị viên (ADMIN) nếu cần cấp quyền.
+              {isVietnamese
+                ? "Bạn có quyền xem thông số hệ thống nhưng không thể thay đổi giá trị cấu hình hoặc gạt công tắc tính năng. Liên hệ Quản trị viên (ADMIN) nếu cần cấp quyền."
+                : "You have permission to view system parameters but cannot modify config values or toggle feature flags. Contact an Administrator (ADMIN) if elevated access is required."}
             </p>
           </div>
         </div>

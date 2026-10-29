@@ -36,7 +36,8 @@ export function SiteCardGrid({
   loading = false,
 }: SiteCardGridProps) {
   const router = useRouter();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   if (loading) {
     return (
@@ -61,9 +62,13 @@ export function SiteCardGrid({
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {sites.map((site) => {
         const isActive = site.status === "ACTIVE";
-        const zoneCount = site.zones?.length || site.zoneCount || 0;
+        const zoneCount =
+          site.zoneCount ?? site.zones?.length ?? site._count?.zones ?? 0;
         const restrictedCount =
-          site.restrictedAreas?.length || site.restrictedAreaCount || 0;
+          site.restrictedAreaCount ??
+          site.restrictedAreas?.length ??
+          site._count?.restrictedAreas ??
+          0;
         const safetyConfig = site.safetyConfigs?.[0] || null;
 
         return (
@@ -140,7 +145,7 @@ export function SiteCardGrid({
 
                     {site.contactOfficers.length > 1 && (
                       <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[9.5px] font-bold text-primary">
-                        +{site.contactOfficers.length - 1} cán bộ khác
+                        +{site.contactOfficers.length - 1} {isVietnamese ? "cán bộ khác" : "more officers"}
                       </span>
                     )}
                   </div>

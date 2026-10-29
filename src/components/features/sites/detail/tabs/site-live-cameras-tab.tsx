@@ -24,7 +24,8 @@ export interface SiteLiveCamerasTabProps {
 }
 
 export function SiteLiveCamerasTab({ site }: SiteLiveCamerasTabProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [selectedZone, setSelectedZone] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
@@ -53,17 +54,19 @@ export function SiteLiveCamerasTab({ site }: SiteLiveCamerasTabProps) {
   return (
     <div className="space-y-4">
       {/* Control bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/40 bg-surface p-3.5 shadow-sm dark:border-black/60 dark:bg-card/90">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-border/40 bg-surface p-3 sm:p-3.5 shadow-sm dark:border-black/60 dark:bg-card/90">
         <div className="flex flex-wrap items-center gap-2">
           {/* Zone Filter */}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Layers className="h-3.5 w-3.5 text-primary" />
+            <Layers className="h-3.5 w-3.5 text-primary shrink-0" />
             <select
               value={selectedZone}
               onChange={(e) => setSelectedZone(e.target.value)}
-              className="rounded-xl border border-border/40 bg-surface-elevated px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none dark:border-black/40 dark:bg-background/60"
+              className="rounded-xl border border-border/40 bg-surface-elevated px-2.5 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none dark:border-black/40 dark:bg-background/60"
             >
-              <option value="ALL">Tất cả phân khu ({zones.length})</option>
+              <option value="ALL">
+                {isVietnamese ? `Tất cả phân khu (${zones.length})` : `All Zones (${zones.length})`}
+              </option>
               {zones.map((z) => (
                 <option key={z.id} value={z.id}>
                   {z.name}
@@ -77,23 +80,30 @@ export function SiteLiveCamerasTab({ site }: SiteLiveCamerasTabProps) {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-xl border border-border/40 bg-surface-elevated px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none dark:border-black/40 dark:bg-background/60"
+              className="rounded-xl border border-border/40 bg-surface-elevated px-2.5 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none dark:border-black/40 dark:bg-background/60"
             >
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="ONLINE">Đang trực (Online)</option>
-              <option value="OFFLINE">Mất kết nối (Offline)</option>
+              <option value="ALL">{isVietnamese ? "Tất cả trạng thái" : "All Statuses"}</option>
+              <option value="ONLINE">{isVietnamese ? "Đang trực (Online)" : "Online"}</option>
+              <option value="OFFLINE">{isVietnamese ? "Mất kết nối (Offline)" : "Offline"}</option>
             </select>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <Link
             href={`/cameras?siteId=${site.id}&view=wall`}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/[0.08] px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition shadow-sm"
-            title="Mở toàn bộ camera của công trường này trên Video Wall toàn màn hình"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/[0.08] px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition shadow-sm"
+            title={
+              isVietnamese
+                ? "Mở toàn bộ camera của công trường này trên Video Wall toàn màn hình"
+                : "Open all site cameras on full-screen Video Wall"
+            }
           >
-            <Maximize2 className="h-3 w-3" />
-            <span>Mở Video Wall</span>
+            <Maximize2 className="h-3 w-3 shrink-0" />
+            <span className="sm:hidden">{isVietnamese ? "Wall" : "Wall"}</span>
+            <span className="hidden sm:inline">
+              {isVietnamese ? "Mở Video Wall" : "Open Video Wall"}
+            </span>
           </Link>
 
           {/* Refresh button */}
@@ -102,7 +112,7 @@ export function SiteLiveCamerasTab({ site }: SiteLiveCamerasTabProps) {
             onClick={() => refetch()}
             disabled={isFetching}
             className="flex h-8 w-8 items-center justify-center rounded-xl border border-border/40 text-muted-foreground hover:text-primary transition dark:border-black/40"
-            title="Làm mới luồng"
+            title={isVietnamese ? "Làm mới luồng" : "Refresh feeds"}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
           </button>
@@ -119,9 +129,13 @@ export function SiteLiveCamerasTab({ site }: SiteLiveCamerasTabProps) {
       ) : filteredCameras.length === 0 ? (
         <div className="rounded-2xl border border-border/30 bg-surface p-12 text-center dark:border-black/50 dark:bg-card/70">
           <Camera className="mx-auto h-12 w-12 text-muted-foreground/40 mb-3" />
-          <h4 className="text-sm font-bold text-foreground">Không tìm thấy Camera nào</h4>
+          <h4 className="text-sm font-bold text-foreground">
+            {isVietnamese ? "Không tìm thấy Camera nào" : "No Cameras Found"}
+          </h4>
           <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
-            Hiện tại chưa có camera nào được gán vào công trường hoặc phân khu này. Bạn có thể sang trang Quản lý Camera để cấu hình.
+            {isVietnamese
+              ? "Hiện tại chưa có camera nào được gán vào công trường hoặc phân khu này. Bạn có thể sang trang Quản lý Camera để cấu hình."
+              : "No cameras assigned to this site or zone yet. You can visit the Cameras management page to configure new cameras."}
           </p>
         </div>
       ) : (
@@ -144,7 +158,7 @@ export function SiteLiveCamerasTab({ site }: SiteLiveCamerasTabProps) {
                   <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 rounded-full bg-black/60 backdrop-blur-md px-2 py-0.5 text-[10px] font-mono text-white">
                     <span
                       className={`h-1.5 w-1.5 rounded-full ${
-                        isOnline ? "bg-emerald-400 animate-pulse" : "bg-rose-500"
+                        isOnline ? "bg-primary animate-pulse" : "bg-danger"
                       }`}
                     />
                     <span>{cam.status}</span>
@@ -158,12 +172,12 @@ export function SiteLiveCamerasTab({ site }: SiteLiveCamerasTabProps) {
                   {/* Stream Status Content */}
                   {isOnline ? (
                     <div className="relative flex flex-col items-center justify-center text-slate-400 text-xs">
-                      <Video className="h-8 w-8 mb-1 text-primary/60" />
+                      <Video className="h-8 w-8 mb-1 text-primary/80" />
                       <span className="font-mono text-[10px]">RTSP Stream Active</span>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center text-slate-500 text-xs">
-                      <WifiOff className="h-8 w-8 mb-1 text-rose-500/60" />
+                      <WifiOff className="h-8 w-8 mb-1 text-danger/80" />
                       <span className="font-mono text-[10px]">Signal Disconnected</span>
                     </div>
                   )}
@@ -173,7 +187,7 @@ export function SiteLiveCamerasTab({ site }: SiteLiveCamerasTabProps) {
                     <div>
                       <p className="text-xs font-bold leading-tight drop-shadow">{cam.name}</p>
                       <p className="font-mono text-[10px] text-slate-300">
-                        {cam.zoneName || "Chưa phân Zone"}
+                        {cam.zoneName || (isVietnamese ? "Chưa phân khu" : "Unassigned Zone")}
                       </p>
                     </div>
 
@@ -196,9 +210,13 @@ export function SiteLiveCamerasTab({ site }: SiteLiveCamerasTabProps) {
                     <Link
                       href={`/cameras?search=${cam.code}&view=wall`}
                       className="text-primary hover:underline flex items-center gap-0.5"
-                      title="Mở camera này trên Video Wall"
+                      title={
+                        isVietnamese
+                          ? "Mở camera này trên Video Wall"
+                          : "Open camera on Video Wall"
+                      }
                     >
-                      <span>Xem live</span>
+                      <span>{isVietnamese ? "Xem trực tiếp" : "Live View"}</span>
                       <ExternalLink className="h-2.5 w-2.5" />
                     </Link>
                   </div>

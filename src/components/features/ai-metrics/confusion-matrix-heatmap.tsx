@@ -241,14 +241,14 @@ export function ConfusionMatrixHeatmap({
               False Positive / Negative
             </p>
             <p className="text-[10px] text-muted-foreground">
-              Dự đoán nhầm lớp
+              {isVi ? "Dự đoán nhầm lớp" : "Misclassified cases"}
             </p>
           </div>
         </div>
 
         <div className="ml-auto flex items-center gap-1.5 text-muted-foreground">
           <CircleHelp className="h-3.5 w-3.5" />
-          <span className="text-[10px]">Hover để xem chi tiết</span>
+          <span className="text-[10px]">{isVi ? "Hover để xem chi tiết" : "Hover cells for details"}</span>
         </div>
       </footer>
     </section>

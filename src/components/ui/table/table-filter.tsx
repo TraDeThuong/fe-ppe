@@ -3,6 +3,7 @@
 import { Filter, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTableContext } from "./table-context";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface TableFilterOption {
   label: string;
@@ -28,9 +29,19 @@ export function TableFilter({
   filters,
   showReset = true,
   className = "",
-  title = "Bộ lọc dữ liệu",
+  title,
 }: TableFilterProps) {
   const { table, variant } = useTableContext();
+
+  let isVietnamese = true;
+  try {
+    const localeCtx = useLocale();
+    isVietnamese = localeCtx.locale === "vi-VN";
+  } catch {
+    // fallback if outside LocaleProvider
+  }
+
+  const effectiveTitle = title ?? (isVietnamese ? "Bộ lọc dữ liệu" : "Data Filter");
 
   const hasActiveFilters =
     (table.state.columnFilters?.length ?? 0) > 0 ||
@@ -68,7 +79,7 @@ export function TableFilter({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
           <Filter size={13} className="text-primary" />
-          <span>{title}</span>
+          <span>{effectiveTitle}</span>
         </div>
 
         {showReset && (
@@ -81,7 +92,7 @@ export function TableFilter({
             className="text-xs h-8 px-2.5"
           >
             <RotateCcw size={12} className={hasActiveFilters ? "text-primary" : ""} />
-            Đặt lại bộ lọc
+            {isVietnamese ? "Đặt lại bộ lọc" : "Reset filters"}
           </Button>
         )}
       </div>
@@ -113,7 +124,7 @@ export function TableFilter({
                     className={controlClass}
                     aria-label={filter.label}
                   >
-                    <option value="">Tất cả {filter.label.toLowerCase()}</option>
+                    <option value="">{isVietnamese ? `Tất cả ${filter.label.toLowerCase()}` : `All ${filter.label.toLowerCase()}`}</option>
                     {(filter.options ?? []).map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
@@ -128,7 +139,7 @@ export function TableFilter({
                   onChange={(event) =>
                     column.setFilterValue(event.target.value || undefined)
                   }
-                  placeholder={filter.placeholder ?? `Nhập để lọc ${filter.label.toLowerCase()}...`}
+                  placeholder={filter.placeholder ?? (isVietnamese ? `Nhập để lọc ${filter.label.toLowerCase()}...` : `Filter by ${filter.label.toLowerCase()}...`)}
                   className={controlClass}
                   aria-label={filter.label}
                 />

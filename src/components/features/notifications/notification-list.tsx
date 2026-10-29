@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useLocale } from "@/providers/locale-provider";
 import { NotificationItem } from "./notification-item";
 import { NotificationSkeleton } from "./notification-skeleton";
 import { NotificationEmptyState } from "./notification-empty-state";
@@ -38,6 +39,9 @@ export function NotificationList({
   onResetFilters,
   className = "",
 }: NotificationListProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
+
   if (isLoading) {
     return <NotificationSkeleton count={4} />;
   }
@@ -69,9 +73,19 @@ export function NotificationList({
       {totalPages > 1 && onPageChange && (
         <div className="flex flex-col items-center justify-between gap-3 rounded-2xl border border-border/30 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] sm:flex-row sm:p-4">
           <p className="text-xs text-muted-foreground font-medium">
-            Hiển thị <span className="font-bold text-foreground">{startIdx}</span> -{" "}
-            <span className="font-bold text-foreground">{endIdx}</span> trên{" "}
-            <span className="font-bold text-foreground">{total}</span> thông báo
+            {isVietnamese ? (
+              <>
+                Hiển thị <span className="font-bold text-foreground">{startIdx}</span> -{" "}
+                <span className="font-bold text-foreground">{endIdx}</span> trên{" "}
+                <span className="font-bold text-foreground">{total}</span> thông báo
+              </>
+            ) : (
+              <>
+                Showing <span className="font-bold text-foreground">{startIdx}</span> -{" "}
+                <span className="font-bold text-foreground">{endIdx}</span> of{" "}
+                <span className="font-bold text-foreground">{total}</span> notifications
+              </>
+            )}
           </p>
 
           <div className="flex items-center gap-1.5">
@@ -81,7 +95,7 @@ export function NotificationList({
               onClick={() => onPageChange(page - 1)}
               disabled={page <= 1}
               className="flex size-8 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_1px_1px_3px_var(--shadow-dark)] disabled:pointer-events-none disabled:opacity-40"
-              aria-label="Trang trước"
+              aria-label={isVietnamese ? "Trang trước" : "Previous page"}
             >
               <ChevronLeft className="size-4" />
             </button>
@@ -119,7 +133,7 @@ export function NotificationList({
               onClick={() => onPageChange(page + 1)}
               disabled={page >= totalPages}
               className="flex size-8 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_1px_1px_3px_var(--shadow-dark)] disabled:pointer-events-none disabled:opacity-40"
-              aria-label="Trang tiếp theo"
+              aria-label={isVietnamese ? "Trang tiếp theo" : "Next page"}
             >
               <ChevronRight className="size-4" />
             </button>

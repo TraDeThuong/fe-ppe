@@ -19,6 +19,38 @@ interface ApiResponse<T> {
   meta?: PaginationMeta;
 }
 
+function unwrapData<T>(res: any): T {
+  if (res && typeof res === "object") {
+    if ("data" in res && !("status" in res && "headers" in res)) {
+      return (res.data as T) ?? (res as T);
+    }
+  }
+  return res as T;
+}
+
+function unwrapArray<T>(res: any): T[] {
+  if (!res) return [];
+  if (Array.isArray(res)) return res;
+  if (typeof res === "object") {
+    if (Array.isArray(res.data)) return res.data;
+    if (Array.isArray(res.items)) return res.items;
+  }
+  return [];
+}
+
+function unwrapPaginated<T>(res: any): { items: T[]; meta?: PaginationMeta } {
+  if (!res) return { items: [] };
+  if (Array.isArray(res)) return { items: res };
+  const raw = res as any;
+  const items = Array.isArray(raw.data)
+    ? raw.data
+    : Array.isArray(raw.items)
+      ? raw.items
+      : [];
+  const meta = raw.meta ?? raw.data?.meta;
+  return { items, meta };
+}
+
 export const incidentService = {
   /**
    * GET /api/v1/incidents
@@ -27,13 +59,10 @@ export const incidentService = {
   async getIncidents(
     params?: IncidentQueryParams,
   ): Promise<{ items: IncidentItem[]; meta?: PaginationMeta }> {
-    const res = await apiClient.get<ApiResponse<IncidentItem[]>>("/api/v1/incidents", {
+    const res = await apiClient.get<unknown, any>("/incidents", {
       params,
     });
-    return {
-      items: res.data.data || [],
-      meta: res.data.meta,
-    };
+    return unwrapPaginated<IncidentItem>(res);
   },
 
   /**
@@ -41,8 +70,8 @@ export const incidentService = {
    * Lấy chi tiết sự cố kèm bằng chứng hình ảnh và nhật ký phân công.
    */
   async getIncidentById(id: string): Promise<IncidentItem> {
-    const res = await apiClient.get<ApiResponse<IncidentItem>>(`/api/v1/incidents/${id}`);
-    return res.data.data;
+    const res = await apiClient.get<unknown>(`/incidents/${id}`);
+    return unwrapData<IncidentItem>(res);
   },
 
   /**
@@ -50,11 +79,11 @@ export const incidentService = {
    * Thẩm duyệt sự cố: Xác nhận (CONFIRMED) hoặc Bác bỏ (DISMISSED).
    */
   async reviewIncident(id: string, payload: ReviewIncidentPayload): Promise<IncidentItem> {
-    const res = await apiClient.post<ApiResponse<IncidentItem>>(
-      `/api/v1/incidents/${id}/review`,
+    const res = await apiClient.post<unknown>(
+      `/incidents/${id}/review`,
       payload,
     );
-    return res.data.data;
+    return unwrapData<IncidentItem>(res);
   },
 
   /**
@@ -62,11 +91,11 @@ export const incidentService = {
    * Đánh dấu sự cố đã được khắc phục tại hiện trường.
    */
   async resolveIncident(id: string, payload: ResolveIncidentPayload): Promise<IncidentItem> {
-    const res = await apiClient.post<ApiResponse<IncidentItem>>(
-      `/api/v1/incidents/${id}/resolve`,
+    const res = await apiClient.post<unknown>(
+      `/incidents/${id}/resolve`,
       payload,
     );
-    return res.data.data;
+    return unwrapData<IncidentItem>(res);
   },
 
   /**
@@ -74,11 +103,11 @@ export const incidentService = {
    * Nghiệm thu và đóng hoàn tất hồ sơ sự cố.
    */
   async closeIncident(id: string, payload?: CloseIncidentPayload): Promise<IncidentItem> {
-    const res = await apiClient.post<ApiResponse<IncidentItem>>(
-      `/api/v1/incidents/${id}/close`,
+    const res = await apiClient.post<unknown>(
+      `/incidents/${id}/close`,
       payload || {},
     );
-    return res.data.data;
+    return unwrapData<IncidentItem>(res);
   },
 
   /**
@@ -86,10 +115,10 @@ export const incidentService = {
    * Lấy lịch sử phân công cán bộ xử lý sự cố.
    */
   async getAssignments(id: string): Promise<IncidentAssignmentItem[]> {
-    const res = await apiClient.get<ApiResponse<IncidentAssignmentItem[]>>(
-      `/api/v1/incidents/${id}/assignments`,
+    const res = await apiClient.get<unknown>(
+      `/incidents/${id}/assignments`,
     );
-    return res.data.data || [];
+    return unwrapArray<IncidentAssignmentItem>(res);
   },
 
   /**
@@ -100,11 +129,17 @@ export const incidentService = {
     id: string,
     payload: CreateAssignmentPayload,
   ): Promise<IncidentAssignmentItem> {
-    const res = await apiClient.post<ApiResponse<IncidentAssignmentItem>>(
-      `/api/v1/incidents/${id}/assignments`,
-      payload,
+    const finalPayload = {
+      assignedTo: payload.assignedTo || payload.assignedToUserId,
+      priority: payload.priority,
+      deadline: payload.deadline,
+      note: payload.note,
+    };
+    const res = await apiClient.post<unknown>(
+      `/incidents/${id}/assignments`,
+      finalPayload,
     );
-    return res.data.data;
+    return unwrapData<IncidentAssignmentItem>(res);
   },
 
   /**
@@ -112,10 +147,10 @@ export const incidentService = {
    * Lấy danh sách trao đổi bình luận nội bộ.
    */
   async getComments(id: string): Promise<IncidentCommentItem[]> {
-    const res = await apiClient.get<ApiResponse<IncidentCommentItem[]>>(
-      `/api/v1/incidents/${id}/comments`,
+    const res = await apiClient.get<unknown>(
+      `/incidents/${id}/comments`,
     );
-    return res.data.data || [];
+    return unwrapArray<IncidentCommentItem>(res);
   },
 
   /**
@@ -123,11 +158,11 @@ export const incidentService = {
    * Gửi bình luận trao đổi hiện trường.
    */
   async addComment(id: string, comment: string): Promise<IncidentCommentItem> {
-    const res = await apiClient.post<ApiResponse<IncidentCommentItem>>(
-      `/api/v1/incidents/${id}/comments`,
+    const res = await apiClient.post<unknown>(
+      `/incidents/${id}/comments`,
       { comment },
     );
-    return res.data.data;
+    return unwrapData<IncidentCommentItem>(res);
   },
 
   /**
@@ -135,10 +170,10 @@ export const incidentService = {
    * Lấy link presigned tải ảnh bằng chứng gốc từ MinIO.
    */
   async getEvidenceDownloadUrl(evidenceId: string): Promise<{ downloadUrl: string; expiresIn: number }> {
-    const res = await apiClient.get<ApiResponse<{ downloadUrl: string; expiresIn: number }>>(
-      `/api/v1/evidences/${evidenceId}/download-url`,
+    const res = await apiClient.get<unknown>(
+      `/evidences/${evidenceId}/download-url`,
     );
-    return res.data.data;
+    return unwrapData<{ downloadUrl: string; expiresIn: number }>(res);
   },
 
   /**
@@ -146,10 +181,10 @@ export const incidentService = {
    * Giám định tính toàn vẹn mã băm SHA-256 chống can thiệp bằng chứng.
    */
   async verifyEvidenceIntegrity(evidenceId: string): Promise<ChecksumVerifyResult> {
-    const res = await apiClient.get<ApiResponse<ChecksumVerifyResult>>(
-      `/api/v1/evidences/${evidenceId}/verify-checksum`,
+    const res = await apiClient.get<unknown>(
+      `/evidences/${evidenceId}/verify-checksum`,
     );
-    return res.data.data;
+    return unwrapData<ChecksumVerifyResult>(res);
   },
 
   /**
@@ -157,9 +192,9 @@ export const incidentService = {
    * Xóa hồ sơ sự cố.
    */
   async deleteIncident(id: string): Promise<{ message: string }> {
-    const res = await apiClient.delete<ApiResponse<{ message: string }>>(
-      `/api/v1/incidents/${id}`,
+    const res = await apiClient.delete<unknown, any>(
+      `/incidents/${id}`,
     );
-    return { message: res.data.message || "Incident deleted successfully" };
+    return { message: res?.message || "Incident deleted successfully" };
   },
 };

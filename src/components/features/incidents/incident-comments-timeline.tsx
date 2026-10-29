@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MessageSquare, Send, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLocale } from "@/providers/locale-provider";
 import type { IncidentCommentItem } from "@/types";
 
 export interface IncidentCommentsTimelineProps {
@@ -16,6 +17,8 @@ export function IncidentCommentsTimeline({
   onSendComment,
   loading = false,
 }: IncidentCommentsTimelineProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [commentText, setCommentText] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -38,7 +41,9 @@ export function IncidentCommentsTimeline({
       <div className="flex items-center gap-2 border-b border-border/30 pb-3">
         <MessageSquare className="h-4 w-4 text-primary" />
         <h4 className="font-bold text-sm text-foreground">
-          Trao đổi & Bình luận Hiện trường ({comments.length})
+          {isVietnamese
+            ? `Trao đổi & Bình luận Hiện trường (${comments.length})`
+            : `Field Notes & Incident Discussion (${comments.length})`}
         </h4>
       </div>
 
@@ -46,11 +51,13 @@ export function IncidentCommentsTimeline({
       <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
         {comments.length === 0 ? (
           <p className="py-4 text-center text-xs text-muted-foreground">
-            Chưa có bình luận nào. Hãy gửi phản hồi đầu tiên về sự cố này.
+            {isVietnamese
+              ? "Chưa có bình luận nào. Hãy gửi phản hồi đầu tiên về sự cố này."
+              : "No comments yet. Post the first response regarding this incident."}
           </p>
         ) : (
           comments.map((c) => {
-            const timeStr = new Date(c.createdAt).toLocaleTimeString("vi-VN", {
+            const timeStr = new Date(c.createdAt).toLocaleTimeString(locale, {
               hour: "2-digit",
               minute: "2-digit",
             });
@@ -66,7 +73,7 @@ export function IncidentCommentsTimeline({
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-xs text-foreground">
-                      {c.userName || "Cán bộ An toàn"}
+                      {c.userName || (isVietnamese ? "Cán bộ An toàn" : "Safety Officer")}
                     </span>
                     <span className="font-mono text-[10px] text-muted-foreground">
                       {timeStr}
@@ -88,7 +95,11 @@ export function IncidentCommentsTimeline({
           type="text"
           value={commentText}
           onChange={(e) => setCommentText(e.target.value)}
-          placeholder="Nhập ghi chú hoặc cập nhật tiến độ hiện trường..."
+          placeholder={
+            isVietnamese
+              ? "Nhập ghi chú hoặc cập nhật tiến độ hiện trường..."
+              : "Enter field notes or incident progress updates..."
+          }
           className="flex-1 rounded-xl border border-border/40 bg-surface px-3.5 py-2 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
           disabled={loading || sending}
         />
@@ -100,7 +111,7 @@ export function IncidentCommentsTimeline({
           className="flex items-center gap-1.5"
         >
           <Send className="h-3.5 w-3.5" />
-          <span>Gửi</span>
+          <span>{isVietnamese ? "Gửi" : "Send"}</span>
         </Button>
       </form>
     </div>

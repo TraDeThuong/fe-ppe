@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Pencil, X } from "lucide-react";
 import { useTableContext } from "./table-context";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface TableEditableCellProps {
   row: unknown;
@@ -24,10 +25,21 @@ export function TableEditableCell({
   displayValue,
   inputType = "text",
   disabled = false,
-  placeholder = "Nhập giá trị...",
+  placeholder,
   className = "",
 }: TableEditableCellProps) {
   const { onCellEdit, loading } = useTableContext();
+
+  let isVietnamese = true;
+  try {
+    const localeCtx = useLocale();
+    isVietnamese = localeCtx.locale === "vi-VN";
+  } catch {
+    // fallback if outside LocaleProvider
+  }
+
+  const effectivePlaceholder =
+    placeholder ?? (isVietnamese ? "Nhập giá trị..." : "Enter value...");
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value ?? ""));
@@ -57,7 +69,7 @@ export function TableEditableCell({
 
   const saveEdit = async () => {
     if (!onCellEdit) {
-      setError("Chưa cấu hình callback onCellEdit.");
+      setError(isVietnamese ? "Chưa cấu hình callback onCellEdit." : "onCellEdit callback is not configured.");
       return;
     }
 
@@ -67,7 +79,7 @@ export function TableEditableCell({
         : draft;
 
     if (inputType === "number" && draft.trim() !== "" && !Number.isFinite(nextValue)) {
-      setError("Vui lòng nhập một số hợp lệ.");
+      setError(isVietnamese ? "Vui lòng nhập một số hợp lệ." : "Please enter a valid number.");
       return;
     }
 
@@ -88,7 +100,7 @@ export function TableEditableCell({
       setError(
         cause instanceof Error
           ? cause.message
-          : "Không thể lưu thay đổi. Vui lòng thử lại.",
+          : isVietnamese ? "Không thể lưu thay đổi. Vui lòng thử lại." : "Unable to save changes. Please try again.",
       );
     } finally {
       setSaving(false);
@@ -100,8 +112,8 @@ export function TableEditableCell({
       <div
         role="button"
         tabIndex={disabled || loading || !onCellEdit ? -1 : 0}
-        title="Nhấp vào ô để chỉnh sửa trực tiếp nội dung"
-        aria-label={`Chỉnh sửa ${columnId}: ${String(value ?? "")}`}
+        title={isVietnamese ? "Nhấp vào ô để chỉnh sửa trực tiếp nội dung" : "Click cell to edit directly"}
+        aria-label={isVietnamese ? `Chỉnh sửa ${columnId}: ${String(value ?? "")}` : `Edit ${columnId}: ${String(value ?? "")}`}
         onClick={(event) => {
           event.stopPropagation();
           beginEdit();
@@ -157,16 +169,16 @@ export function TableEditableCell({
     >
       <div className="flex items-center justify-between px-1">
         <span className="text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1">
-          <Pencil size={10} /> Đang sửa: {columnId}
+          <Pencil size={10} /> {isVietnamese ? "Đang sửa" : "Editing"}: {columnId}
         </span>
-        <span className="text-[10px] text-muted-foreground">Enter để lưu</span>
+        <span className="text-[10px] text-muted-foreground">{isVietnamese ? "Enter để lưu" : "Enter to save"}</span>
       </div>
 
       <input
         ref={inputRef}
         type={inputType}
         value={draft}
-        placeholder={placeholder}
+        placeholder={effectivePlaceholder}
         disabled={saving}
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={(event) => {
@@ -179,7 +191,7 @@ export function TableEditableCell({
             cancelEdit();
           }
         }}
-        aria-label={`Giá trị mới cho ${columnId}`}
+        aria-label={isVietnamese ? `Giá trị mới cho ${columnId}` : `New value for ${columnId}`}
         aria-invalid={Boolean(error)}
         className={[
           "h-9 w-full min-w-0 rounded-xl px-3 text-xs font-semibold",
@@ -211,7 +223,7 @@ export function TableEditableCell({
           ].join(" ")}
         >
           <Check size={13} />
-          {saving ? "Lưu..." : "Lưu"}
+          {saving ? (isVietnamese ? "Lưu..." : "Saving...") : (isVietnamese ? "Lưu" : "Save")}
         </button>
 
         <button
@@ -227,7 +239,7 @@ export function TableEditableCell({
           ].join(" ")}
         >
           <X size={13} />
-          Hủy
+          {isVietnamese ? "Hủy" : "Cancel"}
         </button>
       </div>
     </div>

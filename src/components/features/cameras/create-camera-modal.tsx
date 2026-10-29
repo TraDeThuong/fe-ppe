@@ -13,6 +13,8 @@ export interface CreateCameraModalProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (payload: CreateCameraPayload) => Promise<void>;
   loading?: boolean;
+  defaultSiteId?: string;
+  defaultZoneId?: string;
 }
 
 export function CreateCameraModal({
@@ -20,8 +22,11 @@ export function CreateCameraModal({
   onOpenChange,
   onSubmit,
   loading = false,
+  defaultSiteId,
+  defaultZoneId,
 }: CreateCameraModalProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   // Load sites for siteId linking
   const { data: sitesData } = useSites();
@@ -29,8 +34,8 @@ export function CreateCameraModal({
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
-  const [siteId, setSiteId] = useState("");
-  const [zoneId, setZoneId] = useState("");
+  const [siteId, setSiteId] = useState(defaultSiteId || "");
+  const [zoneId, setZoneId] = useState(defaultZoneId || "");
   const [sourceType, setSourceType] = useState<CameraSourceType>("RTSP");
   const [streamUrl, setStreamUrl] = useState("");
   const [location, setLocation] = useState("");
@@ -40,33 +45,53 @@ export function CreateCameraModal({
   const { data: zones = [] } = useSiteZones(siteId, Boolean(siteId));
 
   useEffect(() => {
-    if (sites.length > 0 && !siteId) {
-      setSiteId(sites[0].id);
+    if (open) {
+      if (defaultSiteId) {
+        setSiteId(defaultSiteId);
+        if (defaultZoneId) {
+          setZoneId(defaultZoneId);
+        }
+      } else if (sites.length > 0 && !siteId) {
+        setSiteId(sites[0].id);
+      }
     }
-  }, [sites, siteId]);
+  }, [open, defaultSiteId, defaultZoneId, sites, siteId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (!name.trim()) {
-      setError("Vui lòng nhập tên camera.");
+      setError(isVietnamese ? "Vui lòng nhập tên camera." : "Please enter camera name.");
       return;
     }
 
     const formattedCode = code.trim().toUpperCase().replace(/\s+/g, "-");
     if (!formattedCode) {
-      setError("Vui lòng nhập mã camera (VD: CAM-NORTH-01).");
+      setError(isVietnamese ? "Vui lòng nhập mã camera (VD: CAM-NORTH-01)." : "Please enter camera code (e.g., CAM-NORTH-01).");
       return;
     }
 
     if (!streamUrl.trim()) {
-      setError("Vui lòng nhập địa chỉ URL luồng video.");
+      setError(isVietnamese ? "Vui lòng nhập địa chỉ URL luồng video." : "Please enter video stream URL.");
       return;
     }
 
-    const finalSiteId =
-      siteId || (sites.length > 0 ? sites[0].id : "0192d6e3-8f0a-7bb1-8c4d-91b53f608a11");
+    const finalSiteId = siteId || (sites.length > 0 ? sites[0].id : "");
+    if (!finalSiteId) {
+      setError(
+        isVietnamese
+          ? "Vui lòng tạo hoặc chọn công trường trước khi thêm camera."
+          : "Please select or create a site before adding a camera."
+      );
+      return;
+    }
+
+    const isDirectStream =
+      streamUrl.toLowerCase().includes("webcam") ||
+      streamUrl.includes("youtube.com") ||
+      streamUrl.includes("youtu.be") ||
+      streamUrl.startsWith("http");
 
     try {
       await onSubmit({
@@ -76,6 +101,7 @@ export function CreateCameraModal({
         zoneId: zoneId.trim() ? zoneId.trim() : null,
         sourceType,
         streamUrl: streamUrl.trim(),
+        status: isDirectStream ? "ONLINE" : "OFFLINE",
         location: location.trim() || undefined,
         description: description.trim() || undefined,
       });
@@ -87,7 +113,7 @@ export function CreateCameraModal({
       setDescription("");
       onOpenChange(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Đã có lỗi xảy ra khi tạo camera";
+      const msg = err instanceof Error ? err.message : (isVietnamese ? "Đã có lỗi xảy ra khi tạo camera" : "An error occurred while creating the camera");
       setError(msg);
     }
   };
@@ -112,13 +138,13 @@ export function CreateCameraModal({
           {/* Camera Name */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Tên Camera <span className="text-danger">*</span>
+              {isVietnamese ? "Tên Camera" : "Camera Name"} <span className="text-danger">*</span>
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="VD: Camera Giàn Giáo Tầng 5"
+              placeholder={isVietnamese ? "VD: Camera Giàn Giáo Tầng 5" : "e.g., 5th Floor Scaffolding Camera"}
               className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={loading}
               required
@@ -128,7 +154,7 @@ export function CreateCameraModal({
           {/* Camera Code */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Mã Camera <span className="text-danger">*</span>
+              {isVietnamese ? "Mã Camera" : "Camera Code"} <span className="text-danger">*</span>
             </label>
             <input
               type="text"
@@ -147,7 +173,7 @@ export function CreateCameraModal({
           {/* Site Selection */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Công trường <span className="text-danger">*</span>
+              {isVietnamese ? "Công trường" : "Site"} <span className="text-danger">*</span>
             </label>
             <select
               value={siteId}
@@ -161,7 +187,7 @@ export function CreateCameraModal({
             >
               {sites.length === 0 ? (
                 <option value="0192d6e3-8f0a-7bb1-8c4d-91b53f608a11">
-                  Công trường Landmark 81
+                  {isVietnamese ? "Công trường Landmark 81" : "Landmark 81 Site"}
                 </option>
               ) : (
                 sites.map((site) => (
@@ -176,7 +202,7 @@ export function CreateCameraModal({
           {/* Zone Selection */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Phân khu (Tùy chọn)
+              {isVietnamese ? "Phân khu (Tùy chọn)" : "Zone (Optional)"}
             </label>
             <select
               value={zoneId}
@@ -184,7 +210,7 @@ export function CreateCameraModal({
               className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={loading || zones.length === 0}
             >
-              <option value="">-- Toàn công trường --</option>
+              <option value="">{isVietnamese ? "-- Toàn công trường --" : "-- Entire Site --"}</option>
               {zones.map((zone) => (
                 <option key={zone.id} value={zone.id}>
                   {zone.name} ({zone.code})
@@ -198,7 +224,7 @@ export function CreateCameraModal({
           {/* Source Type */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Giao thức luồng
+              {isVietnamese ? "Giao thức luồng" : "Stream Protocol"}
             </label>
             <select
               value={sourceType}
@@ -215,13 +241,13 @@ export function CreateCameraModal({
           {/* Location */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Vị trí lắp đặt
+              {isVietnamese ? "Vị trí lắp đặt" : "Physical Location / Floor"}
             </label>
             <input
               type="text"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              placeholder="VD: Cổng vào khu vực giàn giáo phía Bắc"
+              placeholder={isVietnamese ? "VD: Cổng vào khu vực giàn giáo phía Bắc" : "e.g., North scaffolding entrance gate"}
               className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={loading}
             />
@@ -232,17 +258,17 @@ export function CreateCameraModal({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Địa chỉ URL Luồng Stream <span className="text-danger">*</span>
+              {isVietnamese ? "Địa chỉ URL Luồng Stream" : "Stream URL Endpoint"} <span className="text-danger">*</span>
             </label>
             <span className="text-[11px] text-muted-foreground/80">
-              Hỗ trợ RTSP, HTTP/MP4, YouTube, Webcam
+              {isVietnamese ? "Hỗ trợ RTSP, HTTP/MP4, YouTube, Webcam" : "Supports RTSP, HTTP/MP4, YouTube, Webcam"}
             </span>
           </div>
           <input
             type="text"
             value={streamUrl}
             onChange={(e) => setStreamUrl(e.target.value)}
-            placeholder="rtsp://admin:pass@192.168.1.100:554/stream1 hoặc https://..."
+            placeholder={isVietnamese ? "rtsp://admin:pass@192.168.1.100:554/stream1 hoặc https://..." : "rtsp://admin:pass@192.168.1.100:554/stream1 or https://..."}
             className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 font-mono text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             disabled={loading}
             required
@@ -250,37 +276,39 @@ export function CreateCameraModal({
 
           {/* Quick presets for testing */}
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <span className="text-[10px] text-muted-foreground">Chọn nhanh để test:</span>
+            <span className="text-[10px] text-muted-foreground">
+              {isVietnamese ? "Chọn nhanh để test:" : "Quick test presets:"}
+            </span>
             <button
               type="button"
               onClick={() => {
                 setStreamUrl("http://localhost/webcam");
                 setSourceType("HTTP");
-                if (!name) setName("Webcam Máy Tính Test");
+                if (!name) setName(isVietnamese ? "Webcam Máy Tính Test" : "Local Test Webcam");
                 if (!code) setCode("CAM-WEBCAM-01");
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              💻 Webcam máy tính
+              {isVietnamese ? "💻 Webcam máy tính" : "💻 Local Webcam"}
             </button>
             <button
               type="button"
               onClick={() => {
                 setStreamUrl("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
                 setSourceType("HTTP");
-                if (!name) setName("Camera Giàn Giáo Test");
+                if (!name) setName(isVietnamese ? "Camera Giàn Giáo Test" : "Scaffolding Test Camera");
                 if (!code) setCode("CAM-TEST-MP4");
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              🎥 Mẫu MP4
+              {isVietnamese ? "🎥 Mẫu MP4" : "🎥 Sample MP4"}
             </button>
             <button
               type="button"
               onClick={() => {
                 setStreamUrl("https://www.youtube.com/watch?v=1-iS7LArMPA");
                 setSourceType("HLS");
-                if (!name) setName("Camera Công Trường YouTube Live");
+                if (!name) setName(isVietnamese ? "Camera Công Trường YouTube Live" : "Construction Site YouTube Live");
                 if (!code) setCode("CAM-YOUTUBE-01");
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
@@ -292,12 +320,12 @@ export function CreateCameraModal({
               onClick={() => {
                 setStreamUrl("rtsp://admin:Pass@123@192.168.1.100:554/stream1");
                 setSourceType("RTSP");
-                if (!name) setName("Camera Cổng Chính RTSP");
+                if (!name) setName(isVietnamese ? "Camera Cổng Chính RTSP" : "Main Gate RTSP Camera");
                 if (!code) setCode("CAM-RTSP-01");
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              📡 Luồng RTSP thực
+              {isVietnamese ? "📡 Luồng RTSP thực" : "📡 Real RTSP Stream"}
             </button>
           </div>
         </div>
@@ -305,12 +333,12 @@ export function CreateCameraModal({
         {/* Description */}
         <div className="space-y-1.5">
           <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Mô tả / Ghi chú kỹ thuật
+            {isVietnamese ? "Mô tả / Ghi chú kỹ thuật" : "Technical Notes & Description"}
           </label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Ghi chú về góc quay camera, phần cứng, thông số kết nối..."
+            placeholder={isVietnamese ? "Ghi chú về góc quay camera, phần cứng, thông số kết nối..." : "Notes on camera angle, hardware, connectivity..."}
             rows={2}
             className="w-full resize-none rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             disabled={loading}
@@ -338,7 +366,7 @@ export function CreateCameraModal({
             ) : (
               <Plus className="h-4 w-4" />
             )}
-            <span>Thêm Camera</span>
+            <span>{isVietnamese ? "Thêm Camera" : "Add Camera"}</span>
           </Button>
         </div>
       </form>

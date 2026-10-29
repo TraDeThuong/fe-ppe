@@ -82,7 +82,7 @@ export function PageHeader({
             <Typography
               as="h1"
               variant="embossed"
-              className="text-2xl font-bold tracking-tight !text-background sm:text-3xl lg:text-4xl"
+              className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl lg:text-4xl"
             >
               {title}
             </Typography>

@@ -43,7 +43,7 @@ export function MobileHeaderSettings() {
       {/* Mobile settings trigger */}
       <button
         type="button"
-        aria-label="Cài đặt hệ thống và ngôn ngữ"
+        aria-label={isVietnamese ? "Cài đặt hệ thống và ngôn ngữ" : "System and language settings"}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         onClick={() => setIsOpen((previous) => !previous)}
@@ -70,10 +70,10 @@ export function MobileHeaderSettings() {
       {isOpen && (
         <div
           role="menu"
-          aria-label="Cài đặt nhanh"
+          aria-label={isVietnamese ? "Cài đặt nhanh" : "Quick settings"}
           className="
-            absolute right-0 top-[calc(100%+12px)] w-[min(320px,calc(100vw-24px))]
-            overflow-hidden rounded-2xl border
+            fixed right-3 top-[66px] z-50 w-[min(320px,calc(100vw-24px))] max-h-[calc(100dvh-5.5rem)]
+            overflow-y-auto rounded-2xl border
             border-[color-mix(in_srgb,var(--shadow-light)_40%,transparent)]
             bg-background p-2.5
             shadow-[8px_10px_24px_color-mix(in_srgb,var(--shadow-dark)_22%,transparent),-4px_-4px_12px_color-mix(in_srgb,var(--shadow-light)_55%,transparent)]

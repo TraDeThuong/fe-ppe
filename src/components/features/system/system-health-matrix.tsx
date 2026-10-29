@@ -16,7 +16,8 @@ export function SystemHealthMatrix({
   onRefresh,
   isRefreshing = false,
 }: SystemHealthMatrixProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const services = healthReport?.services ?? [];
 
@@ -76,7 +77,7 @@ export function SystemHealthMatrix({
           <thead className="border-b border-border/40 bg-surface-elevated/40 text-xs font-semibold uppercase text-muted-foreground">
             <tr>
               <th className="px-5 py-3.5">{t("system.health.tableService")}</th>
-              <th className="px-5 py-3.5">Phân loại</th>
+              <th className="px-5 py-3.5">{isVietnamese ? "Phân loại" : "Category"}</th>
               <th className="px-5 py-3.5">{t("system.health.tableCode")}</th>
               <th className="px-5 py-3.5">{t("system.health.tablePort")}</th>
               <th className="px-5 py-3.5">{t("system.health.tableStatus")}</th>

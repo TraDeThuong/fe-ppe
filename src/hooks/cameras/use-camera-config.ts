@@ -29,6 +29,7 @@ export function useUpdateCameraConfig() {
     onSuccess: (updatedConfig, { cameraId }) => {
       queryClient.setQueryData(cameraKeys.config(cameraId), updatedConfig);
       queryClient.invalidateQueries({ queryKey: cameraKeys.detail(cameraId) });
+      queryClient.invalidateQueries({ queryKey: cameraKeys.lists() });
       toast.success("Cấu hình AI ROI camera đã được lưu thành công.");
     },
     onError: (err: unknown) => {

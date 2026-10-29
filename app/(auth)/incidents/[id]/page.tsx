@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { Loader } from "@/components/ui/loader";
 import IncidentDetailContent from "./incident-detail-content";
 
 export function generateStaticParams() {
@@ -13,18 +14,21 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-export default async function IncidentDetailPage({ params }: PageProps) {
+async function IncidentDetailWrapper({ params }: PageProps) {
   const { id } = await params;
+  return <IncidentDetailContent id={id} />;
+}
 
+export default function IncidentDetailPage({ params }: PageProps) {
   return (
     <Suspense
       fallback={
         <div className="flex min-h-[400px] items-center justify-center text-muted-foreground">
-          <p>Đang tải chi tiết sự cố {id}...</p>
+          <Loader showLabel />
         </div>
       }
     >
-      <IncidentDetailContent id={id} />
+      <IncidentDetailWrapper params={params} />
     </Suspense>
   );
 }

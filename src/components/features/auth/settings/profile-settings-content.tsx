@@ -105,7 +105,11 @@ export function ProfileSettingsContent() {
       toast.success(t("profile.identity.copied"));
       setTimeout(() => setCopiedId(false), 2000);
     } catch {
-      toast.error("Không thể sao chép ID vào clipboard");
+      toast.error(
+        isVietnamese
+          ? "Không thể sao chép ID vào clipboard"
+          : "Failed to copy ID to clipboard"
+      );
     }
   };
 

@@ -29,6 +29,8 @@ export function useCreateRestrictedArea() {
     onSuccess: (newArea, { siteId }) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.restrictedAreas(siteId) });
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
+      queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: siteKeys.all });
       toast.success(`Đã thêm vùng cấm "${newArea.name}" thành công.`);
     },
     onError: (err: unknown) => {
@@ -54,6 +56,8 @@ export function useDeleteRestrictedArea() {
     onSuccess: (_, { siteId, name }) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.restrictedAreas(siteId) });
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
+      queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: siteKeys.all });
       toast.success(
         name ? `Đã xóa vùng cấm "${name}" thành công.` : "Đã xóa vùng cấm thành công.",
       );

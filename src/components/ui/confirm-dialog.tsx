@@ -211,7 +211,7 @@ export function ConfirmDialog({
       `}</style>
 
       <div
-        className="cd-backdrop-in fixed inset-0 z-[1000] flex items-center justify-center overflow-y-auto bg-[#111820]/45 p-4 backdrop-blur-[7px] sm:p-6"
+        className="cd-backdrop-in fixed inset-0 z-[1000] flex items-center justify-center overflow-y-auto bg-[#111820]/45 p-3 backdrop-blur-[7px] sm:p-6"
         onMouseDown={(event) => {
           if (
             closeOnOverlayClick &&
@@ -229,7 +229,7 @@ export function ConfirmDialog({
           aria-describedby={descriptionId}
           aria-busy={busy}
           className={[
-            "cd-dialog-in relative my-auto w-full max-w-[440px] overflow-hidden rounded-[32px]",
+            "cd-dialog-in relative my-auto w-full max-w-[440px] max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)] overflow-y-auto rounded-[32px]",
             "border border-white/40 bg-background text-foreground",
             "shadow-[18px_18px_42px_rgba(20,28,38,0.20),-12px_-12px_36px_rgba(255,255,255,0.58)]",
             "dark:border-white/[0.07] dark:shadow-[18px_18px_42px_rgba(0,0,0,0.38),-8px_-8px_30px_rgba(41,55,71,0.30)]",

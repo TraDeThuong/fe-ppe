@@ -47,7 +47,8 @@ interface IncidentDetailContentProps {
 }
 
 export default function IncidentDetailContent({ id }: IncidentDetailContentProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const router = useRouter();
 
   // Queries
@@ -80,13 +81,17 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 rounded-2xl border border-border/40 bg-surface p-8 text-center">
         <AlertTriangle className="h-12 w-12 text-warning" />
-        <h3 className="text-lg font-bold text-foreground">Không tìm thấy sự cố #{id}</h3>
+        <h3 className="text-lg font-bold text-foreground">
+          {isVietnamese ? `Không tìm thấy sự cố #${id}` : `Incident #${id} not found`}
+        </h3>
         <p className="text-sm text-muted-foreground">
-          Sự cố có thể đã bị xóa hoặc đường dẫn không hợp lệ.
+          {isVietnamese
+            ? "Sự cố có thể đã bị xóa hoặc đường dẫn không hợp lệ."
+            : "This incident may have been deleted or the URL is invalid."}
         </p>
         <Button variant="ghost" onClick={() => router.push("/incidents")} className="gap-2">
           <ArrowLeft className="h-4 w-4" />
-          <span>Quay lại danh sách sự cố</span>
+          <span>{isVietnamese ? "Quay lại danh sách sự cố" : "Back to incidents list"}</span>
         </Button>
       </div>
     );
@@ -130,10 +135,10 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
                 )
               }
               className="gap-1.5"
-              title="Mở Camera AI Intelligence Studio"
+              title={isVietnamese ? "Mở Camera AI Intelligence Studio" : "Open Camera AI Intelligence Studio"}
             >
               <Video className="h-4 w-4 text-primary" />
-              <span className="hidden sm:inline">Xem Camera</span>
+              <span className="hidden sm:inline">{isVietnamese ? "Xem Camera" : "View Camera"}</span>
             </Button>
 
             {/* Quick Action: Mở Command Center Site */}
@@ -142,10 +147,10 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
                 variant="outline"
                 onClick={() => router.push(`/sites/${incident.siteId}?tab=live-cameras`)}
                 className="gap-1.5"
-                title="Mở trung tâm điều hành công trường này"
+                title={isVietnamese ? "Mở trung tâm điều hành công trường này" : "Open site operations center"}
               >
                 <Building2 className="h-4 w-4 text-primary" />
-                <span className="hidden sm:inline">Mở Công trường</span>
+                <span className="hidden sm:inline">{isVietnamese ? "Mở Công trường" : "Open Site"}</span>
               </Button>
             )}
 

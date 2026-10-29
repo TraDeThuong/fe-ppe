@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
+import { useReportSummary } from "@/hooks/reporting";
 import type { SiteItem } from "@/types";
 import { SiteStatsDetailPanel, type SiteStatKey } from "./site-stats-detail-panel";
 
@@ -37,6 +38,14 @@ export function SiteKpiSummary({
 }: SiteKpiSummaryProps) {
   const { t } = useLocale();
 
+  // Fetch real-time compliance rate & violations from reporting-service
+  const { data: reportingSummary, isLoading: summaryLoading } = useReportSummary();
+  const complianceRate =
+    reportingSummary && reportingSummary.complianceRate > 0
+      ? reportingSummary.complianceRate
+      : 100;
+  const complianceRateDisplay = `${complianceRate.toFixed(1)}%`;
+
   const [internalSelectedStat, setInternalSelectedStat] = useState<SiteStatKey | null>(null);
   const activeStat = propSelectedStat !== undefined ? propSelectedStat : internalSelectedStat;
 
@@ -51,11 +60,17 @@ export function SiteKpiSummary({
 
   const totalSites = sites.length;
   const totalZones = sites.reduce(
-    (acc, s) => acc + (s.zones?.length || s.zoneCount || 0),
+    (acc, s) =>
+      acc + (s.zoneCount ?? (s.zones ? s.zones.length : undefined) ?? s._count?.zones ?? 0),
     0
   );
   const totalRestricted = sites.reduce(
-    (acc, s) => acc + (s.restrictedAreas?.length || s.restrictedAreaCount || 0),
+    (acc, s) =>
+      acc +
+      (s.restrictedAreaCount ??
+        (s.restrictedAreas ? s.restrictedAreas.length : undefined) ??
+        s._count?.restrictedAreas ??
+        0),
     0
   );
 
@@ -154,7 +169,7 @@ export function SiteKpiSummary({
         {/* 4. Tuân thủ an toàn TB */}
         <StatsCard
           title={t("sites.kpi.complianceRate")}
-          value={loading ? "..." : "--"}
+          value={loading || summaryLoading ? "..." : complianceRateDisplay}
           icon={ShieldCheck}
           variant="soft-extruded"
           tone="primary"
@@ -189,6 +204,8 @@ export function SiteKpiSummary({
           onManageZones={onManageZones}
           onSafetyConfig={onSafetyConfig}
           onCreateSite={onCreateSite}
+          complianceRate={complianceRate}
+          totalViolations={reportingSummary?.trueViolations ?? 0}
         />
       )}
     </div>

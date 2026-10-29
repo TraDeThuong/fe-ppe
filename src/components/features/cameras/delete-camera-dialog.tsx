@@ -21,7 +21,8 @@ export function DeleteCameraDialog({
   onConfirm,
   loading = false,
 }: DeleteCameraDialogProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const handleConfirm = async () => {
     if (!camera) return;
@@ -75,7 +76,7 @@ export function DeleteCameraDialog({
             ) : (
               <Trash2 className="h-4 w-4" />
             )}
-            <span>Xác nhận xóa</span>
+            <span>{isVietnamese ? "Xác nhận xóa" : "Confirm Delete"}</span>
           </Button>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { Loader } from "@/components/ui/loader";
 
 import { SecuritySettingsContent } from "@/components/features/auth/settings/security-settings-content";
 
@@ -12,7 +13,7 @@ export default function SecuritySettingsPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
-          <p>Đang tải...</p>
+          <Loader showLabel />
         </div>
       }
     >

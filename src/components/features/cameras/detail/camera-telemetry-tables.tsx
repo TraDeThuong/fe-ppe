@@ -22,6 +22,7 @@ import { Table, type TableFeatureSet } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { useLocale } from "@/providers/locale-provider";
 import type { ComputedPersonTrack, FrameLogEntry, ViolationEvent } from "./types";
 
 export interface CameraTelemetryTablesProps {
@@ -30,8 +31,12 @@ export interface CameraTelemetryTablesProps {
   personTracks: ComputedPersonTrack[];
   cameraCode?: string;
   siteName?: string;
+  streamMetadata?: any;
+  safetyConfig?: any;
+  activeModelName?: string;
   onViewSnapshot?: (url: string) => void;
 }
+
 
 // Kiểu dữ liệu cho từng hàng bảng Detections
 interface DetectionRow {
@@ -80,11 +85,11 @@ interface SystemSpecRow {
   status: "active" | "optimal" | "info";
 }
 
-const VT_LABEL: Record<string, string> = {
-  no_helmet: "Không đội mũ bảo hộ",
-  no_safety_vest: "Không mặc áo phản quang",
-  no_boots: "Không mang giày bảo hộ",
-  restricted_area: "Xâm nhập vùng cấm",
+const VT_LABEL: Record<string, { vi: string; en: string }> = {
+  no_helmet: { vi: "Không đội mũ bảo hộ", en: "No Hard Hat" },
+  no_safety_vest: { vi: "Không mặc áo phản quang", en: "No Safety Vest" },
+  no_boots: { vi: "Không mang giày bảo hộ", en: "No Safety Boots" },
+  restricted_area: { vi: "Xâm nhập vùng cấm", en: "Restricted Area Breach" },
 };
 
 export function CameraTelemetryTables({
@@ -93,11 +98,22 @@ export function CameraTelemetryTables({
   personTracks,
   cameraCode = "CAM-01",
   siteName = "Công Trường Xây Dựng",
+  streamMetadata,
+  safetyConfig,
+  activeModelName,
   onViewSnapshot,
 }: CameraTelemetryTablesProps) {
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [activeTab, setActiveTab] = useState<"detections" | "association" | "violations" | "specs">(
     "detections"
   );
+
+  const getViolationName = (type: string) => {
+    const item = VT_LABEL[type];
+    if (item) return isVietnamese ? item.vi : item.en;
+    return type;
+  };
 
   // ── 1. DỮ LIỆU BẢNG DETECTIONS ──
   const detectionsData = useMemo<DetectionRow[]>(() => {
@@ -129,14 +145,14 @@ export function CameraTelemetryTables({
       {
         id: "className",
         accessorKey: "className",
-        header: "Lớp Đối Tượng (Class)",
+        header: isVietnamese ? "Lớp Đối Tượng (Class)" : "Object Class",
         cell: ({ row }) => {
           const c = row.original.className;
           if (c === "person") {
             return (
               <div className="flex items-center gap-1.5 font-bold text-primary">
                 <User className="h-3.5 w-3.5 shrink-0" />
-                <span>Công nhân (person)</span>
+                <span>{isVietnamese ? "Công nhân (person)" : "Worker (person)"}</span>
               </div>
             );
           }
@@ -144,14 +160,14 @@ export function CameraTelemetryTables({
             return (
               <div className="flex items-center gap-1.5 font-bold text-blue-500">
                 <HardHat className="h-3.5 w-3.5 shrink-0" />
-                <span>Mũ bảo hộ (helmet)</span>
+                <span>{isVietnamese ? "Mũ bảo hộ (helmet)" : "Hard Hat (helmet)"}</span>
               </div>
             );
           }
           return (
             <div className="flex items-center gap-1.5 font-bold text-cyan-500">
               <Shield className="h-3.5 w-3.5 shrink-0" />
-              <span>Áo phản quang (vest)</span>
+              <span>{isVietnamese ? "Áo phản quang (vest)" : "Safety Vest (vest)"}</span>
             </div>
           );
         },
@@ -172,7 +188,7 @@ export function CameraTelemetryTables({
       {
         id: "confidence",
         accessorKey: "confidence",
-        header: "Độ Tin Cậy AI",
+        header: isVietnamese ? "Độ Tin Cậy AI" : "AI Confidence",
         cell: ({ row }) => {
           const conf = (row.original.confidence * 100).toFixed(1);
           return (
@@ -191,7 +207,7 @@ export function CameraTelemetryTables({
       {
         id: "bbox",
         accessorKey: "bbox",
-        header: "Toạ Độ BBox [x1, y1, x2, y2]",
+        header: isVietnamese ? "Toạ Độ BBox [x1, y1, x2, y2]" : "BBox Coords [x1, y1, x2, y2]",
         cell: ({ row }) => (
           <span className="font-mono text-xs text-muted-foreground">
             [{row.original.bbox.join(", ")}]
@@ -201,7 +217,7 @@ export function CameraTelemetryTables({
       {
         id: "dimension",
         accessorKey: "width",
-        header: "Kích Thước (W × H)",
+        header: isVietnamese ? "Kích Thước (W × H)" : "Dimensions (W × H)",
         cell: ({ row }) => (
           <span className="font-mono text-xs text-foreground">
             {row.original.width} × {row.original.height} px
@@ -211,7 +227,7 @@ export function CameraTelemetryTables({
       {
         id: "area",
         accessorKey: "area",
-        header: "Diện Tích",
+        header: isVietnamese ? "Diện Tích" : "Area",
         cell: ({ row }) => (
           <span className="font-mono text-xs text-muted-foreground">
             {row.original.area.toLocaleString()} px²
@@ -220,10 +236,10 @@ export function CameraTelemetryTables({
       },
       {
         id: "status",
-        header: "Trạng Thái BBox",
+        header: isVietnamese ? "Trạng Thái BBox" : "BBox Status",
         cell: () => (
           <Badge variant="success" size="sm">
-            Đang bám vết
+            {isVietnamese ? "Đang bám vết" : "Tracking"}
           </Badge>
         ),
       },
@@ -257,7 +273,7 @@ export function CameraTelemetryTables({
       {
         id: "personId",
         accessorKey: "personId",
-        header: "Công Nhân (Track ID)",
+        header: isVietnamese ? "Công Nhân (Track ID)" : "Worker (Track ID)",
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold text-xs font-mono">
@@ -270,14 +286,14 @@ export function CameraTelemetryTables({
       {
         id: "helmetId",
         accessorKey: "helmetId",
-        header: "Mũ Bảo Hộ (Helmet)",
+        header: isVietnamese ? "Mũ Bảo Hộ (Helmet)" : "Hard Hat (Helmet)",
         cell: ({ row }) => {
           const h = row.original.helmetId;
           if (h != null) {
             return (
               <div className="flex items-center gap-1.5">
                 <Badge variant="primary" size="sm">
-                  Mũ #{h}
+                  {isVietnamese ? `Mũ #${h}` : `Hat #${h}`}
                 </Badge>
                 <span className="font-mono text-[10px] text-muted-foreground">IoU 0.92</span>
               </div>
@@ -285,7 +301,7 @@ export function CameraTelemetryTables({
           }
           return (
             <Badge variant="danger" size="sm">
-              ❌ KHÔNG CÓ MŨ
+              {isVietnamese ? "❌ KHÔNG CÓ MŨ" : "❌ NO HARD HAT"}
             </Badge>
           );
         },
@@ -293,14 +309,14 @@ export function CameraTelemetryTables({
       {
         id: "vestId",
         accessorKey: "vestId",
-        header: "Áo Phản Quang (Vest)",
+        header: isVietnamese ? "Áo Phản Quang (Vest)" : "Safety Vest (Vest)",
         cell: ({ row }) => {
           const v = row.original.vestId;
           if (v != null) {
             return (
               <div className="flex items-center gap-1.5">
                 <Badge variant="info" size="sm">
-                  Áo #{v}
+                  {isVietnamese ? `Áo #${v}` : `Vest #${v}`}
                 </Badge>
                 <span className="font-mono text-[10px] text-muted-foreground">IoU 0.88</span>
               </div>
@@ -308,14 +324,14 @@ export function CameraTelemetryTables({
           }
           return (
             <Badge variant="danger" size="sm">
-              ❌ KHÔNG CÓ ÁO
+              {isVietnamese ? "❌ KHÔNG CÓ ÁO" : "❌ NO SAFETY VEST"}
             </Badge>
           );
         },
       },
       {
         id: "rule",
-        header: "Quy Tắc Liên Kết",
+        header: isVietnamese ? "Quy Tắc Liên Kết" : "Association Rule",
         cell: () => (
           <span className="font-mono text-xs text-muted-foreground">
             VI-04 IoU + Proximity
@@ -325,39 +341,39 @@ export function CameraTelemetryTables({
       {
         id: "status",
         accessorKey: "status",
-        header: "Đánh Giá An Toàn (VI-05 + VI-06)",
+        header: isVietnamese ? "Đánh Giá An Toàn (VI-05 + VI-06)" : "Safety Assessment (VI-05 + VI-06)",
         cell: ({ row }) => {
           const st = row.original.status;
           if (st === "CONFIRMED_VIOLATION") {
             return (
               <Badge variant="danger" size="sm">
-                🚨 VI PHẠM (≥ 3.0s)
+                {isVietnamese ? "🚨 VI PHẠM (≥ 3.0s)" : "🚨 VIOLATION (≥ 3.0s)"}
               </Badge>
             );
           }
           if (st === "VIOLATION_CANDIDATE") {
             return (
               <Badge variant="warning" size="sm">
-                ⚠ CẢNH BÁO TẠM THỜI
+                {isVietnamese ? "⚠ CẢNH BÁO TẠM THỜI" : "⚠ TEMPORARY WARNING"}
               </Badge>
             );
           }
           return (
             <Badge variant="success" size="sm">
-              ✓ ĐỦ TRANG BỊ BẢO HỘ
+              {isVietnamese ? "✓ ĐỦ TRANG BỊ BẢO HỘ" : "✓ COMPLIANT PPE"}
             </Badge>
           );
         },
       },
       {
         id: "missingDuration",
-        header: "Thời Gian Thiếu PPE",
+        header: isVietnamese ? "Thời Gian Thiếu PPE" : "Missing PPE Duration",
         cell: ({ row }) => {
           const sec = Math.max(row.original.missingHelmetSec, row.original.missingVestSec);
           if (sec > 0) {
             return (
               <span className="font-mono font-bold text-rose-500 text-xs">
-                {sec.toFixed(1)}s (vượt ngưỡng 3s)
+                {sec.toFixed(1)}s ({isVietnamese ? "vượt ngưỡng 3s" : "exceeded 3s"})
               </span>
             );
           }
@@ -386,7 +402,7 @@ export function CameraTelemetryTables({
       {
         id: "eventId",
         accessorKey: "eventId",
-        header: "Mã Sự Cố",
+        header: isVietnamese ? "Mã Sự Cố" : "Incident ID",
         cell: ({ row }) => (
           <span className="font-mono font-bold text-foreground">#{row.original.eventId}</span>
         ),
@@ -394,7 +410,7 @@ export function CameraTelemetryTables({
       {
         id: "person",
         accessorKey: "person",
-        header: "Công Nhân Vi Phạm",
+        header: isVietnamese ? "Công Nhân Vi Phạm" : "Violating Worker",
         cell: ({ row }) => (
           <span className="font-bold text-primary">Worker #{row.original.person}</span>
         ),
@@ -402,17 +418,17 @@ export function CameraTelemetryTables({
       {
         id: "violationType",
         accessorKey: "violationType",
-        header: "Hành Vi Vi Phạm",
+        header: isVietnamese ? "Hành Vi Vi Phạm" : "Violation Behavior",
         cell: ({ row }) => (
           <span className="font-semibold text-rose-600 dark:text-rose-400">
-            {VT_LABEL[row.original.violationType] || row.original.violationType}
+            {getViolationName(row.original.violationType)}
           </span>
         ),
       },
       {
         id: "frame",
         accessorKey: "frame",
-        header: "Khung Hình / Thời Điểm",
+        header: isVietnamese ? "Khung Hình / Thời Điểm" : "Frame / Time",
         cell: ({ row }) => (
           <span className="font-mono text-xs text-muted-foreground">
             Frame {row.original.frame} (t = {row.original.confirmedT.toFixed(1)}s)
@@ -422,33 +438,33 @@ export function CameraTelemetryTables({
       {
         id: "durationS",
         accessorKey: "durationS",
-        header: "Thời Lượng Vi Phạm",
+        header: isVietnamese ? "Thời Lượng Vi Phạm" : "Violation Duration",
         cell: ({ row }) => (
           <span className="font-mono text-xs font-bold text-rose-500">
-            {row.original.durationS.toFixed(1)}s (≥ 3.0s xác nhận)
+            {row.original.durationS.toFixed(1)}s ({isVietnamese ? "≥ 3.0s xác nhận" : "≥ 3.0s confirmed"})
           </span>
         ),
       },
       {
         id: "cooldown",
         accessorKey: "cooldownT",
-        header: "Cooldown Chống Trùng (VI-07)",
+        header: isVietnamese ? "Cooldown Chống Trùng (VI-07)" : "Anti-Spam Cooldown (VI-07)",
         cell: () => (
-          <span className="font-mono text-xs text-muted-foreground">30.0 giây</span>
+          <span className="font-mono text-xs text-muted-foreground">{isVietnamese ? "30.0 giây" : "30.0 seconds"}</span>
         ),
       },
       {
         id: "status",
-        header: "Trạng Thái Ghi Nhận",
+        header: isVietnamese ? "Trạng Thái Ghi Nhận" : "Record Status",
         cell: () => (
           <Badge variant="danger" size="sm">
-            XÁC NHẬN (VI-06)
+            {isVietnamese ? "XÁC NHẬN (VI-06)" : "CONFIRMED (VI-06)"}
           </Badge>
         ),
       },
       {
         id: "evidence",
-        header: "Bằng Chứng Snapshot",
+        header: isVietnamese ? "Bằng Chứng Snapshot" : "Evidence Snapshot",
         cell: ({ row }) => (
           <Button
             size="sm"
@@ -457,7 +473,7 @@ export function CameraTelemetryTables({
             className="h-8 gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/10"
           >
             <Eye className="h-3.5 w-3.5" />
-            <span>Xem Snapshot (VI-08)</span>
+            <span>{isVietnamese ? "Xem Snapshot (VI-08)" : "View Snapshot (VI-08)"}</span>
           </Button>
         ),
       },
@@ -468,70 +484,77 @@ export function CameraTelemetryTables({
   const specsData = useMemo<SystemSpecRow[]>(() => {
     return [
       {
-        parameter: "Mô hình suy luận PPE (Core Engine)",
+        parameter: isVietnamese ? "Mô hình suy luận PPE (Core Engine)" : "PPE Inference Model (Core Engine)",
         category: "AI Inference",
-        value: "YOLOv11s-PPE (best.pt)",
+        value: activeModelName || "YOLOv11s-PPE (best.pt)",
         standard: "Ultralytics v11 Architecture",
         status: "active",
       },
       {
-        parameter: "Trình theo dõi đa đối tượng (Tracking)",
+        parameter: isVietnamese ? "Trình theo dõi đa đối tượng (Tracking)" : "Multi-Object Tracker (Tracking)",
         category: "Motion Tracking",
         value: "ByteTrack (Kalman Filter + Hungarian Matching)",
         standard: "VI-03 Multi-Object Tracker",
         status: "active",
       },
       {
-        parameter: "Thuật toán ghép cặp PPE–Công nhân",
+        parameter: isVietnamese ? "Thuật toán ghép cặp PPE–Công nhân" : "PPE–Worker Association Algorithm",
         category: "Spatial Association",
         value: "Centroid Proximity & Spatial IoU (0.88 - 0.92)",
         standard: "VI-04 Association Matrix",
         status: "active",
       },
       {
-        parameter: "Quy chuẩn thời gian xác nhận vi phạm",
+        parameter: isVietnamese ? "Quy chuẩn thời gian xác nhận vi phạm" : "Violation Confirmation Time Rule",
         category: "Rules Engine",
-        value: "Tích luỹ vi phạm liên tục ≥ 3.0 giây",
+        value: isVietnamese
+          ? `Tích luỹ vi phạm liên tục ≥ ${(safetyConfig?.confirmationDuration || 3.0).toFixed(1)} giây`
+          : `Cumulative continuous violation ≥ ${(safetyConfig?.confirmationDuration || 3.0).toFixed(1)}s`,
         standard: "VI-06 Temporal Confirmation",
         status: "info",
       },
       {
-        parameter: "Cơ chế chống báo động trùng lặp (Dedup)",
+        parameter: isVietnamese ? "Cơ chế chống báo động trùng lặp (Dedup)" : "Anti-Spam Deduplication Mechanism",
         category: "Spam Suppression",
-        value: "Cooldown 30.0 giây cho mỗi Track ID",
+        value: isVietnamese
+          ? `Cooldown ${safetyConfig?.cooldownDuration || 30}.0 giây cho mỗi Track ID`
+          : `${safetyConfig?.cooldownDuration || 30}.0s cooldown per Track ID`,
         standard: "VI-07 Anti-Spam Cooldown",
         status: "active",
       },
       {
-        parameter: "Bộ trích xuất bằng chứng tự động",
+        parameter: isVietnamese ? "Bộ trích xuất bằng chứng tự động" : "Automatic Evidence Extractor",
         category: "Evidence Engine",
-        value: "Tự động crop/save ảnh frame JPEG có Bbox vi phạm",
+        value: isVietnamese ? "Tự động trích xuất ảnh frame JPEG có Bbox vi phạm" : "Auto capture violation bbox JPEG frame",
         standard: "VI-08 MinIO S3 Storage",
         status: "optimal",
       },
       {
-        parameter: "Tốc độ và độ trễ suy luận biên (Latency)",
+        parameter: isVietnamese ? "Tốc độ và độ trễ suy luận biên (Latency)" : "Edge Inference Speed & Latency",
         category: "Performance",
-        value: "24.6 ms (~40.6 FPS trên Edge GPU)",
-        standard: "SLA Thời gian thực < 50ms",
+        value: isVietnamese ? "24.6 ms (~40.6 FPS trên Edge GPU)" : "24.6 ms (~40.6 FPS on Edge GPU)",
+        standard: isVietnamese ? "SLA Thời gian thực < 50ms" : "Real-time SLA < 50ms",
         status: "optimal",
       },
       {
-        parameter: "Độ phân giải chuẩn hóa đầu vào",
+        parameter: isVietnamese ? "Độ phân giải chuẩn hóa đầu vào" : "Normalized Stream Resolution",
         category: "Video Stream",
-        value: "1920 × 1080 @ 30 FPS Full HD",
-        standard: "H.264 / RTSP / HLS Protocol",
+        value: streamMetadata?.aspectRatioLabel || "1920 × 1080 @ 30 FPS Full HD",
+        standard: streamMetadata?.streamType === "youtube_shorts"
+          ? "YouTube Shorts 9:16 Protocol"
+          : "H.264 / RTSP / HLS Protocol",
         status: "active",
       },
     ];
-  }, []);
+  }, [isVietnamese, activeModelName, safetyConfig, streamMetadata]);
+
 
   const specColumns = useMemo<ColumnDef<TableFeatureSet, SystemSpecRow, any>[]>(() => {
     return [
       {
         id: "parameter",
         accessorKey: "parameter",
-        header: "Tham Số Kỹ Thuật",
+        header: isVietnamese ? "Tham Số Kỹ Thuật" : "Technical Parameter",
         cell: ({ row }) => (
           <span className="font-bold text-foreground text-xs">{row.original.parameter}</span>
         ),
@@ -539,7 +562,7 @@ export function CameraTelemetryTables({
       {
         id: "category",
         accessorKey: "category",
-        header: "Phân Loại",
+        header: isVietnamese ? "Phân Loại" : "Category",
         cell: ({ row }) => (
           <span className="font-mono text-xs text-muted-foreground">{row.original.category}</span>
         ),
@@ -547,7 +570,7 @@ export function CameraTelemetryTables({
       {
         id: "value",
         accessorKey: "value",
-        header: "Giá Trị Cấu Hình",
+        header: isVietnamese ? "Giá Trị Cấu Hình" : "Configured Value",
         cell: ({ row }) => (
           <span className="font-mono font-bold text-primary text-xs">{row.original.value}</span>
         ),
@@ -555,7 +578,7 @@ export function CameraTelemetryTables({
       {
         id: "standard",
         accessorKey: "standard",
-        header: "Tiêu Chuẩn Kỹ Thuật",
+        header: isVietnamese ? "Tiêu Chuẩn Kỹ Thuật" : "Technical Standard",
         cell: ({ row }) => (
           <span className="font-mono text-xs text-muted-foreground">{row.original.standard}</span>
         ),
@@ -563,26 +586,26 @@ export function CameraTelemetryTables({
       {
         id: "status",
         accessorKey: "status",
-        header: "Trạng Thái",
+        header: isVietnamese ? "Trạng Thái" : "Status",
         cell: ({ row }) => {
           const s = row.original.status;
           if (s === "optimal") {
             return (
               <Badge variant="success" size="sm">
-                Tối Ưu Hoá
+                {isVietnamese ? "Tối Ưu Hoá" : "Optimal"}
               </Badge>
             );
           }
           if (s === "info") {
             return (
               <Badge variant="info" size="sm">
-                QCVN BHLĐ
+                {isVietnamese ? "QCVN BHLĐ" : "PPE Standard"}
               </Badge>
             );
           }
           return (
             <Badge variant="primary" size="sm">
-              Đang Hoạt Động
+              {isVietnamese ? "Đang Hoạt Động" : "Active"}
             </Badge>
           );
         },
@@ -595,26 +618,34 @@ export function CameraTelemetryTables({
     () => [
       {
         value: "detections",
-        label: `Dữ Liệu Bounding Box (${detectionsData.length})`,
+        label: isVietnamese
+          ? `Dữ Liệu Bounding Box (${detectionsData.length})`
+          : `Bounding Box Data (${detectionsData.length})`,
         icon: <Scan className="h-4 w-4" />,
       },
       {
         value: "association",
-        label: `Ma Trận Ghép Cặp PPE (${associationData.length})`,
+        label: isVietnamese
+          ? `Ma Trận Ghép Cặp PPE (${associationData.length})`
+          : `PPE Association Matrix (${associationData.length})`,
         icon: <Layers className="h-4 w-4" />,
       },
       {
         value: "violations",
-        label: `Sự Cố Vi Phạm Xác Nhận (${allViolations.length})`,
+        label: isVietnamese
+          ? `Sự Cố Vi Phạm Xác Nhận (${allViolations.length})`
+          : `Confirmed Violations (${allViolations.length})`,
         icon: <ShieldAlert className="h-4 w-4" />,
       },
       {
         value: "specs",
-        label: "Thông Số Edge AI & Phần Cứng",
+        label: isVietnamese
+          ? "Thông Số Edge AI & Phần Cứng"
+          : "Edge AI & Hardware Specs",
         icon: <Cpu className="h-4 w-4" />,
       },
     ],
-    [detectionsData.length, associationData.length, allViolations.length]
+    [detectionsData.length, associationData.length, allViolations.length, isVietnamese]
   );
 
   return (
@@ -628,10 +659,10 @@ export function CameraTelemetryTables({
             </div>
             <div>
               <h2 className="text-base font-extrabold text-foreground">
-                Trung Tâm Bảng Dữ Liệu Phân Tích & Giám Sát Chi Tiết
+                {isVietnamese ? "Trung Tâm Bảng Dữ Liệu Phân Tích & Giám Sát Chi Tiết" : "Analytics & Surveillance Telemetry Center"}
               </h2>
               <p className="text-xs text-muted-foreground">
-                Camera {cameraCode} • {siteName} • Xử lý trực tiếp tại 10Hz qua Edge AI Pipeline
+                {isVietnamese ? `Camera ${cameraCode} • ${siteName} • Xử lý trực tiếp tại 10Hz qua Edge AI Pipeline` : `Camera ${cameraCode} • ${siteName} • Processed live at 10Hz via Edge AI Pipeline`}
               </p>
             </div>
           </div>
@@ -651,7 +682,7 @@ export function CameraTelemetryTables({
           options={tabOptions}
           value={activeTab}
           onValueChange={(val) => setActiveTab(val as any)}
-          aria-label="Chọn bảng phân tích dữ liệu AI"
+          aria-label={isVietnamese ? "Chọn bảng phân tích dữ liệu AI" : "Select AI analytics table"}
           size="sm"
         />
       </div>
@@ -662,19 +693,17 @@ export function CameraTelemetryTables({
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                Toạ độ Bounding Box Full HD (1920×1080) trích xuất tại{" "}
-                <strong className="text-foreground font-mono">Frame {currentEntry?.frame || 1}</strong>{" "}
-                (t = {(currentEntry?.t || 0).toFixed(1)}s):
+                {isVietnamese ? "Toạ độ Bounding Box Full HD (1920×1080) trích xuất tại " : "Bounding Box Full HD coords (1920×1080) extracted at "}<strong className="text-foreground font-mono">Frame {currentEntry?.frame || 1}</strong> (t = {(currentEntry?.t || 0).toFixed(1)}s):
               </span>
               <span className="font-mono text-primary font-bold">
-                {detectionsData.length} đối tượng đang trong khung hình
+                {detectionsData.length} {isVietnamese ? "đối tượng đang trong khung hình" : "objects currently in frame"}
               </span>
             </div>
             <Table
               data={detectionsData}
               columns={detectionColumns}
               variant="soft"
-              emptyMessage="Chưa có dữ liệu Bounding Box nào tại khung hình này."
+              emptyMessage={isVietnamese ? "Chưa có dữ liệu Bounding Box nào tại khung hình này." : "No Bounding Box data at this frame."}
             />
           </div>
         )}
@@ -683,18 +712,17 @@ export function CameraTelemetryTables({
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                Ma trận liên kết không gian IoU giữa Công nhân và Mũ, Áo phản quang theo chuẩn{" "}
-                <strong className="text-foreground">VI-04 & VI-05</strong>:
+                {isVietnamese ? "Ma trận liên kết không gian IoU giữa Công nhân và Mũ, Áo phản quang theo chuẩn " : "Spatial IoU association matrix between Workers and Hats, Vests according to "}<strong className="text-foreground">VI-04 & VI-05</strong>:
               </span>
               <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
-                {associationData.length} liên kết đang giám sát
+                {associationData.length} {isVietnamese ? "liên kết đang giám sát" : "associations monitored"}
               </span>
             </div>
             <Table
               data={associationData}
               columns={associationColumns}
               variant="soft"
-              emptyMessage="Không có công nhân nào được phát hiện để ghép cặp trong khung hình hiện tại."
+              emptyMessage={isVietnamese ? "Không có công nhân nào được phát hiện để ghép cặp trong khung hình hiện tại." : "No workers detected for association in current frame."}
             />
           </div>
         )}
@@ -703,18 +731,17 @@ export function CameraTelemetryTables({
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                Lịch sử các sự cố vi phạm an toàn lao động đã kích hoạt quy tắc xác nhận{" "}
-                <strong className="text-foreground">≥ 3.0 giây liên tục (VI-06)</strong>:
+                {isVietnamese ? "Lịch sử các sự cố vi phạm an toàn lao động đã kích hoạt quy tắc xác nhận " : "Safety violation incident history triggered confirmation rule "}<strong className="text-foreground">{isVietnamese ? "≥ 3.0 giây liên tục (VI-06)" : "≥ 3.0s sustained (VI-06)"}</strong>:
               </span>
               <span className="font-mono text-rose-500 font-bold">
-                {allViolations.length} sự cố đã lưu bằng chứng
+                {allViolations.length} {isVietnamese ? "sự cố đã lưu bằng chứng" : "incidents archived with evidence"}
               </span>
             </div>
             <Table
               data={violationsData}
               columns={violationColumns}
               variant="soft"
-              emptyMessage="Chưa có sự cố vi phạm nào bị xác nhận kéo dài quá 3.0 giây."
+              emptyMessage={isVietnamese ? "Chưa có sự cố vi phạm nào bị xác nhận kéo dài quá 3.0 giây." : "No violation incidents confirmed exceeding 3.0 seconds."}
             />
           </div>
         )}
@@ -722,9 +749,7 @@ export function CameraTelemetryTables({
         {activeTab === "specs" && (
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>
-                Toàn bộ thông số kỹ thuật mô hình AI, thuật toán bám vết và quy chuẩn hệ thống:
-              </span>
+              <span>{isVietnamese ? "Toàn bộ thông số kỹ thuật mô hình AI, thuật toán bám vết và quy chuẩn hệ thống:" : "Comprehensive AI model specs, tracking algorithms, and system standards:"}</span>
               <span className="font-mono text-primary font-bold">
                 YOLOv11s-PPE • Latency 24.6ms
               </span>
@@ -733,7 +758,7 @@ export function CameraTelemetryTables({
               data={specsData}
               columns={specColumns}
               variant="soft"
-              emptyMessage="Không có thông số kỹ thuật."
+              emptyMessage={isVietnamese ? "Không có thông số kỹ thuật." : "No technical specifications available."}
             />
           </div>
         )}

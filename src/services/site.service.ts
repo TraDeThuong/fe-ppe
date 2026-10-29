@@ -39,7 +39,7 @@ export const siteService = {
       params,
     });
     if (res && typeof res === "object") {
-      const items = Array.isArray(res.data)
+      const rawItems = Array.isArray(res.data)
         ? res.data
         : Array.isArray(res.items)
           ? res.items
@@ -48,6 +48,12 @@ export const siteService = {
             : Array.isArray(res)
               ? res
               : [];
+      const items: SiteItem[] = rawItems.map((s: any) => ({
+        ...s,
+        zoneCount: s.zoneCount ?? s._count?.zones ?? (s.zones?.length || 0),
+        restrictedAreaCount: s.restrictedAreaCount ?? s._count?.restrictedAreas ?? (s.restrictedAreas?.length || 0),
+        cameraCount: s.cameraCount ?? s._count?.cameras ?? (s.cameras?.length || 0),
+      }));
       const meta = res.meta ?? res.data?.meta;
       return { items, meta };
     }
@@ -60,7 +66,13 @@ export const siteService = {
    */
   async getSiteById(id: string): Promise<SiteItem> {
     const res = await apiClient.get<unknown, any>(`/sites/${id}`);
-    return unwrapData<SiteItem>(res);
+    const s = unwrapData<any>(res);
+    return {
+      ...s,
+      zoneCount: s.zoneCount ?? s._count?.zones ?? (s.zones?.length || 0),
+      restrictedAreaCount: s.restrictedAreaCount ?? s._count?.restrictedAreas ?? (s.restrictedAreas?.length || 0),
+      cameraCount: s.cameraCount ?? s._count?.cameras ?? (s.cameras?.length || 0),
+    };
   },
 
   /**
@@ -139,12 +151,12 @@ export const siteService = {
   },
 
   /**
-   * DELETE /api/v1/sites/:siteId/zones/:zoneId
+   * DELETE /api/v1/zones/:zoneId
    * Xóa phân khu.
    */
-  async deleteZone(siteId: string, zoneId: string): Promise<{ message: string }> {
+  async deleteZone(_siteId: string, zoneId: string): Promise<{ message: string }> {
     const res = await apiClient.delete<unknown, any>(
-      `/sites/${siteId}/zones/${zoneId}`,
+      `/zones/${zoneId}`,
     );
     return { message: res?.message || "Zone deleted successfully" };
   },
@@ -177,15 +189,15 @@ export const siteService = {
   },
 
   /**
-   * DELETE /api/v1/sites/:siteId/restricted-areas/:areaId
+   * DELETE /api/v1/restricted-areas/:areaId
    * Xóa vùng cấm.
    */
   async deleteRestrictedArea(
-    siteId: string,
+    _siteId: string,
     areaId: string,
   ): Promise<{ message: string }> {
     const res = await apiClient.delete<unknown, any>(
-      `/sites/${siteId}/restricted-areas/${areaId}`,
+      `/restricted-areas/${areaId}`,
     );
     return { message: res?.message || "Restricted area deleted successfully" };
   },

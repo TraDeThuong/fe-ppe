@@ -20,7 +20,8 @@ export function CreateConfigModal({
   onSubmit,
   loading = false,
 }: CreateConfigModalProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const [key, setKey] = useState("");
   const [category, setCategory] = useState<SystemConfigCategory>("GENERAL");
@@ -35,7 +36,7 @@ export function CreateConfigModal({
     setError(null);
 
     if (!key.trim()) {
-      setError("Vui lòng nhập khóa cấu hình (Key).");
+      setError(isVietnamese ? "Vui lòng nhập khóa cấu hình (Key)." : "Please enter config key.");
       return;
     }
 
@@ -45,7 +46,7 @@ export function CreateConfigModal({
     } else if (valueType === "number") {
       const num = Number(valueStr);
       if (isNaN(num)) {
-        setError("Giá trị phải là một con số hợp lệ.");
+        setError(isVietnamese ? "Giá trị phải là một con số hợp lệ." : "Value must be a valid number.");
         return;
       }
       parsedValue = num;
@@ -53,7 +54,11 @@ export function CreateConfigModal({
       try {
         parsedValue = JSON.parse(valueStr);
       } catch {
-        setError("Cú pháp JSON không hợp lệ. Vui lòng kiểm tra lại dấu ngoặc và dấu nháy.");
+        setError(
+          isVietnamese
+            ? "Cú pháp JSON không hợp lệ. Vui lòng kiểm tra lại dấu ngoặc và dấu nháy."
+            : "Invalid JSON syntax. Please check quotes and brackets."
+        );
         return;
       }
     }
@@ -72,7 +77,12 @@ export function CreateConfigModal({
       setDescription("");
       setIsPublic(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Không thể tạo cấu hình lúc này.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : isVietnamese
+          ? "Không thể tạo cấu hình lúc này."
+          : "Failed to create configuration.";
       setError(msg);
     }
   };
@@ -82,11 +92,31 @@ export function CreateConfigModal({
       open={open}
       onOpenChange={onOpenChange}
       title={t("system.modals.createTitle")}
-      description="Thêm mới một biến tham số vận hành cho hệ thống microservices."
+      description={
+        isVietnamese
+          ? "Thêm mới một biến tham số vận hành cho hệ thống microservices."
+          : "Add a new operational parameter for the microservices system."
+      }
       icon={<Settings className="h-5 w-5 text-primary" />}
-      size="md"
+      footer={
+        <div className="flex w-full items-center justify-end gap-2.5">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
+            {t("system.modals.cancel")}
+          </Button>
+
+          <Button form="create-config-form" type="submit" variant="primary" disabled={loading}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            <span>{loading ? t("system.modals.saving") : t("system.modals.save")}</span>
+          </Button>
+        </div>
+      }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form id="create-config-form" onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
             {error}
@@ -102,7 +132,7 @@ export function CreateConfigModal({
             required
             value={key}
             onChange={(e) => setKey(e.target.value)}
-            placeholder="ví dụ: app.maintenance_mode"
+            placeholder={isVietnamese ? "ví dụ: app.maintenance_mode" : "e.g.: app.maintenance_mode"}
             className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
           />
         </div>
@@ -126,7 +156,7 @@ export function CreateConfigModal({
 
           <div>
             <label className="block text-xs font-semibold text-foreground mb-1.5">
-              Kiểu dữ liệu (Type)
+              {isVietnamese ? "Kiểu dữ liệu (Type)" : "Data Type"}
             </label>
             <select
               value={valueType}
@@ -162,7 +192,7 @@ export function CreateConfigModal({
               rows={valueType === "json" ? 4 : 2}
               value={valueStr}
               onChange={(e) => setValueStr(e.target.value)}
-              placeholder={valueType === "json" ? '{\n  "enabled": true\n}' : "Nhập giá trị..."}
+              placeholder={valueType === "json" ? '{\n  "enabled": true\n}' : (isVietnamese ? "Nhập giá trị..." : "Enter value...")}
               className="w-full font-mono rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
             />
           )}
@@ -176,7 +206,7 @@ export function CreateConfigModal({
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Mô tả mục đích cấu hình..."
+            placeholder={isVietnamese ? "Mô tả mục đích cấu hình..." : "Describe config purpose..."}
             className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
           />
         </div>
@@ -192,22 +222,6 @@ export function CreateConfigModal({
           <label htmlFor="create-isPublic" className="text-xs text-foreground cursor-pointer">
             {t("system.modals.publicLabel")}
           </label>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/30">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={loading}
-          >
-            {t("system.modals.cancel")}
-          </Button>
-
-          <Button type="submit" variant="primary" disabled={loading}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            <span>{loading ? t("system.modals.saving") : t("system.modals.save")}</span>
-          </Button>
         </div>
       </form>
     </Modal>

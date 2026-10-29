@@ -14,6 +14,8 @@ export interface SegmentedControlOption<T extends string = string> {
   value: T;
   label: string;
   icon?: ReactNode;
+  badge?: ReactNode;
+  badgeColor?: string;
   disabled?: boolean;
   description?: string;
 }
@@ -317,6 +319,22 @@ export function SegmentedControl<T extends string = string>({
             <span className="relative min-w-0 truncate">
               {option.label}
             </span>
+
+            {option.badge !== undefined && option.badge !== null && (
+              <span
+                className={[
+                  "ml-1.5 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-mono font-bold leading-none tabular-nums transition-colors",
+                  option.badgeColor ||
+                    (isSelected
+                      ? "bg-primary/20 text-primary dark:bg-primary/30"
+                      : "bg-muted-foreground/15 text-muted-foreground group-hover:text-foreground"),
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                {option.badge}
+              </span>
+            )}
 
             {isSelected && (
               <span

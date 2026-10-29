@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { useTableContext } from "./table-context";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface TablePaginationProps {
   className?: string;
@@ -30,16 +31,39 @@ export function TablePagination({
   pageSizeOptions = [10, 20, 50, 100],
   showPageSizeSelector = true,
   showRowCount = true,
-  pageSizeLabel = "Số dòng",
-  perPageSuffix = "/ trang",
-  emptyText = "Không có bản ghi",
+  pageSizeLabel,
+  perPageSuffix,
+  emptyText,
   showingText,
   pageOfText,
-  firstPageTitle = "Trang đầu",
-  prevPageTitle = "Trang trước",
-  nextPageTitle = "Trang tiếp theo",
-  lastPageTitle = "Trang cuối",
+  firstPageTitle,
+  prevPageTitle,
+  nextPageTitle,
+  lastPageTitle,
 }: TablePaginationProps) {
+  let isVietnamese = true;
+  try {
+    const localeCtx = useLocale();
+    isVietnamese = localeCtx.locale === "vi-VN";
+  } catch {
+    // fallback if used outside LocaleProvider
+  }
+
+  const effectivePageSizeLabel =
+    pageSizeLabel ?? (isVietnamese ? "Số dòng" : "Page size");
+  const effectivePerPageSuffix =
+    perPageSuffix ?? (isVietnamese ? "/ trang" : "/ page");
+  const effectiveEmptyText =
+    emptyText ?? (isVietnamese ? "Không có bản ghi" : "No records found");
+  const effectiveFirstPageTitle =
+    firstPageTitle ?? (isVietnamese ? "Trang đầu" : "First page");
+  const effectivePrevPageTitle =
+    prevPageTitle ?? (isVietnamese ? "Trang trước" : "Previous page");
+  const effectiveNextPageTitle =
+    nextPageTitle ?? (isVietnamese ? "Trang tiếp theo" : "Next page");
+  const effectiveLastPageTitle =
+    lastPageTitle ?? (isVietnamese ? "Trang cuối" : "Last page");
+
   const { table, loading } = useTableContext();
 
   const pagination = table.state.pagination;
@@ -95,12 +119,20 @@ export function TablePagination({
             aria-live="polite"
           >
             {totalRows === 0
-              ? emptyText
+              ? effectiveEmptyText
               : showingText
                 ? showingText(startRow, endRow, totalRows)
                 : (
                   <span>
-                    Hiển thị <strong className="text-foreground font-mono font-bold">{startRow}–{endRow}</strong> trong <strong className="text-foreground font-mono font-bold">{totalRows}</strong> dòng
+                    {isVietnamese ? (
+                      <>
+                        Hiển thị <strong className="text-foreground font-mono font-bold">{startRow}–{endRow}</strong> trong <strong className="text-foreground font-mono font-bold">{totalRows}</strong> dòng
+                      </>
+                    ) : (
+                      <>
+                        Showing <strong className="text-foreground font-mono font-bold">{startRow}–{endRow}</strong> of <strong className="text-foreground font-mono font-bold">{totalRows}</strong> rows
+                      </>
+                    )}
                   </span>
                 )}
           </p>
@@ -108,7 +140,7 @@ export function TablePagination({
 
         {showPageSizeSelector && (
           <label className="flex items-center gap-2 text-[11px] sm:text-xs font-semibold text-muted-foreground">
-            <span>{pageSizeLabel}</span>
+            <span>{effectivePageSizeLabel}</span>
 
             <select
               value={pageSize}
@@ -116,7 +148,7 @@ export function TablePagination({
               onChange={(event) => {
                 table.setPageSize(Number(event.target.value));
               }}
-              aria-label={pageSizeLabel}
+              aria-label={effectivePageSizeLabel}
               className={[
                 "h-8 sm:h-9 rounded-xl border border-[var(--shadow-dark)]/25 dark:border-white/10",
                 "bg-background px-2.5 sm:px-3 text-[11px] sm:text-xs font-bold text-foreground",
@@ -126,7 +158,7 @@ export function TablePagination({
             >
               {pageSizeOptions.map((size) => (
                 <option key={size} value={size}>
-                  {size} {perPageSuffix}
+                  {size} {effectivePerPageSuffix}
                 </option>
               ))}
             </select>
@@ -138,7 +170,9 @@ export function TablePagination({
         <span className="whitespace-nowrap font-mono text-[11px] sm:text-xs font-black px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-background border border-border/40 shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] text-primary">
           {pageOfText
             ? pageOfText(currentPage, Math.max(pageCount, 1))
-            : `Trang ${currentPage} / ${Math.max(pageCount, 1)}`}
+            : isVietnamese
+              ? `Trang ${currentPage} / ${Math.max(pageCount, 1)}`
+              : `Page ${currentPage} of ${Math.max(pageCount, 1)}`}
         </span>
 
         <div className="flex items-center gap-1 sm:gap-1.5">
@@ -151,8 +185,8 @@ export function TablePagination({
               pageCount <= 1 ||
               !table.getCanPreviousPage()
             }
-            aria-label={firstPageTitle}
-            title={firstPageTitle}
+            aria-label={effectiveFirstPageTitle}
+            title={effectiveFirstPageTitle}
           >
             <ChevronsLeft size={14} />
           </button>
@@ -162,8 +196,8 @@ export function TablePagination({
             className={controlClass}
             onClick={() => table.previousPage()}
             disabled={loading || !table.getCanPreviousPage()}
-            aria-label={prevPageTitle}
-            title={prevPageTitle}
+            aria-label={effectivePrevPageTitle}
+            title={effectivePrevPageTitle}
           >
             <ChevronLeft size={14} />
           </button>
@@ -173,8 +207,8 @@ export function TablePagination({
             className={controlClass}
             onClick={() => table.nextPage()}
             disabled={loading || !table.getCanNextPage()}
-            aria-label={nextPageTitle}
-            title={nextPageTitle}
+            aria-label={effectiveNextPageTitle}
+            title={effectiveNextPageTitle}
           >
             <ChevronRight size={14} />
           </button>
@@ -190,8 +224,8 @@ export function TablePagination({
               pageCount <= 1 ||
               !table.getCanNextPage()
             }
-            aria-label={lastPageTitle}
-            title={lastPageTitle}
+            aria-label={effectiveLastPageTitle}
+            title={effectiveLastPageTitle}
           >
             <ChevronsRight size={14} />
           </button>

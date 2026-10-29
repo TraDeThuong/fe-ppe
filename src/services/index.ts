@@ -9,3 +9,4 @@ export * from "./site.service";
 export * from "./incident.service";
 export * from "./ai-metrics.service";
 export * from "./reporting.service";
+export * from "./sound.service";

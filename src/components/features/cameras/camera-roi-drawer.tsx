@@ -20,7 +20,8 @@ export function CameraRoiDrawer({
   onOpenChange,
   camera,
 }: CameraRoiDrawerProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const { data: config, isLoading: configLoading } = useCameraConfig(
     camera?.id || "",
@@ -72,8 +73,36 @@ export function CameraRoiDrawer({
       description={t("cameras.modals.roiDesc")}
       icon={<Sliders className="h-5 w-5 text-primary" />}
       size="xl"
+      footer={
+        <div className="flex w-full items-center justify-end gap-2.5 sm:w-auto">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={updateConfig.isPending}
+            className="flex-1 sm:flex-initial"
+          >
+            {t("common.cancel")}
+          </Button>
+
+          <Button
+            type="button"
+            variant="primary"
+            onClick={handleSave}
+            disabled={updateConfig.isPending}
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2"
+          >
+            {updateConfig.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            <span>{isVietnamese ? "Lưu cấu hình AI ROI" : "Save AI ROI Config"}</span>
+          </Button>
+        </div>
+      }
     >
-      <div className="space-y-5">
+      <div className="space-y-4">
         {/* Camera Info Header */}
         <div className="flex items-center justify-between rounded-xl border border-border/40 bg-surface/60 p-3">
           <div>
@@ -95,11 +124,13 @@ export function CameraRoiDrawer({
           points={points}
           onChange={setPoints}
           imageUrl={camera?.snapshotUrl}
+          streamUrl={camera?.streamUrl}
+          cameraName={camera?.name}
           disabled={configLoading || updateConfig.isPending}
         />
 
         {/* AI Calibration Parameters */}
-        <div className="grid grid-cols-1 gap-4 rounded-2xl border border-border/40 bg-surface/40 p-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3.5 rounded-2xl border border-border/40 bg-surface/40 p-3.5 sm:grid-cols-3 sm:gap-4 sm:p-4">
           {/* Processing Enabled Switch */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground">
@@ -161,33 +192,6 @@ export function CameraRoiDrawer({
               className="w-full accent-primary"
             />
           </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-3 pt-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={updateConfig.isPending}
-          >
-            {t("common.cancel")}
-          </Button>
-
-          <Button
-            type="button"
-            variant="primary"
-            onClick={handleSave}
-            disabled={updateConfig.isPending}
-            className="flex items-center gap-2"
-          >
-            {updateConfig.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            <span>Lưu cấu hình AI ROI</span>
-          </Button>
         </div>
       </div>
     </Modal>

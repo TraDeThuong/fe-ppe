@@ -300,10 +300,13 @@ Thay thế placeholder hiện tại bằng component hoàn chỉnh kết nối t
 
 - [x] Route `/audit-logs` được bảo vệ bằng Route Guard với quyền `AUDIT_LOG_READ`.
 - [x] 4 thẻ Bento Console hiển thị đúng số liệu thống kê từ API `/api/v1/audit-logs/summary`.
-- [x] Chuyển đổi mượt mà giữa 3 Tab: Tất cả, Thay đổi Cấu hình, và Thẩm duyệt Sự cố PPE.
-- [x] Bộ lọc Hành động, Loại tài nguyên và Khoảng ngày hoạt động chính xác.
+- [x] Thẻ KPI Neumorphic tương tác cao: hiệu ứng lún sâu (sunken effect) khi chọn, footer "Xem chi tiết v" / "Thu gọn ^", đồng bộ URL query `?stat=total-logs|config-changes|incident-reviews|success-rate`.
+- [x] Khung chi tiết mở rộng `AuditStatsDetailPanel` mở ra ngay dưới stats với 4 góc nhìn chuyên sâu: Phân tích WORM & phân bổ hành động, Biến động cấu hình có đối chiếu JSON Diff, Thống kê thẩm duyệt sự cố PPE của Cán bộ an toàn, và Chẩn đoán an ninh & điều tra lỗi truy cập bất thường (Forensic Failed Logs).
+- [x] Chuyển đổi mượt mà giữa 3 Tab: Tất cả, Thay đổi Cấu hình, và Thẩm duyệt Sự cố PPE kèm đồng bộ URL `?tab=...`.
+- [x] Bộ lọc Hành động, Loại tài nguyên (`targetType`), Trạng thái (`SUCCESS`/`FAILED`), Tìm kiếm debounce và Nút "Đặt lại bộ lọc".
+- [x] Bộ phân trang `AuditLogTable` đầy đủ: hiển thị bản ghi hiện tại, nút Trước/Sau, chọn số lượng bản ghi mỗi trang (10, 20, 50, 100).
 - [x] Drawer Chi tiết hiển thị rõ ràng thông tin người dùng, IP, User-Agent và bộ so sánh JSON Diff (old vs new).
 - [x] Tính năng Xuất báo cáo tải về thành công file CSV và JSON định dạng chuẩn.
-- [x] Tuyệt đối không có hành động sửa hoặc xóa bản ghi kiểm toán trên giao diện.
+- [x] Tuyệt đối không có hành động sửa hoặc xóa bản ghi kiểm toán trên giao diện (Tuân thủ nguyên tắc WORM).
 - [x] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) đồng bộ 100%.
 - [x] Giao diện Neumorphic thẩm mỹ cao, tương thích hoàn hảo Dark Mode và Light Mode.

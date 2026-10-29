@@ -29,7 +29,8 @@ export function SystemConfigTable({
   onPageSizeChange,
   canManage = true,
 }: SystemConfigTableProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const startItem = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -186,22 +187,32 @@ export function SystemConfigTable({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-2 pt-1 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
             <span>
-              Hiển thị <span className="font-semibold text-foreground">{startItem}</span> -{" "}
-              <span className="font-semibold text-foreground">{endItem}</span> trên tổng số{" "}
-              <span className="font-semibold text-foreground">{totalItems}</span> cấu hình
+              {isVietnamese ? (
+                <>
+                  Hiển thị <span className="font-semibold text-foreground">{startItem}</span> -{" "}
+                  <span className="font-semibold text-foreground">{endItem}</span> trên tổng số{" "}
+                  <span className="font-semibold text-foreground">{totalItems}</span> cấu hình
+                </>
+              ) : (
+                <>
+                  Showing <span className="font-semibold text-foreground">{startItem}</span> -{" "}
+                  <span className="font-semibold text-foreground">{endItem}</span> of{" "}
+                  <span className="font-semibold text-foreground">{totalItems}</span> configs
+                </>
+              )}
             </span>
 
             {onPageSizeChange && (
               <div className="ml-3 flex items-center gap-1.5">
-                <span>Số dòng:</span>
+                <span>{isVietnamese ? "Số dòng:" : "Page size:"}</span>
                 <select
                   value={pageSize}
                   onChange={(e) => onPageSizeChange(Number(e.target.value))}
                   className="rounded-lg border border-border/40 bg-surface px-2 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
                 >
-                  <option value={10}>10 / trang</option>
-                  <option value={20}>20 / trang</option>
-                  <option value={50}>50 / trang</option>
+                  <option value={10}>10 {isVietnamese ? "/ trang" : "/ page"}</option>
+                  <option value={20}>20 {isVietnamese ? "/ trang" : "/ page"}</option>
+                  <option value={50}>50 {isVietnamese ? "/ trang" : "/ page"}</option>
                 </select>
               </div>
             )}
@@ -213,7 +224,7 @@ export function SystemConfigTable({
               onClick={() => onPageChange(1)}
               disabled={page <= 1}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border/40 disabled:hover:text-muted-foreground"
-              aria-label="Trang đầu"
+              aria-label={isVietnamese ? "Trang đầu" : "First page"}
             >
               <ChevronsLeft className="h-4 w-4" />
             </button>
@@ -223,13 +234,13 @@ export function SystemConfigTable({
               onClick={() => onPageChange(page - 1)}
               disabled={page <= 1}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border/40 disabled:hover:text-muted-foreground"
-              aria-label="Trang trước"
+              aria-label={isVietnamese ? "Trang trước" : "Previous page"}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
 
             <span className="px-3 py-1 text-xs font-medium text-foreground">
-              Trang {page} / {totalPages}
+              {isVietnamese ? `Trang ${page} / ${totalPages}` : `Page ${page} of ${totalPages}`}
             </span>
 
             <button
@@ -237,7 +248,7 @@ export function SystemConfigTable({
               onClick={() => onPageChange(page + 1)}
               disabled={page >= totalPages}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border/40 disabled:hover:text-muted-foreground"
-              aria-label="Trang sau"
+              aria-label={isVietnamese ? "Trang sau" : "Next page"}
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -247,7 +258,7 @@ export function SystemConfigTable({
               onClick={() => onPageChange(totalPages)}
               disabled={page >= totalPages}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border/40 disabled:hover:text-muted-foreground"
-              aria-label="Trang cuối"
+              aria-label={isVietnamese ? "Trang cuối" : "Last page"}
             >
               <ChevronsRight className="h-4 w-4" />
             </button>

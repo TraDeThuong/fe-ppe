@@ -33,7 +33,8 @@ export function NotificationFilterToolbar({
   isRefreshing = false,
   className = "",
 }: NotificationFilterToolbarProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [searchInput, setSearchInput] = useState(filter.search || "");
   const debouncedSearch = useDebounce(searchInput, 300);
 
@@ -113,8 +114,8 @@ export function NotificationFilterToolbar({
               type="button"
               onClick={onRefresh}
               disabled={isRefreshing}
-              title="Làm mới"
-              aria-label="Làm mới danh sách"
+              title={isVietnamese ? "Làm mới" : "Refresh"}
+              aria-label={isVietnamese ? "Làm mới danh sách" : "Refresh list"}
               className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_2px_2px_4px_var(--shadow-dark)] disabled:opacity-50"
             >
               <RefreshCw
@@ -129,7 +130,7 @@ export function NotificationFilterToolbar({
       <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/20 text-xs">
         <span className="flex items-center gap-1 text-muted-foreground font-medium pr-1">
           <Filter className="size-3" />
-          <span>Bộ lọc:</span>
+          <span>{isVietnamese ? "Bộ lọc:" : "Filters:"}</span>
         </span>
 
         {/* Trạng thái Đã đọc / Chưa đọc */}

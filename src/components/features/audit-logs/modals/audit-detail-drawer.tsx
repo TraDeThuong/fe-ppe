@@ -2,6 +2,7 @@
 
 import { Clock, Globe, Shield, User } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
 import type { AuditLogDetail } from "@/types";
 import { AuditActionBadge } from "../audit-action-badge";
@@ -30,6 +31,18 @@ export function AuditDetailDrawer({
       description={detail?.id ? `ID: #${detail.id}` : undefined}
       icon={<Shield className="h-5 w-5 text-primary" />}
       size="lg"
+      footer={
+        <div className="flex w-full items-center justify-end sm:w-auto">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="w-full sm:w-auto"
+          >
+            {t("common.close")}
+          </Button>
+        </div>
+      }
     >
       {loading ? (
         <div className="space-y-4 py-8">

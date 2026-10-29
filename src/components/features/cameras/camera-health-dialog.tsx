@@ -18,7 +18,8 @@ export function CameraHealthDialog({
   onOpenChange,
   camera,
 }: CameraHealthDialogProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const pingMutation = usePingCamera();
   const { data: logs = [], isLoading: logsLoading } = useCameraHealthLogs(
@@ -39,9 +40,25 @@ export function CameraHealthDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={t("cameras.modals.healthTitle")}
-      description={`Kiểm tra đường truyền RTSP & mạng nội bộ cho ${camera?.name || ""}`}
+      description={
+        isVietnamese
+          ? `Kiểm tra đường truyền RTSP & mạng nội bộ cho ${camera?.name || ""}`
+          : `Check RTSP stream & local network for ${camera?.name || ""}`
+      }
       icon={<Activity className="h-5 w-5 text-primary" />}
       size="md"
+      footer={
+        <div className="flex w-full items-center justify-end sm:w-auto">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="w-full sm:w-auto"
+          >
+            {t("common.close") || (isVietnamese ? "Đóng" : "Close")}
+          </Button>
+        </div>
+      }
     >
       <div className="space-y-4">
         {/* Real-time Diagnostics Card */}
@@ -76,21 +93,27 @@ export function CameraHealthDialog({
           {/* Ping metrics grid */}
           <div className="mt-4 grid grid-cols-2 gap-3 text-center sm:grid-cols-3">
             <div className="rounded-xl border border-border/30 bg-surface p-3">
-              <span className="text-[11px] text-muted-foreground">Độ trễ hiện tại</span>
+              <span className="text-[11px] text-muted-foreground">
+                {isVietnamese ? "Độ trễ hiện tại" : "Current Latency"}
+              </span>
               <p className="mt-1 font-mono text-base font-bold text-foreground">
                 {pingResult ? `${pingResult.latencyMs ?? 0} ms` : `${camera?.currentLatencyMs || 42} ms`}
               </p>
             </div>
 
             <div className="rounded-xl border border-border/30 bg-surface p-3">
-              <span className="text-[11px] text-muted-foreground">Tỷ lệ rớt gói</span>
+              <span className="text-[11px] text-muted-foreground">
+                {isVietnamese ? "Tỷ lệ rớt gói" : "Packet Loss"}
+              </span>
               <p className="mt-1 font-mono text-base font-bold text-emerald-500">
                 {pingResult?.packetLoss ?? 0}%
               </p>
             </div>
 
             <div className="col-span-2 sm:col-span-1 rounded-xl border border-border/30 bg-surface p-3">
-              <span className="text-[11px] text-muted-foreground">Tốc độ khung</span>
+              <span className="text-[11px] text-muted-foreground">
+                {isVietnamese ? "Tốc độ khung" : "Frame Rate"}
+              </span>
               <p className="mt-1 font-mono text-base font-bold text-primary">
                 {camera?.currentFps || 25} FPS
               </p>
@@ -110,7 +133,7 @@ export function CameraHealthDialog({
               ) : (
                 <Zap className="h-4 w-4" />
               )}
-              <span>Gửi tín hiệu Ping ngay</span>
+              <span>{isVietnamese ? "Gửi tín hiệu Ping ngay" : "Send Ping Probe"}</span>
             </Button>
           </div>
         </div>
@@ -119,16 +142,20 @@ export function CameraHealthDialog({
         <div className="space-y-2">
           <h5 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             <Clock className="h-3.5 w-3.5" />
-            <span>Nhật ký nhịp tim gần đây</span>
+            <span>{isVietnamese ? "Nhật ký nhịp tim gần đây" : "Recent Heartbeat Logs"}</span>
           </h5>
 
           <div className="max-h-40 overflow-y-auto rounded-xl border border-border/30 bg-surface/30 divide-y divide-border/20 text-xs">
             {logsLoading ? (
-              <p className="p-3 text-center text-muted-foreground">Đang tải nhật ký...</p>
+              <p className="p-3 text-center text-muted-foreground">
+                {isVietnamese ? "Đang tải nhật ký..." : "Loading logs..."}
+              </p>
             ) : logs.length === 0 ? (
               <div className="flex items-center justify-center gap-2 p-3 text-muted-foreground">
                 <CheckCircle className="h-4 w-4 text-emerald-500" />
-                <span>Không có sự cố gián đoạn nào được ghi nhận.</span>
+                <span>
+                  {isVietnamese ? "Không có sự cố gián đoạn nào được ghi nhận." : "No connection downtime recorded."}
+                </span>
               </div>
             ) : (
               logs.slice(0, 5).map((log) => (
@@ -153,16 +180,6 @@ export function CameraHealthDialog({
               ))
             )}
           </div>
-        </div>
-
-        <div className="flex justify-end pt-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-          >
-            Đóng
-          </Button>
         </div>
       </div>
     </Modal>

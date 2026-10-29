@@ -9,7 +9,8 @@ import { useLocale } from "@/providers/locale-provider";
 
 export default function DashboardContent() {
   const { user, status } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   if (status !== "authenticated" || !user) {
     return (
@@ -25,13 +26,13 @@ export default function DashboardContent() {
         icon={LayoutDashboard}
         title={t("nav.dashboard")}
         description={`${t("dashboard.welcome")}, ${user.fullName ?? user.email}`}
-        badge="Workspace overview"
+        badge={isVietnamese ? "Tổng quan không gian làm việc" : "Workspace overview"}
         badgeIcon={LayoutDashboard}
       />
 
       <PagePanel
         icon={LayoutDashboard}
-        title="Tổng quan (Dashboard Grid Container)"
+        title={isVietnamese ? "Tổng quan không gian làm việc" : "Workspace Overview"}
         description=""
       />
     </div>

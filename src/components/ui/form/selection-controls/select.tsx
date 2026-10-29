@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { Check, ChevronDown } from "lucide-react";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface SelectOption {
   value: string;
@@ -51,7 +52,7 @@ function Select({
   onValueChange,
   name,
   id,
-  placeholder = "Chọn một giá trị",
+  placeholder,
   disabled = false,
   required = false,
   error = false,
@@ -60,9 +61,22 @@ function Select({
   triggerClassName = "",
   menuClassName = "",
   optionClassName = "",
-  emptyMessage = "Không có lựa chọn",
+  emptyMessage,
   ariaLabel,
 }: SelectProps) {
+  let isVietnamese = true;
+  try {
+    const localeCtx = useLocale();
+    isVietnamese = localeCtx.locale === "vi-VN";
+  } catch {
+    // fallback if outside LocaleProvider
+  }
+
+  const effectivePlaceholder =
+    placeholder ?? (isVietnamese ? "Chọn một giá trị" : "Select an option");
+  const effectiveEmptyMessage =
+    emptyMessage ?? (isVietnamese ? "Không có lựa chọn" : "No options available");
+
   const generatedId = useId();
   const triggerId = id ?? `select-${generatedId}`;
   const listboxId = `${triggerId}-listbox`;
@@ -290,7 +304,7 @@ function Select({
             .filter(Boolean)
             .join(" ")}
         >
-          {selectedOption?.label ?? placeholder}
+          {selectedOption?.label ?? effectivePlaceholder}
         </span>
 
         <ChevronDown
@@ -328,7 +342,7 @@ function Select({
           >
             {options.length === 0 ? (
               <p className="px-3 py-2 text-sm text-muted-foreground">
-                {emptyMessage}
+                {effectiveEmptyMessage}
               </p>
             ) : (
               options.map((option, index) => {

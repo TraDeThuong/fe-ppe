@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Bell, Radio, ShieldAlert } from "lucide-react";
+import { useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Bell, Radio, Send, ShieldAlert } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,8 +17,13 @@ import {
   PreviewTemplateModal,
   TestSendTemplateModal,
   ConfirmDeleteNotificationModal,
+  CreateNotificationTemplateModal,
+  EditNotificationTemplateModal,
+  DeleteNotificationTemplateDialog,
+  CustomDispatchNotificationModal,
   type NotificationTabKey,
   type NotificationFilterState,
+  type NotificationStatKey,
 } from "@/components/features/notifications";
 import {
   useNotifications,
@@ -31,15 +37,64 @@ import { useRealtime } from "@/contexts/RealtimeContext";
 import { useLocale } from "@/providers/locale-provider";
 import type { NotificationItemDto, NotificationTemplateItemDto } from "@/types";
 
+const STAT_TO_URL: Record<NotificationStatKey, string> = {
+  total: "total",
+  unread: "unread",
+  ppeAlerts: "ppe-alerts",
+  resolved: "resolved",
+};
+
+const URL_TO_STAT: Record<string, NotificationStatKey> = {
+  total: "total",
+  unread: "unread",
+  "ppe-alerts": "ppeAlerts",
+  ppeAlerts: "ppeAlerts",
+  resolved: "resolved",
+};
+
 export default function NotificationsContent() {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const { user } = useAuth();
   const { isConnected } = useRealtime();
 
+  // URL state synchronization for stats (giống hệt trang role)
+  const statParam = searchParams.get("stat");
+  const selectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
+
+  const handleSelectStat = (stat: NotificationStatKey | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (stat) {
+      params.set("stat", STAT_TO_URL[stat]);
+    } else {
+      params.delete("stat");
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
   // Tab navigation state
-  const [activeTab, setActiveTab] = useState<NotificationTabKey>("inbox");
+  const tabParam = searchParams.get("tab") as NotificationTabKey | null;
+  const [activeTab, setActiveTab] = useState<NotificationTabKey>(tabParam || "inbox");
+
+  const handleTabChange = (tab: NotificationTabKey) => {
+    setActiveTab(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === "inbox") {
+      params.delete("tab");
+    } else {
+      params.set("tab", tab);
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    if (tab === "inbox") {
+      refetchNotifications();
+    }
+  };
 
   // Filtering & Pagination
   const [page, setPage] = useState(1);
@@ -75,18 +130,32 @@ export default function NotificationsContent() {
 
   // Modals state
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
+  const [isCustomDispatchModalOpen, setIsCustomDispatchModalOpen] = useState(false);
+  const [isCreateTemplateModalOpen, setIsCreateTemplateModalOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<NotificationTemplateItemDto | null>(null);
+  const [deletingTemplateInfo, setDeletingTemplateInfo] = useState<{
+    template: NotificationTemplateItemDto;
+    isSystem: boolean;
+  } | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<NotificationTemplateItemDto | null>(null);
   const [testSendTemplate, setTestSendTemplate] = useState<NotificationTemplateItemDto | null>(null);
   const [deletingNotification, setDeletingNotification] = useState<NotificationItemDto | null>(null);
 
-  // RBAC Broadcast Capability
+  // RBAC Capabilities
   const role = user?.role || "";
   const permissions = user?.permissions || [];
   const canBroadcast =
     role === "ADMIN" ||
     role === "SUPER_ADMIN" ||
+    role === "SAFETY_MANAGER" ||
     role === "SAFETY_OFFICER" ||
     permissions.includes("NOTIFICATION_CREATE");
+
+  const canManageTemplates =
+    role === "ADMIN" ||
+    role === "SUPER_ADMIN" ||
+    role === "SAFETY_MANAGER" ||
+    permissions.includes("NOTIFICATION_TEMPLATE_MANAGE");
 
   const items = notificationData?.data || [];
   const meta = notificationData?.meta || {
@@ -145,7 +214,13 @@ export default function NotificationsContent() {
               }`}
             />
             <span className="font-mono text-[11px] font-semibold text-foreground">
-              {isConnected ? "Realtime SSE Active" : "SSE Connecting..."}
+              {isConnected
+                ? isVietnamese
+                  ? "Luồng SSE Trực tuyến"
+                  : "Realtime SSE Active"
+                : isVietnamese
+                  ? "Đang kết nối SSE..."
+                  : "SSE Connecting..."}
             </span>
           </div>
         }
@@ -153,37 +228,52 @@ export default function NotificationsContent() {
         breadcrumbs={[{ label: t("notifications.title") }]}
         actions={
           canBroadcast ? (
-            <Button
-              type="button"
-              variant="primary"
-              onClick={() => setIsBroadcastModalOpen(true)}
-              className="flex items-center gap-2 font-bold shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]"
-            >
-              <Radio className="size-4" />
-              <span>{isVietnamese ? "+ Phát thông báo" : "+ Broadcast Alert"}</span>
-            </Button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Nút gửi thông báo tùy chỉnh / theo mẫu */}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCustomDispatchModalOpen(true)}
+                className="flex items-center gap-2 font-semibold shadow-[2px_2px_6px_var(--shadow-dark)]"
+              >
+                <Send className="size-4" />
+                <span>{isVietnamese ? "Gửi thông báo tùy chỉnh" : "Custom Dispatch"}</span>
+              </Button>
+
+              {/* Nút phát thông báo khẩn cấp */}
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => setIsBroadcastModalOpen(true)}
+                className="flex items-center gap-2 font-bold shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]"
+              >
+                <Radio className="size-4" />
+                <span>{isVietnamese ? "+ Phát lệnh khẩn cấp" : "+ Broadcast Alert"}</span>
+              </Button>
+            </div>
           ) : undefined
         }
       />
 
-      {/* 2. Thẻ KPI Thống kê Neumorphism */}
+      {/* 2. Thẻ KPI Thống kê Neumorphism Tương tác (Sunken khi chọn + Khung chi tiết mở ra) */}
       <NotificationKpiSummary
         notifications={items}
         totalCount={meta.total}
         unreadCount={unreadCount}
         variant="soft-extruded"
         loading={isNotificationsLoading}
+        selectedStat={selectedStat}
+        onSelectStat={handleSelectStat}
+        onOpenBroadcast={() => setIsBroadcastModalOpen(true)}
+        onOpenPreferences={() => handleTabChange("preferences")}
+        onMarkAllAsRead={() => markAllAsReadMutation.mutate()}
+        onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
       />
 
-      {/* 3. Phân nhóm Tab (Inbox, Preferences, Templates, EmailLogs) */}
+      {/* 3. Phân nhóm Tab (Hộp thư, Cài đặt & Âm thanh, Mẫu thông báo, Nhật ký Email) */}
       <NotificationTabs
         activeTab={activeTab}
-        onTabChange={(tab) => {
-          setActiveTab(tab);
-          if (tab === "inbox") {
-            refetchNotifications();
-          }
-        }}
+        onTabChange={handleTabChange}
         unreadCount={unreadCount}
       />
 
@@ -228,6 +318,13 @@ export default function NotificationsContent() {
         <NotificationTemplatesTab
           onPreviewTemplate={(template) => setPreviewTemplate(template)}
           onTestSendTemplate={(template) => setTestSendTemplate(template)}
+          onCreateTemplate={canManageTemplates ? () => setIsCreateTemplateModalOpen(true) : undefined}
+          onEditTemplate={canManageTemplates ? (template) => setEditingTemplate(template) : undefined}
+          onDeleteTemplate={
+            canManageTemplates
+              ? (template, isSystem) => setDeletingTemplateInfo({ template, isSystem })
+              : undefined
+          }
         />
       )}
 
@@ -239,6 +336,29 @@ export default function NotificationsContent() {
       <BroadcastNotificationModal
         open={isBroadcastModalOpen}
         onOpenChange={setIsBroadcastModalOpen}
+      />
+
+      <CustomDispatchNotificationModal
+        open={isCustomDispatchModalOpen}
+        onOpenChange={setIsCustomDispatchModalOpen}
+      />
+
+      <CreateNotificationTemplateModal
+        open={isCreateTemplateModalOpen}
+        onOpenChange={setIsCreateTemplateModalOpen}
+      />
+
+      <EditNotificationTemplateModal
+        open={Boolean(editingTemplate)}
+        onOpenChange={(open) => !open && setEditingTemplate(null)}
+        template={editingTemplate}
+      />
+
+      <DeleteNotificationTemplateDialog
+        open={Boolean(deletingTemplateInfo)}
+        onOpenChange={(open) => !open && setDeletingTemplateInfo(null)}
+        template={deletingTemplateInfo?.template || null}
+        isSystemTemplate={deletingTemplateInfo?.isSystem || false}
       />
 
       <PreviewTemplateModal

@@ -12,4 +12,5 @@ export * from "./incident-checksum-verifier";
 export * from "./review-incident-modal";
 export * from "./assign-incident-modal";
 export * from "./resolve-incident-modal";
+export * from "./incident-stats-detail-panel";
 export * from "./close-incident-dialog";

@@ -103,6 +103,8 @@
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--background);
+  --color-surface-elevated: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-muted: var(--muted);

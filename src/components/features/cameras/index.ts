@@ -10,3 +10,4 @@ export * from "./edit-camera-modal";
 export * from "./camera-roi-drawer";
 export * from "./camera-health-dialog";
 export * from "./delete-camera-dialog";
+export * from "./camera-spotlight";

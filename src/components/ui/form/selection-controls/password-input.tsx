@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { useLocale } from "@/providers/locale-provider";
 
 import { Input, type InputProps } from "../foundation/input";
 
@@ -17,13 +18,23 @@ export interface PasswordInputProps
 
 function PasswordInput({
   showPasswordToggle = true,
-  toggleLabel = {
-    show: "Hiện mật khẩu",
-    hide: "Ẩn mật khẩu",
-  },
+  toggleLabel,
   disabled,
   ...props
 }: PasswordInputProps) {
+  let isVietnamese = true;
+  try {
+    const localeCtx = useLocale();
+    isVietnamese = localeCtx.locale === "vi-VN";
+  } catch {
+    // fallback if outside LocaleProvider
+  }
+
+  const effectiveToggleLabel = toggleLabel ?? {
+    show: isVietnamese ? "Hiện mật khẩu" : "Show password",
+    hide: isVietnamese ? "Ẩn mật khẩu" : "Hide password",
+  };
+
   const [visible, setVisible] = useState(false);
 
   return (
@@ -37,7 +48,7 @@ function PasswordInput({
           <button
             type="button"
             disabled={disabled}
-            aria-label={visible ? toggleLabel.hide : toggleLabel.show}
+            aria-label={visible ? effectiveToggleLabel.hide : effectiveToggleLabel.show}
             aria-pressed={visible}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => setVisible((current) => !current)}

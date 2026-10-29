@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   AlertOctagon,
   Building2,
+  Calculator,
   Camera,
   CheckCircle2,
   ChevronRight,
@@ -32,6 +33,8 @@ export interface SiteStatsDetailPanelProps {
   onManageZones?: (site: SiteItem) => void;
   onSafetyConfig?: (site: SiteItem) => void;
   onCreateSite?: () => void;
+  complianceRate?: number;
+  totalViolations?: number;
 }
 
 export function SiteStatsDetailPanel({
@@ -41,8 +44,11 @@ export function SiteStatsDetailPanel({
   onManageZones,
   onSafetyConfig,
   onCreateSite,
+  complianceRate = 100,
+  totalViolations = 0,
 }: SiteStatsDetailPanelProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   // Selected filters
   const [selectedSiteFilter, setSelectedSiteFilter] = useState<string>("ALL");
@@ -55,11 +61,17 @@ export function SiteStatsDetailPanel({
   const suspendedSites = sites.filter((s) => s.status === "SUSPENDED").length;
 
   const totalZones = sites.reduce(
-    (acc, s) => acc + (s.zones?.length || s.zoneCount || 0),
+    (acc, s) =>
+      acc + (s.zoneCount ?? (s.zones ? s.zones.length : undefined) ?? s._count?.zones ?? 0),
     0
   );
   const totalRestricted = sites.reduce(
-    (acc, s) => acc + (s.restrictedAreas?.length || s.restrictedAreaCount || 0),
+    (acc, s) =>
+      acc +
+      (s.restrictedAreaCount ??
+        (s.restrictedAreas ? s.restrictedAreas.length : undefined) ??
+        s._count?.restrictedAreas ??
+        0),
     0
   );
 
@@ -134,7 +146,7 @@ export function SiteStatsDetailPanel({
                 {activeStat === "totalSites" && `${totalSites}`}
                 {activeStat === "totalZones" && `${totalZones}`}
                 {activeStat === "restrictedAreas" && `${totalRestricted}`}
-                {activeStat === "complianceRate" && "--"}
+                {activeStat === "complianceRate" && `${complianceRate.toFixed(1)}%`}
               </Badge>
             </div>
             <p className="text-[11px] sm:text-xs text-muted-foreground truncate hidden sm:block">
@@ -228,8 +240,8 @@ export function SiteStatsDetailPanel({
           {/* MOBILE VIEW */}
           <div className="block sm:hidden max-h-[260px] overflow-y-auto space-y-2 pr-0.5">
             {sites.map((site) => {
-              const zoneCount = site.zones?.length || site.zoneCount || 0;
-              const restrictedCount = site.restrictedAreas?.length || site.restrictedAreaCount || 0;
+              const zoneCount = site.zoneCount ?? site.zones?.length ?? site._count?.zones ?? 0;
+              const restrictedCount = site.restrictedAreaCount ?? site.restrictedAreas?.length ?? site._count?.restrictedAreas ?? 0;
               const isActive = site.status === "ACTIVE";
 
               return (
@@ -311,8 +323,8 @@ export function SiteStatsDetailPanel({
               </thead>
               <tbody className="divide-y divide-border/20">
                 {sites.map((site) => {
-                  const zoneCount = site.zones?.length || site.zoneCount || 0;
-                  const restrictedCount = site.restrictedAreas?.length || site.restrictedAreaCount || 0;
+                  const zoneCount = site.zoneCount ?? site.zones?.length ?? site._count?.zones ?? 0;
+                  const restrictedCount = site.restrictedAreaCount ?? site.restrictedAreas?.length ?? site._count?.restrictedAreas ?? 0;
                   const isActive = site.status === "ACTIVE";
 
                   return (
@@ -474,7 +486,7 @@ export function SiteStatsDetailPanel({
               onChange={(e) => setSelectedSiteFilter(e.target.value)}
               className="rounded-lg border border-border/40 bg-background/80 px-2.5 py-1 text-xs text-foreground shadow-nm-inset focus:border-primary focus:outline-none"
             >
-              <option value="ALL">Tất cả công trường</option>
+              <option value="ALL">{isVietnamese ? "Tất cả công trường" : "All sites"}</option>
               {sites.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -531,9 +543,95 @@ export function SiteStatsDetailPanel({
 
       {/* ── 4. NỘI DUNG: QUY TẮC AN TOÀN & TUÂN THỦ PPE ──────────────────────────── */}
       {activeStat === "complianceRate" && (
-        <div className="space-y-2.5">
+        <div className="space-y-3.5">
+          {/* Banner công thức tính toán Tỷ lệ Tuân thủ An toàn TB */}
+          <div className="rounded-xl border border-primary/25 bg-primary/5 p-3.5 sm:p-4 shadow-[inset_1px_1px_2px_var(--shadow-dark)] space-y-3 dark:border-primary/20 dark:bg-primary/10">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-primary/15 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                  <Calculator className="h-4 w-4" />
+                </span>
+                <div>
+                  <h4 className="text-xs font-bold text-foreground">
+                    {isVietnamese
+                      ? "Công thức Tính Tỷ lệ Tuân thủ An toàn TB"
+                      : "Average Safety Compliance Formula"}
+                  </h4>
+                  <p className="text-[10px] text-muted-foreground">
+                    {isVietnamese
+                      ? "Chuẩn hóa theo báo cáo phân tích thời gian thực từ smart-ppe-reporting-service"
+                      : "Standardized according to real-time analytics from smart-ppe-reporting-service"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-muted-foreground">
+                  {isVietnamese ? "Chỉ số hiện tại:" : "Current score:"}
+                </span>
+                <span className="font-mono text-xs sm:text-sm font-extrabold text-primary bg-primary/10 px-2.5 py-0.5 rounded-lg border border-primary/20 shadow-sm">
+                  {complianceRate.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+
+            {/* Trình bày công thức Toán học đẹp mắt & trực quan */}
+            <div className="flex flex-col items-center justify-center rounded-lg bg-background/80 py-3 px-3 sm:px-4 border border-border/30 dark:bg-card/90 shadow-nm-inset">
+              <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-foreground">
+                <span className="font-bold text-primary">
+                  {isVietnamese ? "Tỷ lệ tuân thủ (%)" : "Compliance Rate (%)"}
+                </span>
+                <span className="text-muted-foreground">=</span>
+                <span className="font-mono font-bold">100%</span>
+                <span className="text-muted-foreground">−</span>
+                <div className="inline-flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-md bg-muted/40 border border-border/40">
+                  <span className="text-muted-foreground font-mono text-base sm:text-lg">(</span>
+                  <div className="inline-flex flex-col items-center justify-center text-center px-1">
+                    <span className="border-b border-foreground/60 px-1.5 pb-0.5 text-accent font-bold text-[11px] sm:text-xs">
+                      {isVietnamese ? "Số vi phạm được xác nhận" : "Confirmed Violations"}
+                    </span>
+                    <span className="px-1.5 pt-0.5 text-primary font-bold text-[11px] sm:text-xs">
+                      {isVietnamese ? "Tổng lượt người AI quét qua" : "Total Scanned Persons by AI"}
+                    </span>
+                  </div>
+                  <span className="text-muted-foreground font-mono text-base sm:text-lg">)</span>
+                  <span className="font-mono text-xs font-bold text-foreground">× 100%</span>
+                </div>
+              </div>
+
+              {/* Giải thích chi tiết 2 đại lượng trong công thức */}
+              <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2 w-full pt-2.5 border-t border-border/20 text-[10px] text-muted-foreground">
+                <div className="flex items-start gap-1.5">
+                  <span className="text-accent font-bold leading-tight">•</span>
+                  <span>
+                    <strong className="text-foreground">
+                      {isVietnamese ? "Số vi phạm được xác nhận:" : "Confirmed Violations:"}
+                    </strong>{" "}
+                    {isVietnamese
+                      ? "Chuỗi vi phạm không đội mũ, không mặc áo, xâm nhập vùng cấm kéo dài liên tục ≥ 3s (đã qua bộ lọc thời gian và chống báo động lặp)."
+                      : "Violations lasting ≥ 3s continuously (filtered through temporal confirmation and cooldown)."}
+                  </span>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <span className="text-primary font-bold leading-tight">•</span>
+                  <span>
+                    <strong className="text-foreground">
+                      {isVietnamese ? "Tổng lượt người AI quét qua:" : "Total Scanned Persons:"}
+                    </strong>{" "}
+                    {isVietnamese
+                      ? "Tổng số lượt nhận diện công nhân hợp lệ trong ca làm việc đạt ngưỡng tin cậy mô hình YOLO (confidenceThreshold ≥ 80%)."
+                      : "Total valid worker detections across all cameras reaching model confidence threshold ≥ 80%."}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="flex items-center justify-between text-[11px] text-muted-foreground px-0.5">
             <span>{t("sites.detail.complianceDesc")}</span>
+            <span className="text-[10px] font-mono text-primary font-medium">
+              {sites.length} {isVietnamese ? "công trường áp dụng quy tắc" : "sites configured"}
+            </span>
           </div>
 
           <div className="max-h-[270px] overflow-y-auto space-y-2 pr-0.5">

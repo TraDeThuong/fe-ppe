@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Building2, Calendar, Camera, Clock, ExternalLink, MapPin, ShieldAlert } from "lucide-react";
 import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
+import { useEntityLookup } from "@/hooks/use-entity-lookup";
+import { useLocale } from "@/providers/locale-provider";
 import type { IncidentItem } from "@/types";
 
 export interface IncidentMetaCardProps {
@@ -11,7 +13,15 @@ export interface IncidentMetaCardProps {
 }
 
 export function IncidentMetaCard({ incident }: IncidentMetaCardProps) {
-  const detectedDate = new Date(incident.detectedAt).toLocaleString("vi-VN", {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
+  const { getSiteName, getZoneName, getCameraCode, getCameraName } = useEntityLookup();
+  const siteName = incident.siteName || getSiteName(incident.siteId);
+  const zoneName = incident.zoneName || getZoneName(incident.siteId, incident.zoneId);
+  const cameraCode = incident.cameraCode || getCameraCode(incident.cameraId);
+  const cameraName = incident.cameraName || getCameraName(incident.cameraId);
+
+  const detectedDate = new Date(incident.detectedAt).toLocaleString(locale, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -25,7 +35,7 @@ export function IncidentMetaCard({ incident }: IncidentMetaCardProps) {
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border/30 pb-3">
         <h4 className="font-bold text-sm text-foreground">
-          Thông tin Sự cố & Không gian
+          {isVietnamese ? "Thông tin Sự cố & Không gian" : "Incident & Spatial Metadata"}
         </h4>
         <div className="flex items-center gap-2">
           <IncidentSeverityBadge severity={incident.severity} />
@@ -39,21 +49,23 @@ export function IncidentMetaCard({ incident }: IncidentMetaCardProps) {
         <div className="space-y-1">
           <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
             <Building2 className="h-3.5 w-3.5 text-primary" />
-            <span>Công trường</span>
+            <span>{isVietnamese ? "Công trường" : "Construction Site"}</span>
           </span>
           {incident.siteId ? (
             <Link
               href={`/sites/${incident.siteId}`}
               className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-primary transition hover:underline"
-              title="Mở trung tâm điều hành của công trường này"
+              title={
+                isVietnamese
+                  ? `Mở trung tâm điều hành công trường ${siteName}`
+                  : `Open operations center for site ${siteName}`
+              }
             >
-              <span>{incident.siteName || "Công trường xây dựng"}</span>
+              <span>{siteName}</span>
               <ExternalLink className="h-3 w-3 text-muted-foreground" />
             </Link>
           ) : (
-            <p className="font-semibold text-foreground">
-              {incident.siteName || "Công trường xây dựng"}
-            </p>
+            <p className="font-semibold text-foreground">{siteName}</p>
           )}
         </div>
 
@@ -61,25 +73,32 @@ export function IncidentMetaCard({ incident }: IncidentMetaCardProps) {
         <div className="space-y-1">
           <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
             <MapPin className="h-3.5 w-3.5 text-info" />
-            <span>Phân khu thi công</span>
+            <span>{isVietnamese ? "Phân khu thi công" : "Construction Zone"}</span>
           </span>
-          <p className="font-semibold text-foreground">
-            {incident.zoneName || "Khu vực chung"}
-          </p>
+          <p className="font-semibold text-foreground">{zoneName}</p>
         </div>
 
         {/* Camera */}
         <div className="space-y-1">
           <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
             <Camera className="h-3.5 w-3.5 text-primary" />
-            <span>Camera giám sát</span>
+            <span>{isVietnamese ? "Camera giám sát" : "Surveillance Camera"}</span>
           </span>
           <Link
             href={`/cameras/${incident.cameraId}`}
-            className="inline-flex items-center gap-1 font-mono font-bold text-primary hover:underline"
-            title="Mở Camera AI Intelligence Studio"
+            className="inline-flex items-center gap-1.5 font-mono font-bold text-primary hover:underline"
+            title={
+              isVietnamese
+                ? `Mở Camera AI Studio: ${cameraName}`
+                : `Open Camera AI Studio: ${cameraName}`
+            }
           >
-            <span>{incident.cameraCode || incident.cameraId.slice(0, 8)}</span>
+            <span>{cameraCode}</span>
+            {cameraName && cameraName !== cameraCode && (
+              <span className="font-sans text-xs font-normal text-muted-foreground">
+                ({cameraName})
+              </span>
+            )}
             <ExternalLink className="h-3 w-3" />
           </Link>
         </div>
@@ -88,7 +107,7 @@ export function IncidentMetaCard({ incident }: IncidentMetaCardProps) {
         <div className="space-y-1">
           <span className="flex items-center gap-1.5 text-muted-foreground font-medium">
             <Clock className="h-3.5 w-3.5 text-amber-500" />
-            <span>Thời điểm phát hiện</span>
+            <span>{isVietnamese ? "Thời điểm phát hiện" : "Detection Timestamp"}</span>
           </span>
           <p className="font-mono text-foreground">{detectedDate}</p>
         </div>
@@ -98,7 +117,7 @@ export function IncidentMetaCard({ incident }: IncidentMetaCardProps) {
       {incident.description && (
         <div className="rounded-xl border border-border/30 bg-surface/50 p-3 text-xs">
           <span className="font-semibold text-muted-foreground block mb-1">
-            Ghi chú chi tiết:
+            {isVietnamese ? "Ghi chú chi tiết:" : "Detailed Notes:"}
           </span>
           <p className="text-foreground">{incident.description}</p>
         </div>

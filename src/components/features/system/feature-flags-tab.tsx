@@ -18,7 +18,8 @@ export function FeatureFlagsTab({
   loading = false,
   canManage = true,
 }: FeatureFlagsTabProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   if (loading) {
     return (
@@ -50,14 +51,18 @@ export function FeatureFlagsTab({
 
         {!canManage && (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-500">
-            Chế độ chỉ xem (Read-only)
+            {isVietnamese ? "Chế độ chỉ xem (Read-only)" : "Read-only mode"}
           </span>
         )}
       </div>
 
       {flags.length === 0 ? (
         <div className="rounded-2xl border border-border/40 bg-surface p-12 text-center">
-          <p className="text-sm text-muted-foreground">Không tìm thấy cờ tính năng nào trong hệ thống.</p>
+          <p className="text-sm text-muted-foreground">
+            {isVietnamese
+              ? "Không tìm thấy cờ tính năng nào trong hệ thống."
+              : "No feature flags found in the system."}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

@@ -5,3 +5,4 @@ export * from "./use-notification-preferences";
 export * from "./use-notification-mutations";
 export * from "./use-notification-templates";
 export * from "./use-email-logs";
+export * from "./use-notification-sound";

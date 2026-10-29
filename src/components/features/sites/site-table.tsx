@@ -60,9 +60,13 @@ export function SiteTable({
         <tbody className="divide-y divide-border/30">
           {sites.map((site) => {
             const isActive = site.status === "ACTIVE";
-            const zoneCount = site.zones?.length || site.zoneCount || 0;
+            const zoneCount =
+              site.zoneCount ?? site.zones?.length ?? site._count?.zones ?? 0;
             const restrictedCount =
-              site.restrictedAreas?.length || site.restrictedAreaCount || 0;
+              site.restrictedAreaCount ??
+              site.restrictedAreas?.length ??
+              site._count?.restrictedAreas ??
+              0;
 
             return (
               <tr

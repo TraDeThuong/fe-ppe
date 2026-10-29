@@ -13,6 +13,7 @@ import {
   AlertCircle,
   RotateCcw,
 } from "lucide-react";
+import { useLocale } from "@/providers/locale-provider";
 
 type FileStatus = "ready" | "uploading" | "success" | "error";
 
@@ -94,6 +95,14 @@ export function FileUpload({
   const inputRef = useRef<HTMLInputElement>(null);
   const nextId = useRef(0);
 
+  let isVietnamese = true;
+  try {
+    const localeCtx = useLocale();
+    isVietnamese = localeCtx.locale === "vi-VN";
+  } catch {
+    // fallback if outside LocaleProvider
+  }
+
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -117,9 +126,9 @@ export function FileUpload({
       let error: string | undefined;
 
       if (!isAcceptedFile(file, accept)) {
-        error = "Định dạng tệp không được hỗ trợ.";
+        error = isVietnamese ? "Định dạng tệp không được hỗ trợ." : "Unsupported file format.";
       } else if (file.size > maxBytes) {
-        error = `Tệp vượt quá giới hạn ${maxSizeMB} MB.`;
+        error = isVietnamese ? `Tệp vượt quá giới hạn ${maxSizeMB} MB.` : `File exceeds ${maxSizeMB} MB limit.`;
       }
 
       return {
@@ -200,7 +209,7 @@ export function FileUpload({
                 error:
                   error instanceof Error
                     ? error.message
-                    : "Không thể tải tệp lên.",
+                    : isVietnamese ? "Không thể tải tệp lên." : "Failed to upload file.",
               }
             : file,
         ),
@@ -217,7 +226,7 @@ export function FileUpload({
       <div
         role="button"
         tabIndex={disabled ? -1 : 0}
-        aria-label="Chọn tệp để tải lên"
+        aria-label={isVietnamese ? "Chọn tệp để tải lên" : "Select file to upload"}
         aria-disabled={disabled}
         onClick={() => !disabled && inputRef.current?.click()}
         onKeyDown={(event) => {
@@ -279,16 +288,16 @@ export function FileUpload({
 
         <p className="text-sm font-semibold text-foreground">
           {isDragging
-            ? "Thả tệp vào đây"
-            : "Kéo thả tệp vào đây"}
+            ? (isVietnamese ? "Thả tệp vào đây" : "Drop files here")
+            : (isVietnamese ? "Kéo thả tệp vào đây" : "Drag and drop files here")}
         </p>
 
         <p className="mt-1 text-sm text-muted-foreground">
-          hoặc nhấn để chọn từ thiết bị
+          {isVietnamese ? "hoặc nhấn để chọn từ thiết bị" : "or click to browse from device"}
         </p>
 
         <p className="mt-3 text-xs text-muted-foreground">
-          {accept.join(", ")} · Tối đa {maxSizeMB} MB/tệp
+          {accept.join(", ")} · {isVietnamese ? `Tối đa ${maxSizeMB} MB/tệp` : `Max ${maxSizeMB} MB/file`}
         </p>
       </div>
 
@@ -296,7 +305,7 @@ export function FileUpload({
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-semibold text-foreground">
-              Danh sách tệp ({files.length})
+              {isVietnamese ? `Danh sách tệp (${files.length})` : `File List (${files.length})`}
             </p>
 
             {files.some((item) => item.status === "success") && (
@@ -306,7 +315,7 @@ export function FileUpload({
                 disabled={disabled}
                 className="text-xs font-medium text-muted-foreground transition-colors hover:text-primary disabled:opacity-50"
               >
-                Xóa tệp đã tải
+                {isVietnamese ? "Xóa tệp đã tải" : "Clear completed"}
               </button>
             )}
           </div>
@@ -363,19 +372,21 @@ export function FileUpload({
                       disabled={disabled}
                       className="rounded-lg px-2 py-1 text-xs font-semibold text-primary hover:bg-primary/10 disabled:opacity-50"
                     >
-                      Tải lên
+                      {isVietnamese ? "Tải lên" : "Upload"}
                     </button>
                   )}
 
                   {item.status === "error" &&
                     onUpload &&
                     !item.error?.includes("định dạng") &&
-                    !item.error?.includes("vượt quá") && (
+                    !item.error?.includes("format") &&
+                    !item.error?.includes("vượt quá") &&
+                    !item.error?.includes("limit") && (
                       <button
                         type="button"
                         onClick={() => void uploadFile(item)}
                         disabled={disabled}
-                        aria-label={`Thử tải lại ${item.file.name}`}
+                        aria-label={isVietnamese ? `Thử tải lại ${item.file.name}` : `Retry upload ${item.file.name}`}
                         className="rounded-full p-2 text-primary hover:bg-primary/10 disabled:opacity-50"
                       >
                         <RotateCcw size={16} />
@@ -388,7 +399,7 @@ export function FileUpload({
                     disabled={
                       disabled || item.status === "uploading"
                     }
-                    aria-label={`Xóa ${item.file.name}`}
+                    aria-label={isVietnamese ? `Xóa ${item.file.name}` : `Remove ${item.file.name}`}
                     className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <X size={17} />
@@ -399,7 +410,7 @@ export function FileUpload({
                   <div
                     className="mt-3 h-2 overflow-hidden rounded-full bg-background shadow-[var(--nm-inset)]"
                     role="progressbar"
-                    aria-label={`Tiến trình tải ${item.file.name}`}
+                    aria-label={isVietnamese ? `Tiến trình tải ${item.file.name}` : `Upload progress for ${item.file.name}`}
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={Math.round(item.progress)}

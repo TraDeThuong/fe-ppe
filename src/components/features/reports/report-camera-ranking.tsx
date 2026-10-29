@@ -54,7 +54,8 @@ export function ReportCameraRanking({
   ],
   loading = false,
 }: ReportCameraRankingProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const maxViolations = Math.max(...rankings.map((r) => r.totalViolations), 45);
 
@@ -97,7 +98,9 @@ export function ReportCameraRanking({
             {t("reports.charts.rankingsTitle")}
           </h4>
         </div>
-        <span className="text-xs text-muted-foreground">Top 5 điểm nóng</span>
+        <span className="text-xs text-muted-foreground">
+          {isVietnamese ? "Top 5 điểm nóng" : "Top 5 Hotspots"}
+        </span>
       </div>
 
       {/* Rankings List */}
@@ -122,7 +125,7 @@ export function ReportCameraRanking({
                   </span>
                 </div>
                 <span className="font-bold text-xs text-rose-600 dark:text-rose-400">
-                  {item.totalViolations} vụ
+                  {item.totalViolations} {isVietnamese ? "vụ" : "cases"}
                 </span>
               </div>
 
@@ -135,9 +138,11 @@ export function ReportCameraRanking({
                   />
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>Xác nhận: {item.confirmedCount} vụ</span>
+                  <span>
+                    {isVietnamese ? "Xác nhận:" : "Confirmed:"} {item.confirmedCount} {isVietnamese ? "vụ" : "cases"}
+                  </span>
                   <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                    Đã xử lý: {resolvePct}%
+                    {isVietnamese ? "Đã xử lý:" : "Resolved:"} {resolvePct}%
                   </span>
                 </div>
               </div>

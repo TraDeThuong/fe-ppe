@@ -22,7 +22,8 @@ export function ResolveIncidentModal({
   onSubmit,
   loading = false,
 }: ResolveIncidentModalProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const [resolutionNote, setResolutionNote] = useState("");
   const [correctiveAction, setCorrectiveAction] = useState("");
@@ -34,7 +35,11 @@ export function ResolveIncidentModal({
     setError(null);
 
     if (!resolutionNote.trim()) {
-      setError("Vui lòng nhập ghi chú biện pháp xử lý sự cố.");
+      setError(
+        isVietnamese
+          ? "Vui lòng nhập ghi chú biện pháp xử lý sự cố."
+          : "Please enter incident resolution notes."
+      );
       return;
     }
 
@@ -48,7 +53,12 @@ export function ResolveIncidentModal({
       setResolutionNote("");
       setCorrectiveAction("");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Đã có lỗi xảy ra khi giải quyết sự cố";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : isVietnamese
+          ? "Đã có lỗi xảy ra khi giải quyết sự cố"
+          : "An error occurred while resolving incident";
       setError(msg);
     }
   };
@@ -60,12 +70,39 @@ export function ResolveIncidentModal({
       title={t("incidents.modals.resolveTitle")}
       description={
         incident
-          ? `Ghi nhận biện pháp khắc phục cho sự cố vi phạm #${incident.id.slice(0, 8)}`
+          ? (isVietnamese
+              ? `Ghi nhận biện pháp khắc phục cho sự cố vi phạm #${incident.id.slice(0, 8)}`
+              : `Record corrective action for violation incident #${incident.id.slice(0, 8)}`)
           : undefined
       }
-      className="max-w-xl"
+      footer={
+        <div className="flex w-full items-center justify-end gap-3">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
+            {t("common.cancel")}
+          </Button>
+          <Button
+            form="resolve-incident-form"
+            type="submit"
+            variant="primary"
+            disabled={loading}
+            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4" />
+            )}
+            {t("incidents.modals.resolveSubmit")}
+          </Button>
+        </div>
+      }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form id="resolve-incident-form" onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="flex items-center gap-2 p-3 text-sm text-rose-600 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-xl">
             <ShieldAlert className="w-4 h-4 shrink-0" />
@@ -79,7 +116,9 @@ export function ResolveIncidentModal({
               {incident.violationType} • {incident.cameraName || incident.cameraId}
             </div>
             <div className="text-xs text-[var(--neu-text-secondary)]">
-              Khu vực: {incident.siteName || "N/A"} • Thời điểm: {new Date(incident.detectedAt).toLocaleString("vi-VN")}
+              {isVietnamese ? "Khu vực: " : "Area: "}{incident.siteName || "N/A"} •{" "}
+              {isVietnamese ? "Thời điểm: " : "Detected at: "}
+              {new Date(incident.detectedAt).toLocaleString(isVietnamese ? "vi-VN" : "en-US")}
             </div>
           </div>
         )}
@@ -92,7 +131,11 @@ export function ResolveIncidentModal({
             value={resolutionNote}
             onChange={(e) => setResolutionNote(e.target.value)}
             rows={3}
-            placeholder="Mô tả chi tiết hành động khắc phục, xử phạt hoặc trang bị lại đồ bảo hộ..."
+            placeholder={
+              isVietnamese
+                ? "Mô tả chi tiết hành động khắc phục, xử phạt hoặc trang bị lại đồ bảo hộ..."
+                : "Detailed description of corrective actions, warnings, or PPE replenishment..."
+            }
             className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--neu-inset)] border border-[var(--neu-border)] text-sm text-[var(--neu-text-primary)] placeholder-[var(--neu-text-secondary)]/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all resize-none"
             required
           />
@@ -106,33 +149,13 @@ export function ResolveIncidentModal({
             value={correctiveAction}
             onChange={(e) => setCorrectiveAction(e.target.value)}
             rows={3}
-            placeholder="Biện pháp phòng ngừa lặp lại, khuyến nghị cải thiện an toàn lao động..."
+            placeholder={
+              isVietnamese
+                ? "Biện pháp phòng ngừa lặp lại, khuyến nghị cải thiện an toàn lao động..."
+                : "Preventive measures, recommendations to improve occupational safety..."
+            }
             className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--neu-inset)] border border-[var(--neu-border)] text-sm text-[var(--neu-text-primary)] placeholder-[var(--neu-text-secondary)]/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all resize-none"
           />
-        </div>
-
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--neu-border)]">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={loading}
-          >
-            {t("common.cancel")}
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={loading}
-            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            {loading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4" />
-            )}
-            {t("incidents.modals.resolveSubmit")}
-          </Button>
         </div>
       </form>
     </Modal>

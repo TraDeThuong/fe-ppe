@@ -150,7 +150,7 @@ export function NotificationItem({
           {/* Unread beacon */}
           {isUnread && (
             <span
-              title="Chưa đọc"
+              title={isVietnamese ? "Chưa đọc" : "Unread"}
               className="size-2.5 rounded-full bg-primary shadow-[0_0_8px_var(--primary)]"
             />
           )}
@@ -252,7 +252,7 @@ export function NotificationItem({
               href={notification.actionUrl}
               className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-all hover:bg-primary/15 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]"
             >
-              <span>Chi tiết</span>
+              <span>{isVietnamese ? "Chi tiết" : "Details"}</span>
               <ExternalLink className="size-3" />
             </Link>
           )}

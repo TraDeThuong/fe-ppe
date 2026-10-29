@@ -15,6 +15,8 @@ import type { PaginationMeta } from "./rbac.types";
 export const SITE_STATUS = {
   ACTIVE: "ACTIVE",
   INACTIVE: "INACTIVE",
+  COMPLETED: "COMPLETED",
+  ARCHIVED: "ARCHIVED",
   SUSPENDED: "SUSPENDED",
 } as const;
 
@@ -23,6 +25,7 @@ export type SiteStatus = (typeof SITE_STATUS)[keyof typeof SITE_STATUS];
 export const ZONE_STATUS = {
   ACTIVE: "ACTIVE",
   INACTIVE: "INACTIVE",
+  MAINTENANCE: "MAINTENANCE",
 } as const;
 
 export type ZoneStatus = (typeof ZONE_STATUS)[keyof typeof ZONE_STATUS];
@@ -113,6 +116,11 @@ export interface SiteItem {
   contactPerson?: string;
   contactPhone?: string;
   contactOfficers?: SiteContactOfficer[];
+  _count?: {
+    zones?: number;
+    restrictedAreas?: number;
+    cameras?: number;
+  };
 }
 
 // ============================================================================

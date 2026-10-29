@@ -160,11 +160,11 @@ export function CameraStatsDetailPanel({
       }
 
       // Kiểm tra có config ROI hay không
-      if (
-        c.config?.roiPolygon &&
-        Array.isArray(c.config.roiPolygon) &&
-        c.config.roiPolygon.length > 0
-      ) {
+      const hasCameraRoi = Boolean(
+        (c.config?.roiPolygon && Array.isArray(c.config.roiPolygon) && c.config.roiPolygon.length > 0) ||
+        ((c.config as any)?.roi_polygon && Array.isArray((c.config as any).roi_polygon) && (c.config as any).roi_polygon.length > 0)
+      );
+      if (hasCameraRoi) {
         roiCount++;
       }
 
@@ -224,9 +224,8 @@ export function CameraStatsDetailPanel({
     return cameras.filter((c) => {
       const lat = c.currentLatencyMs || avgLatency;
       const hasRoi = Boolean(
-        c.config?.roiPolygon &&
-          Array.isArray(c.config.roiPolygon) &&
-          c.config.roiPolygon.length > 0
+        (c.config?.roiPolygon && Array.isArray(c.config.roiPolygon) && c.config.roiPolygon.length > 0) ||
+        ((c.config as any)?.roi_polygon && Array.isArray((c.config as any).roi_polygon) && (c.config as any).roi_polygon.length > 0)
       );
 
       if (telemetryFilter === "FAST") return lat <= 60;
@@ -1022,9 +1021,8 @@ export function CameraStatsDetailPanel({
             const isSlow = lat > 120;
 
             const hasRoi = Boolean(
-              cam.config?.roiPolygon &&
-                Array.isArray(cam.config.roiPolygon) &&
-                cam.config.roiPolygon.length > 0
+              (cam.config?.roiPolygon && Array.isArray(cam.config.roiPolygon) && cam.config.roiPolygon.length > 0) ||
+              ((cam.config as any)?.roi_polygon && Array.isArray((cam.config as any).roi_polygon) && (cam.config as any).roi_polygon.length > 0)
             );
 
             return (

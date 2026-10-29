@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Download, Eye, Maximize2, Minimize2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLocale } from "@/providers/locale-provider";
 import type { BoundingBox, EvidenceItem } from "@/types";
 
 export interface IncidentEvidenceViewerProps {
@@ -18,6 +19,8 @@ export function IncidentEvidenceViewer({
   violationType,
   confidence = 0.96,
 }: IncidentEvidenceViewerProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Extract bounding boxes or provide reasonable defaults
@@ -132,7 +135,11 @@ export function IncidentEvidenceViewer({
 
       {/* Action Footer */}
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Bằng chứng thị giác trích xuất tự động qua luồng nhận diện YOLO.</span>
+        <span>
+          {isVietnamese
+            ? "Bằng chứng thị giác trích xuất tự động qua luồng nhận diện YOLO."
+            : "Visual evidence automatically extracted via YOLO detection pipeline."}
+        </span>
 
         <div className="flex items-center gap-2">
           {imageUrl && (
@@ -143,7 +150,7 @@ export function IncidentEvidenceViewer({
               className="inline-flex items-center gap-1 rounded-lg border border-border/40 bg-surface px-2.5 py-1 text-xs text-foreground hover:bg-surface-elevated transition"
             >
               <Download className="h-3.5 w-3.5" />
-              <span>Tải ảnh gốc</span>
+              <span>{isVietnamese ? "Tải ảnh gốc" : "Download Original"}</span>
             </a>
           )}
         </div>

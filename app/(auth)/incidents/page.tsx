@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { Loader } from "@/components/ui/loader";
 import IncidentsContent from "./incidents-content";
 
 export default function IncidentsPage() {
@@ -6,7 +7,7 @@ export default function IncidentsPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[400px] items-center justify-center text-muted-foreground">
-          <p>Đang tải danh sách sự cố...</p>
+          <Loader showLabel />
         </div>
       }
     >

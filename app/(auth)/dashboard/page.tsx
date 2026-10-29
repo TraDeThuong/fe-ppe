@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { Loader } from "@/components/ui/loader";
 import DashboardContent from "./dashboard-content";
 
 /**
@@ -11,7 +12,7 @@ export default function DashboardPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
-          <p>Đang tải...</p>
+          <Loader showLabel />
         </div>
       }
     >

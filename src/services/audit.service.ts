@@ -11,6 +11,28 @@ import type {
   PaginationMeta,
 } from "@/types";
 
+function unwrapData<T>(res: any): T {
+  if (res && typeof res === "object") {
+    if ("data" in res && !("status" in res && "headers" in res)) {
+      return (res.data as T) ?? (res as T);
+    }
+  }
+  return res as T;
+}
+
+function unwrapPaginated<T>(res: any): { items: T[]; meta: PaginationMeta } {
+  const defaultMeta: PaginationMeta = { page: 1, limit: 20, total: 0, totalPages: 0 };
+  if (!res) return { items: [], meta: defaultMeta };
+  if (Array.isArray(res)) return { items: res, meta: defaultMeta };
+  const items = Array.isArray(res.data)
+    ? res.data
+    : Array.isArray(res.items)
+      ? res.items
+      : [];
+  const meta = res.meta ?? res.data?.meta ?? defaultMeta;
+  return { items, meta };
+}
+
 export const auditService = {
   /**
    * GET /api/v1/audit-logs
@@ -19,13 +41,10 @@ export const auditService = {
   async getLogs(
     params?: AuditLogQueryParams,
   ): Promise<{ items: AuditLogItem[]; meta: PaginationMeta }> {
-    const res = await apiClient.get<AuditLogsListResponse>("/api/v1/audit-logs", {
+    const res = await apiClient.get<any>("/audit-logs", {
       params,
     });
-    return {
-      items: res.data.data,
-      meta: res.data.meta,
-    };
+    return unwrapPaginated<AuditLogItem>(res);
   },
 
   /**
@@ -33,8 +52,8 @@ export const auditService = {
    * Lấy chi tiết 1 bản ghi kiểm toán kèm JSON Diff và siêu dữ liệu.
    */
   async getLogDetail(id: string): Promise<AuditLogDetail> {
-    const res = await apiClient.get<AuditLogDetailResponse>(`/api/v1/audit-logs/${id}`);
-    return res.data.data;
+    const res = await apiClient.get<unknown>(`/audit-logs/${id}`);
+    return unwrapData<AuditLogDetail>(res);
   },
 
   /**
@@ -42,10 +61,10 @@ export const auditService = {
    * Lấy số liệu thống kê KPI kiểm toán.
    */
   async getSummary(params?: { fromDate?: string; toDate?: string; siteId?: string }): Promise<AuditSummaryDto> {
-    const res = await apiClient.get<AuditSummaryResponse>("/api/v1/audit-logs/summary", {
+    const res = await apiClient.get<unknown>("/audit-logs/summary", {
       params,
     });
-    return res.data.data;
+    return unwrapData<AuditSummaryDto>(res);
   },
 
   /**
@@ -55,13 +74,10 @@ export const auditService = {
   async getConfigChanges(
     params?: { page?: number; limit?: number; fromDate?: string; toDate?: string },
   ): Promise<{ items: AuditLogItem[]; meta: PaginationMeta }> {
-    const res = await apiClient.get<AuditLogsListResponse>("/api/v1/audit-logs/config-changes", {
+    const res = await apiClient.get<any>("/audit-logs/config-changes", {
       params,
     });
-    return {
-      items: res.data.data,
-      meta: res.data.meta,
-    };
+    return unwrapPaginated<AuditLogItem>(res);
   },
 
   /**
@@ -71,13 +87,10 @@ export const auditService = {
   async getIncidentReviews(
     params?: { page?: number; limit?: number; fromDate?: string; toDate?: string },
   ): Promise<{ items: AuditLogItem[]; meta: PaginationMeta }> {
-    const res = await apiClient.get<AuditLogsListResponse>("/api/v1/audit-logs/incident-reviews", {
+    const res = await apiClient.get<any>("/audit-logs/incident-reviews", {
       params,
     });
-    return {
-      items: res.data.data,
-      meta: res.data.meta,
-    };
+    return unwrapPaginated<AuditLogItem>(res);
   },
 
   /**
@@ -89,14 +102,11 @@ export const auditService = {
     targetId: string,
     params?: { page?: number; limit?: number },
   ): Promise<{ items: AuditLogItem[]; meta: PaginationMeta }> {
-    const res = await apiClient.get<AuditLogsListResponse>(
-      `/api/v1/audit-logs/resource/${targetType}/${targetId}`,
+    const res = await apiClient.get<any>(
+      `/audit-logs/resource/${targetType}/${targetId}`,
       { params },
     );
-    return {
-      items: res.data.data,
-      meta: res.data.meta,
-    };
+    return unwrapPaginated<AuditLogItem>(res);
   },
 
   /**
@@ -104,10 +114,10 @@ export const auditService = {
    * Xuất báo cáo kiểm toán định dạng CSV hoặc JSON (Download stream).
    */
   async exportLogs(params: ExportAuditParams): Promise<Blob> {
-    const res = await apiClient.get("/api/v1/audit-logs/export", {
+    const res = await apiClient.get("/audit-logs/export", {
       params,
       responseType: "blob",
     });
-    return res.data;
+    return unwrapData<Blob>(res);
   },
 };

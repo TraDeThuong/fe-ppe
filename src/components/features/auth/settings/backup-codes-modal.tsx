@@ -51,12 +51,12 @@ export function BackupCodesModal({ codes, onClose }: BackupCodesModalProps) {
   return (
     <div
       data-testid="backup-codes-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-3 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="backup-codes-title"
     >
-      <div className="w-full max-w-md rounded-[1.4rem] border border-border/40 bg-card p-6 shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]">
+      <div className="relative my-auto w-full max-w-md max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)] overflow-y-auto rounded-2xl border border-border/40 bg-card p-4 sm:p-6 shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <span className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useLocale } from "@/providers/locale-provider";
 
 type LoaderVariant = "spinner" | "dots";
 type LoaderSize = "sm" | "md" | "lg";
@@ -25,10 +26,19 @@ const sizeConfig: Record<
 export function Loader({
   variant = "spinner",
   size = "md",
-  label = "Đang tải...",
+  label,
   className = "",
   showLabel = false,
 }: LoaderProps) {
+  let isVietnamese = true;
+  try {
+    const localeCtx = useLocale();
+    isVietnamese = localeCtx.locale === "vi-VN";
+  } catch {
+    // fallback if outside LocaleProvider
+  }
+
+  const effectiveLabel = label ?? (isVietnamese ? "Đang tải..." : "Loading...");
   const [dark, setDark] = useState(false);
   const config = sizeConfig[size];
 
@@ -120,7 +130,7 @@ export function Loader({
           className="text-xs font-medium tracking-wide"
           style={{ color: dark ? "#c4cbbb" : "#68735d" }}
         >
-          {label}
+          {effectiveLabel}
         </span>
       )}
 

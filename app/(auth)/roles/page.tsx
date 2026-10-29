@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { Loader } from "@/components/ui/loader";
 import RolesContent from "./roles-content";
 
 export default function RolesPage() {
@@ -6,7 +7,7 @@ export default function RolesPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[400px] items-center justify-center text-muted-foreground">
-          <p>Đang tải danh sách vai trò & phân quyền...</p>
+          <Loader showLabel />
         </div>
       }
     >

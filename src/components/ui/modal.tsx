@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useLocale } from "@/providers/locale-provider";
 
 export type ModalSize = "sm" | "md" | "lg" | "xl" | "full";
 export type ModalDepth = "soft" | "medium" | "deep";
@@ -202,6 +203,14 @@ function ModalEngine({
 
   if (!open || typeof document === "undefined") return null;
 
+  let isVietnamese = true;
+  try {
+    const localeCtx = useLocale();
+    isVietnamese = localeCtx.locale === "vi-VN";
+  } catch {
+    // fallback if outside LocaleProvider
+  }
+
   const style = {
     "--nm-depth": DEPTH_VALUES[depth],
     ...(accentColor ? { "--nm-accent": accentColor } : {}),
@@ -259,7 +268,7 @@ function ModalEngine({
         tabIndex={-1}
         className={[
           "relative my-auto w-full outline-none",
-          "max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)]",
+          "max-h-[calc(100dvh-1.75rem)] sm:max-h-[calc(100dvh-3rem)]",
           "animate-in fade-in zoom-in-[0.98] slide-in-from-bottom-2 duration-200",
           SIZE_CLASSES[size],
           className,
@@ -281,7 +290,7 @@ function ModalEngine({
           {/* Main surface */}
           <div
             className={[
-              "relative flex max-h-[calc(100dvh-1.5rem)] flex-col",
+              "relative flex max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3.25rem)] flex-col",
               "overflow-hidden rounded-[25px] border",
               "bg-background text-foreground",
               borderClasses[border],
@@ -313,16 +322,16 @@ function ModalEngine({
             {/* Header */}
             <header
               className="
-                flex shrink-0 items-start justify-between gap-4
-                px-5 pb-4 pt-5
-                sm:px-6 sm:pb-5 sm:pt-6
+                flex shrink-0 items-start justify-between gap-3
+                px-4 pb-3 pt-4
+                sm:gap-4 sm:px-6 sm:pb-5 sm:pt-6
               "
             >
-              <div className="flex min-w-0 items-start gap-3.5">
+              <div className="flex min-w-0 items-start gap-3 sm:gap-3.5">
                 {icon && (
                   <div
                     className={[
-                      "flex size-11 shrink-0 items-center justify-center",
+                      "flex size-10 sm:size-11 shrink-0 items-center justify-center",
                       "rounded-2xl border border-border/40 bg-background",
                       "text-[var(--nm-accent,var(--primary))]",
                       effectClass(iconEffect),
@@ -344,7 +353,7 @@ function ModalEngine({
                     <p
                       id={descriptionId}
                       className="
-                        mt-1.5 text-sm leading-relaxed
+                        mt-1 text-xs sm:mt-1.5 sm:text-sm leading-relaxed
                         text-muted-foreground
                       "
                     >
@@ -357,11 +366,11 @@ function ModalEngine({
               {showCloseButton && (
                 <button
                   type="button"
-                  aria-label="Đóng hộp thoại"
+                  aria-label={isVietnamese ? "Đóng hộp thoại" : "Close dialog"}
                   disabled={preventClose}
                   onClick={close}
                   className="
-                    flex size-9 shrink-0 items-center justify-center
+                    flex size-8 sm:size-9 shrink-0 items-center justify-center
                     rounded-xl border border-border/40 bg-background
                     text-muted-foreground
                     shadow-[3px_3px_5px_var(--shadow-dark),-3px_-3px_5px_var(--shadow-light)]
@@ -384,7 +393,7 @@ function ModalEngine({
               className={[
                 "min-h-0 flex-1 overflow-y-auto",
                 "border-y border-border/30",
-                "px-5 py-5 sm:px-6 sm:py-6",
+                "px-4 py-4 sm:px-6 sm:py-6",
                 effectClass(resolvedContentEffect),
                 contentClassName,
               ].join(" ")}
@@ -396,8 +405,8 @@ function ModalEngine({
             {footer && (
               <footer
                 className={[
-                  "flex shrink-0 flex-wrap items-center justify-end gap-2.5",
-                  "px-5 py-4 sm:px-6",
+                  "flex shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-2.5",
+                  "px-4 py-3 sm:px-6 sm:py-4",
                   effectClass(footerEffect),
                   footerClassName,
                 ].join(" ")}

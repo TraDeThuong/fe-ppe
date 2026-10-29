@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { Loader } from "@/components/ui/loader";
 
 import { ProfileSettingsContent } from "@/components/features/auth/settings/profile-settings-content";
 
@@ -12,7 +13,7 @@ export default function ProfileSettingsPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[50vh] items-center justify-center bg-background text-muted-foreground">
-          <p>Đang tải...</p>
+          <Loader showLabel />
         </div>
       }
     >

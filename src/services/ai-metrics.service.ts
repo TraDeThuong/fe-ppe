@@ -14,6 +14,25 @@ interface ApiResponse<T> {
   data: T;
 }
 
+function unwrapData<T>(res: any): T {
+  if (res && typeof res === "object") {
+    if ("data" in res && !("status" in res && "headers" in res)) {
+      return (res.data as T) ?? (res as T);
+    }
+  }
+  return res as T;
+}
+
+function unwrapArray<T>(res: any): T[] {
+  if (!res) return [];
+  if (Array.isArray(res)) return res;
+  if (typeof res === "object") {
+    if (Array.isArray(res.data)) return res.data;
+    if (Array.isArray(res.items)) return res.items;
+  }
+  return [];
+}
+
 export const aiMetricsService = {
   /**
    * GET /api/v1/statistics/ai-performance
@@ -21,12 +40,13 @@ export const aiMetricsService = {
    */
   async getAiPerformance(filter?: AiPerformanceFilter): Promise<AiPerformanceDto | null> {
     try {
-      const res = await apiClient.get<ApiResponse<AiPerformanceDto | unknown>>(
-        "/api/v1/statistics/ai-performance",
+      const res = await apiClient.get<unknown>(
+        "/statistics/ai-performance",
         { params: filter }
       );
-      if (res.data?.data && typeof res.data.data === "object" && "mAP50" in res.data.data) {
-        return res.data.data as AiPerformanceDto;
+      const data = unwrapData<AiPerformanceDto>(res);
+      if (data && typeof data === "object" && "mAP50" in data) {
+        return data as AiPerformanceDto;
       }
       return null;
     } catch {
@@ -40,10 +60,11 @@ export const aiMetricsService = {
    */
   async getActiveModelVersion(): Promise<AiModelVersionDto | null> {
     try {
-      const res = await apiClient.get<ApiResponse<AiModelVersionDto>>(
-        "/api/v1/ai-models/active-version"
+      const res = await apiClient.get<unknown>(
+        "/ai-models/active-version"
       );
-      return res.data?.data || null;
+      const data = unwrapData<AiModelVersionDto>(res);
+      return data || null;
     } catch {
       return null;
     }
@@ -55,21 +76,20 @@ export const aiMetricsService = {
    */
   async getAiModels(): Promise<AiModelDto[]> {
     try {
-      const res = await apiClient.get<ApiResponse<AiModelDto[]>>("/api/v1/ai-models");
-      return Array.isArray(res.data?.data) ? res.data.data : [];
+      const res = await apiClient.get<unknown>("/ai-models");
+      return unwrapArray<AiModelDto>(res);
     } catch {
       return [];
     }
   },
-
 
   /**
    * GET /api/v1/ai-models/:id
    * Lấy chi tiết mô hình AI kèm tất cả phiên bản
    */
   async getAiModelById(id: string): Promise<AiModelDto> {
-    const res = await apiClient.get<ApiResponse<AiModelDto>>(`/api/v1/ai-models/${id}`);
-    return res.data.data;
+    const res = await apiClient.get<unknown>(`/ai-models/${id}`);
+    return unwrapData<AiModelDto>(res);
   },
 
   /**
@@ -77,10 +97,10 @@ export const aiMetricsService = {
    * Lấy chi tiết phiên bản mô hình
    */
   async getModelVersionById(versionId: string): Promise<AiModelVersionDto> {
-    const res = await apiClient.get<ApiResponse<AiModelVersionDto>>(
-      `/api/v1/ai-models/versions/${versionId}`
+    const res = await apiClient.get<unknown>(
+      `/ai-models/versions/${versionId}`
     );
-    return res.data.data;
+    return unwrapData<AiModelVersionDto>(res);
   },
 
   /**
@@ -88,8 +108,8 @@ export const aiMetricsService = {
    * Đăng ký mô hình AI mới
    */
   async createAiModel(dto: CreateAiModelDto): Promise<AiModelDto> {
-    const res = await apiClient.post<ApiResponse<AiModelDto>>("/api/v1/ai-models", dto);
-    return res.data.data;
+    const res = await apiClient.post<unknown>("/ai-models", dto);
+    return unwrapData<AiModelDto>(res);
   },
 
   /**
@@ -100,11 +120,11 @@ export const aiMetricsService = {
     modelId: string,
     dto: CreateAiModelVersionDto
   ): Promise<AiModelVersionDto> {
-    const res = await apiClient.post<ApiResponse<AiModelVersionDto>>(
-      `/api/v1/ai-models/${modelId}/versions`,
+    const res = await apiClient.post<unknown>(
+      `/ai-models/${modelId}/versions`,
       dto
     );
-    return res.data.data;
+    return unwrapData<AiModelVersionDto>(res);
   },
 
   /**
@@ -115,9 +135,9 @@ export const aiMetricsService = {
     modelId: string,
     versionId: string
   ): Promise<AiModelVersionDto> {
-    const res = await apiClient.patch<ApiResponse<AiModelVersionDto>>(
-      `/api/v1/ai-models/${modelId}/versions/${versionId}/deploy`
+    const res = await apiClient.patch<unknown>(
+      `/ai-models/${modelId}/versions/${versionId}/deploy`
     );
-    return res.data.data;
+    return unwrapData<AiModelVersionDto>(res);
   },
 };

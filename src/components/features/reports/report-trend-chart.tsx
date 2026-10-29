@@ -21,7 +21,8 @@ export function ReportTrendChart({
   ],
   loading = false,
 }: ReportTrendChartProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const maxVal = Math.max(...trends.map((t) => Math.max(t.totalIncidents, t.resolvedCount)), 35);
   const minVal = 0;
@@ -79,11 +80,15 @@ export function ReportTrendChart({
         <div className="flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-            <span className="text-muted-foreground">Vi phạm thực tế</span>
+            <span className="text-muted-foreground">
+              {isVietnamese ? "Vi phạm thực tế" : "True Violations"}
+            </span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-            <span className="text-muted-foreground">Đã giải quyết</span>
+            <span className="text-muted-foreground">
+              {isVietnamese ? "Đã giải quyết" : "Resolved Incidents"}
+            </span>
           </div>
         </div>
       </div>

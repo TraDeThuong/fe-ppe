@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 
 import { useTableContext } from "./table-context";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface TableHeaderProps {
   className?: string;
@@ -16,6 +17,14 @@ export function TableHeader({
   className = "",
 }: TableHeaderProps) {
   const { table, variant } = useTableContext();
+
+  let isVietnamese = true;
+  try {
+    const localeCtx = useLocale();
+    isVietnamese = localeCtx.locale === "vi-VN";
+  } catch {
+    // fallback if outside LocaleProvider
+  }
 
   return (
     <thead
@@ -44,10 +53,10 @@ export function TableHeader({
 
             const sortLabel =
               sorted === "asc"
-                ? "Đang sắp xếp tăng dần"
+                ? (isVietnamese ? "Đang sắp xếp tăng dần" : "Sorted ascending")
                 : sorted === "desc"
-                  ? "Đang sắp xếp giảm dần"
-                  : "Chưa sắp xếp";
+                  ? (isVietnamese ? "Đang sắp xếp giảm dần" : "Sorted descending")
+                  : (isVietnamese ? "Chưa sắp xếp" : "Not sorted");
 
             return (
               <th
@@ -76,10 +85,10 @@ export function TableHeader({
                         onClick={column.getToggleSortingHandler()}
                         title={
                           column.getNextSortingOrder() === "asc"
-                            ? "Sắp xếp tăng dần"
+                            ? (isVietnamese ? "Sắp xếp tăng dần" : "Sort ascending")
                             : column.getNextSortingOrder() === "desc"
-                              ? "Sắp xếp giảm dần"
-                              : "Bỏ sắp xếp"
+                              ? (isVietnamese ? "Sắp xếp giảm dần" : "Sort descending")
+                              : (isVietnamese ? "Bỏ sắp xếp" : "Clear sort")
                         }
                         aria-label={`${String(headerLabel)}: ${sortLabel}`}
                         className={[

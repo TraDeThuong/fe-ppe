@@ -34,6 +34,18 @@ export function SiteZonesDrawer({
       description={t("sites.zonesDrawer.subtitle", { name: site.name })}
       icon={<Layers className="h-5 w-5 text-primary" />}
       size="lg"
+      footer={
+        <div className="flex w-full items-center justify-end sm:w-auto">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="w-full sm:w-auto"
+          >
+            {t("common.cancel")}
+          </Button>
+        </div>
+      }
     >
       <div className="space-y-4">
         {/* Site Header */}
@@ -90,16 +102,6 @@ export function SiteZonesDrawer({
           ) : (
             <RestrictedAreaPanel siteId={site.id} />
           )}
-        </div>
-
-        <div className="flex justify-end pt-3">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-          >
-            {t("common.cancel")}
-          </Button>
         </div>
       </div>
     </Modal>

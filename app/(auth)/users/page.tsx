@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { Loader } from "@/components/ui/loader";
 import UsersContent from "./users-content";
 
 export default function UsersPage() {
@@ -6,7 +7,7 @@ export default function UsersPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[400px] items-center justify-center text-muted-foreground">
-          <p>Đang tải danh sách người dùng...</p>
+          <Loader showLabel />
         </div>
       }
     >

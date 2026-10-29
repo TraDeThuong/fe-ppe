@@ -142,12 +142,12 @@ export const systemService = {
   async checkServicesHealth(): Promise<SystemHealthReport> {
     const serviceTargets = [
       { name: "Identity & Core Auth", code: "identity-service", port: 9999, path: "/health", type: "SERVICE" as const },
-      { name: "Camera & RTSP Streams", code: "camera-service", port: 8881, path: "/health", type: "SERVICE" as const },
-      { name: "Sites & Spatial Layout", code: "site-service", port: 8882, path: "/health", type: "SERVICE" as const },
-      { name: "Incidents & Evidence Hub", code: "incident-service", port: 8883, path: "/health", type: "SERVICE" as const },
-      { name: "Media & Snapshot Storage", code: "media-service", port: 8884, path: "/health", type: "SERVICE" as const },
-      { name: "Reporting & Safety Analytics", code: "reporting-service", port: 8885, path: "/health", type: "SERVICE" as const },
-      { name: "Notification & Realtime Hub", code: "notification-service", port: 8889, path: "/health", type: "SERVICE" as const },
+      { name: "Camera & RTSP Streams", code: "camera-service", port: 8892, path: "/cameras/health", type: "SERVICE" as const },
+      { name: "Sites & Spatial Layout", code: "site-service", port: 8891, path: "/sites/health", type: "SERVICE" as const },
+      { name: "Incidents & Evidence Hub", code: "incident-service", port: 8893, path: "/incidents/health", type: "SERVICE" as const },
+      { name: "Media & Snapshot Storage", code: "media-service", port: 8890, path: "/files/health", type: "SERVICE" as const },
+      { name: "Reporting & Safety Analytics", code: "reporting-service", port: 8894, path: "/reports/health", type: "SERVICE" as const },
+      { name: "Notification & Realtime Hub", code: "notification-service", port: 8889, path: "/notifications/health", type: "SERVICE" as const },
       { name: "AI YOLO Inference Engine", code: "ai-service", port: 8000, path: "/health", type: "SERVICE" as const },
     ];
 

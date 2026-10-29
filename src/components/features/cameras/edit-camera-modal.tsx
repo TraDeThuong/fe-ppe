@@ -23,7 +23,8 @@ export function EditCameraModal({
   onSubmit,
   loading = false,
 }: EditCameraModalProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const { data: sitesData } = useSites();
   const sites = sitesData?.items || [];
@@ -62,7 +63,7 @@ export function EditCameraModal({
     setError(null);
 
     if (!name.trim()) {
-      setError("Vui lòng nhập tên camera.");
+      setError(isVietnamese ? "Vui lòng nhập tên camera." : "Please enter camera name.");
       return;
     }
 
@@ -84,7 +85,7 @@ export function EditCameraModal({
 
       onOpenChange(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Đã có lỗi xảy ra khi cập nhật camera";
+      const msg = err instanceof Error ? err.message : (isVietnamese ? "Đã có lỗi xảy ra khi cập nhật camera" : "An error occurred while updating the camera");
       setError(msg);
     }
   };
@@ -109,7 +110,7 @@ export function EditCameraModal({
           {/* Camera Name */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Tên Camera <span className="text-danger">*</span>
+              {isVietnamese ? "Tên Camera" : "Camera Name"} <span className="text-danger">*</span>
             </label>
             <input
               type="text"
@@ -124,7 +125,7 @@ export function EditCameraModal({
           {/* Camera Code */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Mã Camera
+              {isVietnamese ? "Mã Camera" : "Camera Code"}
             </label>
             <input
               type="text"
@@ -141,7 +142,7 @@ export function EditCameraModal({
           {/* Site Selection */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Công trường <span className="text-danger">*</span>
+              {isVietnamese ? "Công trường" : "Site"} <span className="text-danger">*</span>
             </label>
             <select
               value={siteId}
@@ -155,7 +156,7 @@ export function EditCameraModal({
             >
               {sites.length === 0 ? (
                 <option value={camera?.siteId || "0192d6e3-8f0a-7bb1-8c4d-91b53f608a11"}>
-                  {camera?.siteName || "Công trường Landmark 81"}
+                  {camera?.siteName || (isVietnamese ? "Công trường Landmark 81" : "Landmark 81 Site")}
                 </option>
               ) : (
                 sites.map((site) => (
@@ -170,7 +171,7 @@ export function EditCameraModal({
           {/* Zone Selection */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Phân khu (Tùy chọn)
+              {isVietnamese ? "Phân khu (Tùy chọn)" : "Zone (Optional)"}
             </label>
             <select
               value={zoneId}
@@ -178,7 +179,7 @@ export function EditCameraModal({
               className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={loading || zones.length === 0}
             >
-              <option value="">-- Toàn công trường --</option>
+              <option value="">{isVietnamese ? "-- Toàn công trường --" : "-- Entire Site --"}</option>
               {zones.map((zone) => (
                 <option key={zone.id} value={zone.id}>
                   {zone.name} ({zone.code})
@@ -192,7 +193,7 @@ export function EditCameraModal({
           {/* Source Type */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Giao thức luồng
+              {isVietnamese ? "Giao thức luồng" : "Stream Protocol"}
             </label>
             <select
               value={sourceType}
@@ -209,7 +210,7 @@ export function EditCameraModal({
           {/* Status */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Trạng thái vận hành
+              {isVietnamese ? "Trạng thái vận hành" : "Operational Status"}
             </label>
             <select
               value={status}
@@ -217,10 +218,10 @@ export function EditCameraModal({
               className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={loading}
             >
-              <option value="ONLINE">ONLINE (Hoạt động)</option>
-              <option value="OFFLINE">OFFLINE (Ngoại tuyến)</option>
-              <option value="CONNECTING">CONNECTING (Đang kết nối)</option>
-              <option value="MAINTENANCE">MAINTENANCE (Bảo trì)</option>
+              <option value="ONLINE">{isVietnamese ? "ONLINE (Hoạt động)" : "ONLINE (Active)"}</option>
+              <option value="OFFLINE">{isVietnamese ? "OFFLINE (Ngoại tuyến)" : "OFFLINE (Disconnected)"}</option>
+              <option value="CONNECTING">{isVietnamese ? "CONNECTING (Đang kết nối)" : "CONNECTING (Connecting)"}</option>
+              <option value="MAINTENANCE">{isVietnamese ? "MAINTENANCE (Bảo trì)" : "MAINTENANCE (Servicing)"}</option>
             </select>
           </div>
         </div>
@@ -229,10 +230,10 @@ export function EditCameraModal({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Địa chỉ URL Luồng Stream
+              {isVietnamese ? "Địa chỉ URL Luồng Stream" : "Stream URL Endpoint"}
             </label>
             <span className="text-[11px] text-muted-foreground/80">
-              Hỗ trợ RTSP, HTTP/MP4, YouTube, Webcam
+              {isVietnamese ? "Hỗ trợ RTSP, HTTP/MP4, YouTube, Webcam" : "Supports RTSP, HTTP/MP4, YouTube, Webcam"}
             </span>
           </div>
           <input
@@ -245,7 +246,9 @@ export function EditCameraModal({
 
           {/* Quick presets for testing */}
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <span className="text-[10px] text-muted-foreground">Chọn nhanh để test:</span>
+            <span className="text-[10px] text-muted-foreground">
+              {isVietnamese ? "Chọn nhanh để test:" : "Quick test presets:"}
+            </span>
             <button
               type="button"
               onClick={() => {
@@ -254,7 +257,7 @@ export function EditCameraModal({
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              💻 Webcam máy tính
+              {isVietnamese ? "💻 Webcam máy tính" : "💻 Local Webcam"}
             </button>
             <button
               type="button"
@@ -264,7 +267,7 @@ export function EditCameraModal({
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              🎥 Mẫu MP4
+              {isVietnamese ? "🎥 Mẫu MP4" : "🎥 Sample MP4"}
             </button>
             <button
               type="button"
@@ -284,7 +287,7 @@ export function EditCameraModal({
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              📡 Luồng RTSP thực
+              {isVietnamese ? "📡 Luồng RTSP thực" : "📡 Real RTSP Stream"}
             </button>
           </div>
         </div>
@@ -292,7 +295,7 @@ export function EditCameraModal({
         {/* Location */}
         <div className="space-y-1.5">
           <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Vị trí lắp đặt
+            {isVietnamese ? "Vị trí lắp đặt" : "Physical Location / Floor"}
           </label>
           <input
             type="text"
@@ -306,7 +309,7 @@ export function EditCameraModal({
         {/* Description */}
         <div className="space-y-1.5">
           <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Mô tả / Ghi chú kỹ thuật
+            {isVietnamese ? "Mô tả / Ghi chú kỹ thuật" : "Technical Notes & Description"}
           </label>
           <textarea
             value={description}
@@ -338,7 +341,7 @@ export function EditCameraModal({
             ) : (
               <Camera className="h-4 w-4" />
             )}
-            <span>Lưu thay đổi</span>
+            <span>{isVietnamese ? "Lưu thay đổi" : "Save Changes"}</span>
           </Button>
         </div>
       </form>

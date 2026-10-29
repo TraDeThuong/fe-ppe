@@ -24,6 +24,8 @@ export function useCreateZone() {
     onSuccess: (newZone, { siteId }) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.zones(siteId) });
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
+      queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: siteKeys.all });
       toast.success(`Đã thêm phân khu "${newZone.name}" thành công.`);
     },
     onError: (err: unknown) => {
@@ -42,6 +44,8 @@ export function useDeleteZone() {
     onSuccess: (_, { siteId, name }) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.zones(siteId) });
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
+      queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: siteKeys.all });
       toast.success(
         name ? `Đã xóa phân khu "${name}" thành công.` : "Đã xóa phân khu thành công.",
       );

@@ -10,32 +10,37 @@ const toastTheme: Record<
   {
     icon: string;
     accent: string;
-    title: string;
+    titleVi: string;
+    titleEn: string;
     shadow: string;
   }
 > = {
   success: {
     icon: "✓",
     accent: "#648747",
-    title: "Thành công",
+    titleVi: "Thành công",
+    titleEn: "Success",
     shadow: "rgba(100, 135, 71, 0.24)",
   },
   error: {
     icon: "×",
     accent: "#c45e52",
-    title: "Đã xảy ra lỗi",
+    titleVi: "Đã xảy ra lỗi",
+    titleEn: "Error Occurred",
     shadow: "rgba(196, 94, 82, 0.24)",
   },
   loading: {
     icon: "◌",
     accent: "#9b9664",
-    title: "Đang xử lý",
+    titleVi: "Đang xử lý",
+    titleEn: "Processing",
     shadow: "rgba(155, 150, 100, 0.2)",
   },
   blank: {
     icon: "i",
     accent: "#718b54",
-    title: "Thông báo",
+    titleVi: "Thông báo",
+    titleEn: "Notification",
     shadow: "rgba(113, 139, 84, 0.2)",
   },
 };
@@ -48,6 +53,7 @@ function WoodenToast({
   type: ToastType;
 }) {
   const [dark, setDark] = useState(false);
+  const [isEn, setIsEn] = useState(false);
   const theme = toastTheme[type];
 
   useEffect(() => {
@@ -56,6 +62,7 @@ function WoodenToast({
         document.documentElement.getAttribute("data-theme") === "dark" ||
           document.documentElement.classList.contains("dark")
       );
+      setIsEn(document.documentElement.lang?.startsWith("en") ?? false);
     };
 
     updateTheme();
@@ -175,7 +182,7 @@ function WoodenToast({
           className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em]"
           style={{ color: theme.accent }}
         >
-          {theme.title}
+          {isEn ? theme.titleEn : theme.titleVi}
         </p>
 
         <p className="break-words text-[13px] font-medium leading-[1.65] tracking-[0.005em]">

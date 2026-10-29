@@ -3,23 +3,51 @@
 import { useEffect, useRef, useState } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLocale } from "@/providers/locale-provider";
 import type { RoiPoint } from "@/types";
 
 export interface CameraRoiCanvasProps {
   points: RoiPoint[];
   onChange: (points: RoiPoint[]) => void;
   imageUrl?: string;
+  streamUrl?: string;
+  cameraName?: string;
   disabled?: boolean;
+}
+
+function getYouTubeEmbedUrl(url?: string): string | null {
+  if (!url) return null;
+  const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|live\/|shorts\/)|youtu\.be\/)([^"&?\/\s]{11})/;
+  const match = url.match(regExp);
+  return match && match[1]
+    ? `https://www.youtube.com/embed/${match[1]}?autoplay=1&mute=1&controls=0&loop=1&playlist=${match[1]}&enablejsapi=1`
+    : null;
 }
 
 export function CameraRoiCanvas({
   points,
   onChange,
   imageUrl,
+  streamUrl,
+  cameraName,
   disabled = false,
 }: CameraRoiCanvasProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 640, height: 360 });
+
+  const youtubeUrl = getYouTubeEmbedUrl(streamUrl);
+  const isWebcam = streamUrl?.toLowerCase().includes("webcam");
+  const isNativeVideo = Boolean(
+    streamUrl &&
+      streamUrl.startsWith("http") &&
+      !streamUrl.includes("youtube.com") &&
+      !streamUrl.includes("youtu.be")
+  );
+  // Crisp realistic construction site reference image if no direct video stream is available
+  const fallbackConstructionImage =
+    "https://images.unsplash.com/photo-1541888946425-d0fbb18f15f7?auto=format&fit=crop&w=1280&q=80";
 
   useEffect(() => {
     const updateSize = () => {
@@ -71,23 +99,46 @@ export function CameraRoiCanvas({
       <div
         ref={containerRef}
         onClick={handleClick}
-        className="relative aspect-video w-full cursor-crosshair overflow-hidden rounded-2xl border-2 border-dashed border-primary/40 bg-slate-950 shadow-nm-inset select-none"
+        className="relative aspect-video w-full cursor-crosshair overflow-hidden rounded-2xl border-2 border-dashed border-primary/60 bg-slate-950 shadow-nm-inset select-none"
       >
-        {/* Background Image / Snapshot */}
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt="Camera Snapshot"
-            className="h-full w-full object-cover pointer-events-none"
+        {/* Background Visual Layer */}
+        {youtubeUrl ? (
+          <iframe
+            src={youtubeUrl}
+            title={cameraName || "Camera Stream"}
+            className="absolute inset-0 h-full w-full object-cover pointer-events-none border-0"
+          />
+        ) : isNativeVideo ? (
+          <video
+            src={streamUrl}
+            autoPlay
+            playsInline
+            muted
+            loop
+            className="absolute inset-0 h-full w-full object-cover pointer-events-none"
           />
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center bg-slate-900 text-white/50 pointer-events-none">
-            <p className="text-xs">Ảnh mẫu giả lập khung hình camera (1920x1080)</p>
-            <p className="text-[11px] text-white/30 mt-1">
-              Nhấp chuột vào khung hình để đánh dấu các đỉnh đa giác
-            </p>
-          </div>
+          <img
+            src={imageUrl || fallbackConstructionImage}
+            alt={cameraName || "Camera Frame"}
+            className="absolute inset-0 h-full w-full object-cover pointer-events-none opacity-90"
+          />
         )}
+
+        {/* HUD Indicator Badge */}
+        <div className="absolute top-2.5 left-2.5 z-10 pointer-events-none flex items-center gap-2">
+          <span className="rounded-lg bg-black/75 backdrop-blur-md px-2.5 py-1 font-mono text-[10px] font-bold text-white border border-white/10 shadow-sm flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            {youtubeUrl || isNativeVideo
+              ? (isVietnamese ? "LUỒNG VIDEO TRỰC TIẾP" : "LIVE CAMERA FEED")
+              : imageUrl
+              ? (isVietnamese ? "ẢNH CHỤP CAMERA" : "CAMERA SNAPSHOT")
+              : (isVietnamese ? "ẢNH MẪU CÔNG TRƯỜNG THAM CHIẾU" : "CONSTRUCTION REFERENCE FRAME")}
+          </span>
+          <span className="rounded-lg bg-black/60 backdrop-blur-md px-2 py-1 font-mono text-[10px] text-white/80 border border-white/10">
+            {isVietnamese ? "Nhấp chuột để chọn điểm" : "Click to plot points"}
+          </span>
+        </div>
 
         {/* SVG Drawing Layer */}
         <svg className="absolute inset-0 h-full w-full pointer-events-none">
@@ -139,14 +190,23 @@ export function CameraRoiCanvas({
 
         {/* Coordinates Overlay */}
         <div className="absolute bottom-2 left-2 rounded-lg bg-black/70 backdrop-blur-sm px-2.5 py-1 font-mono text-[11px] text-white/80 pointer-events-none">
-          {points.length} điểm đỉnh đã chọn {points.length >= 3 ? "(Đa giác hợp lệ)" : "(Cần ≥ 3 điểm)"}
+          {points.length} {isVietnamese ? "điểm đỉnh đã chọn" : "vertices selected"}{" "}
+          {points.length >= 3
+            ? isVietnamese
+              ? "(Đa giác hợp lệ)"
+              : "(Valid polygon)"
+            : isVietnamese
+            ? "(Cần ≥ 3 điểm)"
+            : "(Requires ≥ 3 points)"}
         </div>
       </div>
 
       {/* Action Toolbar */}
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
-          Nhấp các điểm theo chiều kim đồng hồ quanh khu vực cần nhận diện PPE.
+          {isVietnamese
+            ? "Nhấp các điểm theo chiều kim đồng hồ quanh khu vực cần nhận diện PPE."
+            : "Click points clockwise around the PPE detection zone."}
         </p>
 
         <div className="flex items-center gap-2">
@@ -159,7 +219,7 @@ export function CameraRoiCanvas({
             className="flex items-center gap-1.5 text-xs"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            <span>Hoàn tác điểm</span>
+            <span>{isVietnamese ? "Hoàn tác điểm" : "Undo point"}</span>
           </Button>
 
           <Button
@@ -171,7 +231,7 @@ export function CameraRoiCanvas({
             className="flex items-center gap-1.5 text-xs text-danger hover:text-danger"
           >
             <Trash2 className="h-3.5 w-3.5" />
-            <span>Xóa vùng</span>
+            <span>{isVietnamese ? "Xóa vùng" : "Clear ROI"}</span>
           </Button>
         </div>
       </div>

@@ -14,6 +14,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { Typography } from "./typography";
+import { useLocale } from "@/providers/locale-provider";
 
 // ============================================================
 // TYPES
@@ -204,10 +205,18 @@ function getTrendColor(trend: NonNullable<StatsCardProps["trend"]>) {
 }
 
 // ============================================================
+function useIsVietnamese() {
+  try {
+    return useLocale().locale === "vi-VN";
+  } catch {
+    return true;
+  }
+}
+
 // 1. CLASSIC CARD (DÒNG 1)
 // ============================================================
 
-function ClassicStatsCard({
+export function ClassicStatsCard({
   mode = "raised-inset",
   title,
   value,
@@ -234,6 +243,7 @@ function ClassicStatsCard({
 }: StatsCardProps & { mode?: StatsCardMode }) {
   const accent = accentColor ?? tones[tone];
   const dimension = dimensions[size];
+  const isVietnamese = useIsVietnamese();
   const isClickable = Boolean(onClick);
 
   const safeProgress =
@@ -332,7 +342,7 @@ function ClassicStatsCard({
         <div className="mt-5 rounded-2xl p-3.5" style={detailStyle}>
           <div className="mb-2 flex items-center justify-between gap-3">
             <span className="text-xs font-medium" style={{ color: "var(--muted-foreground)" }}>
-              {progressLabel ?? "Tiến độ"}
+              {progressLabel ?? (isVietnamese ? "Tiến độ" : "Progress")}
             </span>
             <span className="text-xs font-bold tabular-nums" style={{ color: accent }}>
               {safeProgress}%
@@ -402,6 +412,7 @@ export function SoftExtrudedStatsCard({
   onClick,
   showGlow = true,
 }: StatsCardProps) {
+  const isVietnamese = useIsVietnamese();
   const accent = tones[tone];
   const safeProgress = typeof progress === "number" ? Math.max(0, Math.min(100, progress)) : undefined;
 
@@ -456,7 +467,7 @@ export function SoftExtrudedStatsCard({
         <div className="mt-2 sm:mt-4 rounded-lg sm:rounded-xl border border-[var(--shadow-dark)]/20 bg-background/60 p-2 sm:p-2.5 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
           <div className="mb-1 sm:mb-1.5 flex items-center justify-between text-xs font-semibold">
             <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium">
-              {progressLabel ?? "Tiến độ"}
+              {progressLabel ?? (isVietnamese ? "Tiến độ" : "Progress")}
             </span>
             <span className="text-[10px] sm:text-[11px] font-bold" style={{ color: accent }}>
               {safeProgress}%
@@ -510,6 +521,7 @@ export function DeepElevationStatsCard({
   onClick,
   showGlow = true,
 }: StatsCardProps) {
+  const isVietnamese = useIsVietnamese();
   const accent = tones[tone];
   const safeProgress = typeof progress === "number" ? Math.max(0, Math.min(100, progress)) : undefined;
 
@@ -569,7 +581,7 @@ export function DeepElevationStatsCard({
       {safeProgress !== undefined ? (
         <div className="mt-4 rounded-2xl border border-[var(--shadow-dark)]/25 bg-background/70 p-3 shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)]">
           <div className="mb-2 flex items-center justify-between text-xs font-bold">
-            <span className="text-muted-foreground">{progressLabel ?? "Tiến độ"}</span>
+            <span className="text-muted-foreground">{progressLabel ?? (isVietnamese ? "Tiến độ" : "Progress")}</span>
             <span className="font-extrabold" style={{ color: accent }}>
               {safeProgress}%
             </span>
@@ -647,6 +659,7 @@ export function BentoConsoleStats({
   const activePercent = scale.activeRate ?? 100;
   const isSecurityGood = security.percent >= 60;
   const hasWarning = sentinel.isWarning ?? sentinel.count > 0;
+  const isVietnamese = useIsVietnamese();
 
   return (
     <div className={className}>
@@ -660,7 +673,7 @@ export function BentoConsoleStats({
           />
           <div className="flex items-center justify-between gap-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
-              {scale.totalLabel ?? "Tổng người dùng"}
+              {scale.totalLabel ?? (isVietnamese ? "Tổng người dùng" : "Total Users")}
             </span>
             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] text-primary border border-white/30 dark:border-white/10">
               <Users className="h-3.5 w-3.5" />
@@ -675,7 +688,7 @@ export function BentoConsoleStats({
               {loading ? "..." : scale.totalValue}
             </Typography>
             <p className="text-[10px] text-muted-foreground/80 font-medium truncate mt-0.5">
-              {scale.totalSub ?? "Toàn hệ thống"}
+              {scale.totalSub ?? (isVietnamese ? "Toàn hệ thống" : "System-wide")}
             </p>
           </div>
         </div>
@@ -688,7 +701,7 @@ export function BentoConsoleStats({
           />
           <div className="flex items-center justify-between gap-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
-              {scale.activeLabel ?? "Đang hoạt động"}
+              {scale.activeLabel ?? (isVietnamese ? "Đang hoạt động" : "Active")}
             </span>
             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] text-primary border border-white/30 dark:border-white/10">
               <UserCheck className="h-3.5 w-3.5" />
@@ -724,7 +737,7 @@ export function BentoConsoleStats({
           />
           <div className="flex items-center justify-between gap-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
-              {security.badgeText ?? security.title ?? "Bảo mật 2FA"}
+              {security.badgeText ?? security.title ?? (isVietnamese ? "Bảo mật 2FA" : "2FA Security")}
             </span>
             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] text-primary border border-white/30 dark:border-white/10">
               <ShieldCheck className="h-3.5 w-3.5" />
@@ -767,7 +780,7 @@ export function BentoConsoleStats({
           />
           <div className="flex items-center justify-between gap-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground truncate">
-              {sentinel.label ?? "Tạm khóa"}
+              {sentinel.label ?? (isVietnamese ? "Tạm khóa" : "Suspended")}
             </span>
             <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] border border-white/30 dark:border-white/10">
               <span
@@ -798,11 +811,11 @@ export function BentoConsoleStats({
                     : "bg-primary/10 text-primary"
                 )}
               >
-                {sentinel.statusText ?? (hasWarning ? "Cần xử lý" : "An toàn")}
+                {sentinel.statusText ?? (hasWarning ? (isVietnamese ? "Cần xử lý" : "Action required") : (isVietnamese ? "An toàn" : "Secure"))}
               </span>
             </div>
             <p className="text-[10px] text-muted-foreground/80 font-medium truncate mt-0.5">
-              {hasWarning ? (sentinel.description ?? "Cần kiểm tra") : "Không có vi phạm"}
+              {hasWarning ? (sentinel.description ?? (isVietnamese ? "Cần kiểm tra" : "Needs review")) : (isVietnamese ? "Không có vi phạm" : "No violations")}
             </p>
           </div>
         </div>
@@ -824,7 +837,7 @@ export function BentoConsoleStats({
         <div>
           <div className="flex items-center justify-between pb-4">
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-              {scale.title ?? "Quy mô nhân sự & Trạng thái hoạt động"}
+              {scale.title ?? (isVietnamese ? "Quy mô nhân sự & Trạng thái hoạt động" : "Workforce Scale & Operational Status")}
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background px-2.5 py-0.5 text-[10px] font-bold text-foreground shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)]">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
@@ -835,7 +848,7 @@ export function BentoConsoleStats({
           <div className="grid grid-cols-2 gap-4 items-center py-2">
             <div className="space-y-1">
               <span className="text-xs font-bold text-muted-foreground block">
-                {scale.totalLabel ?? "Tổng nhân sự"}
+                {scale.totalLabel ?? (isVietnamese ? "Tổng nhân sự" : "Total Personnel")}
               </span>
               <Typography
                 variant="embossed"
@@ -845,13 +858,13 @@ export function BentoConsoleStats({
                 {loading ? "..." : scale.totalValue}
               </Typography>
               <p className="text-[11px] text-muted-foreground/80 font-medium">
-                {scale.totalSub ?? "Tài khoản toàn công ty"}
+                {scale.totalSub ?? (isVietnamese ? "Tài khoản toàn công ty" : "Company-wide Accounts")}
               </p>
             </div>
 
             <div className="space-y-1 border-l border-[var(--shadow-dark)]/20 pl-4 dark:border-white/10">
               <span className="text-xs font-bold text-muted-foreground block">
-                {scale.activeLabel ?? "Đang hoạt động"}
+                {scale.activeLabel ?? (isVietnamese ? "Đang hoạt động" : "Active")}
               </span>
               <Typography
                 variant="embossed"
@@ -861,7 +874,7 @@ export function BentoConsoleStats({
                 {loading ? "..." : scale.activeValue}
               </Typography>
               <p className="text-[11px] text-muted-foreground/80 font-medium">
-                {scale.activeSub ?? "Sẵn sàng đăng nhập"}
+                {scale.activeSub ?? (isVietnamese ? "Sẵn sàng đăng nhập" : "Ready to log in")}
               </p>
             </div>
           </div>
@@ -870,10 +883,10 @@ export function BentoConsoleStats({
         <div className="mt-5 space-y-2 pt-3 border-t border-[var(--shadow-dark)]/20 dark:border-white/10">
           <div className="flex items-center justify-between text-[11px] font-bold">
             <span className="text-muted-foreground">
-              {scale.availabilityLabel ?? "Tỷ lệ khả dụng hệ thống"}
+              {scale.availabilityLabel ?? (isVietnamese ? "Tỷ lệ khả dụng hệ thống" : "System Availability Rate")}
             </span>
             <span className="font-extrabold text-foreground">
-              {scale.availabilityText ?? `${activePercent}% sẵn sàng`}
+              {scale.availabilityText ?? (isVietnamese ? `${activePercent}% sẵn sàng` : `${activePercent}% ready`)}
             </span>
           </div>
           <div className="h-3 w-full overflow-hidden rounded-full bg-background p-0.5 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] flex gap-1">
@@ -905,7 +918,7 @@ export function BentoConsoleStats({
         <div>
           <div className="flex items-center justify-between pb-3">
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-              {security.title ?? "Bảo mật xác thực hai bước"}
+              {security.title ?? (isVietnamese ? "Bảo mật xác thực hai bước" : "Two-Factor Authentication Security")}
             </span>
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
               {security.badgeText ?? "TOTP 2FA"}
@@ -957,11 +970,11 @@ export function BentoConsoleStats({
                   {loading ? "..." : security.currentValue}
                 </span>
                 <span className="text-xs text-muted-foreground font-bold">
-                  {security.totalStaffLabel ?? `/ ${security.totalValue} nhân viên`}
+                  {security.totalStaffLabel ?? (isVietnamese ? `/ ${security.totalValue} nhân viên` : `/ ${security.totalValue} staff`)}
                 </span>
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground font-medium">
-                {security.description ?? "Tài khoản kích hoạt mã bảo vệ Google Authenticator."}
+                {security.description ?? (isVietnamese ? "Tài khoản kích hoạt mã bảo vệ Google Authenticator." : "Accounts secured with Google Authenticator.")}
               </p>
             </div>
           </div>
@@ -970,10 +983,10 @@ export function BentoConsoleStats({
         <div className="mt-4 flex items-center justify-between rounded-2xl border border-[var(--shadow-dark)]/25 bg-background/70 px-3.5 py-2.5 shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)]">
           <span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
             <ShieldCheck className="h-4 w-4 text-primary" />
-            {security.statusLabel ?? "Độ phủ an ninh"}
+            {security.statusLabel ?? (isVietnamese ? "Độ phủ an ninh" : "Security Coverage")}
           </span>
           <span className="text-xs font-bold text-foreground">
-            {security.statusText ?? (isSecurityGood ? "Mức độ: Rất tốt" : "Mức độ: Cần tăng cường")}
+            {security.statusText ?? (isSecurityGood ? (isVietnamese ? "Mức độ: Rất tốt" : "Status: Excellent") : (isVietnamese ? "Mức độ: Cần tăng cường" : "Status: Needs improvement"))}
           </span>
         </div>
       </div>
@@ -995,7 +1008,7 @@ export function BentoConsoleStats({
         <div>
           <div className="flex items-center justify-between pb-3">
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-              {sentinel.title ?? "An ninh & Truy cập"}
+              {sentinel.title ?? (isVietnamese ? "An ninh & Truy cập" : "Security & Access")}
             </span>
 
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] border border-white/40 dark:border-white/10">
@@ -1012,7 +1025,7 @@ export function BentoConsoleStats({
 
           <div className="py-2 space-y-1">
             <span className="text-xs font-bold text-muted-foreground block">
-              {sentinel.label ?? (hasWarning ? "Tài khoản bị khóa" : "Tài khoản ngưng hoạt động")}
+              {sentinel.label ?? (hasWarning ? (isVietnamese ? "Tài khoản bị khóa" : "Locked Accounts") : (isVietnamese ? "Tài khoản ngưng hoạt động" : "Inactive Accounts"))}
             </span>
             <Typography
               variant="embossed"
@@ -1026,8 +1039,8 @@ export function BentoConsoleStats({
             </Typography>
             <p className="text-xs text-muted-foreground/90 font-medium pt-1">
               {sentinel.description ?? (hasWarning
-                ? "Nhập sai mật khẩu hoặc bị vô hiệu hóa"
-                : "Không có xung đột truy cập trái phép")}
+                ? (isVietnamese ? "Nhập sai mật khẩu hoặc bị vô hiệu hóa" : "Wrong password entries or disabled")
+                : (isVietnamese ? "Không có xung đột truy cập trái phép" : "No unauthorized access conflicts"))}
             </p>
           </div>
         </div>
@@ -1041,7 +1054,7 @@ export function BentoConsoleStats({
           )}
         >
           <span className="text-xs font-bold truncate">
-            {sentinel.statusText ?? (hasWarning ? "Cần quản trị xử lý" : "Hệ thống an toàn")}
+            {sentinel.statusText ?? (hasWarning ? (isVietnamese ? "Cần quản trị xử lý" : "Admin action required") : (isVietnamese ? "Hệ thống an toàn" : "System secure"))}
           </span>
           {hasWarning ? (
             <AlertTriangle className="h-4 w-4 shrink-0 text-accent" />

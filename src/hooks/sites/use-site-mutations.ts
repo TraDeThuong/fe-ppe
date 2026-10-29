@@ -29,8 +29,9 @@ export function useUpdateSite() {
     mutationFn: ({ id, payload }: { id: string; payload: UpdateSitePayload }) =>
       siteService.updateSite(id, payload),
     onSuccess: (updatedSite, { id }) => {
-      queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: siteKeys.all });
       queryClient.setQueryData(siteKeys.detail(id), updatedSite);
+      queryClient.invalidateQueries({ queryKey: siteKeys.detail(id) });
       toast.success(`Đã cập nhật công trường "${updatedSite.name}" thành công.`);
     },
     onError: (err: unknown) => {

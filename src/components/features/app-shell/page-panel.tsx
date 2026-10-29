@@ -2,6 +2,7 @@
 
 import type { LucideIcon } from "lucide-react";
 import { Sparkles } from "lucide-react";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface PagePanelProps extends React.HTMLAttributes<HTMLElement> {
   children?: React.ReactNode;
@@ -26,6 +27,8 @@ export function PagePanel({
   innerClassName = "",
   ...props
 }: PagePanelProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   return (
     <section
       className={`min-w-0 rounded-2xl border border-border/30 bg-background p-2.5 shadow-[6px_6px_15px_var(--shadow-dark),-6px_-6px_15px_var(--shadow-light)] sm:p-4 ${className}`}
@@ -65,10 +68,20 @@ export function PagePanel({
 
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <div className="rounded-xl border border-border/30 bg-background px-4 py-2.5 text-xs text-muted-foreground shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]">
-                <span className="font-semibold text-foreground">Giao diện M2:</span> Cấu trúc khung Neumorphic 2 lớp hoàn tất
+                <span className="font-semibold text-foreground">
+                  {isVietnamese ? "Giao diện M2:" : "Milestone M2:"}
+                </span>{" "}
+                {isVietnamese
+                  ? "Cấu trúc khung Neumorphic 2 lớp hoàn tất"
+                  : "Double-layered Neumorphic layout completed"}
               </div>
               <div className="rounded-xl border border-border/30 bg-background px-4 py-2.5 text-xs text-muted-foreground shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]">
-                <span className="font-semibold text-foreground">Giai đoạn M3:</span> Tích hợp dữ liệu thời gian thực và API
+                <span className="font-semibold text-foreground">
+                  {isVietnamese ? "Giai đoạn M3:" : "Phase M3:"}
+                </span>{" "}
+                {isVietnamese
+                  ? "Tích hợp dữ liệu thời gian thực và API"
+                  : "Real-time telemetry and API integration"}
               </div>
             </div>
           </div>

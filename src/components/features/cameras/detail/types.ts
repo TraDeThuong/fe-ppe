@@ -79,3 +79,32 @@ export interface ComputedPersonTrack {
   noVestFrames: Set<number>;
   unknownCount: number;
 }
+
+export type StreamType =
+  | "youtube_shorts"
+  | "youtube_video"
+  | "html5_video"
+  | "webcam"
+  | "rtsp";
+
+export interface StreamMetadata {
+  streamType: StreamType;
+  isVertical: boolean;
+  videoWidth: number;
+  videoHeight: number;
+  youtubeId?: string | null;
+  aspectRatioLabel: string;
+  sourceUrl: string;
+}
+
+export interface AiInspectionConfig {
+  confidenceThreshold: number;
+  confirmationDuration: number;
+  cooldownDuration: number;
+  enableNoHelmet: boolean;
+  enableNoVest: boolean;
+  enableRestrictedArea: boolean;
+  modelVersionId: string;
+  processFps?: number;
+}
+

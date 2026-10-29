@@ -31,7 +31,7 @@ export function SystemKpiSummary({
   const avgLatency = healthReport?.averageLatencyMs ?? 24;
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
       <div
         className={onSelectTab ? "cursor-pointer transition-transform hover:-translate-y-0.5" : ""}
         onClick={() => onSelectTab?.("configs")}
@@ -42,7 +42,7 @@ export function SystemKpiSummary({
           icon={Settings2}
           variant="soft-extruded"
           tone="info"
-          description="Tham số runtime đang chạy"
+          description={t("system.kpi.configsDesc")}
         />
       </div>
 
@@ -56,7 +56,7 @@ export function SystemKpiSummary({
           icon={Server}
           variant="soft-extruded"
           tone={healthyServices === totalServices ? "success" : "warning"}
-          description="Dịch vụ & hạ tầng khỏe mạnh"
+          description={t("system.kpi.healthyDesc")}
         />
       </div>
 
@@ -84,7 +84,7 @@ export function SystemKpiSummary({
           icon={Activity}
           variant="soft-extruded"
           tone={avgLatency < 100 ? "success" : "danger"}
-          description="Độ trễ phản hồi RTT trung bình"
+          description={t("system.kpi.latencyDesc")}
         />
       </div>
     </div>

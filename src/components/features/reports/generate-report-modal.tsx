@@ -26,7 +26,8 @@ export function GenerateReportModal({
   onSubmit,
   loading = false,
 }: GenerateReportModalProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const [templateId, setTemplateId] = useState(
     selectedTemplate?.id || templates[0]?.id || ""
@@ -62,9 +63,35 @@ export function GenerateReportModal({
       onOpenChange={onOpenChange}
       title={t("reports.generate.modalTitle")}
       description="Chọn mẫu báo cáo, phạm vi công trường và khoảng thời gian xuất dữ liệu"
-      className="max-w-lg"
+      footer={
+        <div className="flex w-full items-center justify-end gap-3">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
+            {t("common.cancel")}
+          </Button>
+
+          <Button
+            form="generate-report-form"
+            type="submit"
+            variant="primary"
+            disabled={loading}
+            className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            {t("reports.generate.submit")}
+          </Button>
+        </div>
+      }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form id="generate-report-form" onSubmit={handleSubmit} className="space-y-4">
         {/* Template Select */}
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-[var(--neu-text-primary)]">
@@ -99,7 +126,7 @@ export function GenerateReportModal({
               }`}
             >
               <FileText className="h-4 w-4" />
-              <span>Tài liệu PDF</span>
+              <span>{isVietnamese ? "Tài liệu PDF" : "PDF Document"}</span>
             </button>
 
             <button
@@ -112,7 +139,7 @@ export function GenerateReportModal({
               }`}
             >
               <FileSpreadsheet className="h-4 w-4" />
-              <span>Bảng Excel (XLSX)</span>
+              <span>{isVietnamese ? "Bảng Excel (XLSX)" : "Excel Spreadsheet (XLSX)"}</span>
             </button>
           </div>
         </div>
@@ -163,32 +190,6 @@ export function GenerateReportModal({
               required
             />
           </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--neu-border)]">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={loading}
-          >
-            {t("common.cancel")}
-          </Button>
-
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={loading}
-            className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-            {t("reports.generate.submit")}
-          </Button>
         </div>
       </form>
     </Modal>

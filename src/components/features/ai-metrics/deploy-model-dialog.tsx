@@ -23,7 +23,8 @@ export function DeployModelDialog({
   onConfirm,
   loading = false,
 }: DeployModelDialogProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   if (!candidateVersion) return null;
 
@@ -72,7 +73,7 @@ export function DeployModelDialog({
               </div>
               <div className="space-y-1 text-[11px] text-muted-foreground">
                 <div>mAP@50: <span className="text-foreground font-semibold">{currentMap}</span></div>
-                <div>Độ trễ: <span className="text-foreground font-semibold">{currentLatency}</span></div>
+                <div>{isVietnamese ? "Độ trễ:" : "Latency:"} <span className="text-foreground font-semibold">{currentLatency}</span></div>
                 <div>Framework: {activeVersion?.framework || "TENSORRT"}</div>
               </div>
             </div>
@@ -90,7 +91,7 @@ export function DeployModelDialog({
                   mAP@50: <span className="text-emerald-600 dark:text-emerald-400 font-bold">{candidateMap}</span>
                 </div>
                 <div>
-                  Độ trễ: <span className="text-emerald-600 dark:text-emerald-400 font-bold">{candidateLatency}</span>
+                  {isVietnamese ? "Độ trễ:" : "Latency:"} <span className="text-emerald-600 dark:text-emerald-400 font-bold">{candidateLatency}</span>
                 </div>
                 <div>Framework: {candidateVersion.framework}</div>
               </div>
@@ -102,7 +103,9 @@ export function DeployModelDialog({
         <div className="flex items-center gap-2 p-3 text-xs text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
           <Zap className="h-4 w-4 shrink-0" />
           <span>
-            Hệ thống sẽ nạp nóng trọng số (Zero-downtime hot-swap) vào GPU worker mà không làm ngắt quãng luồng hình ảnh camera.
+            {isVietnamese
+              ? "Hệ thống sẽ nạp nóng trọng số (Zero-downtime hot-swap) vào GPU worker mà không làm ngắt quãng luồng hình ảnh camera."
+              : "The system will hot-swap weights (zero downtime) into GPU workers without interrupting camera video streams."}
           </span>
         </div>
 

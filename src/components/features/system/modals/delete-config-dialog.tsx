@@ -22,7 +22,8 @@ export function DeleteConfigDialog({
   onConfirm,
   loading = false,
 }: DeleteConfigDialogProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [confirmKey, setConfirmKey] = useState("");
 
   useEffect(() => {
@@ -48,35 +49,14 @@ export function DeleteConfigDialog({
       description={t("system.modals.deletePrompt")}
       icon={<AlertTriangle className="h-5 w-5 text-danger" />}
       size="sm"
-    >
-      <div className="space-y-4">
-        <div className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-center space-y-1">
-          <p className="text-xs text-muted-foreground">Mã cấu hình sẽ bị xóa vĩnh viễn:</p>
-          <p className="font-mono text-sm font-bold text-danger select-all">
-            {targetKey}
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-foreground/80 block">
-            Vui lòng nhập lại chính xác mã <span className="font-mono font-bold text-primary">{targetKey}</span> để xác nhận xóa:
-          </label>
-          <input
-            type="text"
-            value={confirmKey}
-            onChange={(e) => setConfirmKey(e.target.value)}
-            placeholder={targetKey}
-            className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground/50 focus:border-danger focus:outline-none focus:ring-1 focus:ring-danger shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1)]"
-            disabled={loading}
-          />
-        </div>
-
-        <div className="flex items-center justify-end gap-3 pt-2">
+      footer={
+        <div className="flex w-full items-center justify-end gap-2.5 sm:w-auto">
           <Button
             type="button"
             variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={loading}
+            className="flex-1 sm:flex-initial"
           >
             {t("system.modals.cancel")}
           </Button>
@@ -86,10 +66,44 @@ export function DeleteConfigDialog({
             variant="danger"
             onClick={handleConfirm}
             disabled={!isMatch || loading}
+            className="flex-1 sm:flex-initial"
           >
             <Trash2 className="mr-1.5 h-4 w-4" />
             <span>{loading ? t("system.modals.deleting") : t("system.modals.confirmDelete")}</span>
           </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <div className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-center space-y-1">
+          <p className="text-xs text-muted-foreground">
+            {isVietnamese ? "Mã cấu hình sẽ bị xóa vĩnh viễn:" : "Configuration key will be permanently deleted:"}
+          </p>
+          <p className="font-mono text-sm font-bold text-danger select-all">
+            {targetKey}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-medium text-foreground/80 block">
+            {isVietnamese ? (
+              <>
+                Vui lòng nhập lại chính xác mã <span className="font-mono font-bold text-primary">{targetKey}</span> để xác nhận xóa:
+              </>
+            ) : (
+              <>
+                Please type the exact key <span className="font-mono font-bold text-primary">{targetKey}</span> to confirm deletion:
+              </>
+            )}
+          </label>
+          <input
+            type="text"
+            value={confirmKey}
+            onChange={(e) => setConfirmKey(e.target.value)}
+            placeholder={targetKey}
+            className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground/50 focus:border-danger focus:outline-none focus:ring-1 focus:ring-danger shadow-[inset_1px_1px_3px_rgba(0,0,0,0.1)]"
+            disabled={loading}
+          />
         </div>
       </div>
     </Modal>

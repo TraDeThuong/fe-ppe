@@ -17,7 +17,8 @@ export function ReportHistoryTable({
   history,
   loading = false,
 }: ReportHistoryTableProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const handleDownload = async (item: ReportGenerationDto) => {
@@ -26,12 +27,22 @@ export function ReportHistoryTable({
       const res = await reportingService.getReportDownloadUrl(item.id);
       if (res?.downloadUrl) {
         window.open(res.downloadUrl, "_blank");
-        toast.success(`Đang tải xuống tài liệu "${item.fileName || "report"}"`);
+        toast.success(
+          isVietnamese
+            ? `Đang tải xuống tài liệu "${item.fileName || "report"}"`
+            : `Downloading document "${item.fileName || "report"}"`
+        );
       } else {
-        toast.error("Không tìm thấy liên kết tải về.");
+        toast.error(
+          isVietnamese ? "Không tìm thấy liên kết tải về." : "Download link not found."
+        );
       }
     } catch {
-      toast.error("Không thể tải về tài liệu. Liên kết có thể đã hết hạn.");
+      toast.error(
+        isVietnamese
+          ? "Không thể tải về tài liệu. Liên kết có thể đã hết hạn."
+          : "Unable to download document. Link may have expired."
+      );
     } finally {
       setDownloadingId(null);
     }
@@ -43,7 +54,7 @@ export function ReportHistoryTable({
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
             <CheckCircle2 className="h-3 w-3" />
-            Hoàn tất
+            {isVietnamese ? "Hoàn tất" : "Completed"}
           </span>
         );
       case "PROCESSING":
@@ -51,14 +62,14 @@ export function ReportHistoryTable({
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/20">
             <Loader2 className="h-3 w-3 animate-spin" />
-            Đang sinh file...
+            {isVietnamese ? "Đang sinh file..." : "Generating file..."}
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/20">
             <XCircle className="h-3 w-3" />
-            Lỗi render
+            {isVietnamese ? "Lỗi render" : "Render Failed"}
           </span>
         );
     }
@@ -140,7 +151,7 @@ export function ReportHistoryTable({
                     </td>
 
                     <td className="py-3 text-muted-foreground">
-                      {item.siteName || "Tất cả công trường"}
+                      {item.siteName || (isVietnamese ? "Tất cả công trường" : "All Sites")}
                     </td>
 
                     <td className="py-3 text-muted-foreground">{date}</td>
@@ -165,7 +176,7 @@ export function ReportHistoryTable({
                         </Button>
                       ) : (
                         <span className="text-muted-foreground text-xs italic">
-                          Chờ hoàn tất
+                          {isVietnamese ? "Chờ hoàn tất" : "Pending"}
                         </span>
                       )}
                     </td>

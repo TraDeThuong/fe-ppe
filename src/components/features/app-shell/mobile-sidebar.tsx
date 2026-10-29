@@ -50,7 +50,8 @@ export function MobileSidebar({
   }, [isControlled]);
 
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const pathname = usePathname();
 
   useEffect(() => {
@@ -100,7 +101,7 @@ export function MobileSidebar({
         <button
           type="button"
           onClick={handleOpen}
-          aria-label="Mở menu điều hướng"
+          aria-label={isVietnamese ? "Mở menu điều hướng" : "Open navigation menu"}
           aria-expanded={false}
           className="
             fixed left-4 top-4 z-[80] md:hidden
@@ -227,7 +228,7 @@ export function MobileSidebar({
             <button
               type="button"
               onClick={handleClose}
-              aria-label="Đóng menu"
+              aria-label={isVietnamese ? "Đóng menu" : "Close menu"}
               className="
                 flex h-12 w-12 shrink-0 items-center justify-center
                 rounded-2xl border border-white/40 bg-background

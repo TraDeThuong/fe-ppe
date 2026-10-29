@@ -125,8 +125,32 @@ export function PermissionMatrixDrawer({
       description={t("roles.matrix.description")}
       icon={<Key className="h-5 w-5 text-primary" />}
       size="xl"
+      footer={
+        <div className="flex w-full items-center justify-end gap-2.5 sm:w-auto">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+            className="flex-1 sm:flex-initial"
+          >
+            {t("roles.matrix.cancel")}
+          </Button>
+
+          <Button
+            type="button"
+            variant="primary"
+            onClick={handleSave}
+            disabled={loading}
+            className="flex-1 sm:flex-initial"
+          >
+            <Shield className="mr-1.5 h-4 w-4" />
+            <span>{loading ? t("roles.matrix.saving") : t("roles.matrix.save")}</span>
+          </Button>
+        </div>
+      }
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Anti-lockout warning banner if Admin */}
         {isAdminRole && (
           <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
@@ -177,7 +201,7 @@ export function PermissionMatrixDrawer({
         </div>
 
         {/* Permission Groups */}
-        <div className="space-y-5 max-h-[500px] overflow-y-auto pr-2">
+        <div className="space-y-4">
           {(Object.keys(groupedPermissions) as ResourceCategory[]).map((cat) => {
             const perms = groupedPermissions[cat];
             if (perms.length === 0) return null;
@@ -187,7 +211,7 @@ export function PermissionMatrixDrawer({
             return (
               <div
                 key={cat}
-                className="rounded-2xl border border-border/40 bg-surface p-4 shadow-[2px_2px_6px_rgba(0,0,0,0.04)] dark:border-black/50 dark:bg-card/70"
+                className="rounded-2xl border border-border/40 bg-surface p-3 sm:p-4 shadow-[2px_2px_6px_rgba(0,0,0,0.04)] dark:border-black/50 dark:bg-card/70"
               >
                 <div className="flex items-center justify-between border-b border-border/30 pb-2.5 mb-3 dark:border-black/40">
                   <h4 className="text-xs font-bold text-foreground">
@@ -211,7 +235,7 @@ export function PermissionMatrixDrawer({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
                   {perms.map((perm) => {
                     const isChecked = selectedIds.has(perm.id);
                     const isLocked = isAdminRole && lockedPermissionNames.has(perm.name);
@@ -251,23 +275,6 @@ export function PermissionMatrixDrawer({
               </div>
             );
           })}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/30 dark:border-black/40">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={loading}
-          >
-            {t("roles.matrix.cancel")}
-          </Button>
-
-          <Button type="button" variant="primary" onClick={handleSave} disabled={loading}>
-            <Shield className="mr-1.5 h-4 w-4" />
-            <span>{loading ? t("roles.matrix.saving") : t("roles.matrix.save")}</span>
-          </Button>
         </div>
       </div>
     </Modal>

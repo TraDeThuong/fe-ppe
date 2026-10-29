@@ -209,7 +209,8 @@ export interface CloseIncidentPayload {
 }
 
 export interface CreateAssignmentPayload {
-  assignedToUserId: string;
+  assignedTo?: string;
+  assignedToUserId?: string;
   priority?: "URGENT" | "HIGH" | "NORMAL";
   deadline?: string;
   note?: string;

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { Loader } from "@/components/ui/loader";
 import NotificationsContent from "./notifications-content";
 
 export default function NotificationsPage() {
@@ -6,7 +7,7 @@ export default function NotificationsPage() {
     <Suspense
       fallback={
         <div className="flex min-h-[400px] items-center justify-center text-muted-foreground">
-          <p>Đang tải trung tâm thông báo...</p>
+          <Loader showLabel />
         </div>
       }
     >

@@ -5,6 +5,7 @@ import { MoveRight } from "lucide-react";
 import { TableHeader } from "./table-header";
 import { TableBody } from "./table-body";
 import { useTableContext } from "./table-context";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface TableContentProps {
   className?: string;
@@ -26,6 +27,15 @@ export function TableContent({
   showMobileScrollHint = true,
 }: TableContentProps) {
   const { variant } = useTableContext();
+
+  let isVietnamese = true;
+  try {
+    const localeCtx = useLocale();
+    isVietnamese = localeCtx.locale === "vi-VN";
+  } catch {
+    // fallback if outside LocaleProvider
+  }
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -70,10 +80,10 @@ export function TableContent({
         <div className="flex sm:hidden items-center justify-between px-4 py-1.5 bg-accent/10 border-b border-accent/20 text-[11px] font-bold text-accent">
           <span className="flex items-center gap-1.5">
             <span className="size-1.5 rounded-full bg-accent animate-ping" />
-            Bảng rộng hơn màn hình
+            {isVietnamese ? "Bảng rộng hơn màn hình" : "Table wider than screen"}
           </span>
           <span className="inline-flex items-center gap-1 text-[10px] font-semibold">
-            Vuốt ngang <MoveRight size={12} className="animate-pulse" />
+            {isVietnamese ? "Vuốt ngang" : "Scroll sideways"} <MoveRight size={12} className="animate-pulse" />
           </span>
         </div>
       )}

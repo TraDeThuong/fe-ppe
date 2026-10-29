@@ -9,6 +9,7 @@ import {
 import type { ReactNode } from "react";
 
 import { useTableContext } from "./table-context";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface TableToolbarProps {
   className?: string;
@@ -27,18 +28,39 @@ export interface TableToolbarProps {
 
 export function TableToolbar({
   className = "",
-  searchPlaceholder = "Tìm kiếm dữ liệu toàn bảng...",
+  searchPlaceholder,
   showSearch = true,
   showColumnVisibility = true,
   showRowCount = true,
   actions,
-  columnsLabel = "Cột",
-  toggleColumnsLabel = "Hiển thị cột",
-  resetLabel = "Mặc định",
+  columnsLabel,
+  toggleColumnsLabel,
+  resetLabel,
   recordsText,
-  loadingText = "Đang tải dữ liệu...",
-  clearSearchLabel = "Xóa tìm kiếm",
+  loadingText,
+  clearSearchLabel,
 }: TableToolbarProps) {
+  let isVietnamese = true;
+  try {
+    const localeCtx = useLocale();
+    isVietnamese = localeCtx.locale === "vi-VN";
+  } catch {
+    // fallback if used outside LocaleProvider
+  }
+
+  const effectiveSearchPlaceholder =
+    searchPlaceholder ?? (isVietnamese ? "Tìm kiếm dữ liệu toàn bảng..." : "Search entire table...");
+  const effectiveColumnsLabel =
+    columnsLabel ?? (isVietnamese ? "Cột" : "Columns");
+  const effectiveToggleColumnsLabel =
+    toggleColumnsLabel ?? (isVietnamese ? "Hiển thị cột" : "Toggle columns");
+  const effectiveResetLabel =
+    resetLabel ?? (isVietnamese ? "Mặc định" : "Default");
+  const effectiveLoadingText =
+    loadingText ?? (isVietnamese ? "Đang tải dữ liệu..." : "Loading data...");
+  const effectiveClearSearchLabel =
+    clearSearchLabel ?? (isVietnamese ? "Xóa tìm kiếm" : "Clear search");
+
   const { table, variant, loading } = useTableContext();
 
   const globalFilter = String(table.state.globalFilter ?? "");
@@ -94,8 +116,8 @@ export function TableToolbar({
               onChange={(event) => {
                 table.setGlobalFilter(event.target.value);
               }}
-              placeholder={searchPlaceholder}
-              aria-label="Tìm kiếm toàn bộ bảng"
+              placeholder={effectiveSearchPlaceholder}
+              aria-label={isVietnamese ? "Tìm kiếm toàn bộ bảng" : "Search whole table"}
               disabled={loading}
               className={[
                 "h-10 min-w-0 w-full bg-transparent",
@@ -109,8 +131,8 @@ export function TableToolbar({
               <button
                 type="button"
                 onClick={() => table.setGlobalFilter("")}
-                aria-label="Xóa nội dung tìm kiếm"
-                title="Xóa tìm kiếm"
+                aria-label={effectiveClearSearchLabel}
+                title={effectiveClearSearchLabel}
                 className={[
                   "flex size-6 shrink-0 items-center justify-center",
                   "rounded-lg text-muted-foreground",
@@ -132,12 +154,12 @@ export function TableToolbar({
             >
               <span className="size-1.5 rounded-full bg-primary animate-pulse" />
               {loading
-                ? loadingText
+                ? effectiveLoadingText
                 : recordsText
                   ? recordsText(allRows, filteredRows, Boolean(globalFilter))
                   : globalFilter
-                    ? `${filteredRows} / ${allRows} bản ghi`
-                    : `${allRows} bản ghi`}
+                    ? `${filteredRows} / ${allRows} ${isVietnamese ? "bản ghi" : "records"}`
+                    : `${allRows} ${isVietnamese ? "bản ghi" : "records"}`}
             </span>
           </div>
         )}
@@ -157,7 +179,7 @@ export function TableToolbar({
               ].join(" ")}
             >
               <Columns3 size={14} className="text-primary" />
-              <span>{columnsLabel}</span>
+              <span>{effectiveColumnsLabel}</span>
             </summary>
 
             <div
@@ -171,17 +193,17 @@ export function TableToolbar({
             >
               <div className="mb-2 flex items-center justify-between px-2 py-1 border-b border-border/30 pb-2">
                 <span className="text-xs font-bold text-foreground">
-                  {toggleColumnsLabel}
+                  {effectiveToggleColumnsLabel}
                 </span>
 
                 <button
                   type="button"
                   onClick={() => table.resetColumnVisibility()}
                   className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-primary transition-colors"
-                  title={resetLabel}
+                  title={effectiveResetLabel}
                 >
                   <RotateCcw size={11} />
-                  {resetLabel}
+                  {effectiveResetLabel}
                 </button>
               </div>
 

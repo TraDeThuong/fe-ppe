@@ -1,6 +1,9 @@
 
+"use client";
+
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { LoaderCircle } from "lucide-react";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface FormActionsProps {
   isSubmitting?: boolean;
@@ -23,9 +26,9 @@ export interface FormActionsProps {
 
 export function FormActions({
   isSubmitting = false,
-  submitLabel = "Lưu thay đổi",
-  submittingLabel = "Đang xử lý...",
-  cancelLabel = "Hủy",
+  submitLabel,
+  submittingLabel,
+  cancelLabel,
   onCancel,
   disabled = false,
   children,
@@ -33,6 +36,21 @@ export function FormActions({
   submitButtonProps,
   cancelButtonProps,
 }: FormActionsProps) {
+  let isVietnamese = true;
+  try {
+    const localeCtx = useLocale();
+    isVietnamese = localeCtx.locale === "vi-VN";
+  } catch {
+    // fallback if outside LocaleProvider
+  }
+
+  const effectiveSubmitLabel =
+    submitLabel ?? (isVietnamese ? "Lưu thay đổi" : "Save changes");
+  const effectiveSubmittingLabel =
+    submittingLabel ?? (isVietnamese ? "Đang xử lý..." : "Processing...");
+  const effectiveCancelLabel =
+    cancelLabel ?? (isVietnamese ? "Hủy" : "Cancel");
+
   const isDisabled = disabled || isSubmitting;
 
   return (
@@ -63,7 +81,7 @@ export function FormActions({
             cancelButtonProps?.className ?? "",
           ].join(" ")}
         >
-          {cancelLabel}
+          {effectiveCancelLabel}
         </button>
       )}
 
@@ -91,7 +109,7 @@ export function FormActions({
           />
         )}
 
-        {isSubmitting ? submittingLabel : submitLabel}
+        {isSubmitting ? effectiveSubmittingLabel : effectiveSubmitLabel}
       </button>
     </div>
   );

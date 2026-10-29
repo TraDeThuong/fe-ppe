@@ -17,18 +17,19 @@ export function ReportViolationDonut({
   ],
   loading = false,
 }: ReportViolationDonutProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const total = distribution.reduce((acc, cur) => acc + cur.count, 0) || 184;
 
   const getLabel = (type: string) => {
     switch (type) {
       case "NO_HELMET":
-        return "Không đội mũ bảo hộ";
+        return isVietnamese ? "Không đội mũ bảo hộ" : "No Safety Helmet";
       case "NO_VEST":
-        return "Không mặc áo phản quang";
+        return isVietnamese ? "Không mặc áo phản quang" : "No High-Vis Vest";
       case "RESTRICTED_AREA":
-        return "Xâm nhập vùng cấm";
+        return isVietnamese ? "Xâm nhập vùng cấm" : "Restricted Zone Intrusion";
       default:
         return type;
     }
@@ -116,7 +117,9 @@ export function ReportViolationDonut({
           {/* Centered Total */}
           <div className="absolute flex flex-col items-center justify-center text-center">
             <span className="text-xl font-bold text-foreground">{total}</span>
-            <span className="text-[10px] text-muted-foreground uppercase font-medium">Vi phạm</span>
+            <span className="text-[10px] text-muted-foreground uppercase font-medium">
+              {isVietnamese ? "Vi phạm" : "Violations"}
+            </span>
           </div>
         </div>
 
@@ -137,7 +140,7 @@ export function ReportViolationDonut({
                 </span>
               </div>
               <div className="text-[11px] text-muted-foreground pl-4.5">
-                {slice.count} vụ vi phạm
+                {slice.count} {isVietnamese ? "vụ vi phạm" : "violations"}
               </div>
             </div>
           ))}

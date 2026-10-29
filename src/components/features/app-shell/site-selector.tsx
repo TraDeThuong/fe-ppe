@@ -59,7 +59,7 @@ export function SiteSelector() {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 w-64 rounded-2xl border border-border/40 bg-card p-1.5 shadow-xl dark:border-black/60 dark:bg-card">
+        <div className="absolute left-0 top-full z-50 mt-1.5 w-[min(16rem,calc(100vw-24px))] rounded-2xl border border-border/40 bg-card p-1.5 shadow-xl dark:border-black/60 dark:bg-card">
           <div className="max-h-72 overflow-y-auto space-y-1 p-0.5">
             {/* All sites option */}
             <button

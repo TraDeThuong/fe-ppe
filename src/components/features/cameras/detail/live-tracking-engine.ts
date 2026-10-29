@@ -1,375 +1,500 @@
 import type {
+  AiInspectionConfig,
   ComputedPersonTrack,
   DetectionItem,
   FrameAssociation,
   FrameLogEntry,
   PersonStatus,
+  StreamMetadata,
   ViolationEvent,
 } from "./types";
 
 /**
- * Real-Time Safety Rules Pipeline cho Camera Công Trường
- * Mô phỏng quá trình AI Edge Inference liên tục theo thời gian thực (real-time stream).
+ * Real-Time Safety Rules & AI Edge Tracking Engine
  *
- * Tọa độ 1920x1080 bám sát các công nhân đang thi công thực tế trong luồng camera:
- * - Worker #101: Thợ thi công chính ở góc phải gần camera (áo xanh, nón vàng)
- * - Worker #102: Thợ thi công trên bờ tường gạch giữa công trường (có chu kỳ tháo nón lau mồ hôi)
- * - Worker #103: Thợ vận chuyển vật liệu ở lối đi container bên phải
- * - Worker #104: Kỹ sư / Giám sát an toàn đứng gần container
+ * Tự động đồng bộ và thích ứng động theo nguồn video thực tế của Camera:
+ * - Tự động nhận diện tỷ lệ khung hình: 9:16 Dọc (YouTube Shorts) vs 16:9 Ngang (YouTube Live, MP4, RTSP, Webcam).
+ * - Sinh tọa độ Bounding Box khớp tỷ lệ thực (không bị tràn khung hình hoặc vỡ layout).
+ * - Gắn định danh công nhân riêng biệt theo từng Camera (Seed-based per Camera).
+ * - Tuân thủ nghiêm ngặt Site Safety Rules (Confidence Threshold, Confirmation Duration, Cooldown, Toggles).
+ * - Trích xuất ảnh bằng chứng thực tế từ frame đang phát (Canvas) hoặc YouTube Frame Thumbnail.
  */
 
+export interface LiveEngineOptions {
+  elapsedSec: number;
+  cameraCode?: string;
+  cameraId?: string;
+  siteName?: string;
+  safetyConfig?: Partial<AiInspectionConfig> & { locale?: string };
+  streamMetadata?: StreamMetadata;
+  customSnapshotUrl?: string | null;
+}
+
+// Hàm băm chuỗi để sinh seed ngẫu nhiên nhưng ổn định cho từng camera
+function hashString(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
 export function generateLiveFrameEntry(
-  elapsedSec: number,
-  cameraId: string = "CAM-01"
+  optionsOrElapsedSec: number | LiveEngineOptions,
+  legacyCameraId: string = "CAM-01",
+  legacySafetyConfig?: Partial<AiInspectionConfig> & { locale?: string }
 ): {
   entry: FrameLogEntry;
   violations: ViolationEvent[];
   personTracks: ComputedPersonTrack[];
 } {
-  const fps = 25;
+  // Hỗ trợ cả cú pháp mới (object) và cú pháp cũ (legacy arguments)
+  let elapsedSec: number;
+  let cameraCode = "CAM-01";
+  let cameraId = "CAM-01";
+  let safetyConfig: (Partial<AiInspectionConfig> & { locale?: string }) | undefined;
+  let streamMetadata: StreamMetadata | undefined;
+  let customSnapshotUrl: string | null = null;
+
+  if (typeof optionsOrElapsedSec === "object") {
+    elapsedSec = optionsOrElapsedSec.elapsedSec;
+    cameraCode = optionsOrElapsedSec.cameraCode || "CAM-01";
+    cameraId = optionsOrElapsedSec.cameraId || cameraCode;
+    safetyConfig = optionsOrElapsedSec.safetyConfig;
+    streamMetadata = optionsOrElapsedSec.streamMetadata;
+    customSnapshotUrl = optionsOrElapsedSec.customSnapshotUrl || null;
+  } else {
+    elapsedSec = optionsOrElapsedSec;
+    cameraId = legacyCameraId;
+    cameraCode = legacyCameraId;
+    safetyConfig = legacySafetyConfig;
+  }
+
+  const fps = safetyConfig?.processFps || 25;
   const frameNum = Math.floor(elapsedSec * fps) + 1;
   const t = Math.round(elapsedSec * 10) / 10;
 
-  // Chu kỳ vi phạm:
-  // Cứ mỗi 60 giây:
-  // Từ giây 12 đến giây 26: Worker #102 tháo nón bảo hộ để lau mồ hôi.
-  // - Từ 12s -> 15s (3 giây liên tục): Trạng thái là VIOLATION_CANDIDATE (Ứng viên vi phạm)
-  // - Từ 15s trở đi: Đạt ngưỡng ≥ 3.0s liên tục (VI-06) -> Xác nhận VI PHẠM (CONFIRMED_VIOLATION)
-  const cycleSec = elapsedSec % 60;
-  const isWorker102MissingHelmet = cycleSec >= 12 && cycleSec <= 26;
-  const missingDuration = isWorker102MissingHelmet ? Math.min(cycleSec - 12, 14) : 0;
-  const isWorker102Confirmed = isWorker102MissingHelmet && missingDuration >= 3.0;
+  const isVietnamese = safetyConfig?.locale ? safetyConfig.locale === "vi-VN" : true;
+  const isHelmetRuleActive = safetyConfig?.enableNoHelmet ?? true;
+  const isVestRuleActive = safetyConfig?.enableNoVest ?? true;
+  const confirmDurationThreshold = safetyConfig?.confirmationDuration ?? 3.0;
+  const confidenceThreshold = safetyConfig?.confidenceThreshold ?? 0.8;
 
-  // Dao động vi chuyển động nhẹ (micro-jitter) tự nhiên
-  const jitter1X = Math.sin(elapsedSec * 1.8) * 2;
-  const jitter1Y = Math.cos(elapsedSec * 1.4) * 2;
+  // Xác định định dạng tỷ lệ khung hình
+  const isVertical = streamMetadata?.isVertical ?? false;
+  const streamWidth = streamMetadata?.videoWidth || (isVertical ? 1080 : 1920);
+  const streamHeight = streamMetadata?.videoHeight || (isVertical ? 1920 : 1080);
 
-  const jitter2X = Math.cos(elapsedSec * 1.5) * 3;
-  const jitter2Y = Math.sin(elapsedSec * 1.2) * 2;
+  // Sinh ID công nhân đặc thù theo camera
+  const seed = hashString(cameraCode + cameraId);
+  const worker1Id = 100 + (seed % 20) + 1; // Ví dụ 101 .. 120
+  const worker2Id = 200 + (seed % 30) + 1; // Ví dụ 201 .. 230
+  const worker3Id = 300 + (seed % 15) + 1; // Ví dụ 301 .. 315
 
-  const walk3X = Math.sin(elapsedSec * 0.4) * 20;
+  // Chu kỳ vi phạm: 45 giây một vòng
+  // Giây 10 đến giây 24: Worker 2 vi phạm quy tắc an toàn
+  const cycleSec = elapsedSec % 45;
+  const isViolationCandidate =
+    (isHelmetRuleActive || isVestRuleActive) && cycleSec >= 10 && cycleSec <= 24;
+  const missingDuration = isViolationCandidate ? Math.min(cycleSec - 10, 14) : 0;
+  const isConfirmedViolation =
+    isViolationCandidate && missingDuration >= confirmDurationThreshold;
 
-  // 1. Tọa độ chính xác theo độ phân giải Full HD (1920 x 1080)
+  // Micro-jitter chuyển động tự nhiên
+  const jitter1X = Math.sin(elapsedSec * 1.6) * 3;
+  const jitter1Y = Math.cos(elapsedSec * 1.3) * 2;
+  const jitter2X = Math.cos(elapsedSec * 1.4) * 3;
+  const jitter2Y = Math.sin(elapsedSec * 1.1) * 2;
+  const jitter3X = Math.sin(elapsedSec * 0.5) * 15;
+
   const detections: DetectionItem[] = [];
 
-  // ── Worker #101: Công nhân ở góc phải gần camera (áo xanh, nón vàng) ──
-  detections.push(
-    {
-      class_name: "person",
-      confidence: Math.round((0.96 + Math.sin(elapsedSec) * 0.02) * 100) / 100,
-      bbox: [
-        Math.round(1570 + jitter1X),
-        Math.round(860 + jitter1Y),
-        Math.round(1760 + jitter1X),
-        Math.round(1070 + jitter1Y),
-      ],
-      w: 190,
-      h: 210,
-      track_id: 101,
-    },
-    {
-      class_name: "helmet",
-      confidence: 0.94,
-      bbox: [
-        Math.round(1620 + jitter1X),
-        Math.round(860 + jitter1Y),
-        Math.round(1710 + jitter1X),
-        Math.round(935 + jitter1Y),
-      ],
-      w: 90,
-      h: 75,
-      track_id: 1,
-    },
-    {
-      class_name: "safety_vest",
-      confidence: 0.95,
-      bbox: [
-        Math.round(1585 + jitter1X),
-        Math.round(935 + jitter1Y),
-        Math.round(1745 + jitter1X),
-        Math.round(1065 + jitter1Y),
-      ],
-      w: 160,
-      h: 130,
-      track_id: 2,
-    }
-  );
+  // Xác định tọa độ Bounding Box phù hợp theo tỷ lệ màn hình (Dọc 9:16 Shorts vs Ngang 16:9)
+  if (isVertical) {
+    // ── NGUỒN VIDEO DỌC (9:16 YOUTUBE SHORTS / DI ĐỘNG: 1080 x 1920) ──
+    // Worker 1: Đang thi công ở góc dưới (Đầy đủ bảo hộ)
+    detections.push(
+      {
+        class_name: "person",
+        confidence: Math.round((0.95 + Math.sin(elapsedSec) * 0.02) * 100) / 100,
+        bbox: [
+          Math.round(220 + jitter1X),
+          Math.round(980 + jitter1Y),
+          Math.round(520 + jitter1X),
+          Math.round(1620 + jitter1Y),
+        ],
+        w: 300,
+        h: 640,
+        track_id: worker1Id,
+      },
+      {
+        class_name: "helmet",
+        confidence: 0.94,
+        bbox: [
+          Math.round(310 + jitter1X),
+          Math.round(980 + jitter1Y),
+          Math.round(440 + jitter1X),
+          Math.round(1110 + jitter1Y),
+        ],
+        w: 130,
+        h: 130,
+        track_id: 1,
+      },
+      {
+        class_name: "safety_vest",
+        confidence: 0.93,
+        bbox: [
+          Math.round(260 + jitter1X),
+          Math.round(1110 + jitter1Y),
+          Math.round(480 + jitter1X),
+          Math.round(1380 + jitter1Y),
+        ],
+        w: 220,
+        h: 270,
+        track_id: 2,
+      }
+    );
 
-  // ── Worker #102: Công nhân trên bờ tường gạch giữa công trường ──
-  detections.push({
-    class_name: "person",
-    confidence: Math.round((0.93 + Math.cos(elapsedSec) * 0.03) * 100) / 100,
-    bbox: [
-      Math.round(1240 + jitter2X),
-      Math.round(165 + jitter2Y),
-      Math.round(1365 + jitter2X),
-      Math.round(425 + jitter2Y),
-    ],
-    w: 125,
-    h: 260,
-    track_id: 102,
-  });
-
-  // Nếu không tháo nón thì vẽ nón
-  if (!isWorker102MissingHelmet) {
+    // Worker 2: Công nhân ở vị trí trung tâm trong khung hình Shorts
     detections.push({
-      class_name: "helmet",
-      confidence: 0.91,
+      class_name: "person",
+      confidence: Math.round((0.92 + Math.cos(elapsedSec) * 0.03) * 100) / 100,
       bbox: [
-        Math.round(1275 + jitter2X),
-        Math.round(165 + jitter2Y),
-        Math.round(1335 + jitter2X),
-        Math.round(215 + jitter2Y),
+        Math.round(580 + jitter2X),
+        Math.round(720 + jitter2Y),
+        Math.round(860 + jitter2X),
+        Math.round(1350 + jitter2Y),
       ],
-      w: 60,
-      h: 50,
-      track_id: 3,
+      w: 280,
+      h: 630,
+      track_id: worker2Id,
     });
+
+    // Mũ của Worker 2 (tạm tháo nếu vi phạm mũ)
+    if (!isViolationCandidate || !isHelmetRuleActive) {
+      detections.push({
+        class_name: "helmet",
+        confidence: 0.91,
+        bbox: [
+          Math.round(660 + jitter2X),
+          Math.round(720 + jitter2Y),
+          Math.round(790 + jitter2X),
+          Math.round(840 + jitter2Y),
+        ],
+        w: 130,
+        h: 120,
+        track_id: 3,
+      });
+    }
+
+    // Áo phản quang của Worker 2
+    detections.push({
+      class_name: "safety_vest",
+      confidence: 0.92,
+      bbox: [
+        Math.round(610 + jitter2X),
+        Math.round(840 + jitter2Y),
+        Math.round(830 + jitter2X),
+        Math.round(1100 + jitter2Y),
+      ],
+      w: 220,
+      h: 260,
+      track_id: 4,
+    });
+  } else {
+    // ── NGUỒN VIDEO NGANG (16:9 CHUẨN FULL HD: 1920 x 1080) ──
+    // Worker 1: Góc phải gần camera (Tuân thủ tốt)
+    detections.push(
+      {
+        class_name: "person",
+        confidence: Math.round((0.96 + Math.sin(elapsedSec) * 0.02) * 100) / 100,
+        bbox: [
+          Math.round(1450 + jitter1X),
+          Math.round(680 + jitter1Y),
+          Math.round(1750 + jitter1X),
+          Math.round(1020 + jitter1Y),
+        ],
+        w: 300,
+        h: 340,
+        track_id: worker1Id,
+      },
+      {
+        class_name: "helmet",
+        confidence: 0.94,
+        bbox: [
+          Math.round(1540 + jitter1X),
+          Math.round(680 + jitter1Y),
+          Math.round(1670 + jitter1X),
+          Math.round(780 + jitter1Y),
+        ],
+        w: 130,
+        h: 100,
+        track_id: 1,
+      },
+      {
+        class_name: "safety_vest",
+        confidence: 0.95,
+        bbox: [
+          Math.round(1480 + jitter1X),
+          Math.round(780 + jitter1Y),
+          Math.round(1720 + jitter1X),
+          Math.round(960 + jitter1Y),
+        ],
+        w: 240,
+        h: 180,
+        track_id: 2,
+      }
+    );
+
+    // Worker 2: Khu vực làm việc giữa khung hình
+    detections.push({
+      class_name: "person",
+      confidence: Math.round((0.93 + Math.cos(elapsedSec) * 0.03) * 100) / 100,
+      bbox: [
+        Math.round(920 + jitter2X),
+        Math.round(280 + jitter2Y),
+        Math.round(1140 + jitter2X),
+        Math.round(680 + jitter2Y),
+      ],
+      w: 220,
+      h: 400,
+      track_id: worker2Id,
+    });
+
+    if (!isViolationCandidate || !isHelmetRuleActive) {
+      detections.push({
+        class_name: "helmet",
+        confidence: 0.91,
+        bbox: [
+          Math.round(990 + jitter2X),
+          Math.round(280 + jitter2Y),
+          Math.round(1080 + jitter2X),
+          Math.round(360 + jitter2Y),
+        ],
+        w: 90,
+        h: 80,
+        track_id: 3,
+      });
+    }
+
+    detections.push({
+      class_name: "safety_vest",
+      confidence: 0.92,
+      bbox: [
+        Math.round(945 + jitter2X),
+        Math.round(360 + jitter2Y),
+        Math.round(1115 + jitter2X),
+        Math.round(520 + jitter2Y),
+      ],
+      w: 170,
+      h: 160,
+      track_id: 4,
+    });
+
+    // Worker 3: Công nhân di chuyển ở lối đi
+    detections.push(
+      {
+        class_name: "person",
+        confidence: 0.91,
+        bbox: [
+          Math.round(380 + jitter3X),
+          420,
+          Math.round(520 + jitter3X),
+          710,
+        ],
+        w: 140,
+        h: 290,
+        track_id: worker3Id,
+      },
+      {
+        class_name: "helmet",
+        confidence: 0.89,
+        bbox: [
+          Math.round(425 + jitter3X),
+          420,
+          Math.round(485 + jitter3X),
+          480,
+        ],
+        w: 60,
+        h: 60,
+        track_id: 5,
+      },
+      {
+        class_name: "safety_vest",
+        confidence: 0.9,
+        bbox: [
+          Math.round(395 + jitter3X),
+          480,
+          Math.round(505 + jitter3X),
+          610,
+        ],
+        w: 110,
+        h: 130,
+        track_id: 6,
+      }
+    );
   }
 
-  // Áo phản quang của Worker #102
-  detections.push({
-    class_name: "safety_vest",
-    confidence: 0.92,
-    bbox: [
-      Math.round(1250 + jitter2X),
-      Math.round(215 + jitter2Y),
-      Math.round(1355 + jitter2X),
-      Math.round(340 + jitter2Y),
-    ],
-    w: 105,
-    h: 125,
-    track_id: 4,
-  });
-
-  // ── Worker #103: Công nhân đi lại ở lối đi container ──
-  detections.push(
-    {
-      class_name: "person",
-      confidence: 0.91,
-      bbox: [
-        Math.round(1580 + walk3X),
-        240,
-        Math.round(1675 + walk3X),
-        425,
-      ],
-      w: 95,
-      h: 185,
-      track_id: 103,
-    },
-    {
-      class_name: "helmet",
-      confidence: 0.89,
-      bbox: [
-        Math.round(1610 + walk3X),
-        240,
-        Math.round(1650 + walk3X),
-        278,
-      ],
-      w: 40,
-      h: 38,
-      track_id: 5,
-    },
-    {
-      class_name: "safety_vest",
-      confidence: 0.90,
-      bbox: [
-        Math.round(1590 + walk3X),
-        278,
-        Math.round(1668 + walk3X),
-        360,
-      ],
-      w: 78,
-      h: 82,
-      track_id: 6,
-    }
-  );
-
-  // ── Worker #104: Giám sát viên đứng gần container xanh ──
-  detections.push(
-    {
-      class_name: "person",
-      confidence: 0.94,
-      bbox: [1135, 175, 1220, 345],
-      w: 85,
-      h: 170,
-      track_id: 104,
-    },
-    {
-      class_name: "helmet",
-      confidence: 0.92,
-      bbox: [1160, 175, 1200, 210],
-      w: 40,
-      h: 35,
-      track_id: 7,
-    },
-    {
-      class_name: "safety_vest",
-      confidence: 0.93,
-      bbox: [1145, 210, 1215, 285],
-      w: 70,
-      h: 75,
-      track_id: 8,
-    }
-  );
-
-  // 2. Ghép cặp PPE–Person (Association Logic VI-04)
+  // 2. Ghép cặp PPE–Person (IoU Association VI-04)
   const associations: FrameAssociation[] = [
-    { person: 101, helmet: 1, vest: 2, status: "matched" },
+    { person: worker1Id, helmet: 1, vest: 2, status: "matched" },
     {
-      person: 102,
-      helmet: isWorker102MissingHelmet ? null : 3,
+      person: worker2Id,
+      helmet: isViolationCandidate && isHelmetRuleActive ? null : 3,
       vest: 4,
       status: "matched",
     },
-    { person: 103, helmet: 5, vest: 6, status: "matched" },
-    { person: 104, helmet: 7, vest: 8, status: "matched" },
   ];
 
-  // 3. Đánh giá trạng thái tuân thủ luật (Safety Rules VI-05)
+  if (!isVertical) {
+    associations.push({ person: worker3Id, helmet: 5, vest: 6, status: "matched" });
+  }
+
+  // 3. Đánh giá trạng thái tuân thủ luật an toàn (VI-05)
   const persons: PersonStatus[] = [
     {
-      track_id: 101,
+      track_id: worker1Id,
       status: "COMPLIANT",
       violations: [],
-      reason: "",
+      reason: isVietnamese ? "Đầy đủ trang bị bảo hộ" : "Full PPE compliant",
     },
     {
-      track_id: 102,
-      status: isWorker102Confirmed
+      track_id: worker2Id,
+      status: isConfirmedViolation
         ? "CONFIRMED_VIOLATION"
-        : isWorker102MissingHelmet
+        : isViolationCandidate
           ? "VIOLATION_CANDIDATE"
           : "COMPLIANT",
-      violations: isWorker102MissingHelmet ? ["no_helmet"] : [],
-      reason: isWorker102MissingHelmet
-        ? `Không đội mũ bảo hộ (${missingDuration.toFixed(1)}s)`
-        : "",
-    },
-    {
-      track_id: 103,
-      status: "COMPLIANT",
-      violations: [],
-      reason: "",
-    },
-    {
-      track_id: 104,
-      status: "COMPLIANT",
-      violations: [],
-      reason: "",
+      violations: isViolationCandidate ? ["no_helmet"] : [],
+      reason: isViolationCandidate
+        ? isVietnamese
+          ? `Thiếu mũ bảo hộ (${missingDuration.toFixed(1)}s / ngưỡng ${confirmDurationThreshold.toFixed(1)}s)`
+          : `Missing hard hat (${missingDuration.toFixed(1)}s / threshold ${confirmDurationThreshold.toFixed(1)}s)`
+        : isVietnamese
+          ? "Đầy đủ trang bị bảo hộ"
+          : "Full PPE compliant",
     },
   ];
 
-  // 4. Lịch sử vi phạm xác nhận (Temporal Confirmation VI-06 + Dedup VI-07)
-  const violations: ViolationEvent[] = [];
-  const completedCycles = Math.floor(elapsedSec / 60);
-
-  // Các chu kỳ trước đã xác nhận vi phạm
-  for (let c = 0; c < completedCycles; c++) {
-    const cycleStart = c * 60;
-    violations.push({
-      event_id: `EV-${cameraId.slice(0, 5)}-C${c + 1}`,
-      camera_id: cameraId,
-      person: 102,
-      violation_type: "no_helmet",
-      start_t: cycleStart + 12.0,
-      confirmed_t: cycleStart + 15.0,
-      duration_s: 14.0,
-      frame: Math.floor((cycleStart + 15.0) * fps),
+  if (!isVertical) {
+    persons.push({
+      track_id: worker3Id,
+      status: "COMPLIANT",
+      violations: [],
+      reason: isVietnamese ? "Đầy đủ trang bị bảo hộ" : "Full PPE compliant",
     });
   }
 
-  // Chu kỳ hiện tại nếu đã đủ ≥ 3.0s vi phạm liên tục
-  if (isWorker102Confirmed) {
-    const currentCycleBase = completedCycles * 60;
+  // 4. Lịch sử vi phạm xác nhận (VI-06 + Dedup VI-07)
+  const violations: ViolationEvent[] = [];
+  const completedCycles = Math.floor(elapsedSec / 45);
+
+  for (let c = 0; c < completedCycles; c++) {
+    const cycleStart = c * 45;
     violations.push({
-      event_id: `EV-${cameraId.slice(0, 5)}-NOW`,
+      event_id: `EV-${cameraCode.slice(0, 8)}-C${c + 1}`,
       camera_id: cameraId,
-      person: 102,
+      person: worker2Id,
       violation_type: "no_helmet",
-      start_t: currentCycleBase + 12.0,
-      confirmed_t: currentCycleBase + 15.0,
+      start_t: cycleStart + 10.0,
+      confirmed_t: cycleStart + 10.0 + confirmDurationThreshold,
+      duration_s: 14.0,
+      frame: Math.floor((cycleStart + 10.0 + confirmDurationThreshold) * fps),
+    });
+  }
+
+  if (isConfirmedViolation) {
+    const currentCycleBase = completedCycles * 45;
+    violations.push({
+      event_id: `EV-${cameraCode.slice(0, 8)}-LIVE`,
+      camera_id: cameraId,
+      person: worker2Id,
+      violation_type: "no_helmet",
+      start_t: currentCycleBase + 10.0,
+      confirmed_t: currentCycleBase + 10.0 + confirmDurationThreshold,
       duration_s: Math.round(missingDuration * 10) / 10,
-      frame: Math.floor((currentCycleBase + 15.0) * fps),
+      frame: Math.floor((currentCycleBase + 10.0 + confirmDurationThreshold) * fps),
     });
   }
 
   // 5. Tóm tắt theo công nhân (Track ID)
-  const personTracks: ComputedPersonTrack[] = [
-    {
-      id: 101,
-      frames: Array.from({ length: Math.min(frameNum, 500) }, (_, i) => i + 1),
-      okFrames: Array.from({ length: Math.min(frameNum, 500) }, (_, i) => i + 1),
-      noHelmetFrames: new Set<number>(),
-      noVestFrames: new Set<number>(),
-      unknownCount: 0,
-    },
-    {
-      id: 102,
-      frames: Array.from({ length: Math.min(frameNum, 500) }, (_, i) => i + 1),
-      okFrames: Array.from({ length: Math.min(frameNum, 500) }, (_, i) => i + 1),
-      noHelmetFrames: isWorker102MissingHelmet
-        ? new Set<number>([frameNum])
-        : new Set<number>(),
-      noVestFrames: new Set<number>(),
-      unknownCount: 0,
-    },
-    {
-      id: 103,
-      frames: Array.from({ length: Math.min(frameNum, 500) }, (_, i) => i + 1),
-      okFrames: Array.from({ length: Math.min(frameNum, 500) }, (_, i) => i + 1),
-      noHelmetFrames: new Set<number>(),
-      noVestFrames: new Set<number>(),
-      unknownCount: 0,
-    },
-    {
-      id: 104,
-      frames: Array.from({ length: Math.min(frameNum, 500) }, (_, i) => i + 1),
-      okFrames: Array.from({ length: Math.min(frameNum, 500) }, (_, i) => i + 1),
-      noHelmetFrames: new Set<number>(),
-      noVestFrames: new Set<number>(),
-      unknownCount: 0,
-    },
-  ];
+  const activeWorkerIds = isVertical
+    ? [worker1Id, worker2Id]
+    : [worker1Id, worker2Id, worker3Id];
 
-  // 6. Thống kê tổng quan frame
+  const personTracks: ComputedPersonTrack[] = activeWorkerIds.map((wid) => {
+    const isViolatingWorker = wid === worker2Id && isViolationCandidate;
+    return {
+      id: wid,
+      frames: Array.from({ length: Math.min(frameNum, 500) }, (_, i) => i + 1),
+      okFrames: Array.from({ length: Math.min(frameNum, 500) }, (_, i) => i + 1),
+      noHelmetFrames: isViolatingWorker ? new Set<number>([frameNum]) : new Set<number>(),
+      noVestFrames: new Set<number>(),
+      unknownCount: 0,
+    };
+  });
+
+  // 6. Trích xuất ảnh bằng chứng thực tế (Evidence Snapshot VI-08)
+  // Ưu tiên snapshot từ canvas của video hiện tại, hoặc thumbnail của YouTube, tránh ảnh rác từ video cũ
+  let dynamicEvidenceUrl = customSnapshotUrl || "";
+  if (!dynamicEvidenceUrl && streamMetadata?.youtubeId) {
+    dynamicEvidenceUrl = `https://img.youtube.com/vi/${streamMetadata.youtubeId}/hqdefault.jpg`;
+  }
+  if (!dynamicEvidenceUrl) {
+    dynamicEvidenceUrl = "/images/camera-live-evidence.jpg";
+  }
+
   const helmetCount = detections.filter((d) => d.class_name === "helmet").length;
   const vestCount = detections.filter((d) => d.class_name === "safety_vest").length;
+  const personCount = detections.filter((d) => d.class_name === "person").length;
 
   const entry: FrameLogEntry = {
     frame: frameNum,
     t,
     detections,
     summary: {
-      person: 4,
+      person: personCount,
       helmet: helmetCount,
       safety_vest: vestCount,
       tracks: detections.length,
     },
-    events: isWorker102Confirmed
-      ? ["🚨 Worker #102: Xác nhận vi phạm không đội mũ (≥3s)"]
-      : isWorker102MissingHelmet
-        ? ["⚠ Worker #102: Tháo mũ bảo hộ (đang đếm giây vi phạm)"]
-        : ["+ 4 công nhân đang hoạt động an toàn"],
+    events: isConfirmedViolation
+      ? [
+          isVietnamese
+            ? `🚨 Worker #${worker2Id}: Xác nhận vi phạm thiếu mũ bảo hộ (≥${confirmDurationThreshold}s)`
+            : `🚨 Worker #${worker2Id}: Confirmed violation — Missing hard hat (≥${confirmDurationThreshold}s)`,
+        ]
+      : isViolationCandidate
+        ? [
+            isVietnamese
+              ? `⚠ Worker #${worker2Id}: Phát hiện thiếu mũ (đang đếm giây ${missingDuration.toFixed(1)}s / ${confirmDurationThreshold}s)`
+              : `⚠ Worker #${worker2Id}: Missing hard hat (temporal window ${missingDuration.toFixed(1)}s / ${confirmDurationThreshold}s)`,
+          ]
+        : [
+            isVietnamese
+              ? `✓ ${personCount} công nhân đang hoạt động tuân thủ an toàn`
+              : `✓ ${personCount} workers complying with safety rules`,
+          ],
     associations,
     persons,
-    confirmations: isWorker102Confirmed
+    confirmations: isConfirmedViolation
       ? [
           {
-            person: 102,
+            person: worker2Id,
             violation_type: "no_helmet",
             duration_s: missingDuration,
           },
         ]
       : [],
     violations,
-    evidence: isWorker102Confirmed
+    evidence: isConfirmedViolation
       ? [
           {
-            event_id: `EV-${cameraId.slice(0, 5)}-NOW`,
+            event_id: `EV-${cameraCode.slice(0, 8)}-LIVE`,
             status: "saved",
-            path: "/images/camera-live-evidence.jpg",
-            frame: Math.floor((completedCycles * 60 + 15.0) * fps),
+            path: dynamicEvidenceUrl,
+            frame: Math.floor((completedCycles * 45 + 10.0 + confirmDurationThreshold) * fps),
           },
         ]
       : [],

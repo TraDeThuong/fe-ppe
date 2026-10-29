@@ -5,6 +5,7 @@ import { CheckSquare, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useTableContext } from "./table-context";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface TableBulkAction {
   id: string;
@@ -29,10 +30,23 @@ export function TableBulkActions({
   selectedCount,
   onClearSelection,
   className = "",
-  selectionLabel = "dòng đang chọn",
-  clearSelectionLabel = "Bỏ chọn",
+  selectionLabel,
+  clearSelectionLabel,
 }: TableBulkActionsProps) {
   const { table } = useTableContext();
+
+  let isVietnamese = true;
+  try {
+    const localeCtx = useLocale();
+    isVietnamese = localeCtx.locale === "vi-VN";
+  } catch {
+    // fallback if outside LocaleProvider
+  }
+
+  const effectiveSelectionLabel =
+    selectionLabel ?? (isVietnamese ? "dòng đang chọn" : "rows selected");
+  const effectiveClearSelectionLabel =
+    clearSelectionLabel ?? (isVietnamese ? "Bỏ chọn" : "Clear selection");
 
   const resolvedCount =
     selectedCount ?? table.getSelectedRowModel().rows.length;
@@ -45,7 +59,7 @@ export function TableBulkActions({
   return (
     <div
       role="toolbar"
-      aria-label="Thao tác hàng loạt"
+      aria-label={isVietnamese ? "Thao tác hàng loạt" : "Bulk actions"}
       className={[
         "flex flex-col gap-3 rounded-2xl p-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4",
         "border border-primary/30 bg-background/95 backdrop-blur-sm",
@@ -69,7 +83,7 @@ export function TableBulkActions({
             <span className="font-mono text-primary font-black mr-1">
               {resolvedCount}
             </span>
-            {selectionLabel}
+            {effectiveSelectionLabel}
           </span>
 
           <button
@@ -81,10 +95,10 @@ export function TableBulkActions({
               "hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
             ].join(" ")}
-            aria-label="Bỏ chọn tất cả dòng"
+            aria-label={isVietnamese ? "Bỏ chọn tất cả dòng" : "Clear all selected rows"}
           >
             <X size={13} />
-            {clearSelectionLabel}
+            {effectiveClearSelectionLabel}
           </button>
         </div>
       </div>

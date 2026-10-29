@@ -22,7 +22,8 @@ export function CloseIncidentDialog({
   onConfirm,
   loading = false,
 }: CloseIncidentDialogProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [closeNote, setCloseNote] = useState("");
 
   const handleConfirm = async () => {
@@ -41,7 +42,9 @@ export function CloseIncidentDialog({
       title={t("incidents.modals.closeTitle")}
       description={
         incident
-          ? `Bạn có chắc chắn muốn nghiệm thu và đóng hồ sơ sự cố #${incident.id.slice(0, 8)}? Sau khi đóng, hồ sơ sẽ được lưu trữ và không thể chỉnh sửa trạng thái.`
+          ? (isVietnamese
+              ? `Bạn có chắc chắn muốn nghiệm thu và đóng hồ sơ sự cố #${incident.id.slice(0, 8)}? Sau khi đóng, hồ sơ sẽ được lưu trữ và không thể chỉnh sửa trạng thái.`
+              : `Are you sure you want to review and close incident record #${incident.id.slice(0, 8)}? Once closed, the record will be archived and its status cannot be modified.`)
           : undefined
       }
     >
@@ -54,7 +57,11 @@ export function CloseIncidentDialog({
             value={closeNote}
             onChange={(e) => setCloseNote(e.target.value)}
             rows={2}
-            placeholder="Ghi chú nghiệm thu, đánh giá kết quả xử lý..."
+            placeholder={
+              isVietnamese
+                ? "Ghi chú nghiệm thu, đánh giá kết quả xử lý..."
+                : "Closing notes, resolution evaluation..."
+            }
             className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--neu-inset)] border border-[var(--neu-border)] text-sm text-[var(--neu-text-primary)] placeholder-[var(--neu-text-secondary)]/50 focus:outline-none focus:ring-2 focus:ring-slate-500/30 transition-all resize-none"
           />
         </div>

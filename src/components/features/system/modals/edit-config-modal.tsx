@@ -22,7 +22,8 @@ export function EditConfigModal({
   onSubmit,
   loading = false,
 }: EditConfigModalProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const [category, setCategory] = useState<SystemConfigCategory>("GENERAL");
   const [valueType, setValueType] = useState<"string" | "number" | "boolean" | "json">("string");
@@ -65,7 +66,7 @@ export function EditConfigModal({
     } else if (valueType === "number") {
       const num = Number(valueStr);
       if (isNaN(num)) {
-        setError("Giá trị phải là một con số hợp lệ.");
+        setError(isVietnamese ? "Giá trị phải là một con số hợp lệ." : "Value must be a valid number.");
         return;
       }
       parsedValue = num;
@@ -73,7 +74,7 @@ export function EditConfigModal({
       try {
         parsedValue = JSON.parse(valueStr);
       } catch {
-        setError("Cú pháp JSON không hợp lệ. Vui lòng kiểm tra lại.");
+        setError(isVietnamese ? "Cú pháp JSON không hợp lệ. Vui lòng kiểm tra lại." : "Invalid JSON syntax. Please check again.");
         return;
       }
     }
@@ -87,7 +88,12 @@ export function EditConfigModal({
       });
       onOpenChange(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Không thể cập nhật cấu hình lúc này.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : isVietnamese
+          ? "Không thể cập nhật cấu hình lúc này."
+          : "Failed to update configuration.";
       setError(msg);
     }
   };
@@ -97,11 +103,30 @@ export function EditConfigModal({
       open={open}
       onOpenChange={onOpenChange}
       title={t("system.modals.editTitle")}
-      description={`Chỉnh sửa tham số cấu hình: ${config?.key || ""}`}
+      description={
+        isVietnamese
+          ? `Chỉnh sửa tham số cấu hình: ${config?.key || ""}`
+          : `Edit configuration parameter: ${config?.key || ""}`
+      }
       icon={<Edit2 className="h-5 w-5 text-primary" />}
-      size="md"
+      footer={
+        <div className="flex w-full items-center justify-end gap-2.5">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
+            {t("system.modals.cancel")}
+          </Button>
+
+          <Button form="edit-config-form" type="submit" variant="primary" disabled={loading}>
+            <span>{loading ? t("system.modals.saving") : t("system.modals.save")}</span>
+          </Button>
+        </div>
+      }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form id="edit-config-form" onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
             {error}
@@ -110,7 +135,7 @@ export function EditConfigModal({
 
         <div>
           <label className="block text-xs font-semibold text-foreground mb-1.5">
-            {t("system.modals.keyLabel")} (Không thể sửa)
+            {t("system.modals.keyLabel")} ({isVietnamese ? "Không thể sửa" : "Read-only"})
           </label>
           <input
             type="text"
@@ -139,7 +164,7 @@ export function EditConfigModal({
 
           <div>
             <label className="block text-xs font-semibold text-foreground mb-1.5">
-              Kiểu dữ liệu (Type)
+              {isVietnamese ? "Kiểu dữ liệu (Type)" : "Data Type"}
             </label>
             <select
               value={valueType}
@@ -203,21 +228,6 @@ export function EditConfigModal({
           <label htmlFor="edit-isPublic" className="text-xs text-foreground cursor-pointer">
             {t("system.modals.publicLabel")}
           </label>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/30">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={loading}
-          >
-            {t("system.modals.cancel")}
-          </Button>
-
-          <Button type="submit" variant="primary" disabled={loading}>
-            <span>{loading ? t("system.modals.saving") : t("system.modals.save")}</span>
-          </Button>
         </div>
       </form>
     </Modal>

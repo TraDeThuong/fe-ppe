@@ -22,7 +22,8 @@ export function ReviewIncidentModal({
   onSubmit,
   loading = false,
 }: ReviewIncidentModalProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const [decision, setDecision] = useState<"CONFIRMED" | "DISMISSED">("CONFIRMED");
   const [reason, setReason] = useState("");
@@ -35,7 +36,11 @@ export function ReviewIncidentModal({
     setError(null);
 
     if (decision === "DISMISSED" && !reason.trim()) {
-      setError("Vui lòng cung cấp lý do khi bác bỏ sự cố vi phạm.");
+      setError(
+        isVietnamese
+          ? "Vui lòng cung cấp lý do khi bác bỏ sự cố vi phạm."
+          : "Please provide a reason when dismissing an incident."
+      );
       return;
     }
 
@@ -48,7 +53,12 @@ export function ReviewIncidentModal({
 
       onOpenChange(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Đã có lỗi xảy ra khi thẩm duyệt sự cố";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : isVietnamese
+            ? "Đã có lỗi xảy ra khi thẩm duyệt sự cố"
+            : "An error occurred while reviewing the incident";
       setError(msg);
     }
   };
@@ -61,8 +71,37 @@ export function ReviewIncidentModal({
       description={t("incidents.modals.reviewDesc")}
       icon={<CheckSquare className="h-5 w-5 text-primary" />}
       size="md"
+      footer={
+        <div className="flex w-full items-center justify-end gap-3">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
+            {t("common.cancel")}
+          </Button>
+
+          <Button
+            form="review-incident-form"
+            type="submit"
+            variant={decision === "CONFIRMED" ? "primary" : "secondary"}
+            disabled={loading}
+            className="flex items-center gap-2"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <CheckSquare className="h-4 w-4" />
+            )}
+            <span>
+              {decision === "CONFIRMED" ? "Xác nhận vi phạm" : "Bác bỏ sự cố"}
+            </span>
+          </Button>
+        </div>
+      }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form id="review-incident-form" onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
             {error}
@@ -97,7 +136,7 @@ export function ReviewIncidentModal({
             }`}
           >
             <CheckCircle2 className="h-5 w-5" />
-            <span>Xác nhận Vi phạm</span>
+            <span>{isVietnamese ? "Xác nhận Vi phạm" : "Confirm Violation"}</span>
           </button>
 
           <button
@@ -110,7 +149,7 @@ export function ReviewIncidentModal({
             }`}
           >
             <XCircle className="h-5 w-5" />
-            <span>Bác bỏ (Báo động ảo)</span>
+            <span>{isVietnamese ? "Bác bỏ (Báo động ảo)" : "Dismiss (False Alarm)"}</span>
           </button>
         </div>
 
@@ -118,7 +157,7 @@ export function ReviewIncidentModal({
         {decision === "DISMISSED" && (
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground">
-              Lý do bác bỏ <span className="text-danger">*</span>
+              {isVietnamese ? "Lý do bác bỏ" : "Dismissal Reason"} <span className="text-danger">*</span>
             </label>
             <select
               value={reason}
@@ -126,11 +165,21 @@ export function ReviewIncidentModal({
               className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
               required
             >
-              <option value="">-- Chọn nguyên nhân sai sót AI --</option>
-              <option value="FALSE_POSITIVE_ANGLE">Góc quay bị khuất, bóng phản chiếu</option>
-              <option value="AUTHORISED_EXEMPTION">Khu vực được miễn trừ đồ bảo hộ</option>
-              <option value="LUNCH_BREAK_REST">Công nhân nghỉ giải lao / ăn trưa</option>
-              <option value="IMAGE_BLURRY">Ảnh mờ, thiếu sáng nghiêm trọng</option>
+              <option value="">
+                {isVietnamese ? "-- Chọn nguyên nhân sai sót AI --" : "-- Select AI False Alarm Reason --"}
+              </option>
+              <option value="FALSE_POSITIVE_ANGLE">
+                {isVietnamese ? "Góc quay bị khuất, bóng phản chiếu" : "Occluded angle, shadow reflection"}
+              </option>
+              <option value="AUTHORISED_EXEMPTION">
+                {isVietnamese ? "Khu vực được miễn trừ đồ bảo hộ" : "Authorized PPE exemption area"}
+              </option>
+              <option value="LUNCH_BREAK_REST">
+                {isVietnamese ? "Công nhân nghỉ giải lao / ăn trưa" : "Workers on lunch break / resting"}
+              </option>
+              <option value="IMAGE_BLURRY">
+                {isVietnamese ? "Ảnh mờ, thiếu sáng nghiêm trọng" : "Blurry image, low lighting conditions"}
+              </option>
             </select>
           </div>
         )}
@@ -138,43 +187,20 @@ export function ReviewIncidentModal({
         {/* Review Notes */}
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-muted-foreground">
-            Ghi chú thẩm duyệt (Notes)
+            {isVietnamese ? "Ghi chú thẩm duyệt (Notes)" : "Review Notes"}
           </label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Ghi chú thêm của Cán bộ An toàn..."
+            placeholder={
+              isVietnamese
+                ? "Ghi chú thêm của Cán bộ An toàn..."
+                : "Additional notes from Safety Officer..."
+            }
             rows={2}
             className="w-full resize-none rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
             disabled={loading}
           />
-        </div>
-
-        <div className="flex items-center justify-end gap-3 pt-3">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={loading}
-          >
-            {t("common.cancel")}
-          </Button>
-
-          <Button
-            type="submit"
-            variant={decision === "CONFIRMED" ? "primary" : "secondary"}
-            disabled={loading}
-            className="flex items-center gap-2"
-          >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <CheckSquare className="h-4 w-4" />
-            )}
-            <span>
-              {decision === "CONFIRMED" ? "Xác nhận vi phạm" : "Bác bỏ sự cố"}
-            </span>
-          </Button>
         </div>
       </form>
     </Modal>

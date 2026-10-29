@@ -71,7 +71,8 @@ export function ReportStatsDetailPanel({
   onClose,
   onGenerateReport,
 }: ReportStatsDetailPanelProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   // Fallback defaults if metrics are unpopulated in dev mode
@@ -121,7 +122,7 @@ export function ReportStatsDetailPanel({
     return [
       {
         cameraId: "cam-north-01",
-        cameraName: "CAM-NORTH-01 (Giàn giáo Tầng 5)",
+        cameraName: isVietnamese ? "CAM-NORTH-01 (Giàn giáo Tầng 5)" : "CAM-NORTH-01 (Scaffold Floor 5)",
         totalViolations: 42,
         confirmedCount: 39,
         falseAlarmCount: 3,
@@ -129,7 +130,7 @@ export function ReportStatsDetailPanel({
       },
       {
         cameraId: "cam-warehouse-03",
-        cameraName: "CAM-WAREHOUSE-03 (Xưởng Hàn & Cơ khí)",
+        cameraName: isVietnamese ? "CAM-WAREHOUSE-03 (Xưởng Hàn & Cơ khí)" : "CAM-WAREHOUSE-03 (Welding Workshop)",
         totalViolations: 28,
         confirmedCount: 26,
         falseAlarmCount: 2,
@@ -137,14 +138,14 @@ export function ReportStatsDetailPanel({
       },
       {
         cameraId: "cam-gate-02",
-        cameraName: "CAM-GATE-02 (Cổng Kiểm soát Xe Tải)",
+        cameraName: isVietnamese ? "CAM-GATE-02 (Cổng Kiểm soát Xe Tải)" : "CAM-GATE-02 (Truck Gate Checkpoint)",
         totalViolations: 18,
         confirmedCount: 17,
         falseAlarmCount: 1,
         resolvedCount: 17,
       },
     ];
-  }, [cameraRankings]);
+  }, [cameraRankings, isVietnamese]);
 
   // Effective templates
   const effectiveTemplates: ReportTemplateDto[] = useMemo(() => {
@@ -152,9 +153,11 @@ export function ReportStatsDetailPanel({
     return [
       {
         id: "tpl-daily-shift",
-        name: "Báo cáo Ca Làm Việc Hàng Ngày",
+        name: isVietnamese ? "Báo cáo Ca Làm Việc Hàng Ngày" : "Daily Shift Safety Report",
         code: "PPE_DAILY_SHIFT",
-        description: "Tổng hợp thống kê vi phạm an toàn, số công nhân hiện diện và nhật ký ca làm việc 8 tiếng.",
+        description: isVietnamese
+          ? "Tổng hợp thống kê vi phạm an toàn, số công nhân hiện diện và nhật ký ca làm việc 8 tiếng."
+          : "Summary of safety violations, headcount presence, and 8-hour shift worklog.",
         fileType: "PDF",
         version: "v2.1",
         status: "ACTIVE",
@@ -163,9 +166,11 @@ export function ReportStatsDetailPanel({
       },
       {
         id: "tpl-weekly-summary",
-        name: "Báo cáo Tổng Kết An Toàn Tuần",
+        name: isVietnamese ? "Báo cáo Tổng Kết An Toàn Tuần" : "Weekly Safety Audit Report",
         code: "HSE_WEEKLY_AUDIT",
-        description: "Đo lường biến thiên vi phạm theo tuần, tỷ lệ tuân thủ HSE và xếp hạng điểm nóng camera.",
+        description: isVietnamese
+          ? "Đo lường biến thiên vi phạm theo tuần, tỷ lệ tuân thủ HSE và xếp hạng điểm nóng camera."
+          : "Weekly violation trend analysis, HSE compliance scores, and camera hotspot rankings.",
         fileType: "PDF",
         version: "v1.4",
         status: "ACTIVE",
@@ -174,9 +179,11 @@ export function ReportStatsDetailPanel({
       },
       {
         id: "tpl-monthly-compliance",
-        name: "Báo cáo Kiểm Toán Tuân Thủ Tháng",
+        name: isVietnamese ? "Báo cáo Kiểm Toán Tuân Thủ Tháng" : "Monthly Compliance Audit Report",
         code: "COMPLIANCE_MONTHLY",
-        description: "Hồ sơ kiểm định an toàn lao động chính thức phục vụ thanh tra nội bộ và đối tác xây dựng.",
+        description: isVietnamese
+          ? "Hồ sơ kiểm định an toàn lao động chính thức phục vụ thanh tra nội bộ và đối tác xây dựng."
+          : "Official occupational safety dossier for internal compliance inspections and construction partners.",
         fileType: "EXCEL",
         version: "v3.0",
         status: "ACTIVE",
@@ -185,9 +192,11 @@ export function ReportStatsDetailPanel({
       },
       {
         id: "tpl-incident-dossier",
-        name: "Hồ Sơ Điều Tra Sự Cố Đột Xuất",
+        name: isVietnamese ? "Hồ Sơ Điều Tra Sự Cố Đột Xuất" : "Ad-hoc Incident Investigation Dossier",
         code: "INCIDENT_INVESTIGATION",
-        description: "Bản sao lưu trữ hình ảnh AI đối chiếu, mốc thời gian vi phạm và biên bản nghiệm thu.",
+        description: isVietnamese
+          ? "Bản sao lưu trữ hình ảnh AI đối chiếu, mốc thời gian vi phạm và biên bản nghiệm thu."
+          : "Archived AI evidence snapshots, violation timeline milestones, and verification acceptance signoffs.",
         fileType: "PDF",
         version: "v1.2",
         status: "ACTIVE",
@@ -195,7 +204,7 @@ export function ReportStatsDetailPanel({
         updatedAt: new Date().toISOString(),
       },
     ];
-  }, [templates]);
+  }, [templates, isVietnamese]);
 
   // Effective history
   const effectiveHistory: ReportGenerationDto[] = useMemo(() => {
@@ -256,12 +265,24 @@ export function ReportStatsDetailPanel({
       const res = await reportingService.getReportDownloadUrl(item.id);
       if (res?.downloadUrl) {
         window.open(res.downloadUrl, "_blank");
-        toast.success(`Đang tải xuống tài liệu "${item.fileName || "report"}"`);
+        toast.success(
+          isVietnamese
+            ? `Đang tải xuống tài liệu "${item.fileName || "report"}"`
+            : `Downloading document "${item.fileName || "report"}"`
+        );
       } else {
-        toast.success("Đã tạo liên kết tải mẫu báo cáo định dạng chuẩn.");
+        toast.success(
+          isVietnamese
+            ? "Đã tạo liên kết tải mẫu báo cáo định dạng chuẩn."
+            : "Standard report download link generated."
+        );
       }
     } catch {
-      toast.success("Đã tạo liên kết tải mẫu báo cáo định dạng chuẩn.");
+      toast.success(
+        isVietnamese
+          ? "Đã tạo liên kết tải mẫu báo cáo định dạng chuẩn."
+          : "Standard report download link generated."
+      );
     } finally {
       setDownloadingId(null);
     }
@@ -283,11 +304,11 @@ export function ReportStatsDetailPanel({
   const getPpeTitle = (type: string) => {
     switch (type) {
       case "NO_HELMET":
-        return "Không đội mũ bảo hộ cứng (Hard Hat)";
+        return isVietnamese ? "Không đội mũ bảo hộ cứng (Hard Hat)" : "Missing Hard Hat (Helmet)";
       case "NO_VEST":
-        return "Không mặc áo bảo hộ phản quang (High-vis Vest)";
+        return isVietnamese ? "Không mặc áo bảo hộ phản quang (High-vis Vest)" : "Missing High-Vis Vest";
       case "RESTRICTED_AREA":
-        return "Xâm nhập vùng nguy hiểm / cấm tiếp cận";
+        return isVietnamese ? "Xâm nhập vùng nguy hiểm / cấm tiếp cận" : "Restricted / Danger Zone Intrusion";
       default:
         return type;
     }
@@ -321,10 +342,10 @@ export function ReportStatsDetailPanel({
               </h3>
 
               <Badge variant="outline" size="sm" className="font-mono text-[10px] sm:text-[11px] text-primary border-primary/30 px-1.5 py-0 font-bold">
-                {activeStat === "totalViolations" && `${totalViolations} vi phạm`}
+                {activeStat === "totalViolations" && `${totalViolations} ${isVietnamese ? "vi phạm" : "violations"}`}
                 {activeStat === "complianceRate" && `${complianceRate.toFixed(1)}%`}
-                {activeStat === "mttr" && `${mttrHours.toFixed(1)} giờ`}
-                {activeStat === "reportsCount" && `${totalReportsCount} tài liệu`}
+                {activeStat === "mttr" && `${mttrHours.toFixed(1)} ${isVietnamese ? "giờ" : "hrs"}`}
+                {activeStat === "reportsCount" && `${totalReportsCount} ${isVietnamese ? "tài liệu" : "docs"}`}
               </Badge>
             </div>
             <p className="text-[11px] sm:text-xs text-muted-foreground truncate hidden sm:block mt-0.5">
@@ -361,7 +382,7 @@ export function ReportStatsDetailPanel({
                 className="h-7 sm:h-8 gap-1.5 text-[11px] sm:text-xs text-primary hover:text-primary px-2.5 sm:px-3"
               >
                 <Building2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Phạm vi công trường</span>
+                <span className="hidden sm:inline">{isVietnamese ? "Phạm vi công trường" : "Site Scope"}</span>
               </Button>
             </Link>
           )}
@@ -400,7 +421,7 @@ export function ReportStatsDetailPanel({
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       {[
         {
-          label: "Vi phạm xác thực",
+          label: isVietnamese ? "Vi phạm xác thực" : "Confirmed Violations",
           value: trueViolations,
           icon: ShieldAlert,
           color: "text-primary",
@@ -409,10 +430,10 @@ export function ReportStatsDetailPanel({
             totalViolations > 0
               ? (trueViolations / totalViolations) * 100
               : 0,
-          suffix: "vụ",
+          suffix: isVietnamese ? "vụ" : "cases",
         },
         {
-          label: "Cảnh báo sai",
+          label: isVietnamese ? "Cảnh báo sai" : "False Alarms",
           value: falseAlarms,
           icon: AlertTriangle,
           color: "text-amber-600 dark:text-amber-400",
@@ -421,10 +442,10 @@ export function ReportStatsDetailPanel({
             totalViolations > 0
               ? (falseAlarms / totalViolations) * 100
               : 0,
-          suffix: "vụ",
+          suffix: isVietnamese ? "vụ" : "cases",
         },
         {
-          label: "Đã khắc phục",
+          label: isVietnamese ? "Đã khắc phục" : "Resolved",
           value: resolvedIncidents,
           icon: CheckCircle2,
           color: "text-primary",
@@ -433,10 +454,10 @@ export function ReportStatsDetailPanel({
             totalViolations > 0
               ? (resolvedIncidents / totalViolations) * 100
               : 0,
-          suffix: "vụ",
+          suffix: isVietnamese ? "vụ" : "cases",
         },
         {
-          label: "Đang xử lý",
+          label: isVietnamese ? "Đang xử lý" : "In Progress",
           value: openIncidents,
           icon: Clock,
           color: "text-muted-foreground",
@@ -445,7 +466,7 @@ export function ReportStatsDetailPanel({
             totalViolations > 0
               ? (openIncidents / totalViolations) * 100
               : 0,
-          suffix: "vụ",
+          suffix: isVietnamese ? "vụ" : "cases",
         },
       ].map((stat) => {
         const Icon = stat.icon;
@@ -518,16 +539,16 @@ export function ReportStatsDetailPanel({
             </div>
             <div>
               <h3 className="text-sm font-semibold text-foreground">
-                Cơ cấu vi phạm theo PPE
+                {isVietnamese ? "Cơ cấu vi phạm theo PPE" : "PPE Violation Distribution"}
               </h3>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
-                Phân loại theo thiết bị bảo hộ
+                {isVietnamese ? "Phân loại theo thiết bị bảo hộ" : "Classified by safety equipment"}
               </p>
             </div>
           </div>
 
           <span className="rounded-lg bg-background px-2.5 py-1 text-[10px] font-medium text-muted-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)]">
-            {effectiveDistribution.length} nhóm lỗi
+            {effectiveDistribution.length} {isVietnamese ? "nhóm lỗi" : "categories"}
           </span>
         </div>
 
@@ -581,7 +602,7 @@ export function ReportStatsDetailPanel({
                 {/* Mức độ nghiêm trọng */}
                 <div className="ml-12 mt-2 flex flex-wrap items-center gap-1.5">
                   <span className="mr-0.5 text-[10px] text-muted-foreground">
-                    Mức độ
+                    {isVietnamese ? "Mức độ" : "Severity"}
                   </span>
 
                   {[
@@ -632,14 +653,14 @@ export function ReportStatsDetailPanel({
             <div className="rounded-xl bg-background/60 px-4 py-8 text-center shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_var(--shadow-light)]">
               <ShieldAlert className="mx-auto size-6 text-muted-foreground/60" />
               <p className="mt-2 text-xs text-muted-foreground">
-                Chưa có dữ liệu phân loại vi phạm.
+                {isVietnamese ? "Chưa có dữ liệu phân loại vi phạm." : "No violation classification data available."}
               </p>
             </div>
           )}
         </div>
 
         <p className="mt-3 text-[10px] text-muted-foreground">
-          Nguồn dữ liệu: Camera AI
+          {isVietnamese ? "Nguồn dữ liệu: Camera AI" : "Data source: Camera AI"}
         </p>
       </section>
 
@@ -654,10 +675,10 @@ export function ReportStatsDetailPanel({
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-foreground">
-                  Điểm nóng rủi ro
+                  {isVietnamese ? "Điểm nóng rủi ro" : "Risk Hotspots"}
                 </h3>
                 <p className="text-[11px] text-muted-foreground">
-                  Tổng quan tình trạng xử lý
+                  {isVietnamese ? "Tổng quan tình trạng xử lý" : "Resolution Status Overview"}
                 </p>
               </div>
             </div>
@@ -669,7 +690,7 @@ export function ReportStatsDetailPanel({
               <svg
                 viewBox="0 0 100 100"
                 className="absolute inset-0 size-full -rotate-90"
-                aria-label={`Tỷ lệ khắc phục ${Math.round(
+                aria-label={`${isVietnamese ? "Tỷ lệ khắc phục" : "Resolution Rate"} ${Math.round(
                   totalViolations > 0
                     ? (resolvedIncidents / totalViolations) * 100
                     : 0
@@ -723,7 +744,7 @@ export function ReportStatsDetailPanel({
                   <span className="text-sm">%</span>
                 </p>
                 <p className="text-[9px] text-muted-foreground">
-                  Đã khắc phục
+                  {isVietnamese ? "Đã khắc phục" : "Resolved"}
                 </p>
               </div>
             </div>
@@ -731,7 +752,7 @@ export function ReportStatsDetailPanel({
             <div className="space-y-3">
               <div className="rounded-xl bg-background/70 p-3 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
                 <p className="text-[11px] text-muted-foreground">
-                  Tỷ lệ cảnh báo sai
+                  {isVietnamese ? "Tỷ lệ cảnh báo sai" : "False Alarm Rate"}
                 </p>
                 <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
                   {Number(falseAlarmRate).toFixed(1)}%
@@ -740,12 +761,12 @@ export function ReportStatsDetailPanel({
 
               <div className="rounded-xl bg-background/70 p-3 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
                 <p className="text-[11px] text-muted-foreground">
-                  Sự cố đã khắc phục
+                  {isVietnamese ? "Sự cố đã khắc phục" : "Resolved Incidents"}
                 </p>
                 <p className="mt-1 text-xl font-bold tabular-nums text-foreground">
                   {resolvedIncidents.toLocaleString()}
                   <span className="ml-1 text-[10px] font-medium text-muted-foreground">
-                    vụ
+                    {isVietnamese ? "vụ" : "cases"}
                   </span>
                 </p>
               </div>
@@ -758,10 +779,10 @@ export function ReportStatsDetailPanel({
           <div className="mb-3 flex items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold text-foreground">
-                Camera cần ưu tiên
+                {isVietnamese ? "Camera cần ưu tiên" : "Priority Cameras"}
               </h3>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
-                Khu vực có nhiều vi phạm nhất
+                {isVietnamese ? "Khu vực có nhiều vi phạm nhất" : "Areas with most violations"}
               </p>
             </div>
 
@@ -801,14 +822,14 @@ export function ReportStatsDetailPanel({
                   <p className="text-sm font-bold tabular-nums text-foreground">
                     {camera.totalViolations.toLocaleString()}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">vi phạm</p>
+                  <p className="text-[10px] text-muted-foreground">{isVietnamese ? "vi phạm" : "violations"}</p>
                 </div>
               </div>
             ))}
 
             {effectiveRankings.length === 0 && (
               <p className="rounded-xl bg-background/60 px-3 py-5 text-center text-xs text-muted-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
-                Chưa có dữ liệu xếp hạng camera.
+                {isVietnamese ? "Chưa có dữ liệu xếp hạng camera." : "No camera ranking data available."}
               </p>
             )}
           </div>
@@ -819,7 +840,7 @@ export function ReportStatsDetailPanel({
           <div className="flex items-center gap-2">
             <Sparkles className="size-4 text-primary" />
             <h3 className="text-xs font-semibold text-foreground">
-              Khuyến nghị HSE
+              {isVietnamese ? "Khuyến nghị HSE" : "HSE Recommendations"}
             </h3>
           </div>
 
@@ -828,9 +849,9 @@ export function ReportStatsDetailPanel({
               <ShieldAlert className="size-[18px]" />
             </div>
             <p className="text-xs leading-5 text-muted-foreground">
-              Ưu tiên kiểm tra các khu vực có số lượng vi phạm cao, xác minh
-              cảnh báo từ camera và theo dõi tiến độ khắc phục để giảm nguy cơ
-              mất an toàn lao động.
+              {isVietnamese
+                ? "Ưu tiên kiểm tra các khu vực có số lượng vi phạm cao, xác minh cảnh báo từ camera và theo dõi tiến độ khắc phục để giảm nguy cơ mất an toàn lao động."
+                : "Prioritize inspecting areas with elevated violation counts, verify AI camera detections, and monitor resolution milestones to minimize site hazards."}
             </p>
           </div>
         </div>
@@ -848,9 +869,9 @@ export function ReportStatsDetailPanel({
     <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
       {[
         {
-          label: "Chỉ số tuân thủ chung",
+          label: isVietnamese ? "Chỉ số tuân thủ chung" : "Overall Compliance Rate",
           value: `${complianceRate.toFixed(1)}%`,
-          caption: "Tiêu chuẩn ISO 45001 / OSHA",
+          caption: isVietnamese ? "Tiêu chuẩn ISO 45001 / OSHA" : "ISO 45001 / OSHA Standards",
           icon: ShieldCheck,
           valueClass:
             "text-emerald-600 dark:text-emerald-400",
@@ -859,27 +880,27 @@ export function ReportStatsDetailPanel({
           iconBg: "bg-emerald-500/[0.07]",
         },
         {
-          label: "Độ chính xác AI Vision",
+          label: isVietnamese ? "Độ chính xác AI Vision" : "AI Vision Accuracy",
           value: `${(100 - falseAlarmRate).toFixed(1)}%`,
-          caption: "Mô hình PPE YOLOv11",
+          caption: isVietnamese ? "Mô hình PPE YOLOv11" : "PPE YOLOv11 Model",
           icon: CheckCircle2,
           valueClass: "text-foreground",
           iconClass: "text-primary",
           iconBg: "bg-primary/[0.07]",
         },
         {
-          label: "Ca an toàn liên tiếp",
-          value: "18 ca",
-          caption: "Không xảy ra tai nạn nặng",
+          label: isVietnamese ? "Ca an toàn liên tiếp" : "Consecutive Safe Shifts",
+          value: isVietnamese ? "18 ca" : "18 shifts",
+          caption: isVietnamese ? "Không xảy ra tai nạn nặng" : "Zero major accidents",
           icon: Award,
           valueClass: "text-foreground",
           iconClass: "text-amber-500",
           iconBg: "bg-amber-500/[0.07]",
         },
         {
-          label: "Mức độ rủi ro",
-          value: "Thấp",
-          caption: "Vận hành đạt chuẩn HSE",
+          label: isVietnamese ? "Mức độ rủi ro" : "Risk Level",
+          value: isVietnamese ? "Thấp" : "Low",
+          caption: isVietnamese ? "Vận hành đạt chuẩn HSE" : "Operating within HSE standards",
           icon: Shield,
           valueClass: "text-foreground",
           iconClass: "text-primary",
@@ -940,10 +961,10 @@ export function ReportStatsDetailPanel({
 
             <div className="min-w-0">
               <h3 className="truncate text-xs font-semibold text-foreground sm:text-sm">
-                Tuân thủ theo công trường
+                {isVietnamese ? "Tuân thủ theo công trường" : "Site Compliance"}
               </h3>
               <p className="mt-0.5 text-[10px] text-muted-foreground">
-                Theo dõi mức độ an toàn tại từng địa điểm
+                {isVietnamese ? "Theo dõi mức độ an toàn tại từng địa điểm" : "Monitor safety levels across sites"}
               </p>
             </div>
           </div>
@@ -953,7 +974,7 @@ export function ReportStatsDetailPanel({
             size="sm"
             className="shrink-0 border-primary/25 px-1.5 py-0 font-mono text-[10px] text-primary"
           >
-            {sites.length || 3} site
+            {sites.length || 3} {isVietnamese ? "công trường" : "sites"}
           </Badge>
         </div>
 
@@ -963,21 +984,21 @@ export function ReportStatsDetailPanel({
             : [
                 {
                   id: "s1",
-                  name: "Xưởng Cơ khí Chế tạo Tân Bình",
+                  name: isVietnamese ? "Xưởng Cơ khí Chế tạo Tân Bình" : "Tan Binh Fabrication Workshop",
                   status: "ACTIVE",
                   cameraCount: 8,
                   zoneCount: 4,
                 },
                 {
                   id: "s2",
-                  name: "Công trường Cao ốc Metro Số 1",
+                  name: isVietnamese ? "Công trường Cao ốc Metro Số 1" : "Metro Line 1 High-rise Site",
                   status: "ACTIVE",
                   cameraCount: 12,
                   zoneCount: 6,
                 },
                 {
                   id: "s3",
-                  name: "Khu Công nghiệp VSIP 2 Mở rộng",
+                  name: isVietnamese ? "Khu Công nghiệp VSIP 2 Mở rộng" : "VSIP 2 Industrial Expansion",
                   status: "ACTIVE",
                   cameraCount: 6,
                   zoneCount: 3,
@@ -1013,7 +1034,7 @@ export function ReportStatsDetailPanel({
                     <p className="mt-1 text-[10px] text-muted-foreground">
                       {site.cameraCount || 8} Camera AI
                       <span className="mx-1.5 opacity-40">/</span>
-                      {site.zoneCount || 4} vùng kiểm soát
+                      {site.zoneCount || 4} {isVietnamese ? "vùng kiểm soát" : "monitored zones"}
                     </p>
                   </div>
 
@@ -1030,7 +1051,7 @@ export function ReportStatsDetailPanel({
                     </p>
 
                     <p className="mt-0.5 text-[9px] text-muted-foreground">
-                      Tuân thủ
+                      {isVietnamese ? "Tuân thủ" : "Compliant"}
                     </p>
                   </div>
                 </div>
@@ -1058,7 +1079,7 @@ export function ReportStatsDetailPanel({
             href="/sites"
             className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/[0.06]"
           >
-            Xem tất cả công trường
+            {isVietnamese ? "Xem tất cả công trường" : "View all sites"}
             <ExternalLink className="size-3" />
           </Link>
         </div>
@@ -1073,10 +1094,10 @@ export function ReportStatsDetailPanel({
 
           <div>
             <h3 className="text-xs font-semibold text-foreground sm:text-sm">
-              Khuyến nghị HSE
+              {isVietnamese ? "Khuyến nghị HSE" : "HSE Recommendations"}
             </h3>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              Nâng cao tiêu chuẩn an toàn lao động
+              {isVietnamese ? "Nâng cao tiêu chuẩn an toàn lao động" : "Elevating safety standards"}
             </p>
           </div>
         </div>
@@ -1091,12 +1112,13 @@ export function ReportStatsDetailPanel({
 
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                  Đánh giá tuân thủ Quý IV
+                  {isVietnamese ? "Đánh giá tuân thủ Quý IV" : "Q4 Compliance Review"}
                 </p>
 
                 <p className="mt-1.5 text-[10px] leading-[1.7] text-muted-foreground">
-                  Tỷ lệ tuân thủ 94.5% vượt ngưỡng mục tiêu tối thiểu
-                  90% theo tiêu chí đánh giá đang áp dụng.
+                  {isVietnamese
+                    ? "Tỷ lệ tuân thủ 94.5% vượt ngưỡng mục tiêu tối thiểu 90% theo tiêu chí đánh giá đang áp dụng."
+                    : "94.5% compliance rate exceeds the 90% minimum threshold according to applicable safety benchmarks."}
                 </p>
               </div>
             </div>
@@ -1107,7 +1129,7 @@ export function ReportStatsDetailPanel({
             <div className="mb-2.5 flex items-center gap-2">
               <div className="h-4 w-1 rounded-full bg-primary/70" />
               <p className="text-[11px] font-semibold text-foreground">
-                Kế hoạch hành động tuần tới
+                {isVietnamese ? "Kế hoạch hành động tuần tới" : "Action Plan for Next Week"}
               </p>
             </div>
 
@@ -1115,15 +1137,21 @@ export function ReportStatsDetailPanel({
               {[
                 {
                   number: "01",
-                  text: "Triển khai 15 phút nói chuyện an toàn đầu ca (Toolbox Talk) cho nhà thầu phụ.",
+                  text: isVietnamese
+                    ? "Triển khai 15 phút nói chuyện an toàn đầu ca (Toolbox Talk) cho nhà thầu phụ."
+                    : "Conduct 15-minute safety toolbox talks at shift start for subcontractors.",
                 },
                 {
                   number: "02",
-                  text: "Thay thế áo phản quang đã cũ, mờ vạch phản quang tại bãi vật liệu.",
+                  text: isVietnamese
+                    ? "Thay thế áo phản quang đã cũ, mờ vạch phản quang tại bãi vật liệu."
+                    : "Replace worn out, faded reflective vests at the material yard.",
                 },
                 {
                   number: "03",
-                  text: "Cập nhật định kỳ ranh giới ROI vùng cấm di chuyển cho cần cẩu tháp.",
+                  text: isVietnamese
+                    ? "Cập nhật định kỳ ranh giới ROI vùng cấm di chuyển cho cần cẩu tháp."
+                    : "Periodically update tower crane restricted movement ROI boundaries.",
                 },
               ].map((action) => (
                 <div
@@ -1147,7 +1175,7 @@ export function ReportStatsDetailPanel({
         <div className="flex items-center gap-2 px-1 pt-0.5">
           <span className="size-1.5 rounded-full bg-emerald-500/80" />
           <p className="text-[9px] text-muted-foreground">
-            Theo dõi tuân thủ và cải thiện an toàn liên tục
+            {isVietnamese ? "Theo dõi tuân thủ và cải thiện an toàn liên tục" : "Track compliance and continuously improve safety"}
           </p>
         </div>
       </section>
@@ -1164,36 +1192,36 @@ export function ReportStatsDetailPanel({
     <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
       {[
         {
-          label: "MTTR trung bình",
-          value: `${mttrHours.toFixed(1)} giờ`,
-          caption: "SLA mục tiêu: dưới 2 giờ",
+          label: isVietnamese ? "MTTR trung bình" : "Average MTTR",
+          value: `${mttrHours.toFixed(1)} ${isVietnamese ? "giờ" : "hrs"}`,
+          caption: isVietnamese ? "SLA mục tiêu: dưới 2 giờ" : "Target SLA: under 2 hours",
           icon: Clock,
           iconClass: "text-amber-500",
           iconBg: "bg-amber-500/[0.07]",
           valueClass: "text-foreground",
         },
         {
-          label: "Tiếp nhận cảnh báo",
-          value: "~12 phút",
-          caption: "MTTA · Thời gian tiếp nhận",
+          label: isVietnamese ? "Tiếp nhận cảnh báo" : "Alert Acknowledgment",
+          value: isVietnamese ? "~12 phút" : "~12 mins",
+          caption: isVietnamese ? "MTTA · Thời gian tiếp nhận" : "MTTA · Mean time to acknowledge",
           icon: Zap,
           iconClass: "text-primary",
           iconBg: "bg-primary/[0.07]",
           valueClass: "text-foreground",
         },
         {
-          label: "Đóng sự cố trong 24h",
+          label: isVietnamese ? "Đóng sự cố trong 24h" : "Resolved within 24h",
           value: "92.4%",
-          caption: "Hiệu suất xử lý sự cố",
+          caption: isVietnamese ? "Hiệu suất xử lý sự cố" : "Resolution efficiency",
           icon: Timer,
           iconClass: "text-emerald-600 dark:text-emerald-400",
           iconBg: "bg-emerald-500/[0.07]",
           valueClass: "text-emerald-600 dark:text-emerald-400",
         },
         {
-          label: "Sự cố nhanh nhất",
-          value: "4 phút",
-          caption: "Cảnh báo áo phản quang Cổng A",
+          label: isVietnamese ? "Sự cố nhanh nhất" : "Fastest Resolution",
+          value: isVietnamese ? "4 phút" : "4 mins",
+          caption: isVietnamese ? "Cảnh báo áo phản quang Cổng A" : "Gate A safety vest alert",
           icon: CheckCircle2,
           iconClass: "text-primary",
           iconBg: "bg-primary/[0.07]",
@@ -1232,7 +1260,7 @@ export function ReportStatsDetailPanel({
             </p>
 
             <div className="mt-1.5 flex items-center gap-1.5">
-              {stat.label === "MTTR trung bình" && (
+              {(stat.label === "MTTR trung bình" || stat.label === "Average MTTR") && (
                 <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
               )}
               <p className="truncate text-[9px] leading-3.5 text-muted-foreground sm:text-[10px]">
@@ -1256,16 +1284,16 @@ export function ReportStatsDetailPanel({
 
             <div>
               <h3 className="text-xs font-semibold text-foreground sm:text-sm">
-                Thời gian khắc phục theo mức độ
+                {isVietnamese ? "Thời gian khắc phục theo mức độ" : "Resolution Time by Severity"}
               </h3>
               <p className="mt-0.5 text-[10px] text-muted-foreground">
-                So sánh thời gian trung bình với SLA
+                {isVietnamese ? "So sánh thời gian trung bình với SLA" : "Compare average time against SLA"}
               </p>
             </div>
           </div>
 
           <span className="rounded-lg bg-background px-2 py-1 text-[9px] text-muted-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)]">
-            SLA doanh nghiệp
+            {isVietnamese ? "SLA doanh nghiệp" : "Enterprise SLA"}
           </span>
         </div>
 
@@ -1273,11 +1301,11 @@ export function ReportStatsDetailPanel({
           {[
             {
               level: "CRITICAL",
-              description: "Khẩn cấp",
-              avg: "18 phút",
-              sla: "< 30 phút",
+              description: isVietnamese ? "Khẩn cấp" : "Critical",
+              avg: isVietnamese ? "18 phút" : "18 mins",
+              sla: isVietnamese ? "< 30 phút" : "< 30 mins",
               percent: 60,
-              status: "Trong SLA",
+              status: isVietnamese ? "Trong SLA" : "Within SLA",
               color: "rose",
               bar: "bg-rose-500/80",
               text: "text-rose-600 dark:text-rose-400",
@@ -1285,11 +1313,11 @@ export function ReportStatsDetailPanel({
             },
             {
               level: "HIGH",
-              description: "Nghiêm trọng",
-              avg: "45 phút",
-              sla: "< 1.5 giờ",
+              description: isVietnamese ? "Nghiêm trọng" : "High Severity",
+              avg: isVietnamese ? "45 phút" : "45 mins",
+              sla: isVietnamese ? "< 1.5 giờ" : "< 1.5 hrs",
               percent: 50,
-              status: "Trong SLA",
+              status: isVietnamese ? "Trong SLA" : "Within SLA",
               color: "amber",
               bar: "bg-amber-500/80",
               text: "text-amber-600 dark:text-amber-400",
@@ -1297,11 +1325,11 @@ export function ReportStatsDetailPanel({
             },
             {
               level: "MEDIUM",
-              description: "Trung bình",
-              avg: "1.8 giờ",
-              sla: "< 3 giờ",
+              description: isVietnamese ? "Trung bình" : "Medium Severity",
+              avg: isVietnamese ? "1.8 giờ" : "1.8 hrs",
+              sla: isVietnamese ? "< 3 giờ" : "< 3 hrs",
               percent: 60,
-              status: "Trong SLA",
+              status: isVietnamese ? "Trong SLA" : "Within SLA",
               color: "blue",
               bar: "bg-primary/80",
               text: "text-primary",
@@ -1309,11 +1337,11 @@ export function ReportStatsDetailPanel({
             },
             {
               level: "LOW",
-              description: "Nhắc nhở nhẹ",
-              avg: "3.2 giờ",
-              sla: "< 6 giờ",
+              description: isVietnamese ? "Nhắc nhở nhẹ" : "Low / Advisory",
+              avg: isVietnamese ? "3.2 giờ" : "3.2 hrs",
+              sla: isVietnamese ? "< 6 giờ" : "< 6 hrs",
               percent: 53,
-              status: "Trong SLA",
+              status: isVietnamese ? "Trong SLA" : "Within SLA",
               color: "emerald",
               bar: "bg-emerald-500/80",
               text: "text-emerald-600 dark:text-emerald-400",
@@ -1366,7 +1394,7 @@ export function ReportStatsDetailPanel({
 
                 <div className="mt-1.5 flex items-center justify-between gap-2">
                   <span className="text-[9px] text-muted-foreground">
-                    Mức sử dụng SLA
+                    {isVietnamese ? "Mức sử dụng SLA" : "SLA Utilization"}
                   </span>
                   <span className={`text-[9px] font-medium ${row.text}`}>
                     {row.percent}% · {row.status}
@@ -1387,10 +1415,10 @@ export function ReportStatsDetailPanel({
 
           <div>
             <h3 className="text-xs font-semibold text-foreground sm:text-sm">
-              Quy trình phản ứng nhanh
+              {isVietnamese ? "Quy trình phản ứng nhanh" : "Rapid Incident SOP"}
             </h3>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              SOP · 4 bước xử lý sự cố
+              {isVietnamese ? "SOP · 4 bước xử lý sự cố" : "SOP · 4-step Incident Workflow"}
             </p>
           </div>
         </div>
@@ -1403,37 +1431,41 @@ export function ReportStatsDetailPanel({
             {[
               {
                 step: "01",
-                title: "Phát hiện tự động AI Vision",
-                timing: "< 2 giây",
-                description:
-                  "Camera quét luồng RTSP và phát hiện vi phạm theo thời gian thực.",
+                title: isVietnamese ? "Phát hiện tự động AI Vision" : "AI Vision Auto Detection",
+                timing: isVietnamese ? "< 2 giây" : "< 2s",
+                description: isVietnamese
+                  ? "Camera quét luồng RTSP và phát hiện vi phạm theo thời gian thực."
+                  : "Cameras scan RTSP stream and detect violations in real time.",
                 icon: ShieldCheck,
                 accent: "text-primary",
               },
               {
                 step: "02",
-                title: "Phát cảnh báo tức thời",
-                timing: "Ngay lập tức",
-                description:
-                  "Gửi thông báo đến ứng dụng di động và hệ thống loa công trường.",
+                title: isVietnamese ? "Phát cảnh báo tức thời" : "Instant Alert Dispatch",
+                timing: isVietnamese ? "Ngay lập tức" : "Immediate",
+                description: isVietnamese
+                  ? "Gửi thông báo đến ứng dụng di động và hệ thống loa công trường."
+                  : "Dispatch notifications to mobile app and site audio alert system.",
                 icon: Zap,
                 accent: "text-amber-500",
               },
               {
                 step: "03",
-                title: "Can thiệp hiện trường",
-                timing: "Theo mức độ",
-                description:
-                  "Cán bộ phụ trách nhắc nhở và yêu cầu bổ sung PPE phù hợp.",
+                title: isVietnamese ? "Can thiệp hiện trường" : "Field Intervention",
+                timing: isVietnamese ? "Theo mức độ" : "By severity",
+                description: isVietnamese
+                  ? "Cán bộ phụ trách nhắc nhở và yêu cầu bổ sung PPE phù hợp."
+                  : "Safety officer intervenes and requires wearing compliant PPE.",
                 icon: Shield,
                 accent: "text-primary",
               },
               {
                 step: "04",
-                title: "Nghiệm thu và đóng sự cố",
-                timing: "Xác minh",
-                description:
-                  "Chụp ảnh đối chiếu minh chứng và xác nhận kết quả trên hệ thống.",
+                title: isVietnamese ? "Nghiệm thu và đóng sự cố" : "Verification & Closure",
+                timing: isVietnamese ? "Xác minh" : "Verification",
+                description: isVietnamese
+                  ? "Chụp ảnh đối chiếu minh chứng và xác nhận kết quả trên hệ thống."
+                  : "Capture evidence photo and confirm resolution in the system.",
                 icon: CheckCircle2,
                 accent: "text-emerald-600 dark:text-emerald-400",
               },
@@ -1473,10 +1505,11 @@ export function ReportStatsDetailPanel({
           <div className="mt-4 rounded-lg border border-primary/15 bg-primary/[0.035] px-3 py-2.5">
             <p className="text-[10px] leading-relaxed text-muted-foreground">
               <span className="font-semibold text-primary">
-                Mục tiêu:
+                {isVietnamese ? "Mục tiêu:" : "Goal:"}
               </span>{" "}
-              Rút ngắn thời gian phản hồi, xác minh và khắc phục vi phạm an
-              toàn tại hiện trường.
+              {isVietnamese
+                ? "Rút ngắn thời gian phản hồi, xác minh và khắc phục vi phạm an toàn tại hiện trường."
+                : "Minimize response, verification, and resolution times for safety violations on site."}
             </p>
           </div>
         </div>
@@ -1494,40 +1527,40 @@ export function ReportStatsDetailPanel({
     <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
       {[
         {
-          label: "Tổng hồ sơ đã phát hành",
+          label: isVietnamese ? "Tổng hồ sơ đã phát hành" : "Total Published Dossiers",
           value: `${totalReportsCount}`,
-          unit: "tài liệu",
-          caption: "Lưu trữ trên Cloud S3 Storage",
+          unit: isVietnamese ? "tài liệu" : "docs",
+          caption: isVietnamese ? "Lưu trữ trên Cloud S3 Storage" : "Stored in Cloud S3 Storage",
           icon: FileText,
           iconClass: "text-primary",
           iconBg: "bg-primary/[0.07]",
           valueClass: "text-foreground",
         },
         {
-          label: "Định dạng PDF",
+          label: isVietnamese ? "Định dạng PDF" : "PDF Format",
           value: "12",
-          unit: "bản in",
-          caption: "Có chữ ký số bảo mật",
+          unit: isVietnamese ? "bản in" : "prints",
+          caption: isVietnamese ? "Có chữ ký số bảo mật" : "Cryptographically signed",
           icon: FileCheck2,
           iconClass: "text-rose-500",
           iconBg: "bg-rose-500/[0.07]",
           valueClass: "text-foreground",
         },
         {
-          label: "Định dạng Excel / CSV",
+          label: isVietnamese ? "Định dạng Excel / CSV" : "Excel / CSV Format",
           value: "6",
-          unit: "bảng tính",
-          caption: "Phân tích dữ liệu chuyên sâu",
+          unit: isVietnamese ? "bảng tính" : "sheets",
+          caption: isVietnamese ? "Phân tích dữ liệu chuyên sâu" : "In-depth data analytics",
           icon: FileSpreadsheet,
           iconClass: "text-emerald-600 dark:text-emerald-400",
           iconBg: "bg-emerald-500/[0.07]",
           valueClass: "text-foreground",
         },
         {
-          label: "Tỷ lệ xuất thành công",
+          label: isVietnamese ? "Tỷ lệ xuất thành công" : "Export Success Rate",
           value: "100%",
           unit: "",
-          caption: "Không có lỗi hàng đợi",
+          caption: isVietnamese ? "Không có lỗi hàng đợi" : "Zero queue failures",
           icon: CheckCircle2,
           iconClass: "text-emerald-600 dark:text-emerald-400",
           iconBg: "bg-emerald-500/[0.07]",
@@ -1593,10 +1626,10 @@ export function ReportStatsDetailPanel({
 
             <div className="min-w-0">
               <h3 className="truncate text-xs font-semibold text-foreground sm:text-sm">
-                Mẫu báo cáo chuẩn hóa
+                {isVietnamese ? "Mẫu báo cáo chuẩn hóa" : "Standardized Report Templates"}
               </h3>
               <p className="mt-0.5 text-[10px] text-muted-foreground">
-                Phục vụ kiểm tra và kiểm toán
+                {isVietnamese ? "Phục vụ kiểm tra và kiểm toán" : "For audits and compliance reviews"}
               </p>
             </div>
           </div>
@@ -1607,7 +1640,7 @@ export function ReportStatsDetailPanel({
               size="sm"
               className="border-primary/25 px-1.5 py-0 font-mono text-[10px] text-primary"
             >
-              {effectiveTemplates.length} mẫu
+              {effectiveTemplates.length} {isVietnamese ? "mẫu" : "templates"}
             </Badge>
 
             {onGenerateReport && (
@@ -1676,7 +1709,7 @@ export function ReportStatsDetailPanel({
                   onClick={() => onGenerateReport(tpl)}
                   className="h-8 shrink-0 gap-1 rounded-lg px-2 text-[10px] text-primary hover:bg-primary/[0.07] hover:text-primary"
                 >
-                  <span className="hidden sm:inline">Xuất mẫu</span>
+                  <span className="hidden sm:inline">{isVietnamese ? "Xuất mẫu" : "Export"}</span>
                   <ChevronRight className="size-3.5" />
                 </Button>
               )}
@@ -1687,7 +1720,7 @@ export function ReportStatsDetailPanel({
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <FileText className="size-6 text-muted-foreground/50" />
               <p className="mt-2 text-xs text-muted-foreground">
-                Chưa có mẫu báo cáo.
+                {isVietnamese ? "Chưa có mẫu báo cáo." : "No report templates available."}
               </p>
             </div>
           )}
@@ -1703,10 +1736,10 @@ export function ReportStatsDetailPanel({
 
           <div className="min-w-0">
             <h3 className="text-xs font-semibold text-foreground sm:text-sm">
-              Tài liệu xuất gần đây
+              {isVietnamese ? "Tài liệu xuất gần đây" : "Recent Export History"}
             </h3>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              Các tệp đã tạo trên hệ thống
+              {isVietnamese ? "Các tệp đã tạo trên hệ thống" : "Files generated on the platform"}
             </p>
           </div>
         </div>
@@ -1728,11 +1761,11 @@ export function ReportStatsDetailPanel({
                   </p>
 
                   <p className="mt-1 truncate font-mono text-[9px] text-muted-foreground">
-                    {item.siteName || "Công trường"}
+                    {item.siteName || (isVietnamese ? "Công trường" : "Construction Site")}
                     <span className="mx-1 opacity-40">·</span>
                     {new Date(
                       item.generatedAt || item.createdAt
-                    ).toLocaleDateString("vi-VN")}
+                    ).toLocaleDateString(locale)}
                   </p>
                 </div>
 
@@ -1743,7 +1776,7 @@ export function ReportStatsDetailPanel({
                   onClick={() => handleQuickDownload(item)}
                   disabled={downloadingId === item.id}
                   className="size-8 shrink-0 rounded-lg border-border/35 bg-background p-0 text-primary shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] transition-all hover:bg-background hover:text-primary hover:shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)] disabled:opacity-50"
-                  title="Tải về tài liệu"
+                  title={isVietnamese ? "Tải về tài liệu" : "Download document"}
                 >
                   {downloadingId === item.id ? (
                     <Loader2 className="size-3.5 animate-spin" />
@@ -1758,7 +1791,7 @@ export function ReportStatsDetailPanel({
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <FileText className="size-6 text-muted-foreground/50" />
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Chưa có lịch sử xuất báo cáo.
+                  {isVietnamese ? "Chưa có lịch sử xuất báo cáo." : "No export history found."}
                 </p>
               </div>
             )}
@@ -1778,7 +1811,7 @@ export function ReportStatsDetailPanel({
               }}
               className="flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/[0.05]"
             >
-              Xem toàn bộ lịch sử xuất
+              {isVietnamese ? "Xem toàn bộ lịch sử xuất" : "View complete export history"}
               <span className="font-mono">
                 ({totalReportsCount})
               </span>

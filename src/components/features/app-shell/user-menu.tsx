@@ -110,7 +110,7 @@ export function UserMenu() {
         <div
           role="menu"
           aria-labelledby="user-menu-btn"
-          className="absolute right-0 top-full z-50 mt-3 w-72 origin-top-right animate-in fade-in slide-in-from-top-2 duration-200 rounded-2xl border border-border/50 bg-card p-2 shadow-[8px_8px_24px_rgba(0,0,0,0.09),-6px_-6px_20px_rgba(255,255,255,0.65)]"
+          className="absolute right-0 top-full z-50 mt-3 w-[min(18rem,calc(100vw-24px))] max-h-[calc(100dvh-5rem)] overflow-y-auto origin-top-right animate-in fade-in slide-in-from-top-2 duration-200 rounded-2xl border border-border/50 bg-card p-2 shadow-[8px_8px_24px_rgba(0,0,0,0.09),-6px_-6px_20px_rgba(255,255,255,0.65)]"
         >
           {/* User identity */}
           <div className="rounded-xl border border-border/30 bg-muted/20 p-3">

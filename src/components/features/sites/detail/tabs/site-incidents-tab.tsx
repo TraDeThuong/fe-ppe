@@ -25,7 +25,8 @@ export interface SiteIncidentsTabProps {
 }
 
 export function SiteIncidentsTab({ site }: SiteIncidentsTabProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [severityFilter, setSeverityFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
@@ -52,13 +53,13 @@ export function SiteIncidentsTab({ site }: SiteIncidentsTabProps) {
   const getSeverityBadge = (severity: IncidentSeverity | string) => {
     switch (severity) {
       case "CRITICAL":
-        return "bg-rose-500/15 text-rose-500 border-rose-500/30";
+        return "bg-danger/10 text-danger border-danger/25";
       case "HIGH":
-        return "bg-amber-500/15 text-amber-500 border-amber-500/30";
+        return "bg-accent/15 text-accent border-accent/25";
       case "MEDIUM":
-        return "bg-sky-500/15 text-sky-500 border-sky-500/30";
+        return "bg-primary/10 text-primary border-primary/25";
       default:
-        return "bg-slate-500/15 text-slate-400 border-slate-500/30";
+        return "bg-muted text-muted-foreground border-border/40";
     }
   };
 
@@ -75,11 +76,17 @@ export function SiteIncidentsTab({ site }: SiteIncidentsTabProps) {
               onChange={(e) => setSeverityFilter(e.target.value)}
               className="rounded-xl border border-border/40 bg-surface-elevated px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none dark:border-black/40 dark:bg-background/60"
             >
-              <option value="ALL">Tất cả mức độ</option>
-              <option value="CRITICAL">Nguy hiểm cao (CRITICAL)</option>
-              <option value="HIGH">Cảnh báo cao (HIGH)</option>
-              <option value="MEDIUM">Trung bình (MEDIUM)</option>
-              <option value="LOW">Nhẹ (LOW)</option>
+              <option value="ALL">{isVietnamese ? "Tất cả mức độ" : "All Severities"}</option>
+              <option value="CRITICAL">
+                {isVietnamese ? "Nguy hiểm cao (CRITICAL)" : "Critical (CRITICAL)"}
+              </option>
+              <option value="HIGH">
+                {isVietnamese ? "Cảnh báo cao (HIGH)" : "High (HIGH)"}
+              </option>
+              <option value="MEDIUM">
+                {isVietnamese ? "Trung bình (MEDIUM)" : "Medium (MEDIUM)"}
+              </option>
+              <option value="LOW">{isVietnamese ? "Nhẹ (LOW)" : "Low (LOW)"}</option>
             </select>
           </div>
 
@@ -90,11 +97,22 @@ export function SiteIncidentsTab({ site }: SiteIncidentsTabProps) {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="rounded-xl border border-border/40 bg-surface-elevated px-3 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none dark:border-black/40 dark:bg-background/60"
             >
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="PENDING">Chờ xử lý (Pending)</option>
-              <option value="INVESTIGATING">Đang điều tra</option>
-              <option value="RESOLVED">Đã giải quyết</option>
-              <option value="DISMISSED">Đã bác bỏ (False Alarm)</option>
+              <option value="ALL">{isVietnamese ? "Tất cả trạng thái" : "All Statuses"}</option>
+              <option value="PENDING_REVIEW">
+                {isVietnamese ? "Chờ thẩm duyệt (Pending Review)" : "Pending Review"}
+              </option>
+              <option value="CONFIRMED">
+                {isVietnamese ? "Đã xác nhận (Confirmed)" : "Confirmed"}
+              </option>
+              <option value="RESOLVED">
+                {isVietnamese ? "Đã giải quyết (Resolved)" : "Resolved"}
+              </option>
+              <option value="CLOSED">
+                {isVietnamese ? "Đã nghiệm thu (Closed)" : "Closed"}
+              </option>
+              <option value="DISMISSED">
+                {isVietnamese ? "Đã bác bỏ (Dismissed)" : "Dismissed"}
+              </option>
             </select>
           </div>
         </div>
@@ -102,11 +120,16 @@ export function SiteIncidentsTab({ site }: SiteIncidentsTabProps) {
         <div className="flex items-center gap-2">
           <Link
             href={`/incidents?siteId=${site.id}&siteName=${encodeURIComponent(site.name)}`}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/[0.08] px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition shadow-sm"
-            title="Mở toàn bộ sự cố của công trường này trên trang Quản lý Sự cố"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/[0.08] px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15 transition shadow-sm"
+            title={
+              isVietnamese
+                ? "Mở toàn bộ sự cố của công trường này trên trang Quản lý Sự cố"
+                : "Open all incidents for this site on Incidents page"
+            }
           >
-            <span>Quản lý trên trang Sự cố</span>
-            <ExternalLink className="h-3 w-3" />
+            <span className="sm:hidden">{isVietnamese ? "Trang Sự cố" : "Incidents"}</span>
+            <span className="hidden sm:inline">{isVietnamese ? "Quản lý trên trang Sự cố" : "Manage on Incidents"}</span>
+            <ExternalLink className="h-3 w-3 shrink-0" />
           </Link>
 
           <button
@@ -114,7 +137,7 @@ export function SiteIncidentsTab({ site }: SiteIncidentsTabProps) {
             onClick={() => refetch()}
             disabled={isFetching}
             className="flex h-8 w-8 items-center justify-center rounded-xl border border-border/40 text-muted-foreground hover:text-primary transition dark:border-black/40"
-            title="Làm mới sự cố"
+            title={isVietnamese ? "Làm mới sự cố" : "Refresh incidents"}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
           </button>
@@ -130,10 +153,14 @@ export function SiteIncidentsTab({ site }: SiteIncidentsTabProps) {
         </div>
       ) : filteredIncidents.length === 0 ? (
         <div className="rounded-2xl border border-border/30 bg-surface p-12 text-center dark:border-black/50 dark:bg-card/70">
-          <CheckCircle className="mx-auto h-12 w-12 text-emerald-500/40 mb-3" />
-          <h4 className="text-sm font-bold text-foreground">Không có sự cố vi phạm nào</h4>
+          <CheckCircle className="mx-auto h-12 w-12 text-primary/40 mb-3" />
+          <h4 className="text-sm font-bold text-foreground">
+            {isVietnamese ? "Không có sự cố vi phạm nào" : "No safety violation incidents"}
+          </h4>
           <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
-            Công trường hiện đang tuân thủ an toàn tốt. Không ghi nhận vi phạm chưa được xử lý nào.
+            {isVietnamese
+              ? "Công trường hiện đang tuân thủ an toàn tốt. Không ghi nhận vi phạm chưa được xử lý nào."
+              : "The site is currently in full safety compliance. No unresolved violations reported."}
           </p>
         </div>
       ) : (
@@ -141,14 +168,16 @@ export function SiteIncidentsTab({ site }: SiteIncidentsTabProps) {
           {filteredIncidents.map((incident) => {
             const dateStr = incident.detectedAt || incident.createdAt;
             const formattedDate = dateStr
-              ? new Date(dateStr).toLocaleString("vi-VN", {
+              ? new Date(dateStr).toLocaleString(isVietnamese ? "vi-VN" : "en-US", {
                   hour: "2-digit",
                   minute: "2-digit",
                   day: "2-digit",
                   month: "2-digit",
                   year: "numeric",
                 })
-              : "Vừa xong";
+              : isVietnamese
+              ? "Vừa xong"
+              : "Just now";
 
             return (
               <div
@@ -185,7 +214,11 @@ export function SiteIncidentsTab({ site }: SiteIncidentsTabProps) {
                     </div>
 
                     <h4 className="text-xs sm:text-sm font-semibold text-foreground truncate">
-                      {incident.description || incident.violationType || "Phát hiện không tuân thủ trang bị PPE"}
+                      {incident.description ||
+                        incident.violationType ||
+                        (isVietnamese
+                          ? "Phát hiện không tuân thủ trang bị PPE"
+                          : "PPE non-compliance detected")}
                     </h4>
 
                     {/* Metadata: Camera, Zone, Time */}
@@ -193,10 +226,18 @@ export function SiteIncidentsTab({ site }: SiteIncidentsTabProps) {
                       <Link
                         href={`/cameras?search=${incident.cameraCode || incident.cameraId}&view=wall`}
                         className="flex items-center gap-1 hover:text-primary transition hover:underline"
-                        title="Xem camera này trên Video Wall"
+                        title={
+                          isVietnamese
+                            ? "Xem camera này trên Video Wall"
+                            : "View this camera on Video Wall"
+                        }
                       >
                         <Camera className="h-3 w-3 text-primary/70 shrink-0" />
-                        <span>{incident.cameraName || incident.cameraCode || "Camera An Toàn"}</span>
+                        <span>
+                          {incident.cameraName ||
+                            incident.cameraCode ||
+                            (isVietnamese ? "Camera An Toàn" : "Safety Camera")}
+                        </span>
                       </Link>
 
                       {incident.zoneName && (
@@ -218,10 +259,13 @@ export function SiteIncidentsTab({ site }: SiteIncidentsTabProps) {
                 <div className="flex items-center gap-2 shrink-0 justify-end pt-2 sm:pt-0 border-t border-border/20 sm:border-0">
                   <Link
                     href={`/incidents/${incident.id}`}
-                    className="flex items-center gap-1.5 rounded-xl border border-border/40 bg-surface-elevated px-3 py-1.5 text-xs font-semibold text-foreground hover:border-primary hover:text-primary transition shadow-sm"
+                    className="flex items-center gap-1.5 rounded-xl border border-border/40 bg-surface-elevated px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-foreground hover:border-primary hover:text-primary transition shadow-sm"
                   >
-                    <Eye className="h-3.5 w-3.5 text-primary" />
-                    <span>Xem chi tiết sự cố</span>
+                    <Eye className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="sm:hidden">{isVietnamese ? "Chi tiết" : "Details"}</span>
+                    <span className="hidden sm:inline">
+                      {isVietnamese ? "Xem chi tiết sự cố" : "View Incident Details"}
+                    </span>
                   </Link>
                 </div>
               </div>

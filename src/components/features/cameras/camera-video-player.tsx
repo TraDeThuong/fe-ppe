@@ -14,6 +14,7 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
+import { useLocale } from "@/providers/locale-provider";
 import type { CameraItem } from "@/types";
 
 export interface CameraVideoPlayerProps {
@@ -27,7 +28,7 @@ export interface CameraVideoPlayerProps {
 
 function getYouTubeEmbedUrl(url?: string): string | null {
   if (!url) return null;
-  const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|live\/)|youtu\.be\/)([^"&?\/\s]{11})/;
+  const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|live\/|shorts\/)|youtu\.be\/)([^"&?\/\s]{11})/;
   const match = url.match(regExp);
   return match && match[1]
     ? `https://www.youtube.com/embed/${match[1]}?autoplay=1&mute=1&controls=0&loop=1&playlist=${match[1]}&enablejsapi=1`
@@ -42,17 +43,26 @@ export function CameraVideoPlayer({
   onOpenRoi,
   className = "",
 }: CameraVideoPlayerProps) {
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const isWebcam = camera.streamUrl?.toLowerCase().includes("webcam") || false;
   const youtubeEmbedUrl = getYouTubeEmbedUrl(camera.streamUrl);
+  const isDirectWebStream = Boolean(youtubeEmbedUrl || isWebcam || camera.streamUrl?.startsWith("http"));
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
-  const [streamError, setStreamError] = useState(camera.status === "OFFLINE" || camera.status === "ERROR");
-  const [fps, setFps] = useState(camera.currentFps || (camera.status === "ONLINE" ? 25 : 0));
-  const [latency, setLatency] = useState(camera.currentLatencyMs || (camera.status === "ONLINE" ? 42 : 0));
+  const [streamError, setStreamError] = useState(
+    isDirectWebStream ? false : camera.status === "OFFLINE" || camera.status === "ERROR"
+  );
+  const [fps, setFps] = useState(
+    isDirectWebStream ? 25 : camera.currentFps || (camera.status === "ONLINE" ? 25 : 0)
+  );
+  const [latency, setLatency] = useState(
+    isDirectWebStream ? 18 : camera.currentLatencyMs || (camera.status === "ONLINE" ? 42 : 0)
+  );
 
   // Webcam stream lifecycle
   useEffect(() => {
@@ -81,6 +91,14 @@ export function CameraVideoPlayer({
   }, [isWebcam, streamError]);
 
   useEffect(() => {
+    // Luồng YouTube, Webcam và HTTP video chạy trực tiếp trên trình duyệt
+    if (isDirectWebStream) {
+      setStreamError(false);
+      setFps(25);
+      setLatency(camera.currentLatencyMs || 18);
+      return;
+    }
+
     setStreamError(camera.status === "OFFLINE" || camera.status === "ERROR");
     if (camera.status === "ONLINE") {
       setFps(camera.currentFps || 25);
@@ -89,7 +107,7 @@ export function CameraVideoPlayer({
       setFps(0);
       setLatency(0);
     }
-  }, [camera.status, camera.currentFps, camera.currentLatencyMs]);
+  }, [camera.status, camera.currentFps, camera.currentLatencyMs, isDirectWebStream]);
 
   const toggleFullscreen = async () => {
     if (!containerRef.current) return;
@@ -128,23 +146,37 @@ export function CameraVideoPlayer({
           /* Native HTML5 or Webcam Video Element */
           <video
             ref={videoRef}
-            src={!isWebcam && camera.streamUrl.startsWith("http") ? camera.streamUrl : undefined}
+            src={
+              !isWebcam &&
+              camera.streamUrl.startsWith("http") &&
+              !camera.streamUrl.includes("youtube.com") &&
+              !camera.streamUrl.includes("youtu.be")
+                ? camera.streamUrl
+                : undefined
+            }
             autoPlay
             playsInline
             muted={isMuted}
             loop
-            onError={() => setStreamError(true)}
+            onError={() => {
+              if (
+                !camera.streamUrl.includes("youtube.com") &&
+                !camera.streamUrl.includes("youtu.be")
+              ) {
+                setStreamError(true);
+              }
+            }}
             className="h-full w-full object-cover"
           />
         ) : null}
 
         {/* Ambient Simulated Feed (when streamUrl is RTSP or video not native) */}
-        {!streamError && !youtubeEmbedUrl && !isWebcam && !camera.streamUrl.startsWith("http") && (
+        {!streamError && !youtubeEmbedUrl && !isWebcam && (!camera.streamUrl.startsWith("http") || camera.streamUrl.includes("youtube.com") || camera.streamUrl.includes("youtu.be")) && (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/80 via-transparent to-black/50 pointer-events-none">
             {/* Grid Scanline Overlay for Industrial CCTV look */}
             <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] opacity-20" />
             <div className="text-center font-mono text-xs text-white/50">
-              <p>LUỒNG RTSP NỘI BỘ</p>
+              <p>{isVietnamese ? `LUỒNG ${camera.sourceType || "CAMERA"} NỘI BỘ` : `INTERNAL ${camera.sourceType || "CAMERA"} STREAM`}</p>
               <p className="text-[10px] text-white/30">{camera.streamUrl}</p>
             </div>
           </div>
@@ -158,10 +190,14 @@ export function CameraVideoPlayer({
             </div>
             <div>
               <p className="font-mono text-xs font-bold text-danger">
-                {camera.status === "OFFLINE" ? "MẤT KẾT NỐI CAMERA" : "LỖI KẾT NỐI LUỒNG VIDEO"}
+                {camera.status === "OFFLINE"
+                  ? (isVietnamese ? "MẤT KẾT NỐI CAMERA" : "CAMERA OFFLINE")
+                  : (isVietnamese ? "LỖI KẾT NỐI LUỒNG VIDEO" : "STREAM CONNECTION ERROR")}
               </p>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Không nhận được luồng RTSP từ {camera.code}
+                {isVietnamese
+                  ? `Không nhận được tín hiệu luồng ${camera.sourceType || "video"} từ ${camera.code}`
+                  : `Unable to receive ${camera.sourceType || "video"} stream from ${camera.code}`}
               </p>
             </div>
             <button
@@ -170,7 +206,7 @@ export function CameraVideoPlayer({
               className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-border/40 bg-surface/80 px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-surface"
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              <span>Thử kết nối lại</span>
+              <span>{isVietnamese ? "Thử kết nối lại" : "Retry Connection"}</span>
             </button>
           </div>
         )}
@@ -218,7 +254,7 @@ export function CameraVideoPlayer({
               {camera.name}
             </p>
             <p className="truncate text-[10px] text-white/60">
-              {camera.location || camera.siteName || "Khu vực giám sát"}
+              {camera.location || camera.siteName || (isVietnamese ? "Khu vực giám sát" : "Surveillance Zone")}
             </p>
           </div>
 
@@ -228,7 +264,7 @@ export function CameraVideoPlayer({
                 <button
                   type="button"
                   onClick={() => onSnapshot(camera)}
-                  title="Chụp ảnh khung hình"
+                  title={isVietnamese ? "Chụp ảnh khung hình" : "Snapshot Frame"}
                   className="rounded-lg p-1.5 hover:bg-white/20 transition"
                 >
                   <Camera className="h-4 w-4" />
@@ -239,7 +275,7 @@ export function CameraVideoPlayer({
                 <button
                   type="button"
                   onClick={() => onPing(camera)}
-                  title="Đo ping camera"
+                  title={isVietnamese ? "Đo ping camera" : "Ping Test"}
                   className="rounded-lg p-1.5 hover:bg-white/20 transition"
                 >
                   <Activity className="h-4 w-4" />
@@ -250,7 +286,7 @@ export function CameraVideoPlayer({
                 <button
                   type="button"
                   onClick={() => onOpenRoi(camera)}
-                  title="Cấu hình AI ROI"
+                  title={isVietnamese ? "Cấu hình AI ROI" : "Configure AI ROI"}
                   className="rounded-lg p-1.5 hover:bg-white/20 transition"
                 >
                   <Sliders className="h-4 w-4" />
@@ -260,7 +296,7 @@ export function CameraVideoPlayer({
               <button
                 type="button"
                 onClick={() => setIsMuted(!isMuted)}
-                title={isMuted ? "Bật âm thanh" : "Tắt âm thanh"}
+                title={isMuted ? (isVietnamese ? "Bật âm thanh" : "Unmute") : (isVietnamese ? "Tắt âm thanh" : "Mute")}
                 className="rounded-lg p-1.5 hover:bg-white/20 transition"
               >
                 {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
@@ -269,7 +305,7 @@ export function CameraVideoPlayer({
               <button
                 type="button"
                 onClick={toggleFullscreen}
-                title={isFullscreen ? "Thu nhỏ" : "Toàn màn hình"}
+                title={isFullscreen ? (isVietnamese ? "Thu nhỏ" : "Exit Fullscreen") : (isVietnamese ? "Toàn màn hình" : "Fullscreen")}
                 className="rounded-lg p-1.5 hover:bg-white/20 transition"
               >
                 {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}

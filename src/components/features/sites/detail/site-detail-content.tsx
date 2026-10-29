@@ -1,28 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  BarChart3,
-  Building2,
-  Camera,
-  Layers,
-  Shield,
-  Users,
-} from "lucide-react";
+import { ArrowLeft, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSite } from "@/contexts/SiteContext";
 import { useCameras } from "@/hooks/cameras";
 import { useIncidents } from "@/hooks/incidents";
-import { useSiteDetail, useUpdateSite } from "@/hooks/sites";
+import {
+  useSiteDetail,
+  useUpdateSite,
+  useSiteZones,
+  useRestrictedAreas,
+} from "@/hooks/sites";
+import { useReportSummary } from "@/hooks/reporting";
 import { useLocale } from "@/providers/locale-provider";
 import { EditSiteModal } from "../edit-site-modal";
 import { SiteZonesDrawer } from "../site-zones-drawer";
 import { SiteSafetyConfigModal } from "../site-safety-config-modal";
 import { SiteDetailHero } from "./site-detail-hero";
 import { SiteDetailKpiBar } from "./site-detail-kpi-bar";
+import { SiteDetailTabs, type SiteDetailTabKey } from "./site-detail-tabs";
 import { SiteLiveCamerasTab } from "./tabs/site-live-cameras-tab";
 import { SiteIncidentsTab } from "./tabs/site-incidents-tab";
 import { SiteSpatialZonesTab } from "./tabs/site-spatial-zones-tab";
@@ -31,13 +29,7 @@ import { SiteAnalyticsTab } from "./tabs/site-analytics-tab";
 import { SitePersonnelTab } from "./tabs/site-personnel-tab";
 import type { UpdateSitePayload } from "@/types";
 
-export type SiteDetailTabKey =
-  | "cameras"
-  | "incidents"
-  | "zones"
-  | "safety-rules"
-  | "analytics"
-  | "personnel";
+export type { SiteDetailTabKey };
 
 export interface SiteDetailContentProps {
   siteId: string;
@@ -78,15 +70,51 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
   // Fetch Site Detail
   const { data: site, isLoading, error } = useSiteDetail(siteId);
 
+  // Live Zones and Danger Areas
+  const { data: zonesData = [] } = useSiteZones(siteId);
+  const { data: restrictedAreasData = [] } = useRestrictedAreas(siteId);
+
+  const zoneCount =
+    zonesData.length || site?.zoneCount || site?.zones?.length || site?._count?.zones || 0;
+  const restrictedCount =
+    restrictedAreasData.length ||
+    site?.restrictedAreaCount ||
+    site?.restrictedAreas?.length ||
+    site?._count?.restrictedAreas ||
+    0;
+
   // Fetch cameras for KPI
   const { data: camerasData } = useCameras({ siteId, limit: 100 });
-  const cameraCount = camerasData?.items?.length || 0;
+  const cameraCount =
+    camerasData?.meta?.total ?? camerasData?.items?.length ?? site?.cameraCount ?? 0;
   const onlineCameraCount =
     camerasData?.items?.filter((c) => c.status === "ONLINE").length || 0;
 
   // Fetch incidents for KPI
-  const { data: incidentsData } = useIncidents({ siteId, status: "PENDING", limit: 50 });
-  const pendingIncidentsCount = incidentsData?.items?.length || 0;
+  const { data: incidentsData } = useIncidents({ siteId, status: "PENDING_REVIEW", limit: 50 });
+  const pendingIncidentsCount = incidentsData?.meta?.total ?? incidentsData?.items?.length ?? 0;
+
+  // Fetch site-specific safety report summary for Compliance Rate
+  const { data: reportSummary } = useReportSummary({ siteId });
+  const complianceRate =
+    reportSummary && reportSummary.complianceRate > 0
+      ? reportSummary.complianceRate
+      : 100;
+
+  // Safely compute officers count for Tab badge
+  const officersCount = useMemo(() => {
+    if (!site?.contactOfficers) return site?.contactPerson ? 1 : 0;
+    if (Array.isArray(site.contactOfficers)) return site.contactOfficers.length;
+    if (typeof site.contactOfficers === "string") {
+      try {
+        const parsed = JSON.parse(site.contactOfficers);
+        return Array.isArray(parsed) ? parsed.length : 0;
+      } catch {
+        return site?.contactPerson ? 1 : 0;
+      }
+    }
+    return site?.contactPerson ? 1 : 0;
+  }, [site?.contactOfficers, site?.contactPerson]);
 
   // Update site mutation
   const updateSiteMutation = useUpdateSite();
@@ -144,52 +172,22 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
     );
   }
 
-  const tabItems = [
-    {
-      key: "cameras" as const,
-      label: t("sites.detail.tabs.cameras"),
-      icon: <Camera className="h-4 w-4" />,
-      badge: cameraCount > 0 ? cameraCount : undefined,
-    },
-    {
-      key: "incidents" as const,
-      label: t("sites.detail.tabs.incidents"),
-      icon: <AlertTriangle className="h-4 w-4" />,
-      badge: pendingIncidentsCount > 0 ? pendingIncidentsCount : undefined,
-      badgeColor: "bg-accent/20 text-accent",
-    },
-    {
-      key: "zones" as const,
-      label: t("sites.detail.tabs.zones"),
-      icon: <Layers className="h-4 w-4" />,
-      badge: site.zones?.length || site.zoneCount,
-    },
-    {
-      key: "safety-rules" as const,
-      label: t("sites.detail.tabs.safetyRules"),
-      icon: <Shield className="h-4 w-4" />,
-    },
-    {
-      key: "analytics" as const,
-      label: t("sites.detail.tabs.analytics"),
-      icon: <BarChart3 className="h-4 w-4" />,
-    },
-    {
-      key: "personnel" as const,
-      label: t("sites.detail.tabs.personnel"),
-      icon: <Users className="h-4 w-4" />,
-      badge: site.contactOfficers?.length,
-    },
-  ];
+  const handleTabChange = (nextTab: SiteDetailTabKey) => {
+    setActiveTab(nextTab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", nextTab);
+    router.replace(`/sites/${siteId}?${params.toString()}`, { scroll: false });
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* 1. Hero Overview Banner */}
       <SiteDetailHero
         site={site}
         onEdit={() => setEditModalOpen(true)}
         onManageZones={() => setZonesDrawerOpen(true)}
         onSafetyConfig={() => setSafetyDrawerOpen(true)}
+        onViewPersonnel={() => handleTabChange("personnel")}
       />
 
       {/* 2. Bento Quick KPI Console */}
@@ -198,42 +196,21 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
         cameraCount={cameraCount}
         onlineCameraCount={onlineCameraCount}
         pendingIncidentsCount={pendingIncidentsCount}
+        complianceRate={complianceRate}
+        zoneCount={zoneCount}
+        restrictedCount={restrictedCount}
+        onSelectTab={(tab) => handleTabChange(tab as SiteDetailTabKey)}
       />
 
-      {/* 3. Neumorphic Tabs Navigation */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none border-b border-border/30 dark:border-black/50">
-        {tabItems.map((tab) => {
-          const isActive = activeTab === tab.key;
-
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 shrink-0 ${
-                isActive
-                  ? "bg-primary text-white shadow-md dark:shadow-primary/20"
-                  : "text-muted-foreground hover:text-foreground hover:bg-surface-elevated/50"
-              }`}
-            >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
-
-              {tab.badge !== undefined && tab.badge > 0 && (
-                <span
-                  className={`rounded-full px-1.5 py-0.2 font-mono text-[10px] font-bold ${
-                    isActive
-                      ? "bg-white/20 text-white"
-                      : tab.badgeColor || "bg-primary/10 text-primary"
-                  }`}
-                >
-                  {tab.badge}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {/* 3. Neumorphic Segmented Control Navigation */}
+      <SiteDetailTabs
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        cameraCount={cameraCount}
+        pendingIncidentsCount={pendingIncidentsCount}
+        zoneCount={zoneCount}
+        officersCount={officersCount}
+      />
 
       {/* 4. Active Tab Content Pane */}
       <div className="transition-all duration-200">
