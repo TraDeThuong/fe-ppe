@@ -5,6 +5,7 @@ import { CheckCircle2, Download, FileSpreadsheet, FileText, History, Loader2, XC
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
+import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { reportingService } from "@/services/reporting.service";
 import type { ReportGenerationDto } from "@/types";
 
@@ -19,6 +20,7 @@ export function ReportHistoryTable({
 }: ReportHistoryTableProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const { getSiteName } = useEntityLookup();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const handleDownload = async (item: ReportGenerationDto) => {
@@ -91,7 +93,11 @@ export function ReportHistoryTable({
       </div>
 
       {/* History Table */}
-      {history.length === 0 ? (
+      {loading ? (
+        <div className="p-8 text-center text-xs text-muted-foreground">
+          {t("common.loading")}
+        </div>
+      ) : history.length === 0 ? (
         <div className="p-8 text-center text-xs text-muted-foreground">
           {t("reports.history.empty")}
         </div>
@@ -112,16 +118,28 @@ export function ReportHistoryTable({
             </thead>
             <tbody className="divide-y divide-border/20">
               {history.map((item) => {
-                const isExcel = item.fileType === "EXCEL" || item.fileName?.endsWith(".xlsx");
+                const fileType = item.fileType || item.template?.fileType;
+                const isExcel =
+                  fileType === "EXCEL" ||
+                  fileType === "CSV" ||
+                  item.fileName?.endsWith(".xlsx") ||
+                  item.fileName?.endsWith(".csv");
                 const isCompleted = item.status === "COMPLETED";
                 const isDownloading = downloadingId === item.id;
-                const date = new Date(item.createdAt).toLocaleString("vi-VN", {
+                const date = new Date(item.generatedAt || item.createdAt).toLocaleString("vi-VN", {
                   year: "numeric",
                   month: "2-digit",
                   day: "2-digit",
                   hour: "2-digit",
                   minute: "2-digit",
                 });
+                const resolvedSiteName =
+                  item.siteName ||
+                  (item.siteId
+                    ? getSiteName(item.siteId, item.siteId.slice(0, 8))
+                    : isVietnamese
+                    ? "Tất cả công trường"
+                    : "All Sites");
 
                 return (
                   <tr key={item.id} className="hover:bg-surface-elevated/40 transition-colors">
@@ -140,9 +158,16 @@ export function ReportHistoryTable({
                             <FileText className="h-4 w-4" />
                           )}
                         </div>
-                        <span className="font-semibold text-foreground">
-                          {item.fileName || "PPE_Report_Export.pdf"}
-                        </span>
+                        <div>
+                          <span className="font-semibold text-foreground block">
+                            {item.fileName || `report_${item.id.slice(0, 8)}.pdf`}
+                          </span>
+                          {item.template?.name && (
+                            <span className="text-[10px] text-muted-foreground block">
+                              {item.template.name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
 
@@ -151,7 +176,7 @@ export function ReportHistoryTable({
                     </td>
 
                     <td className="py-3 text-muted-foreground">
-                      {item.siteName || (isVietnamese ? "Tất cả công trường" : "All Sites")}
+                      {resolvedSiteName}
                     </td>
 
                     <td className="py-3 text-muted-foreground">{date}</td>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
@@ -55,7 +55,7 @@ export default function IncidentsContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { siteId: globalSiteId } = useSite();
+  const { siteId: globalSiteId, setSiteId: setGlobalSiteId } = useSite();
 
   const urlCameraId = searchParams.get("cameraId") || "";
   const urlSiteId = searchParams.get("siteId") || "";
@@ -75,7 +75,7 @@ export default function IncidentsContent() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  // Filter States (Tự động nạp từ SiteContext nếu không có URL override)
+  // Filter States: Ưu tiên giá trị từ URL, nếu không có URL thì lấy từ Header globalSiteId
   const [page, setPage] = useState(1);
   const [limit] = useState(10);
   const [search, setSearch] = useState("");
@@ -83,24 +83,74 @@ export default function IncidentsContent() {
   const [severityFilter, setSeverityFilter] = useState("");
   const [violationFilter, setViolationFilter] = useState("");
   const [cameraIdFilter, setCameraIdFilter] = useState(urlCameraId);
-  const [siteIdFilter, setSiteIdFilter] = useState(urlSiteId || globalSiteId || "");
+  const [siteIdFilter, setSiteIdFilter] = useState(urlSiteId);
 
-  // Sync state when searchParams change
-  useEffect(() => {
-    setCameraIdFilter(searchParams.get("cameraId") || "");
-    const paramSite = searchParams.get("siteId");
-    if (paramSite !== null) {
-      setSiteIdFilter(paramSite);
+  // Chuyển đổi công trường: đồng bộ cả state, URL lẫn Header Global SiteContext
+  const handleSiteFilterChange = (val: string) => {
+    setSiteIdFilter(val);
+    setCameraIdFilter("");
+    setPage(1);
+
+    // Đồng bộ đồng thời với Header (nếu val rỗng thì chọn Tất cả công trường)
+    setGlobalSiteId(val || null);
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (val) {
+      params.set("siteId", val);
+    } else {
+      params.delete("siteId");
     }
+    params.delete("cameraId");
+    const q = params.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  };
+
+  // Sync state khi searchParams của URL thay đổi (Back / Forward navigation)
+  useEffect(() => {
+    const paramCamera = searchParams.get("cameraId") || "";
+    setCameraIdFilter(paramCamera);
+    const paramSite = searchParams.get("siteId") || "";
+    setSiteIdFilter(paramSite);
   }, [searchParams]);
 
-  // Đồng bộ với Global Site Selector khi người dùng đổi site từ Header
+  // Đồng bộ khi người dùng chủ động chọn đổi site từ Header
+  const hasHydratedRef = useRef(false);
+  const prevGlobalSiteIdRef = useRef<string | null>(globalSiteId);
+
   useEffect(() => {
-    if (!searchParams.get("siteId") && globalSiteId) {
-      setSiteIdFilter(globalSiteId);
-      setPage(1);
+    // Trì hoãn một nhịp sau khi mount để bỏ qua việc SiteProvider tự hydrate từ localStorage
+    const timer = setTimeout(() => {
+      hasHydratedRef.current = true;
+      prevGlobalSiteIdRef.current = globalSiteId;
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [globalSiteId]);
+
+  useEffect(() => {
+    // Bỏ qua nếu vẫn đang trong giai đoạn khởi tạo/hydrate ban đầu
+    if (!hasHydratedRef.current) {
+      return;
     }
-  }, [globalSiteId, searchParams]);
+    if (prevGlobalSiteIdRef.current === globalSiteId) {
+      return;
+    }
+    prevGlobalSiteIdRef.current = globalSiteId;
+
+    const currentSite = globalSiteId || "";
+    setSiteIdFilter(currentSite);
+    setCameraIdFilter("");
+    setPage(1);
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (currentSite) {
+      params.set("siteId", currentSite);
+    } else {
+      params.delete("siteId");
+    }
+    params.delete("cameraId");
+    const q = params.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }, [globalSiteId, pathname, router, searchParams]);
 
   // Query Params
   const queryParams: IncidentQueryParams = {
@@ -119,6 +169,14 @@ export default function IncidentsContent() {
   const { data: incidentData, isLoading, refetch, isRefetching } = useIncidents(queryParams);
   const incidents = incidentData?.items || [];
   const meta = incidentData?.meta;
+
+  // Truy vấn overview (tối đa 100 sự cố của site/camera) để KPI summary hiển thị số liệu toàn diện chính xác
+  const { data: statsOverviewData } = useIncidents({
+    siteId: siteIdFilter || undefined,
+    cameraId: cameraIdFilter || undefined,
+    limit: 100,
+  });
+  const overviewIncidents = statsOverviewData?.items || incidents;
 
   // Mutations
   const reviewMutation = useReviewIncident();
@@ -196,8 +254,8 @@ export default function IncidentsContent() {
 
       {/* KPI Overview (Chuẩn Bento giống trang Role, click mở rộng khung chi tiết) */}
       <IncidentKpiSummary
-        incidents={incidents}
-        totalIncidentsCount={meta?.total}
+        incidents={overviewIncidents}
+        totalIncidentsCount={meta?.total ?? statsOverviewData?.meta?.total}
         loading={isLoading}
         selectedStat={selectedStat}
         onSelectStat={handleSelectStat}
@@ -216,6 +274,7 @@ export default function IncidentsContent() {
           setViolationFilter(val);
           setPage(1);
         }}
+        onFilterSite={handleSiteFilterChange}
       />
 
       {/* Filter Toolbar (Thiết kế lại chuẩn Neumorphic, phân tầng Site -> Camera, có Chip lọc hoạt động) */}
@@ -226,19 +285,7 @@ export default function IncidentsContent() {
           setPage(1);
         }}
         siteFilter={siteIdFilter}
-        onSiteFilterChange={(val) => {
-          setSiteIdFilter(val);
-          setPage(1);
-          const params = new URLSearchParams(searchParams.toString());
-          if (val) {
-            params.set("siteId", val);
-          } else {
-            params.delete("siteId");
-          }
-          params.delete("cameraId");
-          const q = params.toString();
-          router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-        }}
+        onSiteFilterChange={handleSiteFilterChange}
         cameraIdFilter={cameraIdFilter}
         onCameraIdFilterChange={(val) => {
           setCameraIdFilter(val);
@@ -271,11 +318,12 @@ export default function IncidentsContent() {
         isRefreshing={isRefetching}
         onResetFilters={() => {
           setPage(1);
-          const params = new URLSearchParams(searchParams.toString());
-          params.delete("siteId");
-          params.delete("cameraId");
-          const q = params.toString();
-          router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+          setSearch("");
+          setStatusFilter("");
+          setSeverityFilter("");
+          setViolationFilter("");
+          setCameraIdFilter("");
+          handleSiteFilterChange("");
         }}
       />
 
@@ -287,6 +335,7 @@ export default function IncidentsContent() {
           onReview={handleOpenReview}
           onAssign={handleOpenAssign}
           onResolve={handleOpenResolve}
+          onFilterSite={handleSiteFilterChange}
         />
 
         {/* Pagination */}

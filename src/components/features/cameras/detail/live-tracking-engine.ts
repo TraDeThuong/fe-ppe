@@ -112,96 +112,157 @@ export function generateLiveFrameEntry(
 
   // Xác định tọa độ Bounding Box phù hợp theo tỷ lệ màn hình (Dọc 9:16 Shorts vs Ngang 16:9)
   if (isVertical) {
-    // ── NGUỒN VIDEO DỌC (9:16 YOUTUBE SHORTS / DI ĐỘNG: 1080 x 1920) ──
-    // Worker 1: Đang thi công ở góc dưới (Đầy đủ bảo hộ)
-    detections.push(
-      {
+    const isCam01a18735 =
+      cameraId === "01a18735-39f8-7ea2-822d-1e7765c59c73" ||
+      cameraCode === "CAM-YOUTUBE-099999" ||
+      streamMetadata?.sourceUrl?.includes("rcvx3ZsI4eQ") ||
+      streamMetadata?.sourceUrl?.includes("camera-01a18735");
+
+    if (isCam01a18735) {
+      // ── NGUỒN VIDEO SHORTS CÔNG TRƯỜNG THỰC TẾ (rcvx3ZsI4eQ / camera-01a18735) ──
+      // Bám sát chuyển động thực tế của Worker đi từ xa lại gần máy quay
+      const cycleT = elapsedSec % 10.08;
+      const kfs = [
+        { t: 0.0, p: [184, 380, 850, 1912], h: [394, 380, 648, 570] },
+        { t: 2.0, p: [171, 296, 918, 1920], h: [364, 310, 654, 526] },
+        { t: 4.0, p: [183, 200, 950, 1920], h: [390, 224, 688, 453] },
+        { t: 6.0, p: [314, 396, 820, 1586], h: [380, 260, 650, 480] },
+        { t: 8.0, p: [0, 86, 898, 1916], h: [206, 126, 579, 417] },
+        { t: 10.08, p: [2, 144, 1059, 1893], h: [294, 166, 742, 519] },
+      ];
+
+      let segIdx = 0;
+      for (let i = 0; i < kfs.length - 1; i++) {
+        if (cycleT >= kfs[i].t && cycleT <= kfs[i + 1].t) {
+          segIdx = i;
+          break;
+        }
+      }
+      const k0 = kfs[segIdx];
+      const k1 = kfs[segIdx + 1] || k0;
+      const alpha = k1.t > k0.t ? (cycleT - k0.t) / (k1.t - k0.t) : 0;
+
+      const interp = (b0: number[], b1: number[]) =>
+        [
+          Math.round(b0[0] + (b1[0] - b0[0]) * alpha),
+          Math.round(b0[1] + (b1[1] - b0[1]) * alpha),
+          Math.round(b0[2] + (b1[2] - b0[2]) * alpha),
+          Math.round(b0[3] + (b1[3] - b0[3]) * alpha),
+        ] as [number, number, number, number];
+
+      const pBox = interp(k0.p, k1.p);
+      const hBox = interp(k0.h, k1.h);
+
+      detections.push(
+        {
+          class_name: "person",
+          confidence: Math.round((0.92 + Math.sin(elapsedSec) * 0.02) * 100) / 100,
+          bbox: pBox,
+          w: pBox[2] - pBox[0],
+          h: pBox[3] - pBox[1],
+          track_id: 2,
+        },
+        {
+          class_name: "helmet",
+          confidence: Math.round((0.94 + Math.cos(elapsedSec) * 0.02) * 100) / 100,
+          bbox: hBox,
+          w: hBox[2] - hBox[0],
+          h: hBox[3] - hBox[1],
+          track_id: 1,
+        }
+      );
+    } else {
+      // ── NGUỒN VIDEO DỌC TỔNG QUÁT (9:16 SHORTS DI ĐỘNG: 1080 x 1920) ──
+      // Worker 1: Đang thi công ở góc dưới (Đầy đủ bảo hộ)
+      detections.push(
+        {
+          class_name: "person",
+          confidence: Math.round((0.95 + Math.sin(elapsedSec) * 0.02) * 100) / 100,
+          bbox: [
+            Math.round(220 + jitter1X),
+            Math.round(980 + jitter1Y),
+            Math.round(520 + jitter1X),
+            Math.round(1620 + jitter1Y),
+          ],
+          w: 300,
+          h: 640,
+          track_id: worker1Id,
+        },
+        {
+          class_name: "helmet",
+          confidence: 0.94,
+          bbox: [
+            Math.round(310 + jitter1X),
+            Math.round(980 + jitter1Y),
+            Math.round(440 + jitter1X),
+            Math.round(1110 + jitter1Y),
+          ],
+          w: 130,
+          h: 130,
+          track_id: 1,
+        },
+        {
+          class_name: "safety_vest",
+          confidence: 0.93,
+          bbox: [
+            Math.round(260 + jitter1X),
+            Math.round(1110 + jitter1Y),
+            Math.round(480 + jitter1X),
+            Math.round(1380 + jitter1Y),
+          ],
+          w: 220,
+          h: 270,
+          track_id: 2,
+        }
+      );
+
+      // Worker 2: Công nhân ở vị trí trung tâm trong khung hình Shorts
+      detections.push({
         class_name: "person",
-        confidence: Math.round((0.95 + Math.sin(elapsedSec) * 0.02) * 100) / 100,
+        confidence: Math.round((0.92 + Math.cos(elapsedSec) * 0.03) * 100) / 100,
         bbox: [
-          Math.round(220 + jitter1X),
-          Math.round(980 + jitter1Y),
-          Math.round(520 + jitter1X),
-          Math.round(1620 + jitter1Y),
+          Math.round(580 + jitter2X),
+          Math.round(720 + jitter2Y),
+          Math.round(860 + jitter2X),
+          Math.round(1350 + jitter2Y),
         ],
-        w: 300,
-        h: 640,
-        track_id: worker1Id,
-      },
-      {
-        class_name: "helmet",
-        confidence: 0.94,
-        bbox: [
-          Math.round(310 + jitter1X),
-          Math.round(980 + jitter1Y),
-          Math.round(440 + jitter1X),
-          Math.round(1110 + jitter1Y),
-        ],
-        w: 130,
-        h: 130,
-        track_id: 1,
-      },
-      {
+        w: 280,
+        h: 630,
+        track_id: worker2Id,
+      });
+
+      // Mũ của Worker 2 (tạm tháo nếu vi phạm mũ)
+      if (!isViolationCandidate || !isHelmetRuleActive) {
+        detections.push({
+          class_name: "helmet",
+          confidence: 0.91,
+          bbox: [
+            Math.round(660 + jitter2X),
+            Math.round(720 + jitter2Y),
+            Math.round(790 + jitter2X),
+            Math.round(840 + jitter2Y),
+          ],
+          w: 130,
+          h: 120,
+          track_id: 3,
+        });
+      }
+
+      // Áo phản quang của Worker 2
+      detections.push({
         class_name: "safety_vest",
-        confidence: 0.93,
+        confidence: 0.92,
         bbox: [
-          Math.round(260 + jitter1X),
-          Math.round(1110 + jitter1Y),
-          Math.round(480 + jitter1X),
-          Math.round(1380 + jitter1Y),
+          Math.round(610 + jitter2X),
+          Math.round(840 + jitter2Y),
+          Math.round(830 + jitter2X),
+          Math.round(1100 + jitter2Y),
         ],
         w: 220,
-        h: 270,
-        track_id: 2,
-      }
-    );
-
-    // Worker 2: Công nhân ở vị trí trung tâm trong khung hình Shorts
-    detections.push({
-      class_name: "person",
-      confidence: Math.round((0.92 + Math.cos(elapsedSec) * 0.03) * 100) / 100,
-      bbox: [
-        Math.round(580 + jitter2X),
-        Math.round(720 + jitter2Y),
-        Math.round(860 + jitter2X),
-        Math.round(1350 + jitter2Y),
-      ],
-      w: 280,
-      h: 630,
-      track_id: worker2Id,
-    });
-
-    // Mũ của Worker 2 (tạm tháo nếu vi phạm mũ)
-    if (!isViolationCandidate || !isHelmetRuleActive) {
-      detections.push({
-        class_name: "helmet",
-        confidence: 0.91,
-        bbox: [
-          Math.round(660 + jitter2X),
-          Math.round(720 + jitter2Y),
-          Math.round(790 + jitter2X),
-          Math.round(840 + jitter2Y),
-        ],
-        w: 130,
-        h: 120,
-        track_id: 3,
+        h: 260,
+        track_id: 4,
       });
     }
-
-    // Áo phản quang của Worker 2
-    detections.push({
-      class_name: "safety_vest",
-      confidence: 0.92,
-      bbox: [
-        Math.round(610 + jitter2X),
-        Math.round(840 + jitter2Y),
-        Math.round(830 + jitter2X),
-        Math.round(1100 + jitter2Y),
-      ],
-      w: 220,
-      h: 260,
-      track_id: 4,
-    });
   } else {
     // ── NGUỒN VIDEO NGANG (16:9 CHUẨN FULL HD: 1920 x 1080) ──
     // Worker 1: Góc phải gần camera (Tuân thủ tốt)
@@ -424,13 +485,31 @@ export function generateLiveFrameEntry(
     : [worker1Id, worker2Id, worker3Id];
 
   const personTracks: ComputedPersonTrack[] = activeWorkerIds.map((wid) => {
-    const isViolatingWorker = wid === worker2Id && isViolationCandidate;
+    const noHelmetFrames = new Set<number>();
+    const noVestFrames = new Set<number>();
+    const maxF = Math.max(frameNum, 350);
+    const allFrames = Array.from({ length: maxF }, (_, i) => i + 1);
+
+    if (wid === worker2Id && isHelmetRuleActive) {
+      // Worker 2 vi phạm thiếu mũ bảo hộ trong khoảng giây 10 đến 24 ở mỗi chu kỳ 45s
+      const cyclesToSimulate = Math.max(1, Math.floor(maxF / (45 * fps)) + 1);
+      for (let c = 0; c < cyclesToSimulate; c++) {
+        const startF = Math.floor((c * 45 + 10) * fps) + 1;
+        const endF = Math.min(Math.floor((c * 45 + 24) * fps), maxF);
+        for (let f = startF; f <= endF; f++) {
+          noHelmetFrames.add(f);
+        }
+      }
+    }
+
+    const okFrames = allFrames.filter((f) => !noHelmetFrames.has(f) && !noVestFrames.has(f));
+
     return {
       id: wid,
-      frames: Array.from({ length: Math.min(frameNum, 500) }, (_, i) => i + 1),
-      okFrames: Array.from({ length: Math.min(frameNum, 500) }, (_, i) => i + 1),
-      noHelmetFrames: isViolatingWorker ? new Set<number>([frameNum]) : new Set<number>(),
-      noVestFrames: new Set<number>(),
+      frames: allFrames,
+      okFrames,
+      noHelmetFrames,
+      noVestFrames,
       unknownCount: 0,
     };
   });
@@ -501,4 +580,78 @@ export function generateLiveFrameEntry(
   };
 
   return { entry, violations, personTracks };
+}
+
+/**
+ * Định dạng danh sách frames thành các dải liên tục (VD: "1-3, 5, 7-9")
+ * Khớp hoàn toàn với logic ranges(frames) của Video Intelligence Test UI (127.0.0.1:8000)
+ */
+export function formatFrameRanges(frames: number[] | Set<number>): string {
+  const arr = Array.isArray(frames) ? [...frames] : Array.from(frames);
+  if (!arr.length) return "";
+  arr.sort((a, b) => a - b);
+  const parts: string[] = [];
+  let start = arr[0],
+    prev = arr[0];
+  for (let i = 1; i < arr.length; i++) {
+    if (arr[i] === prev + 1) {
+      prev = arr[i];
+      continue;
+    }
+    parts.push(start === prev ? `${start}` : `${start}-${prev}`);
+    start = prev = arr[i];
+  }
+  parts.push(start === prev ? `${start}` : `${start}-${prev}`);
+  return parts.join(", ");
+}
+
+/**
+ * Tính toán tóm tắt theo từng người (Person Summary) từ danh sách entries của job log
+ * Khớp hoàn toàn với hàm computePersonTracks() của Test UI
+ */
+export function computePersonTracksFromEntries(
+  entries: FrameLogEntry[]
+): ComputedPersonTrack[] {
+  const persons = new Map<
+    number,
+    {
+      id: number;
+      frames: number[];
+      okFrames: number[];
+      noHelmetFrames: Set<number>;
+      noVestFrames: Set<number>;
+      unknownCount: number;
+    }
+  >();
+
+  entries.forEach((e) => {
+    (e.persons || []).forEach((s) => {
+      let rec = persons.get(s.track_id);
+      if (!rec) {
+        rec = {
+          id: s.track_id,
+          frames: [],
+          okFrames: [],
+          noHelmetFrames: new Set<number>(),
+          noVestFrames: new Set<number>(),
+          unknownCount: 0,
+        };
+        persons.set(s.track_id, rec);
+      }
+      rec.frames.push(e.frame);
+      if (s.status === "UNKNOWN") {
+        rec.unknownCount++;
+      } else {
+        rec.okFrames.push(e.frame);
+        if (s.violations?.includes("no_helmet")) {
+          rec.noHelmetFrames.add(e.frame);
+        }
+        if (s.violations?.includes("no_safety_vest")) {
+          rec.noVestFrames.add(e.frame);
+        }
+      }
+    });
+  });
+
+  return Array.from(persons.values()).sort((a, b) => a.id - b.id);
 }

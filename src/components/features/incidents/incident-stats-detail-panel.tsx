@@ -45,6 +45,7 @@ export interface IncidentStatsDetailPanelProps {
   onFilterStatus?: (status: string) => void;
   onFilterSeverity?: (severity: string) => void;
   onFilterViolation?: (violation: string) => void;
+  onFilterSite?: (siteId: string) => void;
 }
 
 function formatDate(dateInput?: string | Date | null, loc: string = "vi-VN"): string {
@@ -73,6 +74,7 @@ export function IncidentStatsDetailPanel({
   onFilterStatus,
   onFilterSeverity,
   onFilterViolation,
+  onFilterSite,
 }: IncidentStatsDetailPanelProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -468,10 +470,25 @@ export function IncidentStatsDetailPanel({
                         <IncidentStatusBadge status={incident.status} />
                       </div>
                       <p className="text-[10px] sm:text-[11px] text-muted-foreground flex items-center gap-2 truncate mt-0.5">
-                        <span className="flex items-center gap-1 truncate">
-                          <Building2 className="h-3 w-3 shrink-0" />
-                          {incident.siteName || getSiteName(incident.siteId)}
-                        </span>
+                        {onFilterSite && incident.siteId ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onFilterSite(incident.siteId);
+                              onClose();
+                            }}
+                            className="flex items-center gap-1 truncate hover:text-primary transition hover:underline"
+                            title={isVietnamese ? `Lọc theo công trường ${incident.siteName || getSiteName(incident.siteId)}` : "Filter by this site"}
+                          >
+                            <Building2 className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{incident.siteName || getSiteName(incident.siteId)}</span>
+                          </button>
+                        ) : (
+                          <span className="flex items-center gap-1 truncate">
+                            <Building2 className="h-3 w-3 shrink-0" />
+                            {incident.siteName || getSiteName(incident.siteId)}
+                          </span>
+                        )}
                         <span>•</span>
                         <span className="flex items-center gap-1 font-mono">
                           <Camera className="h-3 w-3 shrink-0" />
@@ -561,10 +578,25 @@ export function IncidentStatsDetailPanel({
                       </div>
 
                       <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-muted-foreground truncate mt-0.5">
-                        <span className="flex items-center gap-1 truncate">
-                          <Building2 className="h-3 w-3 shrink-0" />
-                          {incident.siteName || getSiteName(incident.siteId)}
-                        </span>
+                        {onFilterSite && incident.siteId ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onFilterSite(incident.siteId);
+                              onClose();
+                            }}
+                            className="flex items-center gap-1 truncate hover:text-primary transition hover:underline"
+                            title={isVietnamese ? `Lọc theo công trường ${incident.siteName || getSiteName(incident.siteId)}` : "Filter by this site"}
+                          >
+                            <Building2 className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{incident.siteName || getSiteName(incident.siteId)}</span>
+                          </button>
+                        ) : (
+                          <span className="flex items-center gap-1 truncate">
+                            <Building2 className="h-3 w-3 shrink-0" />
+                            {incident.siteName || getSiteName(incident.siteId)}
+                          </span>
+                        )}
                         <span>•</span>
                         <span className="flex items-center gap-1 font-mono">
                           <Camera className="h-3 w-3 shrink-0" />
@@ -702,10 +734,25 @@ export function IncidentStatsDetailPanel({
                           <IncidentStatusBadge status={incident.status} />
                         </div>
                         <p className="text-[10px] sm:text-[11px] text-muted-foreground flex items-center gap-2 truncate mt-0.5">
-                          <span className="flex items-center gap-1 truncate">
-                            <Building2 className="h-3 w-3 shrink-0" />
-                            {incident.siteName || getSiteName(incident.siteId)}
-                          </span>
+                          {onFilterSite && incident.siteId ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onFilterSite(incident.siteId);
+                                onClose();
+                              }}
+                              className="flex items-center gap-1 truncate hover:text-primary transition hover:underline"
+                              title={isVietnamese ? `Lọc theo công trường ${incident.siteName || getSiteName(incident.siteId)}` : "Filter by this site"}
+                            >
+                              <Building2 className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{incident.siteName || getSiteName(incident.siteId)}</span>
+                            </button>
+                          ) : (
+                            <span className="flex items-center gap-1 truncate">
+                              <Building2 className="h-3 w-3 shrink-0" />
+                              {incident.siteName || getSiteName(incident.siteId)}
+                            </span>
+                          )}
                           <span>•</span>
                           <span className="flex items-center gap-1 font-mono">
                             <Camera className="h-3 w-3 shrink-0" />
@@ -847,10 +894,25 @@ export function IncidentStatsDetailPanel({
                           <IncidentStatusBadge status={incident.status} />
                         </div>
                         <p className="text-[10px] sm:text-[11px] text-muted-foreground flex items-center gap-2 truncate mt-0.5">
-                          <span className="flex items-center gap-1 truncate">
-                            <Building2 className="h-3 w-3 shrink-0" />
-                            {incident.siteName || getSiteName(incident.siteId)}
-                          </span>
+                          {onFilterSite && incident.siteId ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onFilterSite(incident.siteId);
+                                onClose();
+                              }}
+                              className="flex items-center gap-1 truncate hover:text-primary transition hover:underline"
+                              title={isVietnamese ? `Lọc theo công trường ${incident.siteName || getSiteName(incident.siteId)}` : "Filter by this site"}
+                            >
+                              <Building2 className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{incident.siteName || getSiteName(incident.siteId)}</span>
+                            </button>
+                          ) : (
+                            <span className="flex items-center gap-1 truncate">
+                              <Building2 className="h-3 w-3 shrink-0" />
+                              {incident.siteName || getSiteName(incident.siteId)}
+                            </span>
+                          )}
                           <span>•</span>
                           <span className="flex items-center gap-1 font-mono">
                             <Camera className="h-3 w-3 shrink-0" />

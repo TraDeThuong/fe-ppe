@@ -13,6 +13,11 @@ import type { PaginationMeta } from "./rbac.types";
 // ============================================================================
 
 export const REPORT_TYPE = {
+  DAILY: "DAILY",
+  WEEKLY: "WEEKLY",
+  MONTHLY: "MONTHLY",
+  VIOLATION_SUMMARY: "VIOLATION_SUMMARY",
+  AI_PERFORMANCE: "AI_PERFORMANCE",
   DAILY_SHIFT: "DAILY_SHIFT",
   WEEKLY_SUMMARY: "WEEKLY_SUMMARY",
   MONTHLY_COMPLIANCE: "MONTHLY_COMPLIANCE",

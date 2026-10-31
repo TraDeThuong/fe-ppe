@@ -1,6 +1,6 @@
 "use client";
 
-import { PieChart, ShieldAlert } from "lucide-react";
+import { PieChart } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 import type { ViolationTypeStatDto } from "@/types";
 
@@ -10,17 +10,13 @@ export interface ReportViolationDonutProps {
 }
 
 export function ReportViolationDonut({
-  distribution = [
-    { violationType: "NO_HELMET", count: 104, percentage: 56.5, severityBreakdown: { LOW: 10, MEDIUM: 34, HIGH: 48, CRITICAL: 12 } },
-    { violationType: "NO_VEST", count: 58, percentage: 31.5, severityBreakdown: { LOW: 8, MEDIUM: 26, HIGH: 20, CRITICAL: 4 } },
-    { violationType: "RESTRICTED_AREA", count: 22, percentage: 12.0, severityBreakdown: { LOW: 0, MEDIUM: 4, HIGH: 10, CRITICAL: 8 } },
-  ],
+  distribution = [],
   loading = false,
 }: ReportViolationDonutProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  const total = distribution.reduce((acc, cur) => acc + cur.count, 0) || 184;
+  const total = distribution.reduce((acc, cur) => acc + cur.count, 0);
 
   const getLabel = (type: string) => {
     switch (type) {
@@ -30,6 +26,8 @@ export function ReportViolationDonut({
         return isVietnamese ? "Không mặc áo phản quang" : "No High-Vis Vest";
       case "RESTRICTED_AREA":
         return isVietnamese ? "Xâm nhập vùng cấm" : "Restricted Zone Intrusion";
+      case "MULTI_VIOLATION":
+        return isVietnamese ? "Đa vi phạm PPE" : "Multiple PPE Violations";
       default:
         return type;
     }
@@ -76,76 +74,91 @@ export function ReportViolationDonut({
           </h4>
         </div>
         <span className="text-xs text-muted-foreground font-medium">
-          {total} vi phạm
+          {total} {isVietnamese ? "vi phạm" : "violations"}
         </span>
       </div>
 
       {/* Donut Chart & Legend Row */}
-      <div className="flex flex-col sm:flex-row items-center gap-6 justify-center">
-        {/* SVG Donut */}
-        <div className="relative flex h-36 w-36 shrink-0 items-center justify-center">
-          <svg className="h-full w-full -rotate-90" viewBox="0 0 140 140">
-            {/* Background Circle */}
-            <circle
-              cx="70"
-              cy="70"
-              r={radius}
-              fill="transparent"
-              stroke="currentColor"
-              className="text-border/30"
-              strokeWidth="16"
-            />
-
-            {/* Slices */}
-            {slices.map((slice) => (
+      {loading ? (
+        <div className="flex h-48 items-center justify-center text-xs text-muted-foreground">
+          {t("common.loading")}
+        </div>
+      ) : distribution.length === 0 || total === 0 ? (
+        <div className="flex h-48 flex-col items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+          <PieChart className="h-6 w-6 opacity-40" />
+          <span>
+            {isVietnamese
+              ? "Chưa có dữ liệu phân loại vi phạm trong khoảng thời gian đã chọn."
+              : "No violation breakdown data for the selected period."}
+          </span>
+        </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row items-center gap-6 justify-center">
+          {/* SVG Donut */}
+          <div className="relative flex h-36 w-36 shrink-0 items-center justify-center">
+            <svg className="h-full w-full -rotate-90" viewBox="0 0 140 140">
+              {/* Background Circle */}
               <circle
-                key={slice.violationType}
                 cx="70"
                 cy="70"
                 r={radius}
                 fill="transparent"
-                stroke={slice.color}
+                stroke="currentColor"
+                className="text-border/30"
                 strokeWidth="16"
-                strokeDasharray={slice.strokeDasharray}
-                strokeDashoffset={slice.strokeDashoffset}
-                strokeLinecap="round"
-                className="transition-all duration-500"
               />
-            ))}
-          </svg>
 
-          {/* Centered Total */}
-          <div className="absolute flex flex-col items-center justify-center text-center">
-            <span className="text-xl font-bold text-foreground">{total}</span>
-            <span className="text-[10px] text-muted-foreground uppercase font-medium">
-              {isVietnamese ? "Vi phạm" : "Violations"}
-            </span>
+              {/* Slices */}
+              {slices.map((slice) => (
+                <circle
+                  key={slice.violationType}
+                  cx="70"
+                  cy="70"
+                  r={radius}
+                  fill="transparent"
+                  stroke={slice.color}
+                  strokeWidth="16"
+                  strokeDasharray={slice.strokeDasharray}
+                  strokeDashoffset={slice.strokeDashoffset}
+                  strokeLinecap="round"
+                  className="transition-all duration-500"
+                />
+              ))}
+            </svg>
+
+            {/* Centered Total */}
+            <div className="absolute flex flex-col items-center justify-center text-center">
+              <span className="text-xl font-bold text-foreground">{total}</span>
+              <span className="text-[10px] text-muted-foreground uppercase font-medium">
+                {isVietnamese ? "Vi phạm" : "Violations"}
+              </span>
+            </div>
+          </div>
+
+          {/* Legend & Breakdown List */}
+          <div className="w-full space-y-2.5 text-xs">
+            {slices.map((slice) => (
+              <div key={slice.violationType} className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-foreground font-medium">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: slice.color }}
+                    />
+                    {getLabel(slice.violationType)}
+                  </span>
+                  <span className="font-bold text-foreground">
+                    {slice.percentage.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="text-[11px] text-muted-foreground pl-4.5">
+                  {slice.count} {isVietnamese ? "vụ vi phạm" : "violations"}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-
-        {/* Legend & Breakdown List */}
-        <div className="w-full space-y-2.5 text-xs">
-          {slices.map((slice) => (
-            <div key={slice.violationType} className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-foreground font-medium">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: slice.color }}
-                  />
-                  {getLabel(slice.violationType)}
-                </span>
-                <span className="font-bold text-foreground">
-                  {slice.percentage.toFixed(1)}%
-                </span>
-              </div>
-              <div className="text-[11px] text-muted-foreground pl-4.5">
-                {slice.count} {isVietnamese ? "vụ vi phạm" : "violations"}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

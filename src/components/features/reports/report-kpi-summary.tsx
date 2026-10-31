@@ -13,6 +13,7 @@ import { StatsCard } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
 import type {
   CameraStatDto,
+  IncidentItem,
   ReportGenerationDto,
   ReportTemplateDto,
   SiteItem,
@@ -37,6 +38,7 @@ export interface ReportKpiSummaryProps {
   templates?: ReportTemplateDto[];
   history?: ReportGenerationDto[];
   sites?: SiteItem[];
+  incidents?: IncidentItem[];
   onGenerateReport?: (template?: ReportTemplateDto) => void;
 }
 
@@ -52,9 +54,11 @@ export function ReportKpiSummary({
   templates = [],
   history = [],
   sites = [],
+  incidents = [],
   onGenerateReport,
 }: ReportKpiSummaryProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const [internalSelectedStat, setInternalSelectedStat] =
     useState<ReportStatKey | null>(null);
@@ -71,21 +75,14 @@ export function ReportKpiSummary({
     }
   };
 
-  const totalViolations = summary?.totalIncidents || 184;
-  const complianceRate =
-    summary && summary.complianceRate > 0
-      ? `${summary.complianceRate.toFixed(1)}%`
-      : "94.5%";
-  const mttr =
-    summary && summary.meanTimeToResolveHours > 0
-      ? `${summary.meanTimeToResolveHours.toFixed(1)} giờ`
-      : "1.8 giờ";
-  const effectiveReportsCount =
-    reportsCount && reportsCount > 0
-      ? reportsCount
-      : history.length > 0
-      ? history.length
-      : 18;
+  const totalViolations = summary?.totalIncidents ?? 0;
+  const complianceRate = summary
+    ? `${summary.complianceRate.toFixed(1)}%`
+    : "0.0%";
+  const mttr = summary
+    ? `${summary.meanTimeToResolveHours.toFixed(1)} ${isVietnamese ? "giờ" : "hrs"}`
+    : `0.0 ${isVietnamese ? "giờ" : "hrs"}`;
+  const effectiveReportsCount = reportsCount ?? history.length ?? 0;
 
   // Hiệu ứng chìm sâu (neumorphic sunken) khi card được chọn:
   // - Chìm xuống dưới (translate-y-1.5)
@@ -229,6 +226,7 @@ export function ReportKpiSummary({
           templates={templates}
           history={history}
           sites={sites}
+          incidents={incidents}
           onClose={() => handleToggle(activeStat)}
           onGenerateReport={onGenerateReport}
         />

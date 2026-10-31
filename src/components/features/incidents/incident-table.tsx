@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Building2, Camera, CheckSquare, Eye, Shield, UserCheck, Video } from "lucide-react";
+import { AlertTriangle, Building2, Camera, CheckSquare, ExternalLink, Eye, Shield, UserCheck, Video } from "lucide-react";
 import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
 import { useLocale } from "@/providers/locale-provider";
@@ -13,6 +13,7 @@ export interface IncidentTableProps {
   onReview?: (incident: IncidentItem) => void;
   onResolve?: (incident: IncidentItem) => void;
   onAssign?: (incident: IncidentItem) => void;
+  onFilterSite?: (siteId: string) => void;
   loading?: boolean;
 }
 
@@ -21,6 +22,7 @@ export function IncidentTable({
   onReview,
   onResolve,
   onAssign,
+  onFilterSite,
   loading = false,
 }: IncidentTableProps) {
   const { t, locale } = useLocale();
@@ -96,10 +98,10 @@ export function IncidentTable({
 
               {/* Card Body: Thumbnail & Details */}
               <div className="flex gap-3 py-3">
-                <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-xl bg-black/40 border border-border/40">
-                  {incident.snapshotUrl || incident.evidences?.[0]?.storageKey ? (
+                <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-xl bg-slate-950/80 border border-border/40">
+                  {incident.snapshotUrl ? (
                     <img
-                      src={incident.snapshotUrl || `/api/v1/evidences/${incident.evidences?.[0]?.id}/download-url`}
+                      src={incident.snapshotUrl}
                       alt="Evidence"
                       className="h-full w-full object-cover"
                       onError={(e) => {
@@ -107,8 +109,9 @@ export function IncidentTable({
                       }}
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
-                      No Pic
+                    <div className="flex h-full w-full flex-col items-center justify-center text-[10px] text-muted-foreground p-1 text-center bg-slate-900/40">
+                      <Camera className="h-4 w-4 text-primary/70 mb-0.5" />
+                      <span className="text-[9px] font-mono font-semibold line-clamp-1">{incident.violationType.replace('_', ' ')}</span>
                     </div>
                   )}
                 </div>
@@ -123,10 +126,15 @@ export function IncidentTable({
 
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pt-0.5 text-[11px] text-muted-foreground">
                     {siteName && (
-                      <span className="inline-flex items-center gap-1 font-medium text-foreground">
+                      <button
+                        type="button"
+                        onClick={() => onFilterSite?.(incident.siteId)}
+                        className="inline-flex items-center gap-1 font-medium text-foreground hover:text-primary transition"
+                        title={isVietnamese ? `Lọc xem sự cố của công trường ${siteName}` : `Filter by site ${siteName}`}
+                      >
                         <Building2 className="h-3 w-3 text-primary shrink-0" />
                         <span className="truncate max-w-[120px]">{siteName}</span>
-                      </span>
+                      </button>
                     )}
                     {cameraCode && (
                       <span className="inline-flex items-center gap-1 font-mono font-bold text-primary">
@@ -232,10 +240,10 @@ export function IncidentTable({
                   {/* Incident Code & Thumbnail */}
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="relative h-11 w-16 shrink-0 overflow-hidden rounded-lg bg-black/40 border border-border/40">
-                        {incident.snapshotUrl || incident.evidences?.[0]?.storageKey ? (
+                      <div className="relative h-11 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-950/80 border border-border/40">
+                        {incident.snapshotUrl ? (
                           <img
-                            src={incident.snapshotUrl || `/api/v1/evidences/${incident.evidences?.[0]?.id}/download-url`}
+                            src={incident.snapshotUrl}
                             alt="Evidence"
                             className="h-full w-full object-cover"
                             onError={(e) => {
@@ -243,8 +251,9 @@ export function IncidentTable({
                             }}
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-[10px] text-muted-foreground">
-                            No Pic
+                          <div className="flex h-full w-full flex-col items-center justify-center text-[9px] text-muted-foreground p-0.5 text-center bg-slate-900/40">
+                            <Camera className="h-3.5 w-3.5 text-primary/70" />
+                            <span className="text-[8px] font-mono font-bold">{incident.violationType.slice(0, 8)}</span>
                           </div>
                         )}
                       </div>
@@ -284,18 +293,32 @@ export function IncidentTable({
                       return (
                         <div className="flex flex-col gap-0.5 text-xs">
                           {incident.siteId ? (
-                            <Link
-                              href={`/sites/${incident.siteId}`}
-                              className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-primary transition hover:underline"
-                              title={
-                                isVietnamese
-                                  ? `Mở trung tâm điều hành của công trường ${siteName}`
-                                  : `Open control center for site ${siteName}`
-                              }
-                            >
-                              <Building2 className="h-3 w-3 text-primary shrink-0" />
-                              <span className="line-clamp-1 max-w-[180px]">{siteName}</span>
-                            </Link>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => onFilterSite?.(incident.siteId)}
+                                className="inline-flex items-center gap-1 font-semibold text-foreground hover:text-primary transition hover:underline text-left"
+                                title={
+                                  isVietnamese
+                                    ? `Lọc danh sách theo công trường ${siteName}`
+                                    : `Filter by site ${siteName}`
+                                }
+                              >
+                                <Building2 className="h-3 w-3 text-primary shrink-0" />
+                                <span className="line-clamp-1 max-w-[160px]">{siteName}</span>
+                              </button>
+                              <Link
+                                href={`/sites/${incident.siteId}`}
+                                className="text-muted-foreground hover:text-primary transition p-0.5"
+                                title={
+                                  isVietnamese
+                                    ? `Mở trang chi tiết công trường ${siteName}`
+                                    : `Open site detail page ${siteName}`
+                                }
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </Link>
+                            </div>
                           ) : (
                             <span className="font-medium text-foreground line-clamp-1 max-w-[180px]">
                               {siteName}

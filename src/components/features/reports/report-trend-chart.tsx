@@ -1,6 +1,6 @@
 "use client";
 
-import { LineChart, TrendingUp } from "lucide-react";
+import { LineChart } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 import type { TrendItemDto } from "@/types";
 
@@ -9,22 +9,26 @@ export interface ReportTrendChartProps {
   loading?: boolean;
 }
 
+function formatTrendDate(dateStr: string): string {
+  // YYYY-MM-DD -> DD/MM
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [, m, d] = dateStr.split("-");
+    return `${d}/${m}`;
+  }
+  return dateStr;
+}
+
 export function ReportTrendChart({
-  trends = [
-    { date: "22/10", totalIncidents: 18, trueViolations: 17, falseAlarms: 1, resolvedCount: 16 },
-    { date: "23/10", totalIncidents: 24, trueViolations: 22, falseAlarms: 2, resolvedCount: 21 },
-    { date: "24/10", totalIncidents: 15, trueViolations: 14, falseAlarms: 1, resolvedCount: 15 },
-    { date: "25/10", totalIncidents: 32, trueViolations: 30, falseAlarms: 2, resolvedCount: 29 },
-    { date: "26/10", totalIncidents: 28, trueViolations: 26, falseAlarms: 2, resolvedCount: 25 },
-    { date: "27/10", totalIncidents: 19, trueViolations: 18, falseAlarms: 1, resolvedCount: 18 },
-    { date: "28/10", totalIncidents: 14, trueViolations: 13, falseAlarms: 1, resolvedCount: 12 },
-  ],
+  trends = [],
   loading = false,
 }: ReportTrendChartProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  const maxVal = Math.max(...trends.map((t) => Math.max(t.totalIncidents, t.resolvedCount)), 35);
+  const maxVal = Math.max(
+    ...trends.map((item) => Math.max(item.totalIncidents, item.trueViolations, item.resolvedCount)),
+    5
+  );
   const minVal = 0;
 
   const width = 600;
@@ -35,9 +39,14 @@ export function ReportTrendChart({
   const chartWidth = width - paddingX * 2;
   const chartHeight = height - paddingY * 2;
 
+  const getX = (idx: number, total: number) => {
+    if (total <= 1) return paddingX + chartWidth / 2;
+    return paddingX + (idx / (total - 1)) * chartWidth;
+  };
+
   // Violation Points
   const violationPoints = trends.map((d, idx) => {
-    const x = paddingX + (idx / (trends.length - 1 || 1)) * chartWidth;
+    const x = getX(idx, trends.length);
     const y =
       paddingY +
       chartHeight -
@@ -47,7 +56,7 @@ export function ReportTrendChart({
 
   // Resolved Points
   const resolvedPoints = trends.map((d, idx) => {
-    const x = paddingX + (idx / (trends.length - 1 || 1)) * chartWidth;
+    const x = getX(idx, trends.length);
     const y =
       paddingY +
       chartHeight -
@@ -93,84 +102,143 @@ export function ReportTrendChart({
         </div>
       </div>
 
-      {/* SVG Chart */}
-      <div className="relative w-full overflow-hidden">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-48 overflow-visible">
-          {/* Grid lines */}
-          <line
-            x1={paddingX}
-            y1={paddingY}
-            x2={width - paddingX}
-            y2={paddingY}
-            stroke="currentColor"
-            className="text-border/30"
-            strokeDasharray="4 4"
-          />
-          <line
-            x1={paddingX}
-            y1={paddingY + chartHeight / 2}
-            x2={width - paddingX}
-            y2={paddingY + chartHeight / 2}
-            stroke="currentColor"
-            className="text-border/30"
-            strokeDasharray="4 4"
-          />
-          <line
-            x1={paddingX}
-            y1={height - paddingY}
-            x2={width - paddingX}
-            y2={height - paddingY}
-            stroke="currentColor"
-            className="text-border/40"
-          />
-
-          {/* Violation Line */}
-          <path
-            d={violationPathD}
-            fill="none"
-            stroke="#f43f5e"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-
-          {/* Resolved Line */}
-          <path
-            d={resolvedPathD}
-            fill="none"
-            stroke="#10b981"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-
-          {/* Points */}
-          {violationPoints.map((pt, idx) => (
-            <g key={`v-${idx}`}>
-              <circle cx={pt.x} cy={pt.y} r="4" className="fill-surface stroke-rose-500" strokeWidth="2" />
-              <text
-                x={pt.x}
-                y={height - paddingY + 16}
-                textAnchor="middle"
-                className="text-[10px] fill-muted-foreground font-medium"
-              >
-                {pt.date}
-              </text>
-            </g>
-          ))}
-
-          {resolvedPoints.map((pt, idx) => (
-            <circle
-              key={`r-${idx}`}
-              cx={pt.x}
-              cy={pt.y}
-              r="4"
-              className="fill-surface stroke-emerald-500"
-              strokeWidth="2"
+      {/* SVG Chart or Empty State */}
+      {loading ? (
+        <div className="flex h-48 items-center justify-center text-xs text-muted-foreground">
+          {t("common.loading")}
+        </div>
+      ) : trends.length === 0 ? (
+        <div className="flex h-48 flex-col items-center justify-center gap-2 text-center text-xs text-muted-foreground">
+          <LineChart className="h-6 w-6 opacity-40" />
+          <span>
+            {isVietnamese
+              ? "Chưa có dữ liệu xu hướng vi phạm trong khoảng thời gian đã chọn."
+              : "No violation trend data for the selected period."}
+          </span>
+        </div>
+      ) : (
+        <div className="relative w-full overflow-hidden">
+          <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-48 overflow-visible">
+            {/* Grid lines */}
+            <line
+              x1={paddingX}
+              y1={paddingY}
+              x2={width - paddingX}
+              y2={paddingY}
+              stroke="currentColor"
+              className="text-border/30"
+              strokeDasharray="4 4"
             />
-          ))}
-        </svg>
-      </div>
+            <line
+              x1={paddingX}
+              y1={paddingY + chartHeight / 2}
+              x2={width - paddingX}
+              y2={paddingY + chartHeight / 2}
+              stroke="currentColor"
+              className="text-border/30"
+              strokeDasharray="4 4"
+            />
+            <line
+              x1={paddingX}
+              y1={height - paddingY}
+              x2={width - paddingX}
+              y2={height - paddingY}
+              stroke="currentColor"
+              className="text-border/40"
+            />
+
+            {/* Y-axis labels */}
+            <text
+              x={paddingX - 8}
+              y={paddingY + 4}
+              textAnchor="end"
+              className="text-[10px] fill-muted-foreground font-mono"
+            >
+              {maxVal}
+            </text>
+            <text
+              x={paddingX - 8}
+              y={paddingY + chartHeight / 2 + 4}
+              textAnchor="end"
+              className="text-[10px] fill-muted-foreground font-mono"
+            >
+              {Math.round(maxVal / 2)}
+            </text>
+            <text
+              x={paddingX - 8}
+              y={height - paddingY + 4}
+              textAnchor="end"
+              className="text-[10px] fill-muted-foreground font-mono"
+            >
+              0
+            </text>
+
+            {/* Violation Line */}
+            {violationPoints.length > 1 && (
+              <path
+                d={violationPathD}
+                fill="none"
+                stroke="#f43f5e"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
+
+            {/* Resolved Line */}
+            {resolvedPoints.length > 1 && (
+              <path
+                d={resolvedPathD}
+                fill="none"
+                stroke="#10b981"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
+
+            {/* Points */}
+            {violationPoints.map((pt, idx) => (
+              <g key={`v-${idx}`}>
+                <circle
+                  cx={pt.x}
+                  cy={pt.y}
+                  r="4"
+                  className="fill-surface stroke-rose-500"
+                  strokeWidth="2"
+                />
+                <text
+                  x={pt.x}
+                  y={pt.y - 8}
+                  textAnchor="middle"
+                  className="text-[10px] fill-rose-600 dark:fill-rose-400 font-bold"
+                >
+                  {pt.trueViolations}
+                </text>
+                <text
+                  x={pt.x}
+                  y={height - paddingY + 16}
+                  textAnchor="middle"
+                  className="text-[10px] fill-muted-foreground font-medium"
+                >
+                  {formatTrendDate(pt.date)}
+                </text>
+              </g>
+            ))}
+
+            {resolvedPoints.map((pt, idx) => (
+              <circle
+                key={`r-${idx}`}
+                cx={pt.x}
+                cy={pt.y}
+                r="4"
+                className="fill-surface stroke-emerald-500"
+                strokeWidth="2"
+              />
+            ))}
+          </svg>
+        </div>
+      )}
     </div>
   );
 }

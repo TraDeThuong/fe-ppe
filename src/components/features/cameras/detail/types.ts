@@ -95,6 +95,8 @@ export interface StreamMetadata {
   youtubeId?: string | null;
   aspectRatioLabel: string;
   sourceUrl: string;
+  fps?: number;
+  totalFrames?: number;
 }
 
 export interface AiInspectionConfig {

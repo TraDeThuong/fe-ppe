@@ -22,6 +22,7 @@ export interface IncidentKpiSummaryProps {
   onFilterStatus?: (status: string) => void;
   onFilterSeverity?: (severity: string) => void;
   onFilterViolation?: (violation: string) => void;
+  onFilterSite?: (siteId: string) => void;
 }
 
 export function IncidentKpiSummary({
@@ -36,6 +37,7 @@ export function IncidentKpiSummary({
   onFilterStatus,
   onFilterSeverity,
   onFilterViolation,
+  onFilterSite,
 }: IncidentKpiSummaryProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -195,6 +197,7 @@ export function IncidentKpiSummary({
           onFilterStatus={onFilterStatus}
           onFilterSeverity={onFilterSeverity}
           onFilterViolation={onFilterViolation}
+          onFilterSite={onFilterSite}
         />
       )}
     </div>

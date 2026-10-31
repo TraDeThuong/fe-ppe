@@ -1,7 +1,8 @@
 "use client";
 
-import { AlertOctagon, Camera, Flame } from "lucide-react";
+import { Camera, Flame } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import type { CameraStatDto } from "@/types";
 
 export interface ReportCameraRankingProps {
@@ -10,54 +11,14 @@ export interface ReportCameraRankingProps {
 }
 
 export function ReportCameraRanking({
-  rankings = [
-    {
-      cameraId: "cam-north-01-uuid",
-      cameraName: "CAM-NORTH-01 (Giàn giáo Tầng 5)",
-      totalViolations: 42,
-      confirmedCount: 39,
-      falseAlarmCount: 3,
-      resolvedCount: 38,
-    },
-    {
-      cameraId: "cam-warehouse-03-uuid",
-      cameraName: "CAM-WAREHOUSE-03 (Xưởng Hàn & Cơ khí)",
-      totalViolations: 28,
-      confirmedCount: 26,
-      falseAlarmCount: 2,
-      resolvedCount: 26,
-    },
-    {
-      cameraId: "cam-gate-02-uuid",
-      cameraName: "CAM-GATE-02 (Cổng Kiểm soát Xe Tải)",
-      totalViolations: 18,
-      confirmedCount: 17,
-      falseAlarmCount: 1,
-      resolvedCount: 17,
-    },
-    {
-      cameraId: "cam-tower-04-uuid",
-      cameraName: "CAM-TOWER-04 (Cần trục Tháp số 2)",
-      totalViolations: 14,
-      confirmedCount: 13,
-      falseAlarmCount: 1,
-      resolvedCount: 13,
-    },
-    {
-      cameraId: "cam-zone-b-uuid",
-      cameraName: "CAM-ZONE-B-01 (Khuôn đúc Bê tông)",
-      totalViolations: 11,
-      confirmedCount: 10,
-      falseAlarmCount: 1,
-      resolvedCount: 10,
-    },
-  ],
+  rankings = [],
   loading = false,
 }: ReportCameraRankingProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const { getCamera, getSiteName } = useEntityLookup();
 
-  const maxViolations = Math.max(...rankings.map((r) => r.totalViolations), 45);
+  const maxViolations = Math.max(...rankings.map((r) => r.totalViolations), 1);
 
   const getRankBadge = (idx: number) => {
     if (idx === 0) {
@@ -99,57 +60,91 @@ export function ReportCameraRanking({
           </h4>
         </div>
         <span className="text-xs text-muted-foreground">
-          {isVietnamese ? "Top 5 điểm nóng" : "Top 5 Hotspots"}
+          {isVietnamese
+            ? `${rankings.length} camera ghi nhận vi phạm`
+            : `${rankings.length} cameras with violations`}
         </span>
       </div>
 
       {/* Rankings List */}
-      <div className="space-y-3">
-        {rankings.map((item, idx) => {
-          const pct = Math.round((item.totalViolations / maxViolations) * 100);
-          const resolvePct =
-            item.totalViolations > 0
-              ? Math.round((item.resolvedCount / item.totalViolations) * 100)
-              : 100;
+      {loading ? (
+        <div className="py-8 text-center text-xs text-muted-foreground">
+          {t("common.loading")}
+        </div>
+      ) : rankings.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-2 py-8 text-center text-xs text-muted-foreground">
+          <Camera className="h-6 w-6 opacity-40" />
+          <span>
+            {isVietnamese
+              ? "Chưa có dữ liệu xếp hạng camera vi phạm."
+              : "No camera violation ranking data available."}
+          </span>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {rankings.map((item, idx) => {
+            const pct = Math.round((item.totalViolations / maxViolations) * 100);
+            const resolvePct =
+              item.totalViolations > 0
+                ? Math.round((item.resolvedCount / item.totalViolations) * 100)
+                : 0;
+            const camEntity = getCamera(item.cameraId);
+            const displayLabel =
+              item.cameraName ||
+              (camEntity
+                ? `${camEntity.name} (${camEntity.code})`
+                : `Camera #${item.cameraId.slice(0, 8)}`);
+            const siteLabel = camEntity?.siteId
+              ? getSiteName(camEntity.siteId, "")
+              : "";
 
-          return (
-            <div
-              key={item.cameraId}
-              className="rounded-xl border border-border/30 bg-surface/50 p-3 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.04)] space-y-2"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2.5">
-                  {getRankBadge(idx)}
-                  <span className="font-semibold text-xs text-foreground">
-                    {item.cameraName || item.cameraId}
+            return (
+              <div
+                key={item.cameraId}
+                className="rounded-xl border border-border/30 bg-surface/50 p-3 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.04)] space-y-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {getRankBadge(idx)}
+                    <div className="min-w-0">
+                      <span className="font-semibold text-xs text-foreground truncate block">
+                        {displayLabel}
+                      </span>
+                      {siteLabel && (
+                        <span className="text-[10px] text-muted-foreground truncate block">
+                          {siteLabel}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="font-bold text-xs text-rose-600 dark:text-rose-400 shrink-0">
+                    {item.totalViolations} {isVietnamese ? "vụ" : "cases"}
                   </span>
                 </div>
-                <span className="font-bold text-xs text-rose-600 dark:text-rose-400">
-                  {item.totalViolations} {isVietnamese ? "vụ" : "cases"}
-                </span>
-              </div>
 
-              {/* Progress bar */}
-              <div className="space-y-1">
-                <div className="h-2 w-full rounded-full bg-border/40 overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-amber-500 to-rose-500 rounded-full transition-all duration-500"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>
-                    {isVietnamese ? "Xác nhận:" : "Confirmed:"} {item.confirmedCount} {isVietnamese ? "vụ" : "cases"}
-                  </span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                    {isVietnamese ? "Đã xử lý:" : "Resolved:"} {resolvePct}%
-                  </span>
+                {/* Progress bar */}
+                <div className="space-y-1">
+                  <div className="h-2 w-full rounded-full bg-border/40 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-500 to-rose-500 rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span>
+                      {isVietnamese ? "Xác nhận:" : "Confirmed:"} {item.confirmedCount}{" "}
+                      {isVietnamese ? "vụ" : "cases"}
+                    </span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                      {isVietnamese ? "Đã xử lý:" : "Resolved:"} {resolvePct}% ({item.resolvedCount}/{item.totalViolations})
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

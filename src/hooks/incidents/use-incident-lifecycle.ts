@@ -4,7 +4,31 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/toast";
 import { incidentService } from "@/services/incident.service";
 import { incidentKeys } from "./incident.query-keys";
-import type { CloseIncidentPayload, ResolveIncidentPayload, ReviewIncidentPayload } from "@/types";
+import type {
+  CloseIncidentPayload,
+  CreateIncidentPayload,
+  ResolveIncidentPayload,
+  ReviewIncidentPayload,
+} from "@/types";
+
+export function useCreateIncident() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: CreateIncidentPayload) =>
+      incidentService.createIncident(payload),
+    onSuccess: (createdIncident) => {
+      queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
+      toast.success(
+        `Đã ghi nhận sự cố vi phạm #${createdIncident.id.slice(0, 8)} vào hệ thống thành công.`
+      );
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Không thể tạo sự cố vi phạm.";
+      toast.error(msg);
+    },
+  });
+}
 
 export function useReviewIncident() {
   const queryClient = useQueryClient();

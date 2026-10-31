@@ -3,6 +3,7 @@ import type {
   ChecksumVerifyResult,
   CloseIncidentPayload,
   CreateAssignmentPayload,
+  CreateIncidentPayload,
   IncidentAssignmentItem,
   IncidentCommentItem,
   IncidentItem,
@@ -63,6 +64,15 @@ export const incidentService = {
       params,
     });
     return unwrapPaginated<IncidentItem>(res);
+  },
+
+  /**
+   * POST /api/v1/incidents
+   * Tạo mới một sự cố an toàn lao động PPE.
+   */
+  async createIncident(payload: CreateIncidentPayload): Promise<IncidentItem> {
+    const res = await apiClient.post<unknown>("/incidents", payload);
+    return unwrapData<IncidentItem>(res);
   },
 
   /**

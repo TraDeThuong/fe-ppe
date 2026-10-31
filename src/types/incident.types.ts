@@ -193,6 +193,27 @@ export interface IncidentQueryParams {
   sortOrder?: "asc" | "desc";
 }
 
+export interface CreateIncidentPayload {
+  siteId: string;
+  cameraId: string;
+  violationId?: string | null;
+  violationType: ViolationType | string;
+  severity?: IncidentSeverity | string;
+  status?: "PENDING_REVIEW";
+  detectedAt: string;
+  description?: string | null;
+  initialEvidence?: {
+    cameraId?: string;
+    evidenceType: "SNAPSHOT" | "VIDEO_CLIP";
+    storageKey: string;
+    fileName: string;
+    mimeType: string;
+    fileSize?: number;
+    capturedAt: string;
+    metadata?: Record<string, unknown>;
+  };
+}
+
 export interface ReviewIncidentPayload {
   decision: "CONFIRMED" | "DISMISSED";
   reason?: string;

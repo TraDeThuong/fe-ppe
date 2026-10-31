@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Calendar, FileSpreadsheet, FileText, Loader2, Send } from "lucide-react";
+import { useEffect, useState } from "react";
+import { FileSpreadsheet, FileText, Loader2, Send } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
@@ -13,8 +13,19 @@ export interface GenerateReportModalProps {
   templates: ReportTemplateDto[];
   sites: SiteItem[];
   selectedTemplate?: ReportTemplateDto | null;
+  defaultSiteId?: string;
   onSubmit: (dto: GenerateReportDto) => Promise<void>;
   loading?: boolean;
+}
+
+function inferReportTypeFromCode(code?: string): string {
+  if (!code) return "DAILY";
+  const upper = code.toUpperCase();
+  if (upper.includes("WEEKLY")) return "WEEKLY";
+  if (upper.includes("MONTHLY")) return "MONTHLY";
+  if (upper.includes("VIOLATION")) return "VIOLATION_SUMMARY";
+  if (upper.includes("AI")) return "AI_PERFORMANCE";
+  return "DAILY";
 }
 
 export function GenerateReportModal({
@@ -23,6 +34,7 @@ export function GenerateReportModal({
   templates,
   sites,
   selectedTemplate,
+  defaultSiteId = "",
   onSubmit,
   loading = false,
 }: GenerateReportModalProps) {
@@ -32,7 +44,8 @@ export function GenerateReportModal({
   const [templateId, setTemplateId] = useState(
     selectedTemplate?.id || templates[0]?.id || ""
   );
-  const [siteId, setSiteId] = useState("");
+  const [siteId, setSiteId] = useState(defaultSiteId || sites[0]?.id || "");
+  const [reportType, setReportType] = useState("DAILY");
   const [format, setFormat] = useState<ReportFileType>("PDF");
   const [startDate, setStartDate] = useState(
     new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0]
@@ -41,17 +54,50 @@ export function GenerateReportModal({
     new Date().toISOString().split("T")[0]
   );
 
+  useEffect(() => {
+    if (open) {
+      const targetTpl = selectedTemplate || templates[0] || null;
+      if (targetTpl) {
+        setTemplateId(targetTpl.id);
+        setReportType(inferReportTypeFromCode(targetTpl.code));
+        if (targetTpl.fileType === "EXCEL" || targetTpl.fileType === "CSV") {
+          setFormat("EXCEL");
+        } else {
+          setFormat("PDF");
+        }
+      }
+      if (defaultSiteId) {
+        setSiteId(defaultSiteId);
+      } else if (!siteId && sites[0]?.id) {
+        setSiteId(sites[0].id);
+      }
+    }
+  }, [open, selectedTemplate, templates, defaultSiteId, sites, siteId]);
+
+  const handleTemplateChange = (id: string) => {
+    setTemplateId(id);
+    const found = templates.find((tpl) => tpl.id === id);
+    if (found) {
+      setReportType(inferReportTypeFromCode(found.code));
+      if (found.fileType === "EXCEL" || found.fileType === "CSV") {
+        setFormat("EXCEL");
+      } else {
+        setFormat("PDF");
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!templateId) return;
+    const resolvedSiteId = siteId || sites[0]?.id;
+    if (!templateId || !resolvedSiteId) return;
 
     await onSubmit({
       templateId,
-      siteId: siteId || undefined,
-      reportType: "CUSTOM",
-      periodStart: new Date(startDate).toISOString(),
-      periodEnd: new Date(endDate).toISOString(),
-      format,
+      siteId: resolvedSiteId,
+      reportType,
+      periodStart: startDate,
+      periodEnd: endDate,
     });
 
     onOpenChange(false);
@@ -78,7 +124,7 @@ export function GenerateReportModal({
             form="generate-report-form"
             type="submit"
             variant="primary"
-            disabled={loading}
+            disabled={loading || !templateId || (!siteId && sites.length === 0)}
             className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             {loading ? (
@@ -99,14 +145,38 @@ export function GenerateReportModal({
           </label>
           <select
             value={templateId}
-            onChange={(e) => setTemplateId(e.target.value)}
+            onChange={(e) => handleTemplateChange(e.target.value)}
+            required
             className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--neu-inset)] border border-[var(--neu-border)] text-sm text-[var(--neu-text-primary)] focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
+            {templates.length === 0 && (
+              <option value="">
+                {isVietnamese ? "Chưa có mẫu báo cáo" : "No templates available"}
+              </option>
+            )}
             {templates.map((tpl) => (
               <option key={tpl.id} value={tpl.id}>
                 {tpl.name} ({tpl.fileType})
               </option>
             ))}
+          </select>
+        </div>
+
+        {/* Report Type Select */}
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-[var(--neu-text-primary)]">
+            {isVietnamese ? "Loại kỳ báo cáo" : "Report Type"}
+          </label>
+          <select
+            value={reportType}
+            onChange={(e) => setReportType(e.target.value)}
+            className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--neu-inset)] border border-[var(--neu-border)] text-sm text-[var(--neu-text-primary)] focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="DAILY">{isVietnamese ? "Báo cáo Ngày (DAILY)" : "Daily Report (DAILY)"}</option>
+            <option value="WEEKLY">{isVietnamese ? "Báo cáo Tuần (WEEKLY)" : "Weekly Report (WEEKLY)"}</option>
+            <option value="MONTHLY">{isVietnamese ? "Báo cáo Tháng (MONTHLY)" : "Monthly Report (MONTHLY)"}</option>
+            <option value="VIOLATION_SUMMARY">{isVietnamese ? "Tổng hợp Vi phạm (VIOLATION_SUMMARY)" : "Violation Summary"}</option>
+            <option value="AI_PERFORMANCE">{isVietnamese ? "Hiệu năng AI (AI_PERFORMANCE)" : "AI Performance"}</option>
           </select>
         </div>
 
@@ -152,9 +222,9 @@ export function GenerateReportModal({
           <select
             value={siteId}
             onChange={(e) => setSiteId(e.target.value)}
+            required
             className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--neu-inset)] border border-[var(--neu-border)] text-sm text-[var(--neu-text-primary)] focus:outline-none focus:ring-2 focus:ring-primary/30"
           >
-            <option value="">{t("reports.toolbar.allSites")}</option>
             {sites.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name}
