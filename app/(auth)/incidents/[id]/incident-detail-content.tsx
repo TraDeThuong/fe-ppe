@@ -14,12 +14,20 @@ import {
   Loader2,
   RefreshCw,
   ShieldAlert,
+  Sparkles,
   UserCheck,
   Video,
 } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
+import { toast } from "@/lib/toast";
+import type {
+  IncidentItem,
+  IncidentCommentItem,
+  IncidentAssignmentItem,
+  IncidentStatusHistoryItem,
+} from "@/types";
 import {
   IncidentLifecycleStepper,
   IncidentEvidenceViewer,
@@ -51,9 +59,131 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
   const isVietnamese = locale === "vi-VN";
   const router = useRouter();
 
-  // Queries
-  const { data: incident, isLoading, refetch, isRefetching } = useIncidentDetail(id);
-  const { data: comments = [] } = useIncidentComments(id);
+  const isSampleId = Boolean(id) && (id.startsWith("sample") || id.startsWith("mock") || id.startsWith("demo"));
+
+  // Queries (chỉ fetch từ server nếu không phải sample ID)
+  const { data: serverIncident, isLoading, refetch, isRefetching } = useIncidentDetail(id, !isSampleId);
+  const { data: serverComments = [] } = useIncidentComments(id, !isSampleId);
+
+  // Hồ sơ sự cố mẫu giả lập khi truy cập qua mã mô phỏng (ví dụ #sample-5491)
+  const [sampleIncident, setSampleIncident] = useState<IncidentItem | null>(() => {
+    if (!isSampleId) return null;
+    const nowIso = new Date().toISOString();
+    return {
+      id,
+      siteId: "01a1866d-094a-741c-8fe2-d679f1a46780",
+      siteName: "Công trường Khu Nam (Mô Phỏng AI)",
+      zoneId: "01a1866d-094a-741c-8fe2-d679f1a46781",
+      zoneName: "Khu vực Giàn giáo & Lối ra vào công trình",
+      cameraId: "01a18735-39f8-7ea2-822d-1e7765c59c73",
+      cameraName: "Camera 01 - Giám sát toàn cảnh",
+      cameraCode: "CAM-YOUTUBE-099999",
+      violationType: "NO_HELMET",
+      severity: "CRITICAL",
+      status: "PENDING_REVIEW",
+      detectedAt: nowIso,
+      description: `AI Camera quét luồng video phát hiện công nhân vi phạm an toàn PPE (Không đội mũ bảo hộ trong vùng thi công). Đây là hồ sơ sự cố tạo từ phiên quét mô phỏng #${id}.`,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      confidence: 0.96,
+      snapshotUrl: "/images/evidence/camera-01a18735_16ee47ac_f76_red.jpg",
+      evidences: [
+        {
+          id: `ev-${id}-1`,
+          incidentId: id,
+          cameraId: "01a18735-39f8-7ea2-822d-1e7765c59c73",
+          evidenceType: "SNAPSHOT",
+          storageKey: "evidence/camera-01a18735_16ee47ac_f76_red.jpg",
+          fileName: "ai_violation_annotated_red.jpg",
+          mimeType: "image/jpeg",
+          fileSize: 230436,
+          capturedAt: nowIso,
+          createdAt: nowIso,
+          url: "/images/evidence/camera-01a18735_16ee47ac_f76_red.jpg",
+          metadata: {
+            id: `meta-${id}-1`,
+            evidenceId: `ev-${id}-1`,
+            width: 1920,
+            height: 1080,
+            frameRate: 25,
+            checksum: "sha256-16ee47acf44399281a18735redboxannotated",
+            createdAt: nowIso,
+          },
+        },
+        {
+          id: `ev-${id}-2`,
+          incidentId: id,
+          cameraId: "01a18735-39f8-7ea2-822d-1e7765c59c73",
+          evidenceType: "SNAPSHOT",
+          storageKey: "evidence/camera-01a18735_16ee47ac_f76.jpg",
+          fileName: "original_raw_frame.jpg",
+          mimeType: "image/jpeg",
+          fileSize: 230154,
+          capturedAt: nowIso,
+          createdAt: nowIso,
+          url: "/images/evidence/camera-01a18735_16ee47ac_f76.jpg",
+          metadata: {
+            id: `meta-${id}-2`,
+            evidenceId: `ev-${id}-2`,
+            width: 1920,
+            height: 1080,
+            frameRate: 25,
+            checksum: "sha256-76ee47acf44399281a18735originalraw",
+            createdAt: nowIso,
+          },
+        },
+        {
+          id: `ev-${id}-3`,
+          incidentId: id,
+          cameraId: "01a18735-39f8-7ea2-822d-1e7765c59c73",
+          evidenceType: "SNAPSHOT",
+          storageKey: "camera-01a18735-evidence.jpg",
+          fileName: "wide_angle_overview.jpg",
+          mimeType: "image/jpeg",
+          fileSize: 242000,
+          capturedAt: nowIso,
+          createdAt: nowIso,
+          url: "/images/camera-01a18735-evidence.jpg",
+          metadata: {
+            id: `meta-${id}-3`,
+            evidenceId: `ev-${id}-3`,
+            width: 1920,
+            height: 1080,
+            frameRate: 25,
+            checksum: "sha256-01a18735wideanglecontextsnapshot",
+            createdAt: nowIso,
+          },
+        },
+      ],
+      statusHistory: [
+        {
+          id: `sh-${id}-1`,
+          incidentId: id,
+          oldStatus: "NONE",
+          newStatus: "PENDING_REVIEW",
+          changedBy: "AI-SYSTEM",
+          changedByName: "Hệ thống AI YOLOv11 (Mô Phỏng)",
+          changedAt: nowIso,
+          reason: "Tự động phát hiện vi phạm qua luồng Camera Live / YouTube",
+        },
+      ],
+      assignments: [],
+      comments: [
+        {
+          id: `cm-${id}-1`,
+          incidentId: id,
+          userId: "system-ai",
+          userName: "AI Safety Officer (Bot)",
+          userRole: "AI Monitor",
+          comment: `Hệ thống đã tự động ghi nhận sự cố #${id}, phát còi cảnh báo cấp độ CRITICAL và gửi thông báo Toast đến toàn bộ cán bộ an toàn.`,
+          createdAt: nowIso,
+        },
+      ],
+    };
+  });
+
+  const incident = isSampleId ? sampleIncident : serverIncident;
+  const comments = isSampleId ? (sampleIncident?.comments || []) : serverComments;
 
   // Mutations
   const addCommentMutation = useAddIncidentComment();
@@ -67,6 +197,134 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [isResolveOpen, setIsResolveOpen] = useState(false);
   const [isCloseOpen, setIsCloseOpen] = useState(false);
+
+  // Handlers hỗ trợ tương tác trên cả sự cố thật và sự cố mô phỏng
+  const handleSendComment = async (comment: string) => {
+    if (isSampleId) {
+      const newCm: IncidentCommentItem = {
+        id: `cm-${Date.now()}`,
+        incidentId: id,
+        userId: "current-user",
+        userName: "Cán bộ An toàn (Bạn)",
+        userRole: "SAFETY_OFFICER",
+        comment,
+        createdAt: new Date().toISOString(),
+      };
+      setSampleIncident((prev) => (prev ? { ...prev, comments: [newCm, ...(prev.comments || [])] } : null));
+      toast.success(isVietnamese ? "Đã gửi bình luận mô phỏng!" : "Comment added!");
+      return;
+    }
+    await addCommentMutation.mutateAsync({ incidentId: incident!.id, comment });
+  };
+
+  const handleReview = async (reviewId: string, payload: any) => {
+    if (isSampleId) {
+      setSampleIncident((prev) => {
+        if (!prev) return null;
+        const newStatus = payload.action === "CONFIRM" ? "CONFIRMED" : "DISMISSED";
+        const historyItem: IncidentStatusHistoryItem = {
+          id: `sh-${Date.now()}`,
+          incidentId: id,
+          oldStatus: prev.status,
+          newStatus,
+          changedBy: "user",
+          changedByName: "Bạn (Cán bộ giám sát)",
+          changedAt: new Date().toISOString(),
+          reason: payload.note || "Đã thẩm duyệt sự cố",
+        };
+        return {
+          ...prev,
+          status: newStatus,
+          statusHistory: [historyItem, ...(prev.statusHistory || [])],
+        };
+      });
+      setIsReviewOpen(false);
+      toast.success(isVietnamese ? "Đã thẩm duyệt sự cố mô phỏng thành công!" : "Incident reviewed!");
+      return;
+    }
+    await reviewMutation.mutateAsync({ id: reviewId, payload });
+  };
+
+  const handleAssign = async (incidentId: string, payload: any) => {
+    if (isSampleId) {
+      setSampleIncident((prev) => {
+        if (!prev) return null;
+        const assignItem: IncidentAssignmentItem = {
+          id: `as-${Date.now()}`,
+          incidentId: id,
+          assignedTo: payload.assignedTo,
+          assignedToName: "Kỹ sư Giám sát Hiện trường",
+          assignedAt: new Date().toISOString(),
+          status: "PENDING",
+          priority: payload.priority || "HIGH",
+          note: payload.note,
+        };
+        return {
+          ...prev,
+          assignments: [assignItem, ...(prev.assignments || [])],
+        };
+      });
+      setIsAssignOpen(false);
+      toast.success(isVietnamese ? "Đã phân công cán bộ xử lý mô phỏng!" : "Assigned successfully!");
+      return;
+    }
+    await assignMutation.mutateAsync({ incidentId, payload });
+  };
+
+  const handleResolve = async (resolveId: string, payload: any) => {
+    if (isSampleId) {
+      setSampleIncident((prev) => {
+        if (!prev) return null;
+        const historyItem: IncidentStatusHistoryItem = {
+          id: `sh-${Date.now()}`,
+          incidentId: id,
+          oldStatus: prev.status,
+          newStatus: "RESOLVED",
+          changedBy: "user",
+          changedByName: "Bạn (Cán bộ giám sát)",
+          changedAt: new Date().toISOString(),
+          reason: payload.resolutionNote || "Đã khắc phục hiện trường",
+        };
+        return {
+          ...prev,
+          status: "RESOLVED",
+          resolvedAt: new Date().toISOString(),
+          statusHistory: [historyItem, ...(prev.statusHistory || [])],
+        };
+      });
+      setIsResolveOpen(false);
+      toast.success(isVietnamese ? "Đã xác nhận khắc phục sự cố mô phỏng!" : "Resolved successfully!");
+      return;
+    }
+    await resolveMutation.mutateAsync({ id: resolveId, payload });
+  };
+
+  const handleClose = async (closeId: string, payload?: any) => {
+    if (isSampleId) {
+      setSampleIncident((prev) => {
+        if (!prev) return null;
+        const historyItem: IncidentStatusHistoryItem = {
+          id: `sh-${Date.now()}`,
+          incidentId: id,
+          oldStatus: prev.status,
+          newStatus: "CLOSED",
+          changedBy: "user",
+          changedByName: "Bạn (Cán bộ giám sát)",
+          changedAt: new Date().toISOString(),
+          reason: payload?.closingNote || "Đã nghiệm thu và đóng hồ sơ",
+        };
+        return {
+          ...prev,
+          status: "CLOSED",
+          statusHistory: [historyItem, ...(prev.statusHistory || [])],
+        };
+      });
+      setIsCloseOpen(false);
+      toast.success(isVietnamese ? "Đã nghiệm thu và đóng hồ sơ mô phỏng!" : "Incident closed!");
+      return;
+    }
+    await closeMutation.mutateAsync({ id: closeId, payload });
+  };
 
   if (isLoading) {
     return (
@@ -201,6 +459,23 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
         }
       />
 
+      {/* Banner thông báo nếu là sự cố mô phỏng / mẫu */}
+      {isSampleId && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-3.5 text-xs text-amber-200 shadow-sm backdrop-blur-sm">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
+            <span>
+              {isVietnamese
+                ? "Đây là hồ sơ sự cố tạo từ phiên quét mô phỏng kiểm thử AI Camera. Toàn bộ các thao tác Thẩm duyệt, Phân công, Khắc phục và Bình luận đều có thể tương tác trực tiếp."
+                : "This is a simulated incident profile from AI Camera test scan. All actions (Review, Assign, Resolve, Comments) are fully interactive."}
+            </span>
+          </div>
+          <span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-3 py-1 font-mono text-[11px] font-bold tracking-wider text-amber-300">
+            MÔ PHỎNG / SIMULATION
+          </span>
+        </div>
+      )}
+
       {/* Lifecycle Progress Stepper */}
       <IncidentLifecycleStepper status={incident.status} />
 
@@ -210,9 +485,11 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
         <div className="space-y-6 lg:col-span-7">
           <IncidentEvidenceViewer
             evidence={primaryEvidence}
+            evidences={incident.evidences}
             snapshotUrl={incident.snapshotUrl}
             violationType={incident.violationType}
             confidence={incident.confidence}
+            cameraId={incident.cameraId}
           />
 
           <IncidentChecksumVerifier
@@ -233,12 +510,7 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
 
           <IncidentCommentsTimeline
             comments={comments.length > 0 ? comments : incident.comments}
-            onSendComment={async (comment) => {
-              await addCommentMutation.mutateAsync({
-                incidentId: incident.id,
-                comment,
-              });
-            }}
+            onSendComment={handleSendComment}
             loading={addCommentMutation.isPending}
           />
         </div>
@@ -250,9 +522,7 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
         onOpenChange={setIsReviewOpen}
         incident={incident}
         loading={reviewMutation.isPending}
-        onSubmit={async (id, payload) => {
-          await reviewMutation.mutateAsync({ id, payload });
-        }}
+        onSubmit={handleReview}
       />
 
       <AssignIncidentModal
@@ -260,9 +530,7 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
         onOpenChange={setIsAssignOpen}
         incident={incident}
         loading={assignMutation.isPending}
-        onSubmit={async (incidentId, payload) => {
-          await assignMutation.mutateAsync({ incidentId, payload });
-        }}
+        onSubmit={handleAssign}
       />
 
       <ResolveIncidentModal
@@ -270,9 +538,7 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
         onOpenChange={setIsResolveOpen}
         incident={incident}
         loading={resolveMutation.isPending}
-        onSubmit={async (id, payload) => {
-          await resolveMutation.mutateAsync({ id, payload });
-        }}
+        onSubmit={handleResolve}
       />
 
       <CloseIncidentDialog
@@ -280,9 +546,7 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
         onOpenChange={setIsCloseOpen}
         incident={incident}
         loading={closeMutation.isPending}
-        onConfirm={async (id, payload) => {
-          await closeMutation.mutateAsync({ id, payload });
-        }}
+        onConfirm={handleClose}
       />
     </div>
   );

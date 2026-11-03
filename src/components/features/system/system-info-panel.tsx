@@ -9,7 +9,12 @@ export interface SystemInfoPanelProps {
 }
 
 export function SystemInfoPanel({ healthReport }: SystemInfoPanelProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
+
+  const healthy = healthReport?.healthyCount ?? 12;
+  const total = healthReport?.totalServices ?? 12;
+  const latency = healthReport?.averageLatencyMs ?? 24;
 
   const infoItems = [
     {
@@ -48,43 +53,51 @@ export function SystemInfoPanel({ healthReport }: SystemInfoPanelProps) {
       icon: HardDrive,
     },
     {
-      label: "Trạng thái Cụm Dịch vụ",
-      value: `${healthReport?.healthyCount ?? 12}/${healthReport?.totalServices ?? 12} Nodes Khỏe mạnh`,
+      label: t("system.platform.clusterHealth"),
+      value: t("system.platform.clusterHealthValue", { healthy, total }),
       icon: Server,
     },
     {
-      label: "Độ trễ Mạng Trung bình",
-      value: `${healthReport?.averageLatencyMs ?? 24} ms RTT`,
+      label: t("system.platform.networkLatency"),
+      value: t("system.platform.networkLatencyValue", { latency }),
       icon: Activity,
     },
   ];
 
   return (
     <div className="space-y-4">
-      <div>
-        <h3 className="text-base font-semibold text-foreground flex items-center gap-2">
-          <Info className="h-5 w-5 text-primary" />
-          {t("system.platform.title")}
-        </h3>
-        <p className="text-xs text-muted-foreground">
-          Thông số hạ tầng máy chủ, chuẩn giao thức microservices và nhịp tim cluster.
-        </p>
+      <div className="flex items-center gap-2.5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/15">
+          <Info className="h-4.5 w-4.5" />
+        </div>
+        <div>
+          <h3 className="text-sm sm:text-base font-bold text-foreground">
+            {t("system.platform.title")}
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            {t("system.platform.subTitle")}
+          </p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
         {infoItems.map((item) => {
           const Icon = item.icon;
           return (
             <div
               key={item.label}
-              className="flex items-start gap-3 rounded-2xl border border-border/40 bg-surface p-4 shadow-[3px_3px_8px_rgba(0,0,0,0.05),-3px_-3px_8px_rgba(255,255,255,0.7)] dark:shadow-[3px_3px_8px_rgba(0,0,0,0.3)]"
+              className="flex items-start gap-3 rounded-xl sm:rounded-2xl border border-border/40 bg-surface p-4 shadow-[3px_3px_8px_rgba(0,0,0,0.05),-3px_-3px_8px_rgba(255,255,255,0.7)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[6px_8px_16px_rgba(0,0,0,0.08),-4px_-4px_10px_rgba(255,255,255,0.85)] dark:border-black/60 dark:bg-card/90 dark:shadow-[4px_4px_12px_rgba(0,0,0,0.55)] dark:hover:border-black dark:hover:bg-card dark:hover:shadow-[0_16px_28px_rgba(0,0,0,0.95)]"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Icon className="h-4 w-4" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/15">
+                <Icon className="h-4.5 w-4.5" />
               </div>
-              <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">{item.label}</span>
-                <p className="font-mono text-xs font-semibold text-foreground">{item.value}</p>
+              <div className="space-y-1 min-w-0">
+                <span className="text-xs text-muted-foreground block truncate">
+                  {item.label}
+                </span>
+                <p className="font-mono text-xs font-semibold text-foreground truncate">
+                  {item.value}
+                </p>
               </div>
             </div>
           );

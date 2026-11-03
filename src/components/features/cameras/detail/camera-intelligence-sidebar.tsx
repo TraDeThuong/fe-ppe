@@ -106,14 +106,30 @@ export function CameraIntelligenceSidebar({
   const isCurrentFrameViolating = violatingPersons.length > 0;
   const isCurrentFrameCandidate = candidatePersons.length > 0;
 
-  // Lấy ảnh bằng chứng gần nhất
-  const activeEvidencePath =
-    currentEntry?.evidence?.[0]?.path ||
-    (streamMetadata?.youtubeId
-      ? `https://img.youtube.com/vi/${streamMetadata.youtubeId}/hqdefault.jpg`
-      : "/images/camera-live-evidence.jpg");
+  const latestViolation =
+    allViolations.length > 0 ? allViolations[allViolations.length - 1] : undefined;
 
-  const latestViolation = allViolations[0];
+  const safeId = cameraId ? cameraId.replace(/[^a-zA-Z0-9_-]/g, "") : "";
+  const fallbackEvidence =
+    safeId.includes("01a18735")
+      ? "/images/camera-01a18735-evidence.jpg"
+      : safeId.includes("01a19ce7")
+      ? "/images/camera-01a19ce7-evidence.jpg"
+      : safeId.includes("01a19e19")
+      ? "/images/camera-01a19e19-evidence.jpg"
+      : safeId.includes("01a19d07")
+      ? "/images/camera-01a19d07-evidence.jpg"
+      : safeId.includes("01a19cf4")
+      ? "/images/camera-01a19cf4-evidence.jpg"
+      : streamMetadata?.youtubeId
+      ? `https://img.youtube.com/vi/${streamMetadata.youtubeId}/hqdefault.jpg`
+      : "/images/camera-live-evidence.jpg";
+
+  // Lấy ảnh bằng chứng thực tế của đúng vi phạm vừa xác nhận từ video đang phát
+  const activeEvidencePath =
+    latestViolation?.evidence_path ||
+    currentEntry?.evidence?.[0]?.path ||
+    fallbackEvidence;
   const timelineTotalFrames = useMemo(() => {
     if (totalFrames && totalFrames > 0) return totalFrames;
 
@@ -392,29 +408,51 @@ export function CameraIntelligenceSidebar({
 
               {/* Thumbnail snapshot bằng chứng vi phạm */}
               <div className="flex items-center gap-2 pt-1">
-                <div
-                  onClick={() => onViewSnapshot?.(activeEvidencePath)}
-                  className="group relative cursor-pointer overflow-hidden rounded-lg border border-rose-500/40 bg-black h-14 w-24 shrink-0 hover:opacity-90 transition shadow-sm"
-                  title={isVietnamese ? "Xem ảnh bằng chứng phóng to" : "Zoom evidence snapshot"}
-                >
-                  <img
-                    src={activeEvidencePath}
-                    alt="Evidence Thumbnail"
-                    className="h-full w-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
-                    <Eye className="h-3.5 w-3.5" />
+                {activeEvidencePath ? (
+                  <div
+                    onClick={() => onViewSnapshot?.(activeEvidencePath)}
+                    className="group relative cursor-pointer overflow-hidden rounded-lg border border-rose-500/40 bg-black h-14 w-24 shrink-0 hover:opacity-90 transition shadow-sm"
+                    title={isVietnamese ? "Xem ảnh bằng chứng phóng to" : "Zoom evidence snapshot"}
+                  >
+                    <img
+                      src={activeEvidencePath}
+                      alt="Evidence Thumbnail"
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        if (fallbackEvidence && !e.currentTarget.src.includes(fallbackEvidence)) {
+                          e.currentTarget.src = fallbackEvidence;
+                        }
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
+                      <Eye className="h-3.5 w-3.5" />
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div
+                    onClick={() => onSnapshot?.()}
+                    className="group relative cursor-pointer overflow-hidden rounded-lg border border-rose-500/40 bg-neutral-900 h-14 w-24 shrink-0 hover:opacity-90 transition shadow-sm flex flex-col items-center justify-center text-[10px] text-rose-400 font-semibold"
+                    title={isVietnamese ? "Chụp khung hình hiện tại từ video" : "Capture current video frame"}
+                  >
+                    <Camera className="h-4 w-4 mb-0.5" />
+                    <span>Frame {latestViolation.frame}</span>
+                  </div>
+                )}
 
                 <div className="flex-1 flex flex-col justify-between h-14 py-0.5">
                   <span className="text-[10px] text-muted-foreground font-mono">
-                    Snapshot VI-08 • MinIO S3
+                    Snapshot VI-08 • Frame {latestViolation.frame}
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => onViewSnapshot?.(activeEvidencePath)}
+                    onClick={() => {
+                      if (activeEvidencePath) {
+                        onViewSnapshot?.(activeEvidencePath);
+                      } else {
+                        onSnapshot?.();
+                      }
+                    }}
                     className="h-7 text-[11px] gap-1 text-primary border-primary/30 w-fit"
                   >
                     <Eye className="h-3 w-3" />
@@ -512,20 +550,32 @@ export function CameraIntelligenceSidebar({
           </div>
         </div>
 
-        <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-between text-[11px]">
-          <span className="text-muted-foreground">
-            {isVietnamese ? "Sự cố lưu trong DB:" : "Database Incidents:"}{" "}
-            <strong className="text-foreground">{realIncidentsCount}</strong>
-          </span>
+        {cameraId === "ai-sandbox" ? (
+          <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-between text-[11px]">
+            <span className="text-xs text-amber-500 font-medium flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+              {isVietnamese ? "Chế độ Sandbox (Cách ly CSDL)" : "Sandbox Mode (Isolated from DB)"}
+            </span>
+            <Badge variant="outline" size="sm" className="text-[10px] text-muted-foreground border-amber-500/30">
+              {isVietnamese ? "Không lưu DB" : "No DB writes"}
+            </Badge>
+          </div>
+        ) : (
+          <div className="mt-3 pt-3 border-t border-border/30 flex items-center justify-between text-[11px]">
+            <span className="text-muted-foreground">
+              {isVietnamese ? "Sự cố lưu trong DB:" : "Database Incidents:"}{" "}
+              <strong className="text-foreground">{realIncidentsCount}</strong>
+            </span>
 
-          <Link
-            href={`/incidents?cameraId=${cameraId}&cameraCode=${cameraCode}`}
-            className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
-          >
-            <span>{isVietnamese ? "Mở danh sách sự cố" : "View Incidents"}</span>
-            <ExternalLink className="h-3 w-3" />
-          </Link>
-        </div>
+            <Link
+              href={`/incidents?cameraId=${cameraId}&cameraCode=${cameraCode}`}
+              className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+            >
+              <span>{isVietnamese ? "Mở danh sách sự cố" : "View Incidents"}</span>
+              <ExternalLink className="h-3 w-3" />
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

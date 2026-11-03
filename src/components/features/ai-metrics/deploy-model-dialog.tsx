@@ -28,19 +28,23 @@ export function DeployModelDialog({
 
   if (!candidateVersion) return null;
 
-  const currentMap = activeVersion?.metrics?.mAP50
-    ? `${((activeVersion.metrics.mAP50 as number) * 100).toFixed(1)}%`
-    : "94.8%";
-  const candidateMap = candidateVersion.metrics?.mAP50
-    ? `${((candidateVersion.metrics.mAP50 as number) * 100).toFixed(1)}%`
-    : "96.2%";
+  const currentMap =
+    typeof activeVersion?.metrics?.mAP50 === "number"
+      ? `${(activeVersion.metrics.mAP50 * 100).toFixed(1)}%`
+      : "--";
+  const candidateMap =
+    typeof candidateVersion.metrics?.mAP50 === "number"
+      ? `${(candidateVersion.metrics.mAP50 * 100).toFixed(1)}%`
+      : "--";
 
-  const currentLatency = activeVersion?.metrics?.latencyMs
-    ? `${(activeVersion.metrics.latencyMs as number).toFixed(1)} ms`
-    : "32.4 ms";
-  const candidateLatency = candidateVersion.metrics?.latencyMs
-    ? `${(candidateVersion.metrics.latencyMs as number).toFixed(1)} ms`
-    : "28.5 ms";
+  const currentLatency =
+    typeof activeVersion?.metrics?.latencyMs === "number"
+      ? `${activeVersion.metrics.latencyMs.toFixed(1)} ms`
+      : "--";
+  const candidateLatency =
+    typeof candidateVersion.metrics?.latencyMs === "number"
+      ? `${candidateVersion.metrics.latencyMs.toFixed(1)} ms`
+      : "--";
 
   const handleConfirm = async () => {
     await onConfirm(candidateVersion.modelId, candidateVersion.id);
@@ -69,12 +73,12 @@ export function DeployModelDialog({
                 {t("aiMetrics.deploy.current")}
               </span>
               <div className="font-bold text-foreground text-sm">
-                {activeVersion?.version || "v2.1.0-STABLE"}
+                {activeVersion?.version || "--"}
               </div>
               <div className="space-y-1 text-[11px] text-muted-foreground">
                 <div>mAP@50: <span className="text-foreground font-semibold">{currentMap}</span></div>
                 <div>{isVietnamese ? "Độ trễ:" : "Latency:"} <span className="text-foreground font-semibold">{currentLatency}</span></div>
-                <div>Framework: {activeVersion?.framework || "TENSORRT"}</div>
+                <div>Framework: {activeVersion?.framework || "--"}</div>
               </div>
             </div>
 

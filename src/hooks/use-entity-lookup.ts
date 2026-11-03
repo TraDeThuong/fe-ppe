@@ -15,7 +15,7 @@ import type { CameraItem, SiteItem, ZoneItem } from "@/types";
  */
 export function useEntityLookup() {
   const { data: sitesData, isLoading: sitesLoading } = useSites({ limit: 100 });
-  const { data: camerasData, isLoading: camerasLoading } = useCameras({ limit: 200 });
+  const { data: camerasData, isLoading: camerasLoading } = useCameras({ limit: 100 });
 
   const sites = useMemo(() => sitesData?.items ?? [], [sitesData]);
   const cameras = useMemo(() => camerasData?.items ?? [], [camerasData]);

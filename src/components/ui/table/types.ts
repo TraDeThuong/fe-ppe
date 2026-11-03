@@ -45,6 +45,8 @@ export interface TableProps<TData extends RowData> {
   loading?: boolean;
   emptyMessage?: string;
   className?: string;
+  /** Removes the specular white top edge for surfaces embedded in a muted parent card. */
+  hideTopHighlight?: boolean;
 
   getRowId?: (
     originalRow: TData,

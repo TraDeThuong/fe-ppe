@@ -5,6 +5,7 @@
  */
 type EventMap = {
   "auth:session-expired": void;
+  "system:maintenance-active": void;
 };
 
 class EventBus {

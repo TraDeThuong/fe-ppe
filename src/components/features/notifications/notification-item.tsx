@@ -239,7 +239,7 @@ export function NotificationItem({
         <div className="flex items-center gap-2">
           {notification.incidentId && (
             <Link
-              href={`/incidents?id=${encodeURIComponent(notification.incidentId)}`}
+              href={`/incidents/${encodeURIComponent(notification.incidentId)}`}
               className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-all hover:bg-primary/15 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] active:shadow-[inset_1px_1px_3px_var(--shadow-dark)]"
             >
               <span>{t("notifications.actions.viewIncident")}</span>

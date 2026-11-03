@@ -13,16 +13,9 @@ export interface LatencyChartCardProps {
 }
 
 export function LatencyChartCard({
-  latencyHistory = [
-    { timestamp: "00:00", latencyMs: 31.2, fps: 30.5 },
-    { timestamp: "04:00", latencyMs: 29.8, fps: 31.0 },
-    { timestamp: "08:00", latencyMs: 35.6, fps: 28.5 },
-    { timestamp: "12:00", latencyMs: 38.2, fps: 27.2 },
-    { timestamp: "16:00", latencyMs: 34.0, fps: 29.8 },
-    { timestamp: "20:00", latencyMs: 32.4, fps: 30.2 },
-  ],
-  avgLatencyMs = 32.4,
-  avgFps = 30.2,
+  latencyHistory = [],
+  avgLatencyMs = 0,
+  avgFps = 0,
 }: LatencyChartCardProps) {
   const { t } = useLocale();
   const gradientId = useId().replace(/:/g, "");
@@ -43,8 +36,8 @@ export function LatencyChartCard({
     ? Math.max(...history.map((point) => point.latencyMs))
     : 100;
 
-  const minVal = Math.min(observedMin, 20);
-  const maxVal = Math.max(observedMax, 50);
+  const minVal = hasData ? Math.max(0, Math.min(observedMin - 4, 10)) : 0;
+  const maxVal = hasData ? Math.max(observedMax + 6, 30) : 50;
 
   const width = 600;
   const height = 220;

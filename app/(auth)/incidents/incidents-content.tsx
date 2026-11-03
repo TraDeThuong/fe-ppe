@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
   ChevronRight,
+  Radio,
   RefreshCw,
   ShieldAlert,
   Trash2,
@@ -13,6 +15,8 @@ import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { useLocale } from "@/providers/locale-provider";
+import { useRealtime } from "@/contexts/RealtimeContext";
+import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import {
   IncidentKpiSummary,
   IncidentFilterToolbar,
@@ -55,15 +59,36 @@ export default function IncidentsContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const { siteId: globalSiteId, setSiteId: setGlobalSiteId } = useSite();
+  const { lastAlert, isConnected } = useRealtime();
 
   const urlCameraId = searchParams.get("cameraId") || "";
   const urlSiteId = searchParams.get("siteId") || "";
 
-  // URL state synchronization for stats (giống trang role)
+  // URL state synchronization for stats
   const statParam = searchParams.get("stat");
   const selectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
 
+  // Filter States: Ưu tiên giá trị từ URL, nếu không có URL thì lấy từ Header globalSiteId
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState(
+    selectedStat === "pendingReview"
+      ? "PENDING_REVIEW"
+      : selectedStat === "resolved"
+      ? "RESOLVED"
+      : ""
+  );
+  const [severityFilter, setSeverityFilter] = useState(
+    selectedStat === "critical" ? "CRITICAL" : ""
+  );
+  const [violationFilter, setViolationFilter] = useState("");
+  const [cameraIdFilter, setCameraIdFilter] = useState(urlCameraId);
+  const [siteIdFilter, setSiteIdFilter] = useState(urlSiteId || globalSiteId || "");
+
+  // Đồng bộ chọn thẻ KPI với bộ lọc bảng
   const handleSelectStat = (stat: IncidentStatKey | null) => {
     const params = new URLSearchParams(searchParams.toString());
     if (stat) {
@@ -73,17 +98,24 @@ export default function IncidentsContent() {
     }
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  };
 
-  // Filter States: Ưu tiên giá trị từ URL, nếu không có URL thì lấy từ Header globalSiteId
-  const [page, setPage] = useState(1);
-  const [limit] = useState(10);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [severityFilter, setSeverityFilter] = useState("");
-  const [violationFilter, setViolationFilter] = useState("");
-  const [cameraIdFilter, setCameraIdFilter] = useState(urlCameraId);
-  const [siteIdFilter, setSiteIdFilter] = useState(urlSiteId);
+    // Tự động lọc bảng theo thẻ KPI được click để dữ liệu hiển thị tức thì, nhất quán
+    setPage(1);
+    if (stat === "pendingReview") {
+      setStatusFilter("PENDING_REVIEW");
+      setSeverityFilter("");
+    } else if (stat === "critical") {
+      setStatusFilter("");
+      setSeverityFilter("CRITICAL");
+    } else if (stat === "resolved") {
+      setStatusFilter("RESOLVED");
+      setSeverityFilter("");
+    } else {
+      // total hoặc null (thu gọn)
+      setStatusFilter("");
+      setSeverityFilter("");
+    }
+  };
 
   // Chuyển đổi công trường: đồng bộ cả state, URL lẫn Header Global SiteContext
   const handleSiteFilterChange = (val: string) => {
@@ -110,47 +142,31 @@ export default function IncidentsContent() {
     const paramCamera = searchParams.get("cameraId") || "";
     setCameraIdFilter(paramCamera);
     const paramSite = searchParams.get("siteId") || "";
-    setSiteIdFilter(paramSite);
+    if (paramSite !== siteIdFilter) {
+      setSiteIdFilter(paramSite);
+    }
   }, [searchParams]);
 
-  // Đồng bộ khi người dùng chủ động chọn đổi site từ Header
-  const hasHydratedRef = useRef(false);
-  const prevGlobalSiteIdRef = useRef<string | null>(globalSiteId);
-
+  // Đồng bộ với Global Site Selector khi người dùng đổi site từ Header
   useEffect(() => {
-    // Trì hoãn một nhịp sau khi mount để bỏ qua việc SiteProvider tự hydrate từ localStorage
-    const timer = setTimeout(() => {
-      hasHydratedRef.current = true;
-      prevGlobalSiteIdRef.current = globalSiteId;
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [globalSiteId]);
+    if (!searchParams.get("siteId") && globalSiteId && globalSiteId !== siteIdFilter) {
+      setSiteIdFilter(globalSiteId);
+      setCameraIdFilter("");
+      setPage(1);
+    }
+  }, [globalSiteId, searchParams, siteIdFilter]);
 
+  // Tự động làm mới dữ liệu thời gian thực khi AI Camera phát hiện vi phạm PPE mới
   useEffect(() => {
-    // Bỏ qua nếu vẫn đang trong giai đoạn khởi tạo/hydrate ban đầu
-    if (!hasHydratedRef.current) {
-      return;
+    if (!lastAlert) return;
+    if (
+      lastAlert.type === "notification:ppe_violation" ||
+      lastAlert.type === "notification:new"
+    ) {
+      queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
+      refetch();
     }
-    if (prevGlobalSiteIdRef.current === globalSiteId) {
-      return;
-    }
-    prevGlobalSiteIdRef.current = globalSiteId;
-
-    const currentSite = globalSiteId || "";
-    setSiteIdFilter(currentSite);
-    setCameraIdFilter("");
-    setPage(1);
-
-    const params = new URLSearchParams(searchParams.toString());
-    if (currentSite) {
-      params.set("siteId", currentSite);
-    } else {
-      params.delete("siteId");
-    }
-    params.delete("cameraId");
-    const q = params.toString();
-    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-  }, [globalSiteId, pathname, router, searchParams]);
+  }, [lastAlert, queryClient]);
 
   // Query Params
   const queryParams: IncidentQueryParams = {
@@ -240,22 +256,45 @@ export default function IncidentsContent() {
         badge={isVietnamese ? "Giám sát An toàn PPE" : "PPE Safety Monitoring"}
         badgeIcon={ShieldAlert}
         actions={
-          <Button
-            variant="ghost"
-            onClick={() => refetch()}
-            disabled={isLoading || isRefetching}
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
-            <span>{t("common.refresh")}</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <span
+              className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                isConnected
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+              }`}
+              title={
+                isConnected
+                  ? (isVietnamese ? "Đang kết nối nhận diện vi phạm tự động thời gian thực" : "Connected to realtime incident detection stream")
+                  : (isVietnamese ? "Đang duy trì kiểm tra định kỳ (15s)" : "Maintaining polling (15s)")
+              }
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  isConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+                }`}
+              />
+              <span className="font-mono text-[11px]">
+                {isConnected ? "Realtime Active" : "Polling (15s)"}
+              </span>
+            </span>
+            <Button
+              variant="ghost"
+              onClick={() => refetch()}
+              disabled={isLoading || isRefetching}
+              className="gap-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
+              <span>{t("common.refresh")}</span>
+            </Button>
+          </div>
         }
       />
 
-      {/* KPI Overview (Chuẩn Bento giống trang Role, click mở rộng khung chi tiết) */}
+      {/* KPI Overview (Chuẩn Bento, click mở rộng khung chi tiết & tự động lọc bảng) */}
       <IncidentKpiSummary
         incidents={overviewIncidents}
-        totalIncidentsCount={meta?.total ?? statsOverviewData?.meta?.total}
+        totalIncidentsCount={statsOverviewData?.meta?.total ?? overviewIncidents.length}
         loading={isLoading}
         selectedStat={selectedStat}
         onSelectStat={handleSelectStat}
@@ -324,6 +363,7 @@ export default function IncidentsContent() {
           setViolationFilter("");
           setCameraIdFilter("");
           handleSiteFilterChange("");
+          handleSelectStat(null);
         }}
       />
 

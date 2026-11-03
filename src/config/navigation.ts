@@ -12,6 +12,7 @@ import {
   ScrollText,
   Settings2,
   KeyRound,
+  Wrench,
 } from "lucide-react";
 
 export type NavGroupKey = "monitoring" | "analytics" | "admin" | "personal";
@@ -122,6 +123,14 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: "SYSTEM_CONFIG_READ",
     group: "admin",
   },
+  {
+    key: "maintenance",
+    route: "/maintenance",
+    icon: Wrench,
+    i18nKey: "nav.maintenance",
+    permission: "MAINTENANCE_MANAGE",
+    group: "admin",
+  },
   // Nhóm Cá nhân
   {
     key: "notifications",
@@ -159,6 +168,7 @@ export const ROUTE_PERMISSIONS: Record<string, string> = {
   "/roles": "ROLE_READ",
   "/audit-logs": "AUDIT_LOG_READ",
   "/system": "SYSTEM_CONFIG_READ",
+  "/maintenance": "MAINTENANCE_MANAGE",
 };
 
 /** Tìm quyền bắt buộc của route hiện tại — khớp route cha dài nhất (hỗ trợ /incidents/:id) */

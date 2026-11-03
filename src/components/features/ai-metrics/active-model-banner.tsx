@@ -1,9 +1,11 @@
 
 "use client";
 
+import Link from "next/link";
 import {
   CheckCircle2,
   Cpu,
+  FlaskConical,
   HardDrive,
   Layers,
   Sparkles,
@@ -13,16 +15,25 @@ import type { AiModelVersionDto } from "@/types";
 
 export interface ActiveModelBannerProps {
   activeVersion?: AiModelVersionDto | null;
+  modelName?: string;
   loading?: boolean;
 }
 
 export function ActiveModelBanner({
   activeVersion,
+  modelName,
   loading = false,
 }: ActiveModelBannerProps) {
   const { t, locale } = useLocale();
 
   const version = activeVersion?.version || "--";
+  const resolvedModelName =
+    modelName ||
+    (typeof activeVersion?.metrics?.modelName === "string"
+      ? activeVersion.metrics.modelName
+      : "") ||
+    activeVersion?.modelPath ||
+    "--";
   const framework = activeVersion?.framework || "--";
   const inputSize = activeVersion?.inputSize || "--";
   const deployedAt = activeVersion?.deployedAt
@@ -33,7 +44,12 @@ export function ActiveModelBanner({
     {
       icon: Layers,
       label: t("aiMetrics.activeBanner.framework"),
-      value: framework !== "--" ? `${framework} FP16` : "--",
+      value:
+        framework !== "--"
+          ? framework.toUpperCase().includes("FP16")
+            ? framework
+            : `${framework} FP16`
+          : "--",
     },
     {
       icon: HardDrive,
@@ -139,12 +155,18 @@ export function ActiveModelBanner({
               </span>
 
               <span className="text-[10px] font-medium tracking-wide text-muted-foreground">
-                YOLOv8n-PPE
+                {resolvedModelName}
               </span>
             </div>
 
             <h3 className="truncate text-sm font-bold tracking-tight text-foreground sm:text-[15px]">
-              {loading ? (locale === "vi-VN" ? "Đang tải phiên bản..." : "Loading version...") : version}
+              {loading
+                ? locale === "vi-VN"
+                  ? "Đang tải phiên bản..."
+                  : "Loading version..."
+                : activeVersion?.modelPath
+                ? `v${version.replace(/^v/i, "")} (${activeVersion.modelPath})`
+                : version}
             </h3>
           </div>
         </div>
@@ -202,6 +224,25 @@ export function ActiveModelBanner({
               </div>
             </div>
           ))}
+
+          <Link
+            href="/ai-metrics/test"
+            className="
+              group relative flex min-w-0 items-center justify-center gap-2
+              rounded-[14px] border border-primary/30
+              bg-primary/10 px-3.5 py-2.5
+              text-xs font-bold text-primary
+              shadow-[4px_5px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]
+              transition-all duration-200
+              hover:-translate-y-0.5 hover:bg-primary/15
+              hover:shadow-[5px_6px_10px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]
+            "
+          >
+            <FlaskConical className="h-4 w-4 shrink-0" />
+            <span className="truncate">
+              {locale === "vi-VN" ? "Test Model Với Video" : "Test Model on Video"}
+            </span>
+          </Link>
         </div>
       </div>
     </section>

@@ -185,6 +185,75 @@ export interface UpdateSiteSafetyConfigPayload {
   enableNoHelmet?: boolean;
   enableNoVest?: boolean;
   enableRestrictedArea?: boolean;
+  modelVersionId?: string | null;
+}
+
+export interface UpdateZonePayload {
+  name?: string;
+  code?: string;
+  description?: string | null;
+  status?: ZoneStatus;
+}
+
+export interface UpdateRestrictedAreaPayload {
+  zoneId?: string | null;
+  name?: string;
+  description?: string | null;
+  boundary?: RestrictedAreaPoint[];
+  status?: RestrictedAreaStatus;
+}
+
+export interface InvalidateSafetyRuleCachePayload {
+  siteId?: string;
+  cameraId?: string;
+}
+
+export interface SystemDefaultSafetyConfigResponse {
+  confidenceThreshold: number;
+  confirmationDuration: number;
+  cooldownDuration: number;
+  enableNoHelmet: boolean;
+  enableNoVest: boolean;
+  enableRestrictedArea: boolean;
+}
+
+export interface ArchiveSiteResponse {
+  message: string;
+  site: SiteItem;
+}
+
+export interface UpdateCameraSafetyConfigPayload {
+  confidenceThreshold?: number | null;
+  confirmationDuration?: number | null;
+  cooldownDuration?: number | null;
+  enableNoHelmet?: boolean | null;
+  enableNoVest?: boolean | null;
+  enableRestrictedArea?: boolean | null;
+  modelVersionId?: string | null;
+}
+
+export interface EffectiveSafetyConfigResponse {
+  siteId: string;
+  siteName: string | null;
+  siteCode: string | null;
+  cameraId: string | null;
+  cameraName: string | null;
+  cameraCode: string | null;
+  captureFps?: number;
+  roiPolygon?: any;
+  motionSensitivity?: number;
+  confidenceThreshold: number;
+  confirmationDuration: number;
+  cooldownDuration: number;
+  rules: {
+    enableNoHelmet: boolean;
+    enableNoVest: boolean;
+    enableRestrictedArea: boolean;
+  };
+  modelVersion?: any;
+  restrictedAreas?: any[];
+  source: string;
+  resolvedAt: string;
 }
 
 export interface SiteListResponse {

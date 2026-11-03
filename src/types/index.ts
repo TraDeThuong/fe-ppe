@@ -10,3 +10,5 @@ export * from "./site.types";
 export * from "./incident.types";
 export * from "./ai-metrics.types";
 export * from "./reporting.types";
+export * from "./maintenance.types";
+export * from "./media.types";

@@ -11,9 +11,12 @@
 // ============================================================================
 
 export const AI_MODEL_TYPE = {
-  DETECTION: "DETECTION",
+  OBJECT_DETECTION: "OBJECT_DETECTION",
+  TRACKING: "TRACKING",
   CLASSIFICATION: "CLASSIFICATION",
-  SEGMENTATION: "SEGMENTATION",
+  // Backward-compatibility aliases
+  DETECTION: "OBJECT_DETECTION",
+  SEGMENTATION: "CLASSIFICATION",
 } as const;
 
 export type AiModelType = (typeof AI_MODEL_TYPE)[keyof typeof AI_MODEL_TYPE];
@@ -21,16 +24,21 @@ export type AiModelType = (typeof AI_MODEL_TYPE)[keyof typeof AI_MODEL_TYPE];
 export const AI_MODEL_STATUS = {
   ACTIVE: "ACTIVE",
   INACTIVE: "INACTIVE",
-  ARCHIVED: "ARCHIVED",
+  DEPRECATED: "DEPRECATED",
+  ARCHIVED: "INACTIVE", // UI alias
 } as const;
 
 export type AiModelStatus = (typeof AI_MODEL_STATUS)[keyof typeof AI_MODEL_STATUS];
 
 export const AI_MODEL_VERSION_STATUS = {
-  ACTIVE: "ACTIVE",
-  CANDIDATE: "CANDIDATE",
+  DEVELOPMENT: "DEVELOPMENT",
+  STAGING: "STAGING",
+  DEPLOYED: "DEPLOYED",
   ARCHIVED: "ARCHIVED",
-  FAILED: "FAILED",
+  // Backward-compatibility aliases
+  ACTIVE: "DEPLOYED",
+  CANDIDATE: "STAGING",
+  FAILED: "ARCHIVED",
 } as const;
 
 export type AiModelVersionStatus =
@@ -127,14 +135,22 @@ export interface AiModelVersionDto {
   inputSize: string;
   status: AiModelVersionStatus | string;
   metrics?: {
+    modelName?: string;
     precision?: number;
     recall?: number;
     f1?: number;
+    f1Score?: number;
     mAP50?: number;
     mAP95?: number;
+    mAP50_95?: number;
     fps?: number;
     latencyMs?: number;
+    sizeMb?: number;
     sampleCount?: number;
+    totalFramesProcessed?: number;
+    perClassMetrics?: PerClassMetric[];
+    confusionMatrix?: ConfusionMatrixDto;
+    latencyHistory?: LatencyDataPoint[];
     [key: string]: unknown;
   } | null;
   deployedAt?: string | null;

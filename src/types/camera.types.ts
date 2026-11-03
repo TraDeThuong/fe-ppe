@@ -181,6 +181,28 @@ export interface UpdateCameraConfigPayload {
   motionSensitivity?: number;
 }
 
+export interface CreateCameraStreamPayload {
+  cameraId?: string;
+  protocol?: StreamProtocol;
+  streamUrl: string;
+  resolution?: string;
+  fps?: number;
+  status?: StreamStatus;
+}
+
+export interface UpdateCameraStreamPayload {
+  protocol?: StreamProtocol;
+  streamUrl?: string;
+  resolution?: string;
+  fps?: number;
+  status?: StreamStatus;
+}
+
+export interface ResetCameraConfigResponse {
+  message: string;
+  config: CameraConfigItem;
+}
+
 export interface CameraListResponse {
   data: CameraItem[];
   meta: PaginationMeta;

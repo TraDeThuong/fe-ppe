@@ -7,6 +7,9 @@
     "dev:app": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "node --import tsx --test \"src/**/__tests__/*.test.ts*\"",
+    "test:auth": "node --import tsx --test src/hooks/auth/__tests__/*.test.ts",
+    "test:coverage": "node --import tsx --test --experimental-test-coverage \"src/**/__tests__/*.test.ts*\"",
     "test:refresh": "tsx scripts/test-refresh-single-flight.ts",
     "test:shell": "python3 scripts/test-dashboard-shell-e2e.py",
     "test:m2": "python3 scripts/test-dashboard-m2-routes-e2e.py"

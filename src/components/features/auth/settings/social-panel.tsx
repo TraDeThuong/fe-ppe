@@ -10,7 +10,6 @@ import {
   Fingerprint,
   Link2,
   Loader2,
-  Mail,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -283,7 +282,6 @@ export function SocialPanel() {
           {linkedAccounts.map((account) => {
             const pending = confirmUnlink === account.provider;
             const isGoogle = account.provider === "GOOGLE";
-            const accountEmail = account.email || (isGoogle ? user?.email : user?.email);
 
             return (
               <li
@@ -357,15 +355,6 @@ export function SocialPanel() {
                           Linked
                         </span>
                       </div>
-
-                      {accountEmail && (
-                        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <Mail className="size-3.5 shrink-0 text-muted-foreground/80" aria-hidden="true" />
-                          <span className="truncate font-medium text-foreground/85">
-                            {accountEmail}
-                          </span>
-                        </p>
-                      )}
 
                       <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <Clock3 className="size-3.5 shrink-0" aria-hidden="true" />

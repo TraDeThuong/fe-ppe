@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { RefreshCw, ScrollText, Settings2, ShieldAlert } from "lucide-react";
+import { RefreshCw, ScrollText, Settings2, ShieldAlert, Wrench } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
   SystemKpiSummary,
   SystemTabs,
   ToggleFlagDialog,
+  type SystemStatKey,
   type SystemTabKey,
 } from "@/components/features/system";
 import {
@@ -34,6 +35,20 @@ import { toast } from "@/lib/toast";
 import type { SystemConfigItem } from "@/types";
 
 const VALID_TABS: SystemTabKey[] = ["flags", "configs", "health", "platform"];
+
+const STAT_TO_URL: Record<SystemStatKey, string> = {
+  flags: "flags",
+  configs: "configs",
+  health: "health",
+  latency: "latency",
+};
+
+const URL_TO_STAT: Record<string, SystemStatKey> = {
+  flags: "flags",
+  configs: "configs",
+  health: "health",
+  latency: "latency",
+};
 
 export default function SystemContent() {
   const { t, locale } = useLocale();
@@ -59,6 +74,21 @@ export default function SystemContent() {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", nextTab);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  // URL state synchronization for selected stat (tương tự như trang /roles)
+  const statParam = searchParams.get("stat");
+  const selectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
+
+  const handleSelectStat = (stat: SystemStatKey | null) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (stat) {
+      params.set("stat", STAT_TO_URL[stat]);
+    } else {
+      params.delete("stat");
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
   // State tìm kiếm và lọc danh mục
@@ -202,22 +232,33 @@ export default function SystemContent() {
 
   const breadcrumbs = useMemo(
     () => [
-      { label: t("common.breadcrumb.home") || "Trang chủ", href: "/dashboard" },
-      { label: t("nav.system") || "Cấu hình Hệ thống" },
+      { label: t("common.breadcrumb.home") || (isVietnamese ? "Trang chủ" : "Home"), href: "/dashboard" },
+      { label: t("nav.system") || (isVietnamese ? "Cấu hình Hệ thống" : "System Administration") },
     ],
-    [t],
+    [t, isVietnamese],
   );
 
   const headerActions = (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-2 flex-wrap">
+      <Link href="/maintenance">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex items-center gap-1.5 rounded-xl text-xs h-8 hover:text-primary transition-colors"
+        >
+          <Wrench className="h-3.5 w-3.5 text-primary" />
+          <span>{t("nav.maintenance")}</span>
+        </Button>
+      </Link>
+
       <Link href="/audit-logs?search=SYSTEM_CONFIG">
         <Button
           variant="outline"
           size="sm"
-          className="flex items-center gap-1.5 rounded-xl text-xs"
+          className="flex items-center gap-1.5 rounded-xl text-xs h-8"
         >
-          <ScrollText className="h-4 w-4 text-muted-foreground" />
-          <span>{isVietnamese ? "Nhật ký Cấu hình" : "Config Audit Logs"}</span>
+          <ScrollText className="h-3.5 w-3.5 text-muted-foreground" />
+          <span>{t("system.auditLogsBtn")}</span>
         </Button>
       </Link>
 
@@ -226,9 +267,9 @@ export default function SystemContent() {
         size="sm"
         onClick={() => refetchHealth()}
         disabled={isRefreshingHealth}
-        className="flex items-center gap-1.5 rounded-xl text-xs"
+        className="flex items-center gap-1.5 rounded-xl text-xs h-8"
       >
-        <RefreshCw className={`h-4 w-4 ${isRefreshingHealth ? "animate-spin" : ""}`} />
+        <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingHealth ? "animate-spin" : ""}`} />
         <span>{t("system.refresh")}</span>
       </Button>
     </div>
@@ -241,7 +282,7 @@ export default function SystemContent() {
         icon={Settings2}
         title={t("system.title")}
         description={t("system.description")}
-        badge={canManage ? t("system.badge") : (isVietnamese ? "Chỉ xem (Read-only)" : "Read-only")}
+        badge={canManage ? t("system.badge") : t("system.readOnlyBadge")}
         badgeIcon={Settings2}
         breadcrumbs={breadcrumbs}
         actions={headerActions}
@@ -249,30 +290,36 @@ export default function SystemContent() {
 
       {/* Thông báo chế độ Read-only cho Safety Manager / người dùng không có quyền Manage */}
       {!canManage && (
-        <div className="flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-700 dark:text-amber-400 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.05)]">
+        <div className="flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 sm:p-4 text-amber-700 dark:text-amber-400 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.05)]">
           <ShieldAlert className="h-5 w-5 shrink-0" />
           <div className="text-xs">
-            <p className="font-semibold">{isVietnamese ? "Chế độ Chỉ xem (Read-only Mode)" : "Read-only Mode"}</p>
+            <p className="font-semibold">{t("system.readOnlyTitle")}</p>
             <p className="text-muted-foreground mt-0.5">
-              {isVietnamese
-                ? "Bạn có quyền xem thông số hệ thống nhưng không thể thay đổi giá trị cấu hình hoặc gạt công tắc tính năng. Liên hệ Quản trị viên (ADMIN) nếu cần cấp quyền."
-                : "You have permission to view system parameters but cannot modify config values or toggle feature flags. Contact an Administrator (ADMIN) if elevated access is required."}
+              {t("system.readOnlyDesc")}
             </p>
           </div>
         </div>
       )}
 
-      {/* 2. Bento Console KPI Summary */}
+      {/* 2. Bento Console KPI Summary (Thiết kế chuẩn tương tự như trang /roles) */}
       <SystemKpiSummary
         totalConfigs={totalConfigsCount}
         healthReport={healthReport}
-        activeFlagsCount={activeFlagsCount}
+        featureFlags={featureFlags}
+        configs={configsData?.items ?? []}
         loading={isLoadingConfigs || isLoadingFlags}
+        selectedStat={selectedStat}
+        onSelectStat={handleSelectStat}
         activeTab={activeTab}
         onSelectTab={handleTabChange}
+        onRefreshHealth={() => refetchHealth()}
+        isRefreshingHealth={isRefreshingHealth}
+        onCreateConfig={() => setCreateModalOpen(true)}
+        onToggleFlag={handleOpenToggleDialog}
+        canManage={canManage}
       />
 
-      {/* 3. Neumorphic Tabs */}
+      {/* 3. Neumorphic Tabs (Thiết kế cuộn ngang thông minh cho mobile) */}
       <SystemTabs
         activeTab={activeTab}
         onTabChange={handleTabChange}

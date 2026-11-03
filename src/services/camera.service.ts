@@ -6,10 +6,13 @@ import type {
   CameraQueryParams,
   CameraStreamItem,
   CreateCameraPayload,
+  CreateCameraStreamPayload,
   PaginationMeta,
   PingCameraResult,
+  ResetCameraConfigResponse,
   UpdateCameraConfigPayload,
   UpdateCameraPayload,
+  UpdateCameraStreamPayload,
 } from "@/types";
 
 interface ApiResponse<T> {
@@ -114,6 +117,24 @@ export const cameraService = {
   },
 
   /**
+   * DELETE /api/v1/cameras/:id/config
+   * Xóa cấu hình riêng của camera.
+   */
+  async clearCameraConfig(id: string): Promise<{ message: string }> {
+    const res = await apiClient.delete<unknown, any>(`/cameras/${id}/config`);
+    return { message: res?.message || "Camera config cleared successfully" };
+  },
+
+  /**
+   * POST /api/v1/cameras/:id/config/reset
+   * Đặt lại cấu hình camera về giá trị mặc định.
+   */
+  async resetCameraConfig(id: string): Promise<ResetCameraConfigResponse> {
+    const res = await apiClient.post<unknown, any>(`/cameras/${id}/config/reset`);
+    return unwrapData<ResetCameraConfigResponse>(res);
+  },
+
+  /**
    * GET /api/v1/cameras/:id/streams
    * Lấy danh sách luồng stream (RTSP/HLS/WebRTC) của camera.
    */
@@ -121,6 +142,47 @@ export const cameraService = {
     const res = await apiClient.get<unknown, any>(`/cameras/${id}/streams`);
     const data = unwrapData<CameraStreamItem[]>(res);
     return Array.isArray(data) ? data : [];
+  },
+
+  /**
+   * POST /api/v1/cameras/:id/streams
+   * Tạo luồng stream mới cho camera.
+   */
+  async createCameraStream(
+    cameraId: string,
+    payload: CreateCameraStreamPayload,
+  ): Promise<CameraStreamItem> {
+    const res = await apiClient.post<unknown, any>(
+      `/cameras/${cameraId}/streams`,
+      payload,
+    );
+    return unwrapData<CameraStreamItem>(res);
+  },
+
+  /**
+   * PUT /api/v1/camera-streams/:id
+   * Cập nhật thông số luồng stream.
+   */
+  async updateCameraStream(
+    streamId: string,
+    payload: UpdateCameraStreamPayload,
+  ): Promise<CameraStreamItem> {
+    const res = await apiClient.put<unknown, any>(
+      `/camera-streams/${streamId}`,
+      payload,
+    );
+    return unwrapData<CameraStreamItem>(res);
+  },
+
+  /**
+   * DELETE /api/v1/camera-streams/:id
+   * Xóa luồng stream.
+   */
+  async deleteCameraStream(streamId: string): Promise<{ message: string }> {
+    const res = await apiClient.delete<unknown, any>(
+      `/camera-streams/${streamId}`,
+    );
+    return { message: res?.message || "Camera stream deleted successfully" };
   },
 
   /**

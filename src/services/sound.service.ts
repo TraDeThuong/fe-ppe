@@ -83,10 +83,13 @@ class SoundService {
   private audioCtx: AudioContext | null = null;
   private settings: SoundSettings = DEFAULT_SOUND_SETTINGS;
   private isClient = typeof window !== "undefined";
+  private currentUserId: string | null = null;
+  private gestureUnlockerAttached = false;
 
   constructor() {
     if (this.isClient) {
       this.loadSettings();
+      this.initUserGestureUnlocker();
     }
   }
 
@@ -111,6 +114,47 @@ class SoundService {
     return this.audioCtx;
   }
 
+  /**
+   * Tự động giải phóng AudioContext ngay sau tương tác đầu tiên của người dùng trên trang
+   */
+  public initUserGestureUnlocker(): void {
+    if (!this.isClient || this.gestureUnlockerAttached) return;
+    this.gestureUnlockerAttached = true;
+
+    const unlock = () => {
+      const ctx = this.getAudioContext();
+      if (ctx && ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      document.removeEventListener("click", unlock, true);
+      document.removeEventListener("keydown", unlock, true);
+      document.removeEventListener("touchstart", unlock, true);
+    };
+
+    document.addEventListener("click", unlock, true);
+    document.addEventListener("keydown", unlock, true);
+    document.addEventListener("touchstart", unlock, true);
+  }
+
+  /**
+   * Đặt định danh người dùng để lưu cấu hình âm thanh riêng biệt theo tài khoản
+   */
+  public setUserId(userId: string | null | undefined): void {
+    const nextId = userId || null;
+    if (this.currentUserId === nextId) return;
+    this.currentUserId = nextId;
+    this.loadSettings();
+    if (this.isClient) {
+      window.dispatchEvent(new CustomEvent("ppe-sound-settings-changed", { detail: this.settings }));
+    }
+  }
+
+  private getStorageKey(): string {
+    return this.currentUserId
+      ? `ppe_sound_settings_${this.currentUserId}`
+      : STORAGE_KEY;
+  }
+
   public getSettings(): SoundSettings {
     return { ...this.settings };
   }
@@ -126,7 +170,7 @@ class SoundService {
     };
     if (this.isClient) {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
+        localStorage.setItem(this.getStorageKey(), JSON.stringify(this.settings));
         window.dispatchEvent(new CustomEvent("ppe-sound-settings-changed", { detail: this.settings }));
       } catch (e) {
         console.warn("[SoundService] Unable to save sound settings to localStorage", e);
@@ -137,7 +181,9 @@ class SoundService {
 
   private loadSettings(): void {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw =
+        localStorage.getItem(this.getStorageKey()) ||
+        (this.currentUserId ? localStorage.getItem(STORAGE_KEY) : null);
       if (raw) {
         const parsed = JSON.parse(raw);
         this.settings = {
@@ -148,9 +194,11 @@ class SoundService {
             ...(parsed.soundMap || {}),
           },
         };
+      } else {
+        this.settings = { ...DEFAULT_SOUND_SETTINGS };
       }
     } catch {
-      this.settings = DEFAULT_SOUND_SETTINGS;
+      this.settings = { ...DEFAULT_SOUND_SETTINGS };
     }
   }
 

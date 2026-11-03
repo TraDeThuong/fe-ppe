@@ -62,6 +62,7 @@ export function AuditFilterToolbar({
     { value: "PPE_INCIDENT", label: "PPE_INCIDENT (Sự cố an toàn)" },
     { value: "SAFETY_RULE", label: "SAFETY_RULE (Quy tắc PPE)" },
     { value: "SYSTEM_CONFIG", label: "SYSTEM_CONFIG (Tham số hệ thống)" },
+    { value: "MAINTENANCE_CONFIG", label: "MAINTENANCE_CONFIG (Bảo trì hệ thống)" },
   ];
 
   return (

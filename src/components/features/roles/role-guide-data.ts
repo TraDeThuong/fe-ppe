@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Users,
+  Wrench,
 } from "lucide-react";
 import type { RoleDto } from "@/types";
 
@@ -145,9 +146,19 @@ export const ROLE_KNOWLEDGE_VI: Record<string, RoleKnowledgeProfile> = {
         description:
           "Thiết lập tham số môi trường, khóa API keys, quản lý Feature Flags và kích hoạt/tạm dừng các tác vụ Cron nền.",
       },
+      {
+        title: "Bảo trì Hệ thống",
+        route: "/maintenance",
+        icon: Wrench,
+        accessLevel: "full",
+        accessLabel: "Toàn quyền",
+        description:
+          "Kích hoạt hoặc ngắt chế độ bảo trì toàn web, cấu hình thông điệp thông báo, thời gian dự kiến và danh sách tài khoản được phép miễn trừ.",
+      },
     ],
     securityGuardrails: [
       "Được bảo vệ bởi cơ chế Anti-Lockout: Các quyền cốt lõi của ADMIN không thể bị thu hồi nhằm tránh mất quyền kiểm soát.",
+      "Toàn quyền quản trị và điều phối chế độ bảo trì toàn web mà không bị gián đoạn quyền truy cập.",
       "Mọi thao tác thay đổi cấu hình bảo mật hoặc phân quyền đều được ghi vết kiểm toán vĩnh viễn.",
       "Bắt buộc kích hoạt xác thực hai lớp (2FA) để đảm bảo an toàn tuyệt đối cho tài khoản quản trị tối cao.",
     ],
@@ -712,9 +723,19 @@ export const ROLE_KNOWLEDGE_EN: Record<string, RoleKnowledgeProfile> = {
         description:
           "Fine-tune system environment parameters, API gateway keys, feature toggles, and scheduled background tasks.",
       },
+      {
+        title: "System Maintenance",
+        route: "/maintenance",
+        icon: Wrench,
+        accessLevel: "full",
+        accessLabel: "Full Access",
+        description:
+          "Enable or disable platform-wide maintenance mode, schedule duration, configure user notices, and manage bypass whitelists.",
+      },
     ],
     securityGuardrails: [
       "Protected by Anti-Lockout safeguards: Critical Admin permissions cannot be revoked.",
+      "Maintains uninterrupted access and exclusive administration over system-wide maintenance mode.",
       "High-risk operational modifications are permanently recorded in the immutable audit log.",
       "Two-Factor Authentication (2FA) is strongly enforced for Super Administrator credentials.",
     ],

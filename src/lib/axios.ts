@@ -199,6 +199,10 @@ export function createApiClient(baseURL: string): AxiosInstance {
         }
       }
 
+      if (status === 503 || code === ErrorCode.SYSTEM_MAINTENANCE) {
+        eventBus.emit("system:maintenance-active");
+      }
+
       if (!config?.suppressToast && shouldGlobalToast(status, code)) {
         toast.error(message, { id: "api-global-error" });
       }

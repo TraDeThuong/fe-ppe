@@ -13,7 +13,9 @@ import {
   Info,
   CheckCircle2,
   Radio,
+  ExternalLink,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
 import { useLocale } from "@/providers/locale-provider";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import {
@@ -24,6 +26,10 @@ import {
   useNotificationSound,
 } from "@/hooks/notifications";
 import type { NotificationItemDto, NotificationSeverity } from "@/types";
+import {
+  IncidentAlertToast,
+  type IncidentAlertPayload,
+} from "./incident-alert-toast";
 
 function formatRelativeTimeShort(
   dateString: string | Date | null | undefined,
@@ -84,7 +90,7 @@ export function NotificationBell() {
 
   const notifications = notificationData?.data || [];
 
-  // Lắng nghe sự kiện Realtime SSE để phát chuông âm thanh cảnh báo & rung chuông
+  // Lắng nghe sự kiện Realtime SSE để phát chuông âm thanh cảnh báo, rung chuông & hiện Toast
   useEffect(() => {
     if (!lastAlert) return;
 
@@ -101,8 +107,39 @@ export function NotificationBell() {
     // Kích hoạt hiệu ứng rung lắc biểu tượng chuông
     setIsRinging(true);
     const timer = setTimeout(() => setIsRinging(false), 1600);
+
+    // Tự động bật Toast cảnh báo nổi (10 giây tự đóng, click chuyển tới sự cố)
+    const alertData =
+      typeof lastAlert.data === "object" && lastAlert.data !== null
+        ? (lastAlert.data as IncidentAlertPayload)
+        : null;
+
+    if (alertData && (lastAlert.type === "notification:ppe_violation" || alertData.incidentId)) {
+      const toastKey = `ppe-incident-${alertData.incidentId || Date.now()}`;
+      toast.custom(
+        (t) => (
+          <IncidentAlertToast
+            visible={t.visible}
+            data={alertData}
+            onClose={() => toast.dismiss(t.id)}
+            onOpenIncident={(incidentId) => {
+              toast.dismiss(t.id);
+              if (incidentId) {
+                router.push(`/incidents/${incidentId}`);
+              }
+            }}
+          />
+        ),
+        {
+          id: toastKey,
+          duration: 10000, // Đúng 10s tự động đóng theo yêu cầu
+          position: "top-right",
+        }
+      );
+    }
+
     return () => clearTimeout(timer);
-  }, [lastAlert, playAlert]);
+  }, [lastAlert, playAlert, router]);
 
   useEffect(() => {
     if (!open) return;
@@ -122,6 +159,8 @@ export function NotificationBell() {
     setOpen(false);
     if (item.actionUrl) {
       router.push(item.actionUrl);
+    } else if (item.incidentId) {
+      router.push(`/incidents/${item.incidentId}`);
     }
   };
 
@@ -246,6 +285,12 @@ export function NotificationBell() {
                     <p className="line-clamp-2 text-[11px] text-muted-foreground mt-0.5 leading-snug">
                       {item.content}
                     </p>
+                    {item.incidentId && (
+                      <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-primary">
+                        <span>{isVietnamese ? "Mở hồ sơ sự cố" : "Open incident"}</span>
+                        <ExternalLink className="size-2.5" />
+                      </div>
+                    )}
                   </div>
                 </div>
               ))

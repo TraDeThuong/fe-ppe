@@ -7,7 +7,11 @@ import { env } from "@/config/env";
 import { apiClient } from "@/lib/axios";
 
 // Event type từ notification-service (notification.service.ts)
-const ALERT_EVENTS = ["notification:ppe_violation", "notification:new"] as const;
+const ALERT_EVENTS = [
+  "notification:ppe_violation",
+  "notification:new",
+  "notification:broadcast",
+] as const;
 
 /** SSE không gửi được header/cookie an toàn → backend cấp ticket 1 lần qua REST */
 async function fetchStreamTicket(): Promise<string> {

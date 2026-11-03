@@ -27,6 +27,7 @@ export function ModelGovernanceTable({
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case "DEPLOYED":
       case "ACTIVE":
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -34,6 +35,7 @@ export function ModelGovernanceTable({
             {t("aiMetrics.governance.activeBadge")}
           </span>
         );
+      case "DEVELOPMENT":
       case "CANDIDATE":
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
@@ -82,20 +84,25 @@ export function ModelGovernanceTable({
           </thead>
           <tbody className="divide-y divide-border/20">
             {allVersions.map((v) => {
-              const isActive = v.status === "ACTIVE";
-              const map50 = v.metrics?.mAP50
-                ? `${((v.metrics.mAP50 as number) * 100).toFixed(1)}%`
-                : "94.8%";
-              const latency = v.metrics?.latencyMs
-                ? `${(v.metrics.latencyMs as number).toFixed(1)} ms`
-                : "32.4 ms";
+              const isActive = v.status === "DEPLOYED" || v.status === "ACTIVE";
+              const map50 =
+                typeof v.metrics?.mAP50 === "number"
+                  ? `${(v.metrics.mAP50 * 100).toFixed(1)}%`
+                  : "--";
+              const latency =
+                typeof v.metrics?.latencyMs === "number"
+                  ? `${v.metrics.latencyMs.toFixed(1)} ms`
+                  : "--";
               const date = new Date(v.createdAt).toLocaleDateString(locale === "vi-VN" ? "vi-VN" : "en-US");
 
               return (
                 <tr key={v.id} className="hover:bg-surface-elevated/40 transition-colors">
                   <td className="py-3">
                     <div className="font-bold text-foreground">{v.version}</div>
-                    <div className="text-[11px] text-muted-foreground">{v.modelName}</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {v.modelName}
+                      {v.modelPath ? ` · ${v.modelPath}` : ""}
+                    </div>
                   </td>
                   <td className="py-3">
                     <span className="font-medium text-foreground">{v.framework}</span>

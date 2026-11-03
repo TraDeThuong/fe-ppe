@@ -14,6 +14,13 @@ export interface AiMetricsKpiSummaryProps {
   onSelectStat?: (stat: AiMetricStatKey | null) => void;
 }
 
+function formatFramesCount(total: number): string {
+  if (!Number.isFinite(total) || total <= 0) return "0";
+  if (total >= 1_000_000) return `${(total / 1_000_000).toFixed(2)}M`;
+  if (total >= 1_000) return `${(total / 1_000).toFixed(1)}K`;
+  return total.toLocaleString();
+}
+
 export function AiMetricsKpiSummary({
   performance,
   loading = false,
@@ -37,16 +44,16 @@ export function AiMetricsKpiSummary({
 
   const mapFormatted = performance
     ? `${(performance.mAP50 * 100).toFixed(1)}%`
-    : "94.8%";
+    : "--";
   const latencyFormatted = performance
     ? `${performance.averageLatencyMs.toFixed(1)} ms`
-    : "32.4 ms";
+    : "--";
   const fpsFormatted = performance
     ? `${performance.averageFps.toFixed(1)} FPS`
-    : "30.2 FPS";
+    : "--";
   const samplesFormatted = performance
-    ? `${(performance.totalFramesProcessed / 1000000).toFixed(2)}M`
-    : "1.25M";
+    ? formatFramesCount(performance.totalFramesProcessed)
+    : "--";
 
   // Hiệu ứng chìm sâu (neumorphic sunken) khi card được chọn:
   // - Chìm xuống dưới (translate-y-1.5)

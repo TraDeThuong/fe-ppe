@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Camera,
   Cpu,
@@ -12,6 +12,7 @@ import {
   Pause,
   Play,
   Sliders,
+  Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,13 @@ export interface CameraIntelligencePlayerProps {
   currentLatencyMs?: number;
   cameraLocation?: string | null;
   cameraStreamUrl?: string;
+  isRealAiLog?: boolean;
+  autoAnalysisState?: {
+    status: "idle" | "initializing" | "downloading" | "processing" | "completed" | "error";
+    progress: number;
+    message?: string;
+  };
+  onStartAutoAnalyze?: () => void;
   // Tham số kết nối bộ đệm AI thời gian thực (Look-Ahead Pre-Buffer)
   liveSessionId?: string | null;
   liveSessionStatus?: string | null;
@@ -91,6 +99,9 @@ export function CameraIntelligencePlayer({
   currentLatencyMs,
   cameraLocation,
   cameraStreamUrl,
+  isRealAiLog = false,
+  autoAnalysisState,
+  onStartAutoAnalyze,
   liveSessionId,
   liveSessionStatus,
   bufferProgress = 0,
@@ -107,7 +118,7 @@ export function CameraIntelligencePlayer({
   const [webcamError, setWebcamError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
-  const { isShorts, youtubeId } = getYouTubeEmbedUrl(videoSrc);
+  const { embedUrl: youtubeEmbedUrl, isShorts, youtubeId } = getYouTubeEmbedUrl(videoSrc);
   const isWebcam = videoSrc.toLowerCase().includes("webcam");
   const isPreRenderedJobVideo =
     videoSrc.includes("/api/ai-test/jobs/") || videoSrc.includes("-annotated.mp4");
@@ -269,10 +280,13 @@ export function CameraIntelligencePlayer({
     onTogglePlay();
   };
 
-  // Kích thước chuẩn hoá theo tỷ lệ nguồn thực tế từ AI Server
+  const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number } | null>(null);
+
+  // Kích thước chuẩn hoá theo tỷ lệ nguồn thực tế từ AI Server hoặc Video Element
+  // Ưu tiên streamMetadata để SVG viewBox khớp chính xác 100% với hệ tọa độ Bounding Box trong file log YOLOv11
   const isVertical = streamMetadata?.isVertical ?? isShorts;
-  const viewBoxWidth = streamMetadata?.videoWidth || (isVertical ? 360 : 640);
-  const viewBoxHeight = streamMetadata?.videoHeight || (isVertical ? 640 : 360);
+  const viewBoxWidth = streamMetadata?.videoWidth || videoDimensions?.width || (isVertical ? 1080 : 1920);
+  const viewBoxHeight = streamMetadata?.videoHeight || videoDimensions?.height || (isVertical ? 1920 : 1080);
 
   const currentTimeSec = currentEntry?.t ?? 0;
   const currentFrame = currentEntry?.frame ?? 1;
@@ -338,6 +352,143 @@ export function CameraIntelligencePlayer({
     liveSessionId && !isWebcam
       ? `${AI_SERVER_BASE}/api/live/${liveSessionId}/stream.mjpeg?bbox=${showBbox ? 1 : 0}&ready=${liveSessionStatus === "streaming" ? 1 : 0}`
       : null;
+
+  // Bản đồ trạng thái công nhân trong khung hình
+  const personStates = useMemo(() => {
+    return new Map((currentEntry?.persons || []).map((p) => [p.track_id, p]));
+  }, [currentEntry?.persons]);
+
+  // Lớp phủ Bounding Box SVG thời gian thực & Tô đỏ vùng người vi phạm
+  const renderDetectionsSvg = () => {
+    if (!showBbox || !currentEntry?.detections || currentEntry.detections.length === 0) {
+      return null;
+    }
+
+    return (
+      <svg
+        viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
+        preserveAspectRatio="none"
+        className="pointer-events-none absolute inset-0 h-full w-full z-15"
+      >
+        {currentEntry.detections.map((det, idx) => {
+          const [x1, y1, x2, y2] = det.bbox;
+          const w = Math.max(4, x2 - x1);
+          const h = Math.max(4, y2 - y1);
+
+          const personState =
+            det.class_name === "person" && typeof det.track_id === "number"
+              ? personStates.get(det.track_id)
+              : undefined;
+
+          const isViolating =
+            personState?.status === "CONFIRMED_VIOLATION" || personState?.status === "VIOLATION";
+          const isCandidate = personState?.status === "VIOLATION_CANDIDATE";
+
+          // Nếu video đã vẽ sẵn box cơ bản (-annotated.mp4) thì chỉ vẽ đè lớp phủ ĐỎ VI PHẠM
+          if (isPreRenderedJobVideo && !isViolating) {
+            return null;
+          }
+
+          let strokeColor = "#10b981"; // Emerald (Compliant)
+          let fillColor = "rgba(16, 185, 129, 0.12)";
+          let labelBg = "rgba(16, 185, 129, 0.92)";
+          let labelText = "";
+
+          if (det.class_name === "person") {
+            if (isViolating) {
+              strokeColor = "#f43f5e"; // Rose vi phạm
+              fillColor = "rgba(244, 63, 94, 0.28)";
+              labelBg = "rgba(244, 63, 94, 0.95)";
+              const vTypes = (personState?.violations || [])
+                .map((v) => {
+                  const lower = v.toLowerCase();
+                  if (lower === "no_helmet") return isVietnamese ? "THIẾU MŨ" : "NO HELMET";
+                  if (lower === "no_safety_vest" || lower === "no_vest") return isVietnamese ? "THIẾU ÁO" : "NO VEST";
+                  if (lower === "restricted_area") return isVietnamese ? "VÙNG CẤM" : "RESTRICTED";
+                  return v.toUpperCase();
+                })
+                .join(" + ");
+              labelText = `Worker #${det.track_id ?? 1} 🚨 VI PHẠM (≥3s)${vTypes ? `: ${vTypes}` : ""}`;
+            } else if (isCandidate) {
+              strokeColor = "#f59e0b"; // Amber đang đếm thời gian
+              fillColor = "rgba(245, 158, 11, 0.20)";
+              labelBg = "rgba(245, 158, 11, 0.95)";
+              const vTypes = (personState?.violations || [])
+                .map((v) => {
+                  const lower = v.toLowerCase();
+                  if (lower === "no_helmet") return isVietnamese ? "THIẾU MŨ" : "NO HELMET";
+                  if (lower === "no_safety_vest" || lower === "no_vest") return isVietnamese ? "THIẾU ÁO" : "NO VEST";
+                  if (lower === "restricted_area") return isVietnamese ? "VÙNG CẤM" : "RESTRICTED";
+                  return v.toUpperCase();
+                })
+                .join(" + ");
+              labelText = `Worker #${det.track_id ?? 1} ⚠ ĐANG ĐẾM (3s)${vTypes ? `: ${vTypes}` : ""}`;
+            } else {
+              labelText = `Worker #${det.track_id ?? 1} ✓ ĐỦ BẢO HỘ`;
+            }
+          } else if (det.class_name === "helmet") {
+            strokeColor = "#0ea5e9";
+            fillColor = "rgba(14, 165, 233, 0.12)";
+            labelBg = "rgba(14, 165, 233, 0.92)";
+            labelText = `⛑ #${det.track_id ?? 1} Mũ bảo hộ ${(det.confidence * 100).toFixed(0)}%`;
+          } else if (det.class_name === "safety_vest") {
+            strokeColor = "#a855f7";
+            fillColor = "rgba(168, 85, 247, 0.12)";
+            labelBg = "rgba(168, 85, 247, 0.92)";
+            labelText = `🦺 #${det.track_id ?? 1} Áo phản quang ${(det.confidence * 100).toFixed(0)}%`;
+          } else {
+            labelText = `${det.class_name.toUpperCase()} ${(det.confidence * 100).toFixed(0)}%`;
+          }
+
+          const fontSize = Math.max(14, Math.round(viewBoxWidth * 0.024));
+          const pillHeight = fontSize + 16;
+          const pillWidth = Math.max(100, Math.round(labelText.length * (fontSize * 0.58) + 24));
+          const pillY = Math.max(4, y1 - pillHeight);
+          const textY = pillY + fontSize + 3;
+
+          return (
+            <g key={`${det.class_name}-${det.track_id ?? idx}-${idx}`}>
+              <rect
+                x={x1}
+                y={y1}
+                width={w}
+                height={h}
+                fill={fillColor}
+                stroke={strokeColor}
+                strokeWidth={
+                  isViolating
+                    ? Math.max(3.5, Math.round(viewBoxWidth * 0.005))
+                    : isCandidate
+                      ? Math.max(3, Math.round(viewBoxWidth * 0.004))
+                      : Math.max(2, Math.round(viewBoxWidth * 0.003))
+                }
+                rx={6}
+                className={isViolating ? "animate-pulse" : ""}
+              />
+              <rect
+                x={x1}
+                y={pillY}
+                width={pillWidth}
+                height={pillHeight}
+                fill={labelBg}
+                rx={4}
+              />
+              <text
+                x={x1 + 8}
+                y={textY}
+                fill="#ffffff"
+                fontSize={fontSize}
+                fontWeight="bold"
+                fontFamily="system-ui, -apple-system, sans-serif"
+              >
+                {labelText}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
 
   return (
     <div ref={playerContainerRef} className="flex flex-col gap-4 font-sans select-none">
@@ -421,8 +572,20 @@ export function CameraIntelligencePlayer({
                   </div>
                 )}
               </div>
+            ) : youtubeEmbedUrl ? (
+              /* CHẾ ĐỘ 3: YOUTUBE EMBED (SHORTS / VIDEO LIVE) */
+              <div className="relative h-full w-full flex items-center justify-center bg-neutral-950">
+                <iframe
+                  src={youtubeEmbedUrl}
+                  title={cameraName}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="h-full w-full object-cover border-0"
+                />
+                {renderDetectionsSvg()}
+              </div>
             ) : (
-              /* CHẾ ĐỘ 3: VIDEO ĐÃ XỬ LÝ SẴN */
+              /* CHẾ ĐỘ 4: VIDEO ĐÃ XỬ LÝ SẴN HOẶC VIDEO HTML5 NATIVE */
               <div className="relative h-full w-full flex items-center justify-center bg-neutral-950">
                 <video
                   ref={videoRef}
@@ -433,10 +596,17 @@ export function CameraIntelligencePlayer({
                   muted
                   className="h-full w-full object-contain cursor-pointer"
                   onClick={handleControlledTogglePlay}
+                  onLoadedMetadata={(e) => {
+                    const v = e.currentTarget;
+                    if (v.videoWidth && v.videoHeight) {
+                      setVideoDimensions({ width: v.videoWidth, height: v.videoHeight });
+                    }
+                  }}
                   onPlay={() => onSyncPlaying?.(true)}
                   onPause={() => onSyncPlaying?.(false)}
                   onTimeUpdate={(e) => onSyncTime?.(e.currentTarget.currentTime)}
                 />
+                {renderDetectionsSvg()}
               </div>
             )}
 
@@ -485,6 +655,33 @@ export function CameraIntelligencePlayer({
                 </Badge>
               </div>
             </div>
+
+            {/* Banner Tiến trình quét AI tự động cho camera mới */}
+            {autoAnalysisState &&
+              (autoAnalysisState.status === "processing" ||
+                autoAnalysisState.status === "downloading" ||
+                autoAnalysisState.status === "initializing") && (
+                <div className="absolute top-14 inset-x-3.5 sm:inset-x-6 z-30 flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-neutral-950/92 border border-primary/40 backdrop-blur-md shadow-2xl text-xs text-foreground animate-in fade-in zoom-in-95">
+                  <div className="flex items-center gap-2.5">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+                    <span className="font-medium text-foreground">
+                      {autoAnalysisState.message ||
+                        (isVietnamese
+                          ? "Đang tự động chạy mô hình YOLOv11 bám vết video..."
+                          : "Analyzing video with YOLOv11...")}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <div className="w-24 sm:w-32 h-2 rounded-full bg-neutral-800 overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all duration-300"
+                        style={{ width: `${Math.max(5, autoAnalysisState.progress)}%` }}
+                      />
+                    </div>
+                    <span className="font-mono font-bold text-primary">{autoAnalysisState.progress}%</span>
+                  </div>
+                </div>
+              )}
 
             {/* HUD Bottom Bar: Nổi mềm hiển thị tọa độ & tiến độ đệm */}
             <div className="pointer-events-none absolute bottom-3.5 inset-x-3.5 z-25 flex items-center justify-between text-xs">
@@ -644,6 +841,35 @@ export function CameraIntelligencePlayer({
               >
                 <Sliders className="h-3.5 w-3.5 text-primary" />
                 <span className="hidden sm:inline">{isVietnamese ? "Cấu hình AI" : "AI Config"}</span>
+              </Button>
+            )}
+
+            {/* 5. Nút Kích hoạt phân tích AI thật nếu chưa có log */}
+            {!isRealAiLog && onStartAutoAnalyze && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onStartAutoAnalyze}
+                disabled={
+                  autoAnalysisState?.status === "processing" ||
+                  autoAnalysisState?.status === "downloading" ||
+                  autoAnalysisState?.status === "initializing"
+                }
+                className="gap-1.5 text-xs font-semibold h-8 px-3 rounded-xl border-primary/50 text-primary hover:bg-primary/10 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] transition-all"
+                title={isVietnamese ? "Chạy mô hình YOLOv11 phân tích video thật" : "Run YOLOv11 AI model on this video"}
+              >
+                <Sparkles className="h-3.5 w-3.5 text-primary animate-pulse" />
+                <span>
+                  {autoAnalysisState?.status === "processing" ||
+                  autoAnalysisState?.status === "downloading" ||
+                  autoAnalysisState?.status === "initializing"
+                    ? isVietnamese
+                      ? `Đang quét (${autoAnalysisState.progress}%)`
+                      : `Analyzing (${autoAnalysisState.progress}%)`
+                    : isVietnamese
+                      ? "Quét AI YOLOv11"
+                      : "Run YOLOv11"}
+                </span>
               </Button>
             )}
 

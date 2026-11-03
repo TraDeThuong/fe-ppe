@@ -272,3 +272,19 @@ export interface SendNotificationPayload {
   templateKey?: string;
   templateData?: Record<string, unknown>;
 }
+
+export interface DispatchIncidentNotificationPayload {
+  incidentId: string;
+  siteId?: string;
+  cameraId?: string;
+  cameraCode?: string;
+  siteName?: string;
+  violationType: string;
+  severity: NotificationSeverity;
+  description?: string;
+  evidenceUrl?: string;
+  detectedAt?: string;
+  recipientUserIds?: string[];
+  channels?: NotificationChannel[];
+  recipientEmails?: Record<string, string> | string[];
+}

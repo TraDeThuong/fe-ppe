@@ -1,11 +1,22 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useContext } from "react";
 import { soundService, type SoundPreset, type SoundSettings } from "@/services/sound.service";
+import { AuthContext } from "@/contexts/AuthContext";
 import type { NotificationSeverity } from "@/types";
 
 export function useNotificationSound() {
+  const authCtx = useContext(AuthContext);
+  const userId = authCtx?.user?.id;
+
   const [settings, setSettings] = useState<SoundSettings>(() => soundService.getSettings());
+
+  useEffect(() => {
+    if (userId) {
+      soundService.setUserId(userId);
+      setSettings(soundService.getSettings());
+    }
+  }, [userId]);
 
   useEffect(() => {
     const handleSettingsChanged = (e: Event) => {

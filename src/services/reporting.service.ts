@@ -1,9 +1,11 @@
 import { apiClient } from "@/lib/axios";
 import type {
+  AggregateDailyPayload,
   CameraStatDto,
   CreateReportTemplateDto,
   GenerateReportDto,
   PaginationMeta,
+  ReportContentResult,
   ReportDownloadResult,
   ReportGenerationDto,
   ReportHistoryQueryDto,
@@ -90,9 +92,17 @@ export const reportingService = {
    */
   async getTrends(params?: ReportingFilterParams): Promise<TrendItemDto[]> {
     try {
+      const normalizedParams = params
+        ? {
+            ...params,
+            groupBy: params.groupBy
+              ? (params.groupBy.toUpperCase() as "DAY" | "WEEK" | "MONTH")
+              : undefined,
+          }
+        : undefined;
       const res = await apiClient.get<unknown>(
         "/statistics/trends",
-        { params }
+        { params: normalizedParams }
       );
       return unwrapArray<TrendItemDto>(res);
     } catch {
@@ -205,6 +215,37 @@ export const reportingService = {
       `/reports/${id}/download`
     );
     return unwrapData<ReportDownloadResult>(res);
+  },
+
+  /**
+   * DELETE /api/v1/reports/templates/:id
+   */
+  async deleteTemplate(id: string): Promise<{ message: string }> {
+    const res = await apiClient.delete<unknown, any>(
+      `/reports/templates/${id}`
+    );
+    return { message: res?.message || "Report template deleted successfully" };
+  },
+
+  /**
+   * GET /api/v1/reports/:id/content
+   */
+  async getReportContent(id: string): Promise<ReportContentResult> {
+    const res = await apiClient.get<unknown>(
+      `/reports/${id}/content`
+    );
+    return unwrapData<ReportContentResult>(res);
+  },
+
+  /**
+   * POST /api/v1/statistics/aggregate-daily
+   */
+  async aggregateDaily(payload: AggregateDailyPayload): Promise<{ message: string }> {
+    const res = await apiClient.post<unknown, any>(
+      "/statistics/aggregate-daily",
+      payload
+    );
+    return { message: res?.message || "Daily aggregation completed successfully" };
   },
 };
 

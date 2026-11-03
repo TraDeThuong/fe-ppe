@@ -10,3 +10,5 @@ export * from "./incident.service";
 export * from "./ai-metrics.service";
 export * from "./reporting.service";
 export * from "./sound.service";
+export * from "./maintenance.service";
+export * from "./media.service";

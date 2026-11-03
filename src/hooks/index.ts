@@ -9,5 +9,6 @@ export * from "./sites";
 export * from "./incidents";
 export * from "./ai-metrics";
 export * from "./reporting";
+export * from "./maintenance";
 export * from "./use-debounce";
 export * from "./use-entity-lookup";

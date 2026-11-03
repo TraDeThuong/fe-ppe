@@ -3,14 +3,20 @@ import type {
   ChecksumVerifyResult,
   CloseIncidentPayload,
   CreateAssignmentPayload,
+  CreateEvidencePayload,
   CreateIncidentPayload,
+  EvidenceItem,
+  EvidenceQueryParams,
+  EvidenceUploadUrlResponse,
   IncidentAssignmentItem,
   IncidentCommentItem,
   IncidentItem,
   IncidentQueryParams,
   PaginationMeta,
+  RequestEvidenceUploadUrlPayload,
   ResolveIncidentPayload,
   ReviewIncidentPayload,
+  UpdateIncidentPayload,
 } from "@/types";
 
 interface ApiResponse<T> {
@@ -206,5 +212,68 @@ export const incidentService = {
       `/incidents/${id}`,
     );
     return { message: res?.message || "Incident deleted successfully" };
+  },
+
+  /**
+   * PUT /api/v1/incidents/:id
+   * Cập nhật thông tin phân loại, mức độ hoặc mô tả sự cố.
+   */
+  async updateIncident(
+    id: string,
+    payload: UpdateIncidentPayload,
+  ): Promise<IncidentItem> {
+    const res = await apiClient.put<unknown>(`/incidents/${id}`, payload);
+    return unwrapData<IncidentItem>(res);
+  },
+
+  /**
+   * POST /api/v1/incidents/:id/evidences
+   * Thêm bằng chứng số mới (ảnh chụp / video clip) vào sự cố.
+   */
+  async addEvidence(
+    incidentId: string,
+    payload: CreateEvidencePayload,
+  ): Promise<EvidenceItem> {
+    const res = await apiClient.post<unknown>(
+      `/incidents/${incidentId}/evidences`,
+      payload,
+    );
+    return unwrapData<EvidenceItem>(res);
+  },
+
+  /**
+   * POST /api/v1/evidences/upload-url
+   * Lấy presigned URL để tải lên tệp bằng chứng trực tiếp lên MinIO.
+   */
+  async requestEvidenceUploadUrl(
+    payload: RequestEvidenceUploadUrlPayload,
+  ): Promise<EvidenceUploadUrlResponse> {
+    const res = await apiClient.post<unknown>(
+      "/evidences/upload-url",
+      payload,
+    );
+    return unwrapData<EvidenceUploadUrlResponse>(res);
+  },
+
+  /**
+   * GET /api/v1/evidences
+   * Lấy danh sách toàn bộ bằng chứng số có lọc và phân trang.
+   */
+  async getAllEvidences(
+    params?: EvidenceQueryParams,
+  ): Promise<{ items: EvidenceItem[]; meta?: PaginationMeta }> {
+    const res = await apiClient.get<unknown>("/evidences", { params });
+    return unwrapPaginated<EvidenceItem>(res);
+  },
+
+  /**
+   * DELETE /api/v1/evidences/:id
+   * Xóa một tệp bằng chứng số khỏi hệ thống.
+   */
+  async deleteEvidence(evidenceId: string): Promise<{ message: string }> {
+    const res = await apiClient.delete<unknown, any>(
+      `/evidences/${evidenceId}`,
+    );
+    return { message: res?.message || "Evidence deleted successfully" };
   },
 };

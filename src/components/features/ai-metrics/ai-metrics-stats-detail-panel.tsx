@@ -28,6 +28,13 @@ export interface AiMetricsStatsDetailPanelProps {
   onClose: () => void;
 }
 
+function formatFramesCount(total: number): string {
+  if (!Number.isFinite(total) || total <= 0) return "0";
+  if (total >= 1_000_000) return `${(total / 1_000_000).toFixed(2)}M`;
+  if (total >= 1_000) return `${(total / 1_000).toFixed(1)}K`;
+  return total.toLocaleString();
+}
+
 export function AiMetricsStatsDetailPanel({
   activeStat,
   performance,
@@ -36,25 +43,25 @@ export function AiMetricsStatsDetailPanel({
 }: AiMetricsStatsDetailPanelProps) {
   const { t } = useLocale();
 
-  // Giá trị định dạng thực tế từ API hoặc fallback
+  // Giá trị định dạng thực tế từ API
   const mapFormatted = performance
     ? `${(performance.mAP50 * 100).toFixed(1)}%`
-    : "94.8%";
-  const mapNum = performance ? performance.mAP50 * 100 : 94.8;
+    : "--";
+  const mapNum = performance ? performance.mAP50 * 100 : 0;
 
   const latencyFormatted = performance
     ? `${performance.averageLatencyMs.toFixed(1)} ms`
-    : "32.4 ms";
-  const latencyNum = performance ? performance.averageLatencyMs : 32.4;
+    : "--";
+  const latencyNum = performance ? performance.averageLatencyMs : 0;
 
   const fpsFormatted = performance
     ? `${performance.averageFps.toFixed(1)} FPS`
-    : "30.2 FPS";
-  const fpsNum = performance ? performance.averageFps : 30.2;
+    : "--";
+  const fpsNum = performance ? performance.averageFps : 0;
 
   const samplesFormatted = performance
-    ? `${(performance.totalFramesProcessed / 1000000).toFixed(2)}M`
-    : "1.25M";
+    ? formatFramesCount(performance.totalFramesProcessed)
+    : "--";
 
   // Cấu hình hiển thị theo từng loại stat
   const config = useMemo(() => {

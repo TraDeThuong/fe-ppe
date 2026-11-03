@@ -46,6 +46,7 @@ export type ReportFileType = (typeof REPORT_FILE_TYPE)[keyof typeof REPORT_FILE_
 
 export const REPORT_TEMPLATE_STATUS = {
   ACTIVE: "ACTIVE",
+  INACTIVE: "INACTIVE",
   ARCHIVED: "ARCHIVED",
 } as const;
 
@@ -60,7 +61,7 @@ export interface ReportingFilterParams {
   siteId?: string;
   startDate?: string;
   endDate?: string;
-  groupBy?: "day" | "week" | "month";
+  groupBy?: "DAY" | "WEEK" | "MONTH" | "day" | "week" | "month";
 }
 
 export interface StatisticsSummaryDto {
@@ -137,11 +138,22 @@ export interface CreateReportTemplateDto {
 
 export interface GenerateReportDto {
   templateId: string;
-  siteId?: string;
+  siteId: string;
   reportType: ReportType | string;
   periodStart: string;
   periodEnd: string;
   format?: ReportFileType | string;
+}
+
+export interface AggregateDailyPayload {
+  siteId: string;
+  statDate: string;
+}
+
+export interface ReportContentResult {
+  id: string;
+  content: string;
+  contentType: string;
 }
 
 export interface ReportGenerationDto {

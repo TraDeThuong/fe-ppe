@@ -2,6 +2,7 @@ import { apiClient } from "@/lib/axios";
 import type {
   BroadcastNotificationPayload,
   CreateNotificationTemplatePayload,
+  DispatchIncidentNotificationPayload,
   EmailLogsListResponse,
   EmailLogsQueryParams,
   ListNotificationsQuery,
@@ -175,6 +176,19 @@ export const notificationService = {
     return (await apiClient.post("/notifications/send", payload)) as {
       message: string;
     };
+  },
+
+  /**
+   * POST /api/v1/notifications/trigger-incident
+   * Phát đi cảnh báo vi phạm PPE tới người dùng và cán bộ phụ trách.
+   */
+  async triggerIncidentNotification(
+    payload: DispatchIncidentNotificationPayload,
+  ): Promise<{ message: string; notificationCount?: number }> {
+    return (await apiClient.post(
+      "/notifications/trigger-incident",
+      payload,
+    )) as { message: string; notificationCount?: number };
   },
 
   // ==========================================================================

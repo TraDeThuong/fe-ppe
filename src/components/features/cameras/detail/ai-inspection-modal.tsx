@@ -19,13 +19,44 @@ import {
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
+import { aiMetricsService } from "@/services/ai-metrics.service";
 import type { AiInspectionConfig, StreamMetadata } from "./types";
+
+export interface RemoteAiModelOption {
+  id: string;
+  name: string;
+  filename?: string;
+  path: string;
+  size_mb: number;
+  label?: string;
+  is_default?: boolean;
+}
+
+export const DEFAULT_AI_MODEL_OPTIONS: RemoteAiModelOption[] = [
+  {
+    id: "models/best.pt",
+    name: "YOLOv11s-PPE",
+    filename: "best.pt",
+    path: "models/best.pt",
+    size_mb: 18.3,
+    label: "YOLOv11s-PPE (best.pt — 18.3 MB, Tối ưu nhất - Khuyến nghị)",
+    is_default: true,
+  },
+];
+
+function normalizeModelId(rawId?: string): string {
+  if (!rawId) return "models/best.pt";
+  if (rawId === "models/yolo11s-best.pt" || rawId === "yolo11s-ppe-best") {
+    return "models/best.pt";
+  }
+  return rawId;
+}
 
 export interface AiInspectionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   config: AiInspectionConfig;
-  onSaveConfig: (newConfig: AiInspectionConfig) => void;
+  onSaveConfig: (newConfig: AiInspectionConfig) => void | Promise<void>;
   cameraCode?: string;
   streamMetadata?: StreamMetadata;
 }
@@ -61,13 +92,16 @@ export function AiInspectionModal({
     config.enableRestrictedArea ?? true
   );
   const [selectedModel, setSelectedModel] = useState<string>(
-    config.modelVersionId || "yolo11s-ppe-best"
+    normalizeModelId(config.modelVersionId)
   );
   const [processFps, setProcessFps] = useState<number>(
     config.processFps || 25
   );
 
   const [loading, setLoading] = useState(false);
+  const [remoteModels, setRemoteModels] = useState<RemoteAiModelOption[]>(
+    DEFAULT_AI_MODEL_OPTIONS
+  );
 
   useEffect(() => {
     if (open) {
@@ -77,12 +111,56 @@ export function AiInspectionModal({
       setEnableNoHelmet(config.enableNoHelmet ?? true);
       setEnableNoVest(config.enableNoVest ?? true);
       setEnableRestrictedArea(config.enableRestrictedArea ?? true);
-      setSelectedModel(config.modelVersionId || "yolo11s-ppe-best");
+      setSelectedModel(normalizeModelId(config.modelVersionId));
       setProcessFps(config.processFps || 25);
+
+      // Lấy danh sách mô hình AI từ Backend Multi-Model Registry (/api/v1/ai-models)
+      aiMetricsService
+        .getAiModels()
+        .then((models) => {
+          if (!Array.isArray(models) || models.length === 0) return;
+          const mapped: RemoteAiModelOption[] = [];
+          for (const m of models) {
+            for (const v of m.versions || []) {
+              const path = v.modelPath || "models/best.pt";
+              const filename = path.split("/").pop() || "best.pt";
+              const metricsAny = (v.metrics || {}) as Record<string, any>;
+              const sizeMb = Number(metricsAny.sizeMb || 18.3);
+              const customLabel = metricsAny.label as string | undefined;
+              mapped.push({
+                id: v.id,
+                name: `${m.name} v${v.version}`,
+                filename,
+                path,
+                size_mb: sizeMb,
+                label:
+                  customLabel ||
+                  `${m.name} v${v.version} (${filename} — ${sizeMb} MB${
+                    v.status === "DEPLOYED" ? ", Tối ưu nhất - Khuyến nghị" : ""
+                  })`,
+                is_default: v.status === "DEPLOYED",
+              });
+            }
+          }
+          if (mapped.length > 0) {
+            setRemoteModels(mapped);
+            const normalizedCurrent = normalizeModelId(config.modelVersionId);
+            const matched = mapped.find(
+              (opt) => opt.path === normalizedCurrent || opt.id === normalizedCurrent
+            );
+            if (!matched) {
+              const defaultOpt = mapped.find((opt) => opt.is_default) || mapped[0];
+              setSelectedModel(defaultOpt.path);
+            }
+          }
+        })
+        .catch(() => {
+          setRemoteModels(DEFAULT_AI_MODEL_OPTIONS);
+        });
     }
   }, [open, config]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
@@ -97,11 +175,12 @@ export function AiInspectionModal({
       processFps,
     };
 
-    onSaveConfig(updated);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await onSaveConfig(updated);
       onOpenChange(false);
-    }, 200);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleResetDefaults = () => {
@@ -111,7 +190,7 @@ export function AiInspectionModal({
     setEnableNoHelmet(true);
     setEnableNoVest(true);
     setEnableRestrictedArea(true);
-    setSelectedModel("yolo11s-ppe-best");
+    setSelectedModel(remoteModels[0]?.path || "models/best.pt");
     setProcessFps(25);
   };
 
@@ -339,22 +418,28 @@ export function AiInspectionModal({
         <div className="space-y-1.5 rounded-xl border border-border/40 bg-surface/40 p-3">
           <label className="text-xs font-semibold text-foreground flex items-center justify-between">
             <span>{isVietnamese ? "Phiên bản mô hình AI (Model Weights)" : "AI Model Version"}</span>
-            <span className="font-mono text-[10px] text-emerald-500 font-bold">MODAL-AI-TEST Linked</span>
+            <span className="font-mono text-[10px] text-emerald-500 font-bold">
+              {remoteModels.length > 0
+                ? `${remoteModels.length} file .pt trong models/`
+                : "models/ Linked"}
+            </span>
           </label>
           <select
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
             className="w-full rounded-xl border border-border/50 bg-background px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:border-primary shadow-sm"
           >
-            <option value="yolo11s-ppe-best">
-              YOLOv11s-PPE (best.pt — 21.5 MB, mAP 93.1%, Khuyến nghị)
-            </option>
-            <option value="yolo11m-ppe-finetune">
-              YOLO11m-PPE (40.5 MB, mAP 98.3%, Độ chính xác cao)
-            </option>
-            <option value="yolo11n-edge-light">
-              YOLO11n-PPE (5.5 MB, Tối ưu Edge Computing 45 FPS)
-            </option>
+            {remoteModels.length > 0 ? (
+              remoteModels.map((m) => (
+                <option key={m.id || m.path} value={m.path}>
+                  {m.label || `${m.name} (${m.filename || m.path} — ${m.size_mb} MB)`}
+                </option>
+              ))
+            ) : (
+              <option value="models/best.pt">
+                YOLOv11s-PPE (best.pt — 18.3 MB, Tối ưu nhất - Khuyến nghị)
+              </option>
+            )}
           </select>
         </div>
 

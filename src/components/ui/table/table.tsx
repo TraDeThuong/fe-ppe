@@ -32,6 +32,7 @@ export function Table<TData extends RowData>({
   loading = false,
   emptyMessage = "Không có dữ liệu để hiển thị.",
   className = "",
+  hideTopHighlight = false,
   getRowId,
   onRowClick,
 
@@ -155,8 +156,10 @@ export function Table<TData extends RowData>({
       : [
           "bg-background",
           "rounded-[24px] sm:rounded-[28px]",
-          "border border-white/80 dark:border-white/10",
-          "shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-1px_-1px_2px_var(--shadow-dark)]",
+          hideTopHighlight ? "border border-border/40" : "border border-white/80 dark:border-white/10",
+          hideTopHighlight
+            ? "shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light),inset_-1px_-1px_2px_var(--shadow-dark)]"
+            : "shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.8),inset_-1px_-1px_2px_var(--shadow-dark)]",
         ].join(" ");
 
   return (
@@ -175,11 +178,12 @@ export function Table<TData extends RowData>({
           .filter(Boolean)
           .join(" ")}
       >
-        {/* Specular highlight on top edge */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-8 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20 z-10"
-        />
+        {!hideTopHighlight ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-8 top-0 z-10 h-[1.5px] bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20"
+          />
+        ) : null}
 
         {/* Subtle ambient light */}
         <div

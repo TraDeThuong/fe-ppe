@@ -8,6 +8,8 @@ import { RealtimeProvider } from "@/providers/realtime-provider";
 import { PrefetchProvider } from "@/providers/prefetch-provider";
 import { SiteProvider } from "@/contexts/SiteContext";
 import { AppShell } from "@/components/features/app-shell/app-shell";
+import { MaintenanceScreen } from "@/components/features/maintenance";
+import { useMaintenanceStatus } from "@/hooks/maintenance";
 import { Button } from "@ui/button";
 
 /**
@@ -20,6 +22,22 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const router = useRouter();
 
   const mustChange = Boolean(user?.mustChangePassword);
+
+  const {
+    data: maintenanceStatus,
+    refetch: refetchMaintenance,
+    isFetching: isRefetchingMaintenance,
+  } = useMaintenanceStatus({
+    enabled: Boolean(user),
+  });
+
+  const isBypassed = Boolean(
+    user?.role === "ADMIN" ||
+      user?.permissions?.includes("MAINTENANCE_MANAGE") ||
+      user?.permissions?.includes("MAINTENANCE_BYPASS"),
+  );
+
+  const isMaintenanceActive = Boolean(maintenanceStatus?.enabled);
 
   useEffect(() => {
     const pathname = window.location.pathname;
@@ -63,6 +81,17 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           </Button>
         </div>
       </div>
+    );
+  }
+
+  // Chặn người dùng thường khi hệ thống đang bật chế độ bảo trì toàn web
+  if (isMaintenanceActive && !isBypassed) {
+    return (
+      <MaintenanceScreen
+        config={maintenanceStatus}
+        onRetry={() => void refetchMaintenance()}
+        isRetrying={isRefetchingMaintenance}
+      />
     );
   }
 

@@ -39,6 +39,7 @@ export function PermissionMatrixDrawer({
         "ROLE_PERMISSION_ASSIGN",
         "USER_ROLE_ASSIGN",
         "SYSTEM_CONFIG_MANAGE",
+        "MAINTENANCE_MANAGE",
       ]),
     [],
   );

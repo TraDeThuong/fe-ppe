@@ -31,6 +31,7 @@ export interface ViolationEvent {
   confirmed_t: number;
   duration_s: number;
   frame: number;
+  evidence_path?: string;
 }
 
 export interface EvidenceRecord {

@@ -1,15 +1,22 @@
 import { apiClient } from "@/lib/axios";
 import type {
+  ArchiveSiteResponse,
   CreateRestrictedAreaPayload,
   CreateSitePayload,
   CreateZonePayload,
+  EffectiveSafetyConfigResponse,
+  InvalidateSafetyRuleCachePayload,
   PaginationMeta,
   RestrictedAreaItem,
   SiteItem,
   SiteQueryParams,
   SiteSafetyConfigItem,
+  SystemDefaultSafetyConfigResponse,
+  UpdateCameraSafetyConfigPayload,
+  UpdateRestrictedAreaPayload,
   UpdateSitePayload,
   UpdateSiteSafetyConfigPayload,
+  UpdateZonePayload,
   ZoneItem,
 } from "@/types";
 
@@ -103,6 +110,15 @@ export const siteService = {
   },
 
   /**
+   * POST /api/v1/sites/:id/archive
+   * Lưu trữ công trường thi công.
+   */
+  async archiveSite(id: string): Promise<ArchiveSiteResponse> {
+    const res = await apiClient.post<unknown, any>(`/sites/${id}/archive`);
+    return unwrapData<ArchiveSiteResponse>(res);
+  },
+
+  /**
    * GET /api/v1/sites/:id/safety-config
    * Lấy tiêu chuẩn an toàn PPE và quy tắc xác nhận vi phạm của site.
    */
@@ -126,6 +142,55 @@ export const siteService = {
       payload,
     );
     return unwrapData<SiteSafetyConfigItem>(res);
+  },
+
+  /**
+   * GET /api/v1/safety-rules/effective
+   * Lấy cấu hình an toàn AI hiệu lực sau khi giải quyết phân tầng: Camera Override -> Site Config -> System Default
+   */
+  async getEffectiveSafetyConfig(params: {
+    siteId?: string;
+    cameraId?: string;
+  }): Promise<EffectiveSafetyConfigResponse> {
+    const res = await apiClient.get<unknown, any>("/safety-rules/effective", {
+      params,
+    });
+    return unwrapData<EffectiveSafetyConfigResponse>(res);
+  },
+
+  /**
+   * GET /api/v1/safety-rules/cameras/:cameraId
+   * Lấy cấu hình an toàn ghi đè riêng của Camera
+   */
+  async getCameraSafetyConfig(cameraId: string): Promise<any> {
+    const res = await apiClient.get<unknown, any>(`/safety-rules/cameras/${cameraId}`);
+    return unwrapData<any>(res);
+  },
+
+  /**
+   * PUT /api/v1/safety-rules/cameras/:cameraId
+   * Cập nhật cấu hình an toàn ghi đè riêng cho Camera
+   */
+  async updateCameraSafetyConfig(
+    cameraId: string,
+    payload: UpdateCameraSafetyConfigPayload,
+  ): Promise<any> {
+    const res = await apiClient.put<unknown, any>(
+      `/safety-rules/cameras/${cameraId}`,
+      payload,
+    );
+    return unwrapData<any>(res);
+  },
+
+  /**
+   * DELETE /api/v1/safety-rules/cameras/:cameraId
+   * Xóa cấu hình an toàn riêng để khôi phục mặc định theo Site
+   */
+  async deleteCameraSafetyConfig(cameraId: string): Promise<{ message: string }> {
+    const res = await apiClient.delete<unknown, any>(
+      `/safety-rules/cameras/${cameraId}`,
+    );
+    return { message: res?.message || "Camera safety config cleared successfully" };
   },
 
   /**
@@ -200,5 +265,73 @@ export const siteService = {
       `/restricted-areas/${areaId}`,
     );
     return { message: res?.message || "Restricted area deleted successfully" };
+  },
+
+  /**
+   * GET /api/v1/zones/:id
+   * Lấy chi tiết thông tin phân khu theo ID.
+   */
+  async getZoneById(zoneId: string): Promise<ZoneItem> {
+    const res = await apiClient.get<unknown, any>(`/zones/${zoneId}`);
+    return unwrapData<ZoneItem>(res);
+  },
+
+  /**
+   * PUT /api/v1/zones/:id
+   * Cập nhật thông tin phân khu (tên, mã, mô tả, trạng thái).
+   */
+  async updateZone(
+    zoneId: string,
+    payload: UpdateZonePayload,
+  ): Promise<ZoneItem> {
+    const res = await apiClient.put<unknown, any>(`/zones/${zoneId}`, payload);
+    return unwrapData<ZoneItem>(res);
+  },
+
+  /**
+   * GET /api/v1/restricted-areas/:id
+   * Lấy chi tiết thông tin vùng cấm theo ID.
+   */
+  async getRestrictedAreaById(areaId: string): Promise<RestrictedAreaItem> {
+    const res = await apiClient.get<unknown, any>(`/restricted-areas/${areaId}`);
+    return unwrapData<RestrictedAreaItem>(res);
+  },
+
+  /**
+   * PUT /api/v1/restricted-areas/:id
+   * Cập nhật thông tin và tọa độ ranh giới vùng cấm.
+   */
+  async updateRestrictedArea(
+    areaId: string,
+    payload: UpdateRestrictedAreaPayload,
+  ): Promise<RestrictedAreaItem> {
+    const res = await apiClient.put<unknown, any>(
+      `/restricted-areas/${areaId}`,
+      payload,
+    );
+    return unwrapData<RestrictedAreaItem>(res);
+  },
+
+  /**
+   * GET /api/v1/safety-rules/system-default
+   * Lấy cấu hình tiêu chuẩn an toàn mặc định toàn hệ thống.
+   */
+  async getSystemDefaultSafetyConfig(): Promise<SystemDefaultSafetyConfigResponse> {
+    const res = await apiClient.get<unknown, any>("/safety-rules/system-default");
+    return unwrapData<SystemDefaultSafetyConfigResponse>(res);
+  },
+
+  /**
+   * POST /api/v1/safety-rules/cache/invalidate
+   * Xóa bộ nhớ cache cấu hình an toàn khi có thay đổi.
+   */
+  async invalidateSafetyRuleCache(
+    payload: InvalidateSafetyRuleCachePayload,
+  ): Promise<{ message: string }> {
+    const res = await apiClient.post<unknown, any>(
+      "/safety-rules/cache/invalidate",
+      payload,
+    );
+    return { message: res?.message || "Cache invalidated successfully" };
   },
 };

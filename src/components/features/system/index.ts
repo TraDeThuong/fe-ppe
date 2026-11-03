@@ -1,4 +1,5 @@
 export * from "./system-kpi-summary";
+export * from "./system-stats-detail-panel";
 export * from "./system-tabs";
 export * from "./feature-flag-card";
 export * from "./feature-flags-tab";

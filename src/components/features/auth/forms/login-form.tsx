@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Mail } from "lucide-react";
+import { AlertTriangle, Loader2, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -19,6 +19,7 @@ import {
   usePublicConfig,
   useResendVerification,
 } from "@/hooks/auth";
+import { useMaintenanceStatus } from "@/hooks/maintenance";
 import { ApiError } from "@/lib/axios";
 import { normalizeEmail } from "@/lib/email";
 import {
@@ -259,9 +260,23 @@ export function LoginForm() {
   }
 
   const lockoutActive = lockout !== null;
+  const { data: maintenanceStatus } = useMaintenanceStatus();
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
+      {maintenanceStatus?.enabled && (
+        <div
+          role="alert"
+          className="flex items-start gap-2.5 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+          <div className="space-y-0.5">
+            <span className="font-bold">{t("maintenance.badge.active")}:</span>
+            <p className="leading-relaxed">{t("maintenance.login.notice")}</p>
+          </div>
+        </div>
+      )}
+
       <FormField
         id="email"
         label={t("login.email")}

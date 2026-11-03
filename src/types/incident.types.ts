@@ -244,3 +244,52 @@ export interface ChecksumVerifyResult {
   verifiedAt: string;
   algorithm: string;
 }
+
+export interface UpdateIncidentPayload {
+  violationType?: ViolationType | string;
+  severity?: IncidentSeverity | string;
+  description?: string | null;
+}
+
+export interface CreateEvidencePayload {
+  cameraId: string;
+  evidenceType: EvidenceType | string;
+  storageKey: string;
+  fileName: string;
+  mimeType: string;
+  fileSize?: number;
+  capturedAt: string;
+  metadata?: {
+    width?: number | null;
+    height?: number | null;
+    durationSeconds?: number | null;
+    frameRate?: number | null;
+    checksum?: string | null;
+    aiDetections?: AiDetectionMetadata | null;
+  };
+}
+
+export interface RequestEvidenceUploadUrlPayload {
+  cameraId: string;
+  incidentId?: string;
+  fileName: string;
+  mimeType: string;
+  fileSize?: number;
+  evidenceType?: EvidenceType | string;
+}
+
+export interface EvidenceUploadUrlResponse {
+  uploadUrl: string;
+  storageKey: string;
+  expiresIn: number;
+}
+
+export interface EvidenceQueryParams {
+  page?: number;
+  limit?: number;
+  incidentId?: string;
+  cameraId?: string;
+  evidenceType?: EvidenceType | string;
+  sortBy?: "capturedAt" | "createdAt";
+  sortOrder?: "asc" | "desc";
+}

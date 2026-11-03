@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveRoutePermission } from "@/config/navigation";
+import { MaintenanceAdminBanner } from "@/components/features/maintenance";
+import { useMaintenanceStatus } from "@/hooks/maintenance";
 import { AppSidebar } from "./app-sidebar";
 import { AppHeader } from "./app-header";
 import { ForbiddenView } from "./forbidden-view";
@@ -10,6 +12,14 @@ import { ForbiddenView } from "./forbidden-view";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
+  const { data: maintenanceStatus } = useMaintenanceStatus();
+
+  const isBypassed = Boolean(
+    user?.role === "ADMIN" ||
+      user?.permissions?.includes("MAINTENANCE_MANAGE") ||
+      user?.permissions?.includes("MAINTENANCE_BYPASS"),
+  );
+  const isMaintenanceActive = Boolean(maintenanceStatus?.enabled);
 
   const required = resolveRoutePermission(pathname);
   const forbidden =
@@ -38,6 +48,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        {isMaintenanceActive && isBypassed && <MaintenanceAdminBanner />}
         <AppHeader />
 
         <main className="relative z-10 flex-1 overflow-y-auto bg-background p-3 sm:p-6 lg:p-8">

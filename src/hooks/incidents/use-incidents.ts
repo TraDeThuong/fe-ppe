@@ -17,7 +17,8 @@ export function useIncidents(
   return useQuery({
     queryKey: incidentKeys.list(params),
     queryFn: () => incidentService.getIncidents(params),
-    staleTime: 30 * 1000,
+    staleTime: 10 * 1000,
+    refetchInterval: 15 * 1000,
     ...options,
   });
 }

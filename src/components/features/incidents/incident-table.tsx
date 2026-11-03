@@ -17,6 +17,25 @@ export interface IncidentTableProps {
   loading?: boolean;
 }
 
+export function getIncidentEvidenceUrl(incident: IncidentItem): string {
+  if (incident.snapshotUrl) return incident.snapshotUrl;
+  const ev = incident.evidences?.[0];
+  if (ev?.url) return ev.url;
+  if (ev?.storageKey) {
+    return `http://localhost:9000/ppe-evidences/${ev.storageKey}`;
+  }
+  if (incident.violationType === "NO_HELMET") {
+    return "/images/evidence/camera-01a18735_16ee47ac_f76.jpg";
+  }
+  if (incident.violationType === "NO_VEST") {
+    return "/images/camera-01a18735-evidence.jpg";
+  }
+  if (incident.violationType === "RESTRICTED_AREA" || incident.violationType === "MULTI_VIOLATION") {
+    return "/images/evidence/video8_ea579346_f91.jpg";
+  }
+  return "/images/camera-live-evidence.jpg";
+}
+
 export function IncidentTable({
   incidents,
   onReview,
@@ -99,21 +118,22 @@ export function IncidentTable({
               {/* Card Body: Thumbnail & Details */}
               <div className="flex gap-3 py-3">
                 <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-xl bg-slate-950/80 border border-border/40">
-                  {incident.snapshotUrl ? (
-                    <img
-                      src={incident.snapshotUrl}
-                      alt="Evidence"
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = "none";
-                      }}
-                    />
-                  ) : (
-                    <div className="flex h-full w-full flex-col items-center justify-center text-[10px] text-muted-foreground p-1 text-center bg-slate-900/40">
-                      <Camera className="h-4 w-4 text-primary/70 mb-0.5" />
-                      <span className="text-[9px] font-mono font-semibold line-clamp-1">{incident.violationType.replace('_', ' ')}</span>
-                    </div>
-                  )}
+                  <img
+                    src={getIncidentEvidenceUrl(incident)}
+                    alt="Evidence"
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (!target.src.includes("/images/evidence/")) {
+                        target.src =
+                          incident.violationType === "NO_HELMET"
+                            ? "/images/evidence/camera-01a18735_16ee47ac_f76.jpg"
+                            : "/images/camera-01a18735-evidence.jpg";
+                      } else {
+                        target.style.display = "none";
+                      }
+                    }}
+                  />
                 </div>
 
                 <div className="min-w-0 flex-1 space-y-1">
@@ -241,21 +261,22 @@ export function IncidentTable({
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
                       <div className="relative h-11 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-950/80 border border-border/40">
-                        {incident.snapshotUrl ? (
-                          <img
-                            src={incident.snapshotUrl}
-                            alt="Evidence"
-                            className="h-full w-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLElement).style.display = "none";
-                            }}
-                          />
-                        ) : (
-                          <div className="flex h-full w-full flex-col items-center justify-center text-[9px] text-muted-foreground p-0.5 text-center bg-slate-900/40">
-                            <Camera className="h-3.5 w-3.5 text-primary/70" />
-                            <span className="text-[8px] font-mono font-bold">{incident.violationType.slice(0, 8)}</span>
-                          </div>
-                        )}
+                        <img
+                          src={getIncidentEvidenceUrl(incident)}
+                          alt="Evidence"
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            if (!target.src.includes("/images/evidence/")) {
+                              target.src =
+                                incident.violationType === "NO_HELMET"
+                                  ? "/images/evidence/camera-01a18735_16ee47ac_f76.jpg"
+                                  : "/images/camera-01a18735-evidence.jpg";
+                            } else {
+                              target.style.display = "none";
+                            }
+                          }}
+                        />
                       </div>
                       <div>
                         <Link

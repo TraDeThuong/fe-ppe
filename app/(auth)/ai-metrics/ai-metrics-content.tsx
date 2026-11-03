@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Cpu, RefreshCw, Zap } from "lucide-react";
+import { Cpu, FlaskConical, RefreshCw, Zap } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
@@ -42,7 +43,8 @@ const URL_TO_STAT: Record<string, AiMetricStatKey> = {
 };
 
 export default function AiMetricsContent() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -110,6 +112,16 @@ export default function AiMetricsContent() {
 
   const isRefetching = isPerfRefetching;
 
+  const activeModel =
+    models.find((m) => m.id === activeVersion?.modelId) ?? models[0];
+  const activeModelName =
+    activeModel?.name ||
+    (typeof activeVersion?.metrics?.modelName === "string"
+      ? activeVersion.metrics.modelName
+      : undefined) ||
+    performance?.modelName ||
+    undefined;
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Page Header */}
@@ -117,23 +129,41 @@ export default function AiMetricsContent() {
         icon={Cpu}
         title={t("aiMetrics.title")}
         description={t("aiMetrics.description")}
-        badge="YOLOv8 Engine"
+        badge={activeModelName ? `${activeModelName} Engine` : undefined}
         badgeIcon={Zap}
         actions={
-          <Button
-            variant="ghost"
-            onClick={handleRefreshAll}
-            disabled={isRefetching}
-            className="gap-2 text-xs sm:text-sm h-8 sm:h-9"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isRefetching ? "animate-spin" : ""}`} />
-            <span>{t("common.refresh")}</span>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/ai-metrics/test">
+              <Button
+                variant="primary"
+                className="gap-2 text-xs sm:text-sm h-8 sm:h-9 font-bold shadow-nm-sm hover:shadow-nm transition"
+              >
+                <FlaskConical className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span>
+                  {isVietnamese ? "Kiểm Thử Mô Hình (Test Video)" : "Test Model (Video Sandbox)"}
+                </span>
+              </Button>
+            </Link>
+
+            <Button
+              variant="ghost"
+              onClick={handleRefreshAll}
+              disabled={isRefetching}
+              className="gap-2 text-xs sm:text-sm h-8 sm:h-9"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isRefetching ? "animate-spin" : ""}`} />
+              <span>{t("common.refresh")}</span>
+            </Button>
+          </div>
         }
       />
 
       {/* Active Serving Model Banner */}
-      <ActiveModelBanner activeVersion={activeVersion} loading={isActiveLoading} />
+      <ActiveModelBanner
+        activeVersion={activeVersion}
+        modelName={activeModelName}
+        loading={isActiveLoading}
+      />
 
       {/* Bento Console KPI Summary với hiệu ứng sunken và Panel giải thích chi tiết */}
       <AiMetricsKpiSummary
@@ -155,15 +185,15 @@ export default function AiMetricsContent() {
       />
 
       {/* 2-Column: Per-Class Breakdown (Left) & Confusion Matrix Heatmap (Right) */}
-      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
-        <div id="per-class-breakdown" className="scroll-mt-20">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 items-stretch">
+        <div id="per-class-breakdown" className="scroll-mt-20 h-full">
           <PerClassMetricsCard
             metrics={performance?.perClassMetrics}
             loading={isPerfLoading}
           />
         </div>
 
-        <div id="confusion-matrix" className="scroll-mt-20">
+        <div id="confusion-matrix" className="scroll-mt-20 h-full">
           <ConfusionMatrixHeatmap
             confusionMatrix={performance?.confusionMatrix}
             loading={isPerfLoading}
