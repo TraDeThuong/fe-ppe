@@ -4,13 +4,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/toast";
 import { siteService } from "@/services/site.service";
 import { siteKeys } from "./site.query-keys";
-import type { CreateZonePayload, ZoneItem } from "@/types";
+import type { CreateZonePayload, ZoneItem, ZoneQueryParams } from "@/types";
 
 export function useSiteZones(siteId: string, enabled = true) {
   return useQuery<ZoneItem[]>({
     queryKey: siteKeys.zones(siteId),
     queryFn: () => siteService.getSiteZones(siteId),
     enabled: Boolean(siteId) && enabled,
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useAllZones(params?: ZoneQueryParams, enabled = true) {
+  return useQuery<ZoneItem[]>({
+    queryKey: siteKeys.allZones(params),
+    queryFn: () => siteService.getAllZones(params),
+    enabled,
     staleTime: 30 * 1000,
   });
 }
@@ -23,6 +32,7 @@ export function useCreateZone() {
       siteService.createZone(siteId, payload),
     onSuccess: (newZone, { siteId }) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.zones(siteId) });
+      queryClient.invalidateQueries({ queryKey: [...siteKeys.all, "all-zones"] });
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
       queryClient.invalidateQueries({ queryKey: siteKeys.all });
@@ -43,6 +53,7 @@ export function useDeleteZone() {
       siteService.deleteZone(siteId, zoneId),
     onSuccess: (_, { siteId, name }) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.zones(siteId) });
+      queryClient.invalidateQueries({ queryKey: [...siteKeys.all, "all-zones"] });
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
       queryClient.invalidateQueries({ queryKey: siteKeys.all });

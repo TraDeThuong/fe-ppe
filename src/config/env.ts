@@ -18,9 +18,23 @@ const REQUIRED_VARS = [
 // Turbopack chỉ inline tham chiếu tĩnh vào client bundle, key động luôn undefined trên browser.
 const missing = REQUIRED_VARS.filter(([, value]) => !value).map(([key]) => key);
 if (missing.length > 0) {
-  throw new Error(
-    `Thiếu biến môi trường bắt buộc: ${missing.join(", ")}. Sao chép .env.example thành .env.local và điền giá trị.`,
-  );
+  const isTest =
+    process.env.NODE_ENV === "test" ||
+    Boolean(process.env.NODE_TEST_CONTEXT) ||
+    process.argv.some((a) => a.includes("test"));
+
+  if (isTest) {
+    if (!process.env.NEXT_PUBLIC_API_BASE_URL) {
+      process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:80/api/v1";
+    }
+    if (!process.env.NEXT_PUBLIC_APP_URL) {
+      process.env.NEXT_PUBLIC_APP_URL = "http://localhost:3000";
+    }
+  } else {
+    throw new Error(
+      `Thiếu biến môi trường bắt buộc: ${missing.join(", ")}. Sao chép .env.example thành .env.local và điền giá trị.`,
+    );
+  }
 }
 
 const stripTrailingSlash = (value: string) => value.replace(/\/+$/, "");

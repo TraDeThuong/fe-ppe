@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertOctagon,
   AlertTriangle,
@@ -21,15 +21,19 @@ import {
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
+import { useEntityLookup } from "@/hooks/use-entity-lookup";
+import { useRealtime } from "@/contexts/RealtimeContext";
 import { toast } from "@/lib/toast";
-import type {
-  IncidentItem,
-  IncidentCommentItem,
-  IncidentAssignmentItem,
-  IncidentStatusHistoryItem,
+import {
+  EVIDENCE_TYPE,
+  type IncidentItem,
+  type IncidentCommentItem,
+  type IncidentAssignmentItem,
+  type IncidentStatusHistoryItem,
 } from "@/types";
 import {
   IncidentLifecycleStepper,
+  IncidentActionGuide,
   IncidentEvidenceViewer,
   IncidentMetaCard,
   IncidentAssignmentCard,
@@ -58,132 +62,90 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { getCamera } = useEntityLookup();
 
-  const isSampleId = Boolean(id) && (id.startsWith("sample") || id.startsWith("mock") || id.startsWith("demo"));
+  const [isHighlightCompare, setIsHighlightCompare] = useState(false);
 
-  // Queries (chỉ fetch từ server nếu không phải sample ID)
-  const { data: serverIncident, isLoading, refetch, isRefetching } = useIncidentDetail(id, !isSampleId);
-  const { data: serverComments = [] } = useIncidentComments(id, !isSampleId);
+  useEffect(() => {
+    if (searchParams.get("focus") === "compare") {
+      setIsHighlightCompare(true);
+      const timer = setTimeout(() => {
+        const viewerEl = document.getElementById("incident-evidence-viewer");
+        if (viewerEl) {
+          viewerEl.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 350);
+      const pulseTimer = setTimeout(() => setIsHighlightCompare(false), 4500);
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(pulseTimer);
+      };
+    }
+  }, [searchParams]);
 
-  // Hồ sơ sự cố mẫu giả lập khi truy cập qua mã mô phỏng (ví dụ #sample-5491)
-  const [sampleIncident, setSampleIncident] = useState<IncidentItem | null>(() => {
-    if (!isSampleId) return null;
-    const nowIso = new Date().toISOString();
-    return {
-      id,
-      siteId: "01a1866d-094a-741c-8fe2-d679f1a46780",
-      siteName: "Công trường Khu Nam (Mô Phỏng AI)",
-      zoneId: "01a1866d-094a-741c-8fe2-d679f1a46781",
-      zoneName: "Khu vực Giàn giáo & Lối ra vào công trình",
-      cameraId: "01a18735-39f8-7ea2-822d-1e7765c59c73",
-      cameraName: "Camera 01 - Giám sát toàn cảnh",
-      cameraCode: "CAM-YOUTUBE-099999",
-      violationType: "NO_HELMET",
-      severity: "CRITICAL",
-      status: "PENDING_REVIEW",
-      detectedAt: nowIso,
-      description: `AI Camera quét luồng video phát hiện công nhân vi phạm an toàn PPE (Không đội mũ bảo hộ trong vùng thi công). Đây là hồ sơ sự cố tạo từ phiên quét mô phỏng #${id}.`,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      confidence: 0.96,
-      snapshotUrl: "/images/evidence/camera-01a18735_16ee47ac_f76_red.jpg",
-      evidences: [
-        {
-          id: `ev-${id}-1`,
-          incidentId: id,
-          cameraId: "01a18735-39f8-7ea2-822d-1e7765c59c73",
-          evidenceType: "SNAPSHOT",
-          storageKey: "evidence/camera-01a18735_16ee47ac_f76_red.jpg",
-          fileName: "ai_violation_annotated_red.jpg",
-          mimeType: "image/jpeg",
-          fileSize: 230436,
-          capturedAt: nowIso,
-          createdAt: nowIso,
-          url: "/images/evidence/camera-01a18735_16ee47ac_f76_red.jpg",
-          metadata: {
-            id: `meta-${id}-1`,
-            evidenceId: `ev-${id}-1`,
-            width: 1920,
-            height: 1080,
-            frameRate: 25,
-            checksum: "sha256-16ee47acf44399281a18735redboxannotated",
-            createdAt: nowIso,
-          },
-        },
-        {
-          id: `ev-${id}-2`,
-          incidentId: id,
-          cameraId: "01a18735-39f8-7ea2-822d-1e7765c59c73",
-          evidenceType: "SNAPSHOT",
-          storageKey: "evidence/camera-01a18735_16ee47ac_f76.jpg",
-          fileName: "original_raw_frame.jpg",
-          mimeType: "image/jpeg",
-          fileSize: 230154,
-          capturedAt: nowIso,
-          createdAt: nowIso,
-          url: "/images/evidence/camera-01a18735_16ee47ac_f76.jpg",
-          metadata: {
-            id: `meta-${id}-2`,
-            evidenceId: `ev-${id}-2`,
-            width: 1920,
-            height: 1080,
-            frameRate: 25,
-            checksum: "sha256-76ee47acf44399281a18735originalraw",
-            createdAt: nowIso,
-          },
-        },
-        {
-          id: `ev-${id}-3`,
-          incidentId: id,
-          cameraId: "01a18735-39f8-7ea2-822d-1e7765c59c73",
-          evidenceType: "SNAPSHOT",
-          storageKey: "camera-01a18735-evidence.jpg",
-          fileName: "wide_angle_overview.jpg",
-          mimeType: "image/jpeg",
-          fileSize: 242000,
-          capturedAt: nowIso,
-          createdAt: nowIso,
-          url: "/images/camera-01a18735-evidence.jpg",
-          metadata: {
-            id: `meta-${id}-3`,
-            evidenceId: `ev-${id}-3`,
-            width: 1920,
-            height: 1080,
-            frameRate: 25,
-            checksum: "sha256-01a18735wideanglecontextsnapshot",
-            createdAt: nowIso,
-          },
-        },
-      ],
-      statusHistory: [
-        {
-          id: `sh-${id}-1`,
-          incidentId: id,
-          oldStatus: "NONE",
-          newStatus: "PENDING_REVIEW",
-          changedBy: "AI-SYSTEM",
-          changedByName: "Hệ thống AI YOLOv11 (Mô Phỏng)",
-          changedAt: nowIso,
-          reason: "Tự động phát hiện vi phạm qua luồng Camera Live / YouTube",
-        },
-      ],
-      assignments: [],
-      comments: [
-        {
-          id: `cm-${id}-1`,
-          incidentId: id,
-          userId: "system-ai",
-          userName: "AI Safety Officer (Bot)",
-          userRole: "AI Monitor",
-          comment: `Hệ thống đã tự động ghi nhận sự cố #${id}, phát còi cảnh báo cấp độ CRITICAL và gửi thông báo Toast đến toàn bộ cán bộ an toàn.`,
-          createdAt: nowIso,
-        },
-      ],
-    };
-  });
+  // Realtime updates từ SSE
+  const { lastAlert } = useRealtime();
 
-  const incident = isSampleId ? sampleIncident : serverIncident;
-  const comments = isSampleId ? (sampleIncident?.comments || []) : serverComments;
+  // Queries lấy dữ liệu thực tế từ Backend
+  const {
+    data: incident,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isRefetching,
+  } = useIncidentDetail(id);
+
+  const { data: comments = [] } = useIncidentComments(id);
+
+  // Tự động làm mới dữ liệu khi có cảnh báo/sự kiện liên quan đến sự cố hiện tại
+  useEffect(() => {
+    if (!lastAlert) return;
+    const alertData = lastAlert.data as Record<string, unknown> | undefined;
+    const alertIncidentId = (alertData?.incidentId as string) || (alertData?.id as string);
+    if (alertIncidentId === id) {
+      refetch();
+    }
+  }, [lastAlert, id, refetch]);
+
+  const incidentCamera = incident?.cameraId ? getCamera(incident.cameraId) : undefined;
+
+  // Xác định ảnh bằng chứng AI chuẩn xác theo từng camera (Gọi ở Top-level hook tuân thủ Rules of Hooks)
+  const cameraDesignatedEvidence = useMemo(() => {
+    const cid = (incident?.cameraId || "").toLowerCase();
+    const ccode = (incident?.cameraCode || incidentCamera?.code || "").toLowerCase();
+    const cstream = (incidentCamera?.streamUrl || "").toLowerCase();
+
+    if (cid.includes("01a19ce7") || ccode.includes("cam2") || cstream.includes("podsp36oulm")) {
+      return "/images/camera-01a19ce7-evidence.jpg";
+    }
+    if (cid.includes("01a19cf4") || ccode.includes("cam3")) {
+      return "/images/camera-01a19cf4-evidence.jpg";
+    }
+    if (cid.includes("01a19d07") || ccode.includes("cam5")) {
+      return "/images/camera-01a19d07-evidence.jpg";
+    }
+    if (cid.includes("01a19e19") || ccode.includes("cammmm")) {
+      return "/images/camera-01a19e19-evidence.jpg";
+    }
+    if (
+      cid.includes("01a18735") ||
+      ccode.includes("099999") ||
+      ccode.includes("cam-1") ||
+      ccode.includes("cam-youtube-01") ||
+      cstream.includes("rcvx3zsi4eq")
+    ) {
+      return "/images/evidence/camera-01a18735_16ee47ac_f76_red.jpg";
+    }
+    if (cstream.includes("video8")) {
+      return "/images/evidence/video8_ea579346_f91_red.jpg";
+    }
+    if (cstream.includes("cctv") || cstream.includes("ai-cctv")) {
+      return "/images/evidence/ai-cctv_3a05148c_f195_red.jpg";
+    }
+    return incidentCamera?.snapshotUrl || "/images/camera-live-evidence.jpg";
+  }, [incident?.cameraId, incident?.cameraCode, incidentCamera]);
 
   // Mutations
   const addCommentMutation = useAddIncidentComment();
@@ -198,132 +160,46 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
   const [isResolveOpen, setIsResolveOpen] = useState(false);
   const [isCloseOpen, setIsCloseOpen] = useState(false);
 
-  // Handlers hỗ trợ tương tác trên cả sự cố thật và sự cố mô phỏng
+  // Handlers gọi trực tiếp API Backend qua React Query mutations
   const handleSendComment = async (comment: string) => {
-    if (isSampleId) {
-      const newCm: IncidentCommentItem = {
-        id: `cm-${Date.now()}`,
-        incidentId: id,
-        userId: "current-user",
-        userName: "Cán bộ An toàn (Bạn)",
-        userRole: "SAFETY_OFFICER",
-        comment,
-        createdAt: new Date().toISOString(),
-      };
-      setSampleIncident((prev) => (prev ? { ...prev, comments: [newCm, ...(prev.comments || [])] } : null));
-      toast.success(isVietnamese ? "Đã gửi bình luận mô phỏng!" : "Comment added!");
-      return;
-    }
-    await addCommentMutation.mutateAsync({ incidentId: incident!.id, comment });
+    if (!incident) return;
+    await addCommentMutation.mutateAsync({ incidentId: incident.id, comment });
   };
 
   const handleReview = async (reviewId: string, payload: any) => {
-    if (isSampleId) {
-      setSampleIncident((prev) => {
-        if (!prev) return null;
-        const newStatus = payload.action === "CONFIRM" ? "CONFIRMED" : "DISMISSED";
-        const historyItem: IncidentStatusHistoryItem = {
-          id: `sh-${Date.now()}`,
-          incidentId: id,
-          oldStatus: prev.status,
-          newStatus,
-          changedBy: "user",
-          changedByName: "Bạn (Cán bộ giám sát)",
-          changedAt: new Date().toISOString(),
-          reason: payload.note || "Đã thẩm duyệt sự cố",
-        };
-        return {
-          ...prev,
-          status: newStatus,
-          statusHistory: [historyItem, ...(prev.statusHistory || [])],
-        };
-      });
+    try {
+      await reviewMutation.mutateAsync({ id: reviewId, payload });
       setIsReviewOpen(false);
-      toast.success(isVietnamese ? "Đã thẩm duyệt sự cố mô phỏng thành công!" : "Incident reviewed!");
-      return;
+    } catch (err) {
+      console.error("Failed to review incident:", err);
     }
-    await reviewMutation.mutateAsync({ id: reviewId, payload });
   };
 
   const handleAssign = async (incidentId: string, payload: any) => {
-    if (isSampleId) {
-      setSampleIncident((prev) => {
-        if (!prev) return null;
-        const assignItem: IncidentAssignmentItem = {
-          id: `as-${Date.now()}`,
-          incidentId: id,
-          assignedTo: payload.assignedTo,
-          assignedToName: "Kỹ sư Giám sát Hiện trường",
-          assignedAt: new Date().toISOString(),
-          status: "PENDING",
-          priority: payload.priority || "HIGH",
-          note: payload.note,
-        };
-        return {
-          ...prev,
-          assignments: [assignItem, ...(prev.assignments || [])],
-        };
-      });
+    try {
+      await assignMutation.mutateAsync({ incidentId, payload });
       setIsAssignOpen(false);
-      toast.success(isVietnamese ? "Đã phân công cán bộ xử lý mô phỏng!" : "Assigned successfully!");
-      return;
+    } catch (err) {
+      console.error("Failed to assign incident:", err);
     }
-    await assignMutation.mutateAsync({ incidentId, payload });
   };
 
   const handleResolve = async (resolveId: string, payload: any) => {
-    if (isSampleId) {
-      setSampleIncident((prev) => {
-        if (!prev) return null;
-        const historyItem: IncidentStatusHistoryItem = {
-          id: `sh-${Date.now()}`,
-          incidentId: id,
-          oldStatus: prev.status,
-          newStatus: "RESOLVED",
-          changedBy: "user",
-          changedByName: "Bạn (Cán bộ giám sát)",
-          changedAt: new Date().toISOString(),
-          reason: payload.resolutionNote || "Đã khắc phục hiện trường",
-        };
-        return {
-          ...prev,
-          status: "RESOLVED",
-          resolvedAt: new Date().toISOString(),
-          statusHistory: [historyItem, ...(prev.statusHistory || [])],
-        };
-      });
+    try {
+      await resolveMutation.mutateAsync({ id: resolveId, payload });
       setIsResolveOpen(false);
-      toast.success(isVietnamese ? "Đã xác nhận khắc phục sự cố mô phỏng!" : "Resolved successfully!");
-      return;
+    } catch (err) {
+      console.error("Failed to resolve incident:", err);
     }
-    await resolveMutation.mutateAsync({ id: resolveId, payload });
   };
 
   const handleClose = async (closeId: string, payload?: any) => {
-    if (isSampleId) {
-      setSampleIncident((prev) => {
-        if (!prev) return null;
-        const historyItem: IncidentStatusHistoryItem = {
-          id: `sh-${Date.now()}`,
-          incidentId: id,
-          oldStatus: prev.status,
-          newStatus: "CLOSED",
-          changedBy: "user",
-          changedByName: "Bạn (Cán bộ giám sát)",
-          changedAt: new Date().toISOString(),
-          reason: payload?.closingNote || "Đã nghiệm thu và đóng hồ sơ",
-        };
-        return {
-          ...prev,
-          status: "CLOSED",
-          statusHistory: [historyItem, ...(prev.statusHistory || [])],
-        };
-      });
+    try {
+      await closeMutation.mutateAsync({ id: closeId, payload });
       setIsCloseOpen(false);
-      toast.success(isVietnamese ? "Đã nghiệm thu và đóng hồ sơ mô phỏng!" : "Incident closed!");
-      return;
+    } catch (err) {
+      console.error("Failed to close incident:", err);
     }
-    await closeMutation.mutateAsync({ id: closeId, payload });
   };
 
   if (isLoading) {
@@ -335,27 +211,66 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
     );
   }
 
-  if (!incident) {
+  if (isError || !incident) {
+    const errorMsg =
+      error instanceof Error
+        ? error.message
+        : isVietnamese
+        ? "Sự cố có thể đã bị xóa hoặc đường dẫn không hợp lệ."
+        : "This incident may have been deleted or the URL is invalid.";
+
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 rounded-2xl border border-border/40 bg-surface p-8 text-center">
         <AlertTriangle className="h-12 w-12 text-warning" />
         <h3 className="text-lg font-bold text-foreground">
-          {isVietnamese ? `Không tìm thấy sự cố #${id}` : `Incident #${id} not found`}
+          {isVietnamese ? `Không thể tải hồ sơ sự cố #${id.slice(0, 8)}` : `Incident #${id.slice(0, 8)} not found`}
         </h3>
-        <p className="text-sm text-muted-foreground">
-          {isVietnamese
-            ? "Sự cố có thể đã bị xóa hoặc đường dẫn không hợp lệ."
-            : "This incident may have been deleted or the URL is invalid."}
+        <p className="text-sm text-muted-foreground max-w-md">
+          {errorMsg}
         </p>
-        <Button variant="ghost" onClick={() => router.push("/incidents")} className="gap-2">
-          <ArrowLeft className="h-4 w-4" />
-          <span>{isVietnamese ? "Quay lại danh sách sự cố" : "Back to incidents list"}</span>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          <Button variant="outline" onClick={() => refetch()} className="gap-2">
+            <RefreshCw className="h-4 w-4" />
+            <span>{isVietnamese ? "Thử lại" : "Retry"}</span>
+          </Button>
+          <Button variant="ghost" onClick={() => router.push("/incidents")} className="gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            <span>{isVietnamese ? "Quay lại danh sách sự cố" : "Back to incidents list"}</span>
+          </Button>
+        </div>
       </div>
     );
   }
 
-  const primaryEvidence = incident.evidences?.[0];
+  // Luôn tìm chính xác ảnh vi phạm SNAPSHOT làm bằng chứng chính để giám định mã băm
+  const primaryEvidence =
+    incident.evidences?.find((e) => e.evidenceType === EVIDENCE_TYPE.SNAPSHOT) ||
+    incident.evidences?.[0];
+
+  // Khôi phục ảnh snapshot từ Client-side cache (nếu vừa tạo từ phiên camera)
+  const cachedEvidenceUrl =
+    typeof window !== "undefined" ? sessionStorage.getItem(`ppe_incident_evidence_${id}`) : null;
+  const effectiveSnapshotUrl =
+    cachedEvidenceUrl ||
+    (incident.snapshotUrl && !incident.snapshotUrl.includes("hqdefault.jpg") ? incident.snapshotUrl : null) ||
+    cameraDesignatedEvidence;
+
+  const hasAssignments = Boolean(incident.assignments && incident.assignments.length > 0);
+  const activeAssignment =
+    incident.assignments?.find((a) => a.status === "ACTIVE") || incident.assignments?.[0];
+  const assignedOfficerName = activeAssignment?.assignedToName;
+
+  const handleStepperClick = (stepKey: string) => {
+    if (stepKey === "REVIEWED" && incident.status === "PENDING_REVIEW") {
+      setIsReviewOpen(true);
+    } else if (stepKey === "RESOLVING" && incident.status === "CONFIRMED") {
+      setIsAssignOpen(true);
+    } else if (stepKey === "RESOLVED" && incident.status === "CONFIRMED") {
+      setIsResolveOpen(true);
+    } else if (stepKey === "CLOSED" && incident.status === "RESOLVED") {
+      setIsCloseOpen(true);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -416,80 +331,118 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
               <Button
                 variant="primary"
                 onClick={() => setIsReviewOpen(true)}
-                className="gap-1.5"
+                className="animate-gentle-pulse-ring gap-1.5 font-bold shadow-md"
               >
                 <CheckSquare className="h-4 w-4" />
                 <span>{t("incidents.actions.review")}</span>
+                <span className="hidden xl:inline-block rounded bg-primary-foreground/20 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider">
+                  {isVietnamese ? "Bước tiếp theo" : "Next"}
+                </span>
               </Button>
             )}
 
-            {(incident.status === "CONFIRMED" || incident.status === "PENDING_REVIEW") && (
-              <Button
-                variant="outline"
-                onClick={() => setIsAssignOpen(true)}
-                className="gap-1.5"
-              >
-                <UserCheck className="h-4 w-4 text-primary" />
-                <span>{t("incidents.actions.assign")}</span>
-              </Button>
+            {incident.status === "CONFIRMED" && !hasAssignments && (
+              <>
+                <Button
+                  variant="primary"
+                  onClick={() => setIsAssignOpen(true)}
+                  className="animate-gentle-pulse-ring gap-1.5 font-bold shadow-md"
+                >
+                  <UserCheck className="h-4 w-4" />
+                  <span>{t("incidents.actions.assign")}</span>
+                  <span className="hidden xl:inline-block rounded bg-primary-foreground/20 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider">
+                    {isVietnamese ? "Bước tiếp theo" : "Next"}
+                  </span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsResolveOpen(true)}
+                  className="gap-1.5 text-emerald-600 hover:text-emerald-700"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>{t("incidents.actions.resolve")}</span>
+                </Button>
+              </>
             )}
 
-            {incident.status === "CONFIRMED" && (
-              <Button
-                variant="primary"
-                onClick={() => setIsResolveOpen(true)}
-                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                <span>{t("incidents.actions.resolve")}</span>
-              </Button>
+            {incident.status === "CONFIRMED" && hasAssignments && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAssignOpen(true)}
+                  className="gap-1.5"
+                >
+                  <UserCheck className="h-4 w-4 text-primary" />
+                  <span>{t("incidents.actions.assign")}</span>
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => setIsResolveOpen(true)}
+                  className="animate-gentle-pulse-ring gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md dark:bg-emerald-600 font-bold"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>{t("incidents.actions.resolve")}</span>
+                  <span className="hidden xl:inline-block rounded bg-white/20 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider">
+                    {isVietnamese ? "Bước tiếp theo" : "Next"}
+                  </span>
+                </Button>
+              </>
             )}
 
             {incident.status === "RESOLVED" && (
               <Button
                 variant="primary"
                 onClick={() => setIsCloseOpen(true)}
-                className="gap-1.5 bg-slate-700 hover:bg-slate-800 text-white dark:bg-slate-800"
+                className="animate-gentle-pulse-ring gap-1.5 bg-slate-700 hover:bg-slate-800 text-white dark:bg-slate-800 shadow-md font-bold"
               >
                 <Archive className="h-4 w-4" />
                 <span>{t("incidents.actions.close")}</span>
+                <span className="hidden xl:inline-block rounded bg-white/20 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider">
+                  {isVietnamese ? "Bước tiếp theo" : "Next"}
+                </span>
               </Button>
             )}
           </div>
         }
       />
 
-      {/* Banner thông báo nếu là sự cố mô phỏng / mẫu */}
-      {isSampleId && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-5 py-3.5 text-xs text-amber-200 shadow-sm backdrop-blur-sm">
-          <div className="flex items-center gap-2.5">
-            <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
-            <span>
-              {isVietnamese
-                ? "Đây là hồ sơ sự cố tạo từ phiên quét mô phỏng kiểm thử AI Camera. Toàn bộ các thao tác Thẩm duyệt, Phân công, Khắc phục và Bình luận đều có thể tương tác trực tiếp."
-                : "This is a simulated incident profile from AI Camera test scan. All actions (Review, Assign, Resolve, Comments) are fully interactive."}
-            </span>
-          </div>
-          <span className="rounded-full border border-amber-500/40 bg-amber-500/20 px-3 py-1 font-mono text-[11px] font-bold tracking-wider text-amber-300">
-            MÔ PHỎNG / SIMULATION
-          </span>
-        </div>
-      )}
-
       {/* Lifecycle Progress Stepper */}
-      <IncidentLifecycleStepper status={incident.status} />
+      <IncidentLifecycleStepper
+        status={incident.status}
+        hasAssignments={hasAssignments}
+        onStepClick={handleStepperClick}
+      />
+
+      {/* Smart Next Action Guide */}
+      <IncidentActionGuide
+        status={incident.status}
+        hasAssignments={hasAssignments}
+        assignedOfficerName={assignedOfficerName}
+        onReview={() => setIsReviewOpen(true)}
+        onAssign={() => setIsAssignOpen(true)}
+        onResolve={() => setIsResolveOpen(true)}
+        onClose={() => setIsCloseOpen(true)}
+      />
 
       {/* Main Content Layout: 2 Columns */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left Column (Evidence & Integrity): 7 Cols */}
-        <div className="space-y-6 lg:col-span-7">
+        <div
+          id="incident-evidence-viewer"
+          className={`space-y-6 lg:col-span-7 rounded-2xl transition-all duration-500 ${
+            isHighlightCompare
+              ? "ring-4 ring-rose-500/80 shadow-[0_0_28px_rgba(244,63,94,0.4)] animate-pulse"
+              : ""
+          }`}
+        >
           <IncidentEvidenceViewer
             evidence={primaryEvidence}
             evidences={incident.evidences}
-            snapshotUrl={incident.snapshotUrl}
+            snapshotUrl={effectiveSnapshotUrl}
             violationType={incident.violationType}
             confidence={incident.confidence}
             cameraId={incident.cameraId}
+            incidentId={incident.id}
           />
 
           <IncidentChecksumVerifier
@@ -506,6 +459,7 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
             assignments={incident.assignments}
             onAssign={() => setIsAssignOpen(true)}
             canManage={incident.status !== "CLOSED"}
+            isNextAction={incident.status === "CONFIRMED" && !hasAssignments}
           />
 
           <IncidentCommentsTimeline

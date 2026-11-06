@@ -2,14 +2,6 @@ import { Suspense } from "react";
 import { Loader } from "@/components/ui/loader";
 import IncidentDetailContent from "./incident-detail-content";
 
-export function generateStaticParams() {
-  return [
-    { id: "INC-1042" },
-    { id: "INC-1041" },
-    { id: "sample" },
-  ];
-}
-
 interface PageProps {
   params: Promise<{ id: string }>;
 }

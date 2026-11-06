@@ -87,6 +87,7 @@ export default function IncidentsContent() {
   const [violationFilter, setViolationFilter] = useState("");
   const [cameraIdFilter, setCameraIdFilter] = useState(urlCameraId);
   const [siteIdFilter, setSiteIdFilter] = useState(urlSiteId || globalSiteId || "");
+  const [highlightedIncidentId, setHighlightedIncidentId] = useState<string | null>(null);
 
   // Đồng bộ chọn thẻ KPI với bộ lọc bảng
   const handleSelectStat = (stat: IncidentStatKey | null) => {
@@ -156,18 +157,6 @@ export default function IncidentsContent() {
     }
   }, [globalSiteId, searchParams, siteIdFilter]);
 
-  // Tự động làm mới dữ liệu thời gian thực khi AI Camera phát hiện vi phạm PPE mới
-  useEffect(() => {
-    if (!lastAlert) return;
-    if (
-      lastAlert.type === "notification:ppe_violation" ||
-      lastAlert.type === "notification:new"
-    ) {
-      queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
-      refetch();
-    }
-  }, [lastAlert, queryClient]);
-
   // Query Params
   const queryParams: IncidentQueryParams = {
     page,
@@ -185,6 +174,26 @@ export default function IncidentsContent() {
   const { data: incidentData, isLoading, refetch, isRefetching } = useIncidents(queryParams);
   const incidents = incidentData?.items || [];
   const meta = incidentData?.meta;
+
+  // Tự động làm mới dữ liệu thời gian thực khi AI Camera phát hiện vi phạm PPE mới
+  useEffect(() => {
+    if (!lastAlert) return;
+    if (
+      lastAlert.type === "notification:ppe_violation" ||
+      lastAlert.type === "notification:new"
+    ) {
+      queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
+      refetch();
+
+      const alertData = lastAlert.data as Record<string, unknown> | undefined;
+      const newId = (alertData?.incidentId as string) || (alertData?.id as string);
+      if (newId) {
+        setHighlightedIncidentId(newId);
+        const timer = setTimeout(() => setHighlightedIncidentId(null), 8000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [lastAlert, queryClient, refetch]);
 
   // Truy vấn overview (tối đa 100 sự cố của site/camera) để KPI summary hiển thị số liệu toàn diện chính xác
   const { data: statsOverviewData } = useIncidents({
@@ -372,6 +381,7 @@ export default function IncidentsContent() {
         <IncidentTable
           incidents={incidents}
           loading={isLoading}
+          highlightedId={highlightedIncidentId}
           onReview={handleOpenReview}
           onAssign={handleOpenAssign}
           onResolve={handleOpenResolve}

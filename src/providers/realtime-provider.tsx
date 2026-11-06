@@ -48,11 +48,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         source.onerror = () => setIsConnected(false);
         for (const eventName of ALERT_EVENTS) {
           source.addEventListener(eventName, (event) => {
-            const raw = (event as MessageEvent<string>).data;
+            const msg = event as MessageEvent<string>;
+            const raw = msg.data;
+            const eventId = msg.lastEventId || `alert-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
             try {
-              setLastAlert({ type: eventName, data: JSON.parse(raw) });
+              setLastAlert({ type: eventName, data: JSON.parse(raw), id: eventId });
             } catch {
-              setLastAlert({ type: eventName, data: raw });
+              setLastAlert({ type: eventName, data: raw, id: eventId });
             }
           });
         }

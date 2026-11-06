@@ -8,6 +8,7 @@ import type {
   InvalidateSafetyRuleCachePayload,
   PaginationMeta,
   RestrictedAreaItem,
+  RestrictedAreaQueryParams,
   SiteItem,
   SiteQueryParams,
   SiteSafetyConfigItem,
@@ -18,6 +19,7 @@ import type {
   UpdateSiteSafetyConfigPayload,
   UpdateZonePayload,
   ZoneItem,
+  ZoneQueryParams,
 } from "@/types";
 
 interface ApiResponse<T> {
@@ -194,6 +196,21 @@ export const siteService = {
   },
 
   /**
+   * GET /api/v1/zones
+   * Lấy danh sách toàn bộ phân khu trong hệ thống (kèm thông tin site).
+   */
+  async getAllZones(params?: ZoneQueryParams): Promise<ZoneItem[]> {
+    const res = await apiClient.get<unknown, any>("/zones", {
+      params: { limit: 100, ...params },
+    });
+    const data = unwrapData<any>(res);
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.items)) return data.items;
+    return [];
+  },
+
+  /**
    * GET /api/v1/sites/:id/zones
    * Lấy danh sách phân khu thuộc công trường.
    */
@@ -224,6 +241,23 @@ export const siteService = {
       `/zones/${zoneId}`,
     );
     return { message: res?.message || "Zone deleted successfully" };
+  },
+
+  /**
+   * GET /api/v1/restricted-areas
+   * Lấy danh sách toàn bộ vùng cấm nguy hiểm trong hệ thống (kèm thông tin site & zone).
+   */
+  async getAllRestrictedAreas(
+    params?: RestrictedAreaQueryParams,
+  ): Promise<RestrictedAreaItem[]> {
+    const res = await apiClient.get<unknown, any>("/restricted-areas", {
+      params: { limit: 100, ...params },
+    });
+    const data = unwrapData<any>(res);
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.items)) return data.items;
+    return [];
   },
 
   /**

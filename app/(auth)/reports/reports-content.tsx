@@ -167,8 +167,16 @@ export default function ReportsContent() {
   }, [incidentsData, selectedSiteId, startDate, endDate]);
 
   // Reconcile Summary: ưu tiên số liệu đầy đủ nhất giữa Reporting Rollup và Live Incidents
+  const isRollupAuthoritative = useMemo(() => {
+    return Boolean(
+      rawSummary &&
+        rawSummary.totalIncidents >= filteredIncidents.length &&
+        rawSummary.totalIncidents > 0
+    );
+  }, [rawSummary, filteredIncidents.length]);
+
   const summary: StatisticsSummaryDto = useMemo(() => {
-    if (rawSummary && rawSummary.totalIncidents >= filteredIncidents.length && rawSummary.totalIncidents > 0) {
+    if (isRollupAuthoritative && rawSummary) {
       return rawSummary;
     }
 
@@ -232,12 +240,12 @@ export default function ReportsContent() {
       periodStart: startDate,
       periodEnd: endDate,
     };
-  }, [rawSummary, filteredIncidents, startDate, endDate]);
+  }, [isRollupAuthoritative, rawSummary, filteredIncidents, startDate, endDate]);
 
   // Reconcile Trends
   const trends: TrendItemDto[] = useMemo(() => {
-    if (rawTrends.length > 0) return rawTrends;
-    if (filteredIncidents.length === 0) return [];
+    if (isRollupAuthoritative && rawTrends.length > 0) return rawTrends;
+    if (filteredIncidents.length === 0) return rawTrends;
 
     const map = new Map<string, TrendItemDto>();
     for (const inc of filteredIncidents) {
@@ -262,12 +270,12 @@ export default function ReportsContent() {
       map.set(dateKey, existing);
     }
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [rawTrends, filteredIncidents]);
+  }, [isRollupAuthoritative, rawTrends, filteredIncidents]);
 
   // Reconcile Violation Distribution
   const distribution: ViolationTypeStatDto[] = useMemo(() => {
-    if (rawDistribution.length > 0) return rawDistribution;
-    if (filteredIncidents.length === 0) return [];
+    if (isRollupAuthoritative && rawDistribution.length > 0) return rawDistribution;
+    if (filteredIncidents.length === 0) return rawDistribution;
 
     const map = new Map<
       string,
@@ -304,14 +312,15 @@ export default function ReportsContent() {
       percentage: grandTotal > 0 ? Number(((data.count / grandTotal) * 100).toFixed(2)) : 0,
       severityBreakdown: data.severityBreakdown,
     }));
-  }, [rawDistribution, filteredIncidents]);
+  }, [isRollupAuthoritative, rawDistribution, filteredIncidents]);
 
   // Reconcile & Enrich Camera Rankings with Real Camera Names
   const cameraRankings: CameraStatDto[] = useMemo(() => {
     const baseList: CameraStatDto[] =
-      rawCameraRankings.length > 0
+      isRollupAuthoritative && rawCameraRankings.length > 0
         ? rawCameraRankings
-        : (() => {
+        : filteredIncidents.length > 0
+        ? (() => {
             const camMap = new Map<string, CameraStatDto>();
             for (const inc of filteredIncidents) {
               if (!inc.cameraId) continue;
@@ -337,7 +346,8 @@ export default function ReportsContent() {
             return Array.from(camMap.values())
               .sort((a, b) => b.totalViolations - a.totalViolations)
               .slice(0, 5);
-          })();
+          })()
+        : rawCameraRankings;
 
     return baseList.map((item) => {
       const cam = getCamera(item.cameraId);
@@ -348,7 +358,7 @@ export default function ReportsContent() {
           (cam ? `${cam.name} (${cam.code})` : `Camera #${item.cameraId.slice(0, 8)}`),
       };
     });
-  }, [rawCameraRankings, filteredIncidents, getCamera]);
+  }, [isRollupAuthoritative, rawCameraRankings, filteredIncidents, getCamera]);
 
   // Enrich History with Real Site Names
   const history = useMemo(() => {
@@ -449,11 +459,11 @@ export default function ReportsContent() {
       />
 
       {/* 2-Column: Trends Line Chart (Left: 8 cols) & Violation Donut (Right: 4 cols) */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-8">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
+        <div className="flex flex-col lg:col-span-8">
           <ReportTrendChart trends={trends} loading={isTrendsLoading && isIncidentsLoading} />
         </div>
-        <div className="lg:col-span-4">
+        <div className="flex flex-col lg:col-span-4">
           <ReportViolationDonut
             distribution={distribution}
             loading={isDistributionLoading && isIncidentsLoading}

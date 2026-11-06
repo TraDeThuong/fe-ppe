@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/axios";
+import { downloadBlob } from "@/lib/file-download";
 import type {
   AggregateDailyPayload,
   CameraStatDto,
@@ -235,6 +236,73 @@ export const reportingService = {
       `/reports/${id}/content`
     );
     return unwrapData<ReportContentResult>(res);
+  },
+
+  /**
+   * GET /api/v1/reports/:id/content (Binary Stream)
+   * Tải về nội dung file báo cáo (PDF, Excel,...) dưới dạng Blob có kèm Authorization Bearer token.
+   */
+  async getReportContentBlob(id: string): Promise<Blob> {
+    const res = await apiClient.get<Blob>(`/reports/${id}/content`, {
+      responseType: "blob",
+    });
+    return unwrapData<Blob>(res);
+  },
+
+  /**
+   * Tải tệp báo cáo hoàn chỉnh về máy người dùng (PDF / Excel)
+   * Tự động giải quyết tên tệp, phần mở rộng và xử lý lỗi phản hồi nếu BE trả về JSON dạng Blob.
+   */
+  async downloadReportFile(
+    report:
+      | ReportGenerationDto
+      | { id: string; fileName?: string; template?: { fileType?: string } }
+  ): Promise<void> {
+    try {
+      const blob = await this.getReportContentBlob(report.id);
+
+      // Xác định tên tệp và phần mở rộng chuẩn
+      let filename = report.fileName?.trim();
+      const rawFileType = (report.template?.fileType || "").toUpperCase();
+      const ext =
+        rawFileType === "EXCEL"
+          ? "xlsx"
+          : rawFileType === "CSV"
+          ? "csv"
+          : rawFileType === "JSON"
+          ? "json"
+          : "pdf";
+
+      if (!filename) {
+        filename = `report_${report.id.slice(0, 8)}.${ext}`;
+      } else if (!filename.includes(".")) {
+        filename = `${filename}.${ext}`;
+      }
+
+      downloadBlob(blob, filename);
+    } catch (error: any) {
+      // Trường hợp BE trả về lỗi (403 BOLA Guard, 404, 500) khi responseType="blob",
+      // Axios sẽ gói payload JSON của Backend vào một đối tượng Blob.
+      if (error?.response?.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text();
+          const json = JSON.parse(text);
+          if (json.message) {
+            throw new Error(json.message);
+          }
+        } catch (parseErr) {
+          if (
+            parseErr instanceof Error &&
+            parseErr !== error &&
+            parseErr.message &&
+            !parseErr.message.includes("JSON")
+          ) {
+            throw parseErr;
+          }
+        }
+      }
+      throw error;
+    }
   },
 
   /**

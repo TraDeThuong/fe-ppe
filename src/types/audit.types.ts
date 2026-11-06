@@ -5,6 +5,13 @@ export type AuditLogStatus = "SUCCESS" | "FAILED";
 export interface AuditLogItem {
   id: string;
   userId: string | null;
+  actorId?: string | null;
+  actor?: {
+    id: string;
+    email: string | null;
+    fullName: string | null;
+    roleName?: string;
+  } | null;
   userEmail?: string | null;
   userName?: string | null;
   userRole?: string | null;
@@ -15,6 +22,7 @@ export interface AuditLogItem {
   errorMessage?: string | null;
   ipAddress?: string | null;
   userAgent?: string | null;
+  details?: Record<string, unknown> | null;
   createdAt: string;
 }
 

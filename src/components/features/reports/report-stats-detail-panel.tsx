@@ -233,24 +233,18 @@ export function ReportStatsDetailPanel({
   const handleQuickDownload = async (item: ReportGenerationDto) => {
     setDownloadingId(item.id);
     try {
-      const res = await reportingService.getReportDownloadUrl(item.id);
-      if (res?.downloadUrl) {
-        window.open(res.downloadUrl, "_blank");
-        toast.success(
-          isVietnamese
-            ? `Đang tải xuống tài liệu "${item.fileName || "report"}"`
-            : `Downloading document "${item.fileName || "report"}"`
-        );
-      } else {
-        toast.error(
-          isVietnamese ? "Không tìm thấy liên kết tải về." : "Download link not found."
-        );
-      }
-    } catch {
-      toast.error(
+      await reportingService.downloadReportFile(item);
+      toast.success(
         isVietnamese
-          ? "Không thể tải về tài liệu."
-          : "Unable to download document."
+          ? `Đã tải xuống thành công tài liệu "${item.fileName || "báo cáo"}"`
+          : `Successfully downloaded "${item.fileName || "report"}"`
+      );
+    } catch (err: any) {
+      toast.error(
+        err?.message ||
+          (isVietnamese
+            ? "Không thể tải về tài liệu. Vui lòng kiểm tra quyền hạn hoặc thử lại sau."
+            : "Unable to download document. Please check permissions or try again.")
       );
     } finally {
       setDownloadingId(null);
