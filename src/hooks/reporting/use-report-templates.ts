@@ -5,11 +5,12 @@ import { reportingService } from "@/services/reporting.service";
 import { reportingKeys } from "./reporting.query-keys";
 import type { ReportTemplateDto } from "@/types";
 
-export function useReportTemplates() {
+export function useReportTemplates(options?: { enabled?: boolean }) {
   return useQuery<ReportTemplateDto[]>({
     queryKey: reportingKeys.templates(),
     queryFn: () => reportingService.getTemplates(),
     staleTime: 60 * 1000,
+    ...options,
   });
 }
 

@@ -151,11 +151,13 @@ export function CameraIntelligenceSidebar({
   );
 
   const timelineMarkers = useMemo(
-    () => allViolations.slice(0, 8).map((violation) => ({
-      frame: violation.frame,
-      position: Math.min(100, Math.max(0, (violation.frame / timelineTotalFrames) * 100)),
-      label: `${getViolationName(violation.violation_type)} · F${violation.frame}`,
-    })),
+    () =>
+      allViolations.slice(0, 8).map((violation, idx) => ({
+        id: violation.event_id || `violation-marker-${violation.frame}-${violation.violation_type || ""}-${idx}`,
+        frame: violation.frame,
+        position: Math.min(100, Math.max(0, (violation.frame / timelineTotalFrames) * 100)),
+        label: `${getViolationName(violation.violation_type)} · F${violation.frame}`,
+      })),
     [allViolations, timelineTotalFrames, isVietnamese],
   );
 
@@ -308,7 +310,7 @@ export function CameraIntelligenceSidebar({
                 {isVietnamese ? "Chưa có công nhân nào trong khung hình" : "No workers detected in frame"}
               </div>
             ) : (
-              persons.map((p) => {
+              persons.map((p, pIdx) => {
                 const isViolating = p.status === "CONFIRMED_VIOLATION";
                 const isCandidate = p.status === "VIOLATION_CANDIDATE";
 
@@ -321,7 +323,7 @@ export function CameraIntelligenceSidebar({
 
                 return (
                   <div
-                    key={p.track_id}
+                    key={p.track_id != null ? `person-${p.track_id}-${pIdx}` : `person-idx-${pIdx}`}
                     className={`flex items-center justify-between rounded-xl border p-2 transition ${
                       isViolating
                         ? "border-rose-500/40 bg-rose-500/[0.08]"
@@ -494,9 +496,9 @@ export function CameraIntelligenceSidebar({
             <div className="relative h-7" aria-label={isVietnamese ? "Timeline video với mốc vi phạm" : "Video timeline with violation markers"}>
               <div className="absolute inset-x-0 top-3 h-1 rounded-full bg-border/45" />
               <div className="absolute left-0 top-3 h-1 rounded-full bg-primary/65" style={{ width: `${currentProgress}%` }} />
-              {timelineMarkers.map((marker) => (
+              {timelineMarkers.map((marker, mIdx) => (
                 <button
-                  key={`${marker.frame}-${marker.label}`}
+                  key={marker.id || `marker-${marker.frame}-${mIdx}`}
                   type="button"
                   title={isVietnamese ? `Nhảy tới ${marker.label}` : `Seek to ${marker.label}`}
                   aria-label={isVietnamese ? `Nhảy tới ${marker.label}` : `Seek to ${marker.label}`}

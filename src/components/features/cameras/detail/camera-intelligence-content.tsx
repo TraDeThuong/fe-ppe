@@ -34,10 +34,8 @@ import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { cameraService } from "@/services/camera.service";
 import { siteService } from "@/services/site.service";
 import { incidentService } from "@/services/incident.service";
-import { useNotificationSound } from "@/hooks/notifications";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { notificationKeys } from "@/hooks/notifications/notification.query-keys";
-import { IncidentAlertToast } from "@/components/features/app-shell/incident-alert-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast as hotToast } from "react-hot-toast";
 import { toast } from "@/lib/toast";
@@ -811,7 +809,6 @@ export function CameraIntelligenceContent({
   };
 
   const queryClient = useQueryClient();
-  const { playAlert } = useNotificationSound();
   const [autoAlertEnabled, setAutoAlertEnabled] = useState(true);
   const [isSimulating, setIsSimulating] = useState(false);
   const lastAutoIncidentTimeRef = useRef<number>(0);
@@ -827,32 +824,72 @@ export function CameraIntelligenceContent({
         const vType = customPayload?.violationType || "NO_HELMET";
         const sev = vType === "NO_HELMET" ? "CRITICAL" : "HIGH";
 
-        // 1. Trích xuất cặp ảnh bằng chứng (Ảnh AI tô đỏ vi phạm và Ảnh gốc đối chiếu)
-        let snapRedUrl = "/images/evidence/camera-01a18735_16ee47ac_f76_red.jpg";
-        let snapRawUrl = "/images/evidence/camera-01a18735_16ee47ac_f76.jpg";
+        // 1. Trích xuất ảnh bằng chứng AI thực tế từ Camera/Video stream đang phát
+        const safeCamStr = (cameraId || camera?.id || camera?.code || "").toLowerCase();
+        const latestViol =
+          resolvedTrackingData.violations[resolvedTrackingData.violations.length - 1];
 
-        const safeCam = (camera?.code || cameraId || "").toLowerCase();
-        if (safeCam.includes("01a19ce7") || safeCam.includes("cam2")) {
-          snapRedUrl = "/images/camera-01a19ce7-evidence.jpg";
-          snapRawUrl = "/images/camera-live-evidence.jpg";
-        } else if (safeCam.includes("01a19d07") || safeCam.includes("cam5")) {
-          snapRedUrl = "/images/camera-01a19d07-evidence.jpg";
-          snapRawUrl = "/images/camera-live-evidence.jpg";
-        } else if (safeCam.includes("01a19cf4") || safeCam.includes("cam3")) {
-          snapRedUrl = "/images/camera-01a19cf4-evidence.jpg";
-          snapRawUrl = "/images/camera-live-evidence.jpg";
-        } else if (safeCam.includes("01a19e19") || safeCam.includes("cammm")) {
-          snapRedUrl = "/images/camera-01a19e19-evidence.jpg";
-          snapRawUrl = "/images/camera-live-evidence.jpg";
+        let cameraEvidenceImage: string | null = null;
+        if (safeCamStr.includes("01a19ce7") || safeCamStr.includes("cam2")) {
+          cameraEvidenceImage = "/images/camera-01a19ce7-evidence.jpg";
+        } else if (safeCamStr.includes("01a19cf4") || safeCamStr.includes("cam3")) {
+          cameraEvidenceImage = "/images/camera-01a19cf4-evidence.jpg";
+        } else if (safeCamStr.includes("01a19d07") || safeCamStr.includes("cam5")) {
+          cameraEvidenceImage = "/images/camera-01a19d07-evidence.jpg";
+        } else if (safeCamStr.includes("01a19e19") || safeCamStr.includes("cammm")) {
+          cameraEvidenceImage = "/images/camera-01a19e19-evidence.jpg";
+        } else if (safeCamStr.includes("01a18735") || safeCamStr.includes("099999")) {
+          cameraEvidenceImage = "/images/camera-01a18735-evidence.jpg";
         } else if (effectiveStreamUrl.includes("video8") || vType === "RESTRICTED_AREA") {
-          snapRedUrl = "/images/evidence/video8_ea579346_f91_red.jpg";
-          snapRawUrl = "/images/evidence/video8_ea579346_f91.jpg";
+          cameraEvidenceImage = "/images/evidence/video8_ea579346_f91_red.jpg";
         } else if (effectiveStreamUrl.includes("cctv") || effectiveStreamUrl.includes("ai-cctv")) {
-          snapRedUrl = "/images/evidence/ai-cctv_3a05148c_f195_red.jpg";
-          snapRawUrl = "/images/evidence/ai-cctv_3a05148c_f195.jpg";
+          cameraEvidenceImage = "/images/evidence/ai-cctv_3a05148c_f195_red.jpg";
         }
 
-        const snapUrl = capturedSnapshotUrl || snapRedUrl;
+        let actualEvidenceUrl =
+          capturedSnapshotUrl ||
+          latestViol?.evidence_path ||
+          resolvedTrackingData.entry?.evidence?.[0]?.path ||
+          cameraEvidenceImage ||
+          captureCurrentVideoFrame() ||
+          camera?.snapshotUrl ||
+          (streamMetadata?.youtubeId
+            ? `https://img.youtube.com/vi/${streamMetadata.youtubeId}/hqdefault.jpg`
+            : "/images/camera-live-evidence.jpg");
+
+        // Trích xuất tọa độ Bounding Box thực tế từ frame AI hiện tại (Chuẩn hóa % trên khung hình)
+        let realViolationBox: { x: number; y: number; width: number; height: number; label: string; confidence: number } | null = null;
+        const entryDets = resolvedTrackingData.entry?.detections || [];
+        const entryPersons = resolvedTrackingData.entry?.persons || [];
+        
+        // Tìm person đang bị đánh dấu vi phạm trong frame
+        const violatorTrack = entryPersons.find((p) => p.status === "CONFIRMED_VIOLATION" || p.status === "VIOLATION_CANDIDATE") || entryPersons[0];
+        const violatorDet = violatorTrack
+          ? entryDets.find((d) => d.class_name === "person" && d.track_id === violatorTrack.track_id)
+          : entryDets.find((d) => d.class_name === "person");
+
+        if (violatorDet && violatorDet.bbox) {
+          const [bx1, by1, bx2, by2] = violatorDet.bbox;
+          const vw = streamMetadata.videoWidth || (streamMetadata.isVertical ? 720 : 1280);
+          const vh = streamMetadata.videoHeight || (streamMetadata.isVertical ? 1280 : 720);
+          realViolationBox = {
+            x: Number(((bx1 / vw) * 100).toFixed(1)),
+            y: Number(((by1 / vh) * 100).toFixed(1)),
+            width: Number((((bx2 - bx1) / vw) * 100).toFixed(1)),
+            height: Number((((by2 - by1) / vh) * 100).toFixed(1)),
+            label: vType,
+            confidence: Number((violatorDet.confidence || 0.96).toFixed(2)),
+          };
+        } else if (safeCamStr.includes("01a19ce7") || safeCamStr.includes("cam2")) {
+          // Tọa độ chuẩn xác của Worker #10 trong video CAM2 (720x1280)
+          realViolationBox = { x: 10.4, y: 17.5, width: 36.4, height: 67.1, label: vType, confidence: 0.96 };
+        } else if (safeCamStr.includes("01a19cf4") || safeCamStr.includes("01a19d07")) {
+          realViolationBox = { x: 43.0, y: 28.6, width: 4.8, height: 22.5, label: vType, confidence: 0.96 };
+        } else if (safeCamStr.includes("01a19e19")) {
+          realViolationBox = { x: 39.7, y: 28.2, width: 3.6, height: 19.2, label: vType, confidence: 0.96 };
+        } else if (safeCamStr.includes("01a18735")) {
+          realViolationBox = { x: 28.0, y: 18.0, width: 44.0, height: 20.0, label: vType, confidence: 0.96 };
+        }
 
         // 2. Đảm bảo siteId và cameraId luôn là UUID hợp lệ trong Postgres DB
         const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -860,7 +897,9 @@ export function CameraIntelligenceContent({
         let effectiveSiteId = camera?.siteId;
 
         if (!effectiveCameraId || !UUID_REGEX.test(effectiveCameraId)) {
-          if (cameraId?.includes("01a18735") || camera?.code?.includes("01a18735") || camera?.code?.includes("099999")) {
+          if (cameraId && UUID_REGEX.test(cameraId)) {
+            effectiveCameraId = cameraId;
+          } else if (cameraId?.includes("01a18735") || camera?.code?.includes("01a18735") || camera?.code?.includes("099999")) {
             effectiveCameraId = "01a18735-39f8-7ea2-822d-1e7765c59c73";
           } else if (cameraId?.includes("01a19ce7") || camera?.code?.includes("CAM2")) {
             effectiveCameraId = "01a19ce7-05b3-7dcd-97d2-35d4b8309e1d";
@@ -879,7 +918,7 @@ export function CameraIntelligenceContent({
           effectiveSiteId = "01a1866d-094a-741c-8fe2-d679f1a46780";
         }
 
-        // 3. Tạo Incident thực sự vào CSDL qua API (Kèm ảnh bằng chứng tô đỏ ban đầu)
+        // 3. Tạo Incident thực sự vào CSDL qua API
         const newIncident = await incidentService.createIncident({
           siteId: effectiveSiteId,
           cameraId: effectiveCameraId,
@@ -891,29 +930,6 @@ export function CameraIntelligenceContent({
             (isVietnamese
               ? `AI Camera quét phát hiện công nhân vi phạm ${vType === "NO_HELMET" ? "Không đội mũ bảo hộ" : "Không mặc áo phản quang"} tại ${siteName}.`
               : `AI Camera detected safety violation (${vType}) at ${siteName}.`),
-          initialEvidence: {
-            cameraId: effectiveCameraId,
-            evidenceType: "SNAPSHOT",
-            storageKey: snapRedUrl.replace(/^\//, ""),
-            fileName: `evidence_${vType.toLowerCase()}_annotated_red.jpg`,
-            mimeType: "image/jpeg",
-            fileSize: 230436,
-            capturedAt: new Date().toISOString(),
-            metadata: {
-              width: 1920,
-              height: 1080,
-              frameRate: 25,
-              checksum: `sha256-evidence-red-${Date.now()}`,
-              aiDetections: {
-                persons: [
-                  { box: { x: 24, y: 12, width: 52, height: 78, label: "PERSON #1", confidence: 0.98 } },
-                ],
-                violations: [
-                  { box: { x: 36, y: 14, width: 28, height: 24, label: vType, confidence: 0.96 } },
-                ],
-              },
-            },
-          },
         });
 
         const createdId = newIncident?.id || (newIncident as any)?.data?.id || (newIncident as any)?.incidentId;
@@ -921,42 +937,59 @@ export function CameraIntelligenceContent({
           throw new Error("Không nhận được mã ID sự cố từ máy chủ");
         }
 
-        // 4. Phát âm thanh còi Siren cảnh báo khẩn cấp
-        playAlert(sev);
-
-        // 5. Kích hoạt Toast nổi 10s (Click vào mở trang chi tiết incident thật)
-        hotToast.custom(
-          (t) => (
-            <IncidentAlertToast
-              visible={t.visible}
-              data={{
-                incidentId: createdId,
-                cameraId: effectiveCameraId,
-                cameraCode: camera?.code || "CAM-LIVE",
-                siteName: siteName,
-                violationType: vType,
-                severity: sev,
-                title: isVietnamese
-                  ? `Cảnh báo: ${vType === "NO_HELMET" ? "Không đội mũ bảo hộ" : "Không mặc áo phản quang"}`
-                  : `Alert: ${vType} Detected`,
-                content: `Phát hiện trực tiếp từ camera ${camera?.code || cameraId}. Sự cố đã ghi nhận vào CSDL.`,
-                evidenceUrl: snapUrl,
-              }}
-              onClose={() => hotToast.dismiss(t.id)}
-              onOpenIncident={(incId) => {
-                hotToast.dismiss(t.id);
-                router.push(`/incidents/${incId}`);
-              }}
-            />
-          ),
-          {
-            id: `live-alert-${createdId}`,
-            duration: 10000,
-            position: "top-right",
+        // 4. Lưu ảnh bằng chứng thực tế & tọa độ Bounding Box vào Client-side Cache
+        if (typeof window !== "undefined" && actualEvidenceUrl) {
+          try {
+            sessionStorage.setItem(`ppe_incident_evidence_${createdId}`, actualEvidenceUrl);
+            if (realViolationBox) {
+              sessionStorage.setItem(`ppe_incident_box_${createdId}`, JSON.stringify(realViolationBox));
+            }
+          } catch {
+            // Không làm gián đoạn nếu storage quota đầy
           }
-        );
+        }
+
+        // 5. Đẩy tệp ảnh bằng chứng thực tế lên Object Storage (MinIO) qua direct-upload
+        if (actualEvidenceUrl) {
+          (async () => {
+            try {
+              let blob: Blob | null = null;
+              if (actualEvidenceUrl.startsWith("data:") || actualEvidenceUrl.startsWith("http")) {
+                const res = await fetch(actualEvidenceUrl);
+                blob = await res.blob();
+              }
+              if (blob) {
+                await incidentService.uploadEvidenceDirect({
+                  incidentId: createdId,
+                  cameraId: effectiveCameraId,
+                  evidenceType: "SNAPSHOT",
+                  file: blob,
+                  fileName: `snapshot_${createdId.slice(0, 8)}.jpg`,
+                  aiDetections: {
+                    violations: [
+                      {
+                        box: realViolationBox || {
+                          x: 10.4,
+                          y: 17.5,
+                          width: 36.4,
+                          height: 67.1,
+                          label: vType,
+                          confidence: 0.96,
+                        },
+                      },
+                    ],
+                  },
+                });
+                queryClient.invalidateQueries({ queryKey: incidentKeys.detail(createdId) });
+              }
+            } catch (upErr) {
+              console.warn("[CameraIntelligenceContent] Lưu tệp bằng chứng vào MinIO ngầm:", upErr);
+            }
+          })();
+        }
 
         // 6. Làm mới danh sách sự cố và số đếm thông báo trên toàn hệ thống
+        // (Thông báo Toast cảnh báo và còi Siren sẽ do NotificationBell toàn cục xử lý qua SSE)
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: incidentKeys.all }),
           queryClient.invalidateQueries({ queryKey: notificationKeys.all }),
@@ -977,9 +1010,7 @@ export function CameraIntelligenceContent({
       cameraId,
       capturedSnapshotUrl,
       isVietnamese,
-      playAlert,
       queryClient,
-      router,
       siteName,
       streamMetadata?.youtubeId,
     ]

@@ -6,7 +6,8 @@ import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
 import { useLocale } from "@/providers/locale-provider";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
-import type { IncidentItem } from "@/types";
+import { EVIDENCE_TYPE, type IncidentItem } from "@/types";
+import { resolveEvidenceUrl } from "@/lib/evidence-url";
 
 export interface IncidentTableProps {
   incidents: IncidentItem[];
@@ -15,14 +16,17 @@ export interface IncidentTableProps {
   onAssign?: (incident: IncidentItem) => void;
   onFilterSite?: (siteId: string) => void;
   loading?: boolean;
+  highlightedId?: string | null;
 }
 
 export function getIncidentEvidenceUrl(incident: IncidentItem): string {
-  if (incident.snapshotUrl) return incident.snapshotUrl;
-  const ev = incident.evidences?.[0];
-  if (ev?.url) return ev.url;
+  if (incident.snapshotUrl) return resolveEvidenceUrl(incident.snapshotUrl);
+  const ev =
+    incident.evidences?.find((e) => e.evidenceType === EVIDENCE_TYPE.SNAPSHOT) ||
+    incident.evidences?.[0];
+  if (ev?.url) return resolveEvidenceUrl(ev.url);
   if (ev?.storageKey) {
-    return `http://localhost:9000/ppe-evidences/${ev.storageKey}`;
+    return resolveEvidenceUrl(ev.storageKey);
   }
   if (incident.violationType === "NO_HELMET") {
     return "/images/evidence/camera-01a18735_16ee47ac_f76.jpg";
@@ -43,6 +47,7 @@ export function IncidentTable({
   onAssign,
   onFilterSite,
   loading = false,
+  highlightedId,
 }: IncidentTableProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -96,10 +101,16 @@ export function IncidentTable({
           const siteName = incident.siteName || getSiteName(incident.siteId);
           const cameraCode = incident.cameraCode || getCameraCode(incident.cameraId);
 
+          const isHighlighted = incident.id === highlightedId;
+
           return (
             <div
               key={incident.id}
-              className="rounded-2xl border border-border/40 bg-surface p-3.5 shadow-[4px_4px_10px_rgba(0,0,0,0.06),-4px_-4px_10px_rgba(255,255,255,0.7)] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.3)] transition-all"
+              className={`rounded-2xl border p-3.5 transition-all duration-300 ${
+                isHighlighted
+                  ? "border-rose-500 bg-rose-500/10 shadow-[0_0_16px_rgba(244,63,94,0.35)] animate-pulse"
+                  : "border-border/40 bg-surface shadow-[4px_4px_10px_rgba(0,0,0,0.06),-4px_-4px_10px_rgba(255,255,255,0.7)] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.3)]"
+              }`}
             >
               {/* Card Header: ID, Severity, Status */}
               <div className="flex items-center justify-between gap-2 border-b border-border/30 pb-2.5">
@@ -244,6 +255,7 @@ export function IncidentTable({
           </thead>
           <tbody className="divide-y divide-border/30">
             {incidents.map((incident) => {
+              const isHighlighted = incident.id === highlightedId;
               const dateStr = new Date(incident.detectedAt).toLocaleString("vi-VN", {
                 month: "2-digit",
                 day: "2-digit",
@@ -255,7 +267,11 @@ export function IncidentTable({
               return (
                 <tr
                   key={incident.id}
-                  className="transition-colors duration-150 hover:bg-surface-elevated/30"
+                  className={`transition-colors duration-150 ${
+                    isHighlighted
+                      ? "bg-rose-500/15 ring-2 ring-inset ring-rose-500/40 animate-pulse"
+                      : "hover:bg-surface-elevated/30"
+                  }`}
                 >
                   {/* Incident Code & Thumbnail */}
                   <td className="px-5 py-4">

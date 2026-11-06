@@ -118,11 +118,11 @@ export function AuditLogTable({
                     </span>
                     <div className="space-y-0.5">
                       <p className="text-xs font-medium text-foreground max-w-[160px] truncate">
-                        {log.userEmail || "Hệ thống tự động"}
+                        {log.userEmail || log.actor?.email || "Hệ thống tự động"}
                       </p>
-                      {log.userRole && (
+                      {(log.userRole || log.actor?.roleName) && (
                         <span className="inline-flex rounded-full px-1.5 py-0.2 text-[10px] font-semibold bg-muted text-muted-foreground">
-                          {log.userRole}
+                          {log.userRole || log.actor?.roleName}
                         </span>
                       )}
                     </div>
@@ -148,7 +148,7 @@ export function AuditLogTable({
                 </td>
 
                 <td className="px-5 py-4">
-                  {log.status === "SUCCESS" ? (
+                  {log.status === "SUCCESS" || (!log.status && !log.errorMessage) ? (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                       <CheckCircle2 className="h-3.5 w-3.5" />
                       SUCCESS

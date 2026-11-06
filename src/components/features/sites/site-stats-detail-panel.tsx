@@ -10,6 +10,7 @@ import {
   ChevronRight,
   HardHat,
   Layers,
+  Loader2,
   MapPin,
   Plus,
   Shield,
@@ -22,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/providers/locale-provider";
+import { useAllRestrictedAreas, useAllZones } from "@/hooks/sites";
 import type { SiteItem } from "@/types";
 
 export type SiteStatKey = "totalSites" | "totalZones" | "restrictedAreas" | "complianceRate";
@@ -54,6 +56,23 @@ export function SiteStatsDetailPanel({
   const [selectedSiteFilter, setSelectedSiteFilter] = useState<string>("ALL");
   const [selectedSeverity, setSelectedSeverity] = useState<string>("ALL");
 
+  // Lazy queries when opening panel
+  const isZonesActive = activeStat === "totalZones";
+  const isRestrictedActive = activeStat === "restrictedAreas";
+
+  const { data: fetchedZones = [], isLoading: isZonesLoading } = useAllZones(
+    undefined,
+    isZonesActive
+  );
+
+  const { data: fetchedRestricted = [], isLoading: isRestrictedLoading } =
+    useAllRestrictedAreas(undefined, isRestrictedActive);
+
+  // Map sites for fast lookup
+  const sitesMap = useMemo(() => {
+    return new Map<string, SiteItem>(sites.map((s) => [s.id, s]));
+  }, [sites]);
+
   // Summary counts
   const totalSites = sites.length;
   const activeSites = sites.filter((s) => s.status === "ACTIVE").length;
@@ -75,9 +94,9 @@ export function SiteStatsDetailPanel({
     0
   );
 
-  // Flattened zones
+  // Flattened zones (ưu tiên site.zones nếu có, fallback sang fetchedZones)
   const allZones = useMemo(() => {
-    return sites.flatMap((site) =>
+    const embeddedZones = sites.flatMap((site) =>
       (site.zones || []).map((z) => ({
         ...z,
         siteName: site.name,
@@ -85,16 +104,34 @@ export function SiteStatsDetailPanel({
         site,
       }))
     );
-  }, [sites]);
+    if (embeddedZones.length > 0) return embeddedZones;
+
+    return fetchedZones.map((z) => {
+      const parentSite = sitesMap.get(z.siteId) || (z.site as any) || {
+        id: z.siteId,
+        name: z.site?.name || t("sites.detail.site"),
+        code: z.site?.code || "SITE",
+        status: "ACTIVE",
+        createdAt: z.createdAt,
+        updatedAt: z.updatedAt,
+      };
+      return {
+        ...z,
+        siteName: z.site?.name || parentSite.name || "",
+        siteCode: z.site?.code || parentSite.code || "",
+        site: parentSite,
+      };
+    });
+  }, [sites, fetchedZones, sitesMap, t]);
 
   const filteredZones = useMemo(() => {
     if (selectedSiteFilter === "ALL") return allZones;
     return allZones.filter((z) => z.siteId === selectedSiteFilter);
   }, [allZones, selectedSiteFilter]);
 
-  // Flattened restricted areas
+  // Flattened restricted areas (ưu tiên site.restrictedAreas nếu có, fallback sang fetchedRestricted)
   const allRestricted = useMemo(() => {
-    return sites.flatMap((site) =>
+    const embeddedRestricted = sites.flatMap((site) =>
       (site.restrictedAreas || []).map((a) => ({
         ...a,
         siteName: site.name,
@@ -102,7 +139,26 @@ export function SiteStatsDetailPanel({
         site,
       }))
     );
-  }, [sites]);
+    if (embeddedRestricted.length > 0) return embeddedRestricted;
+
+    return fetchedRestricted.map((a) => {
+      const parentSite = sitesMap.get(a.siteId) || (a.site as any) || {
+        id: a.siteId,
+        name: a.site?.name || t("sites.detail.site"),
+        code: a.site?.code || "SITE",
+        status: "ACTIVE",
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt,
+      };
+      return {
+        ...a,
+        zoneName: a.zone?.name || a.zoneName,
+        siteName: a.site?.name || parentSite.name || "",
+        siteCode: a.site?.code || parentSite.code || "",
+        site: parentSite,
+      };
+    });
+  }, [sites, fetchedRestricted, sitesMap, t]);
 
   const filteredRestricted = useMemo(() => {
     let result = allRestricted;
@@ -114,6 +170,13 @@ export function SiteStatsDetailPanel({
     }
     return result;
   }, [allRestricted, selectedSiteFilter, selectedSeverity]);
+
+  const computedTotalZones = Math.max(totalZones, allZones.length, fetchedZones.length);
+  const computedTotalRestricted = Math.max(
+    totalRestricted,
+    allRestricted.length,
+    fetchedRestricted.length
+  );
 
   return (
     <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-white/60 bg-surface/95 p-3 sm:p-4.5 shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)] transition-all duration-300 dark:border-white/10 dark:bg-card/95 animate-in fade-in slide-in-from-top-2">
@@ -144,8 +207,8 @@ export function SiteStatsDetailPanel({
 
               <Badge variant="outline" size="sm" className="font-mono text-[10px] sm:text-[11px] text-foreground px-1.5 py-0">
                 {activeStat === "totalSites" && `${totalSites}`}
-                {activeStat === "totalZones" && `${totalZones}`}
-                {activeStat === "restrictedAreas" && `${totalRestricted}`}
+                {activeStat === "totalZones" && `${computedTotalZones}`}
+                {activeStat === "restrictedAreas" && `${computedTotalRestricted}`}
                 {activeStat === "complianceRate" && `${complianceRate.toFixed(1)}%`}
               </Badge>
             </div>
@@ -416,7 +479,12 @@ export function SiteStatsDetailPanel({
             </select>
           </div>
 
-          {filteredZones.length === 0 ? (
+          {isZonesLoading ? (
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-border/30 bg-background/40 p-8 text-xs text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <span>{isVietnamese ? "Đang tải danh sách phân khu..." : "Loading zones..."}</span>
+            </div>
+          ) : filteredZones.length === 0 ? (
             <div className="rounded-xl border border-border/30 bg-background/40 p-6 text-center text-xs text-muted-foreground">
               {t("sites.detail.noZones")}
             </div>
@@ -495,7 +563,12 @@ export function SiteStatsDetailPanel({
             </select>
           </div>
 
-          {filteredRestricted.length === 0 ? (
+          {isRestrictedLoading ? (
+            <div className="flex items-center justify-center gap-2 rounded-xl border border-border/30 bg-background/40 p-8 text-xs text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin text-accent" />
+              <span>{isVietnamese ? "Đang tải danh sách vùng cấm..." : "Loading restricted areas..."}</span>
+            </div>
+          ) : filteredRestricted.length === 0 ? (
             <div className="rounded-xl border border-border/30 bg-background/40 p-6 text-center text-xs text-muted-foreground">
               {t("sites.detail.noRestricted")}
             </div>

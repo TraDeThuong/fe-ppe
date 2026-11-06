@@ -7,6 +7,7 @@ import type {
   CreateIncidentPayload,
   EvidenceItem,
   EvidenceQueryParams,
+  EvidenceType,
   EvidenceUploadUrlResponse,
   IncidentAssignmentItem,
   IncidentCommentItem,
@@ -275,5 +276,40 @@ export const incidentService = {
       `/evidences/${evidenceId}`,
     );
     return { message: res?.message || "Evidence deleted successfully" };
+  },
+
+  /**
+   * POST /api/v1/evidences/direct-upload
+   * Tải tệp bằng chứng thực tế lên Object Storage (MinIO) và liên kết trực tiếp vào sự cố.
+   */
+  async uploadEvidenceDirect(data: {
+    incidentId: string;
+    cameraId: string;
+    evidenceType?: EvidenceType | string;
+    file: File | Blob;
+    fileName?: string;
+    aiDetections?: Record<string, unknown>;
+  }): Promise<EvidenceItem> {
+    const formData = new FormData();
+    formData.append("incidentId", data.incidentId);
+    formData.append("cameraId", data.cameraId);
+    formData.append("evidenceType", data.evidenceType || "SNAPSHOT");
+    if (data.aiDetections) {
+      formData.append("aiDetections", JSON.stringify(data.aiDetections));
+    }
+    const finalFile =
+      data.file instanceof File
+        ? data.file
+        : new File(
+            [data.file],
+            data.fileName || `evidence_${Date.now()}.jpg`,
+            { type: "image/jpeg" },
+          );
+    formData.append("file", finalFile);
+
+    const res = await apiClient.post<unknown>("/evidences/direct-upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return unwrapData<EvidenceItem>(res);
   },
 };

@@ -52,6 +52,11 @@ export interface ZoneItem {
   cameraCount?: number;
   createdAt: string;
   updatedAt: string;
+  site?: {
+    id: string;
+    name: string;
+    code: string;
+  };
 }
 
 export interface RestrictedAreaPoint {
@@ -71,6 +76,16 @@ export interface RestrictedAreaItem {
   severity?: "CRITICAL" | "HIGH" | "MEDIUM";
   createdAt: string;
   updatedAt: string;
+  site?: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  zone?: {
+    id: string;
+    name: string;
+    code: string;
+  };
 }
 
 export interface SiteSafetyConfigItem {
@@ -132,6 +147,27 @@ export interface SiteQueryParams {
   limit?: number;
   search?: string;
   status?: SiteStatus | string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}
+
+export interface ZoneQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  siteId?: string;
+  status?: ZoneStatus | string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}
+
+export interface RestrictedAreaQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  siteId?: string;
+  zoneId?: string;
+  status?: RestrictedAreaStatus | string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
 }

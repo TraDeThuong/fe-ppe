@@ -34,3 +34,40 @@ body {
     animation: none;
   }
 }
+
+@keyframes gentle-pulse-ring {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(163, 81, 57, 0.45);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(163, 81, 57, 0);
+    transform: scale(1.02);
+  }
+}
+
+@keyframes gentle-pulse-border {
+  0%, 100% {
+    border-color: rgba(163, 81, 57, 0.4);
+    box-shadow: 0 0 10px rgba(163, 81, 57, 0.12);
+  }
+  50% {
+    border-color: rgba(163, 81, 57, 0.85);
+    box-shadow: 0 0 20px rgba(163, 81, 57, 0.3);
+  }
+}
+
+.animate-gentle-pulse-ring {
+  animation: gentle-pulse-ring 2.6s ease-in-out infinite;
+}
+
+.animate-gentle-pulse-border {
+  animation: gentle-pulse-border 2.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-gentle-pulse-ring,
+  .animate-gentle-pulse-border {
+    animation: none;
+  }
+}

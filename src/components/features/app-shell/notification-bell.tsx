@@ -128,6 +128,12 @@ export function NotificationBell() {
                 router.push(`/incidents/${incidentId}`);
               }
             }}
+            onOpenCompare={(incidentId) => {
+              toast.dismiss(t.id);
+              if (incidentId) {
+                router.push(`/incidents/${incidentId}?focus=compare`);
+              }
+            }}
           />
         ),
         {

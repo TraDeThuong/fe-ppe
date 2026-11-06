@@ -59,7 +59,10 @@ export function AuditDetailDrawer({
                 {t("audit.table.actor")}
               </span>
               <p className="text-sm font-semibold text-foreground">
-                {detail.userEmail || "Hệ thống"} {detail.userRole ? `(${detail.userRole})` : ""}
+                {detail.userEmail || detail.actor?.email || "Hệ thống"}{" "}
+                {detail.userRole || detail.actor?.roleName
+                  ? `(${detail.userRole || detail.actor?.roleName})`
+                  : ""}
               </p>
             </div>
 

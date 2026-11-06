@@ -45,6 +45,7 @@ export type IncidentSeverity =
 
 export const EVIDENCE_TYPE = {
   SNAPSHOT: "SNAPSHOT",
+  REFERENCE_SNAPSHOT: "REFERENCE_SNAPSHOT",
   VIDEO_CLIP: "VIDEO_CLIP",
 } as const;
 
@@ -193,6 +194,17 @@ export interface IncidentQueryParams {
   sortOrder?: "asc" | "desc";
 }
 
+export interface InitialEvidencePayload {
+  cameraId?: string;
+  evidenceType?: EvidenceType | string;
+  storageKey: string;
+  fileName: string;
+  mimeType: string;
+  fileSize?: number;
+  capturedAt: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface CreateIncidentPayload {
   siteId: string;
   cameraId: string;
@@ -202,16 +214,8 @@ export interface CreateIncidentPayload {
   status?: "PENDING_REVIEW";
   detectedAt: string;
   description?: string | null;
-  initialEvidence?: {
-    cameraId?: string;
-    evidenceType: "SNAPSHOT" | "VIDEO_CLIP";
-    storageKey: string;
-    fileName: string;
-    mimeType: string;
-    fileSize?: number;
-    capturedAt: string;
-    metadata?: Record<string, unknown>;
-  };
+  initialEvidence?: InitialEvidencePayload;
+  initialReferenceEvidence?: InitialEvidencePayload;
 }
 
 export interface ReviewIncidentPayload {
@@ -293,3 +297,24 @@ export interface EvidenceQueryParams {
   sortBy?: "capturedAt" | "createdAt";
   sortOrder?: "asc" | "desc";
 }
+
+/**
+ * Payload sự kiện realtime SSE `notification:ppe_violation` từ notification-service
+ */
+export interface PpeViolationRealtimeAlert {
+  incidentId: string;
+  siteId?: string;
+  cameraId?: string;
+  cameraCode?: string;
+  siteName?: string;
+  violationType: ViolationType | string;
+  severity: IncidentSeverity | string;
+  title?: string;
+  content?: string;
+  description?: string;
+  evidenceUrl?: string;
+  referenceEvidenceUrl?: string;
+  detectedAt?: string;
+  [key: string]: unknown;
+}
+

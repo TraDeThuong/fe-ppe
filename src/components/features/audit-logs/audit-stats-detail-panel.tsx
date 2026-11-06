@@ -336,7 +336,7 @@ export function AuditStatsDetailPanel({
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-xs font-bold text-foreground truncate max-w-[150px] sm:max-w-[220px]">
-                          {log.userEmail || (isVietnamese ? "Hệ thống tự động" : "System Automated")}
+                          {log.userEmail || log.actor?.email || (isVietnamese ? "Hệ thống tự động" : "System Automated")}
                         </span>
                         <AuditActionBadge action={log.action} />
                         <span className="font-mono text-[10px] text-muted-foreground truncate hidden sm:inline">
@@ -352,7 +352,7 @@ export function AuditStatsDetailPanel({
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    {log.status === "SUCCESS" ? (
+                    {log.status === "SUCCESS" || (!log.status && !log.errorMessage) ? (
                       <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
                         <CheckCircle2 className="h-3 w-3" /> SUCCESS
                       </span>

@@ -4,6 +4,7 @@ import type {
   AuditLogDetailResponse,
   AuditLogItem,
   AuditLogQueryParams,
+  AuditLogStatus,
   AuditLogsListResponse,
   AuditSummaryDto,
   AuditSummaryResponse,
@@ -20,15 +21,93 @@ function unwrapData<T>(res: any): T {
   return res as T;
 }
 
-function unwrapPaginated<T>(res: any): { items: T[]; meta: PaginationMeta } {
+function normalizeAuditItem(raw: any): AuditLogItem {
+  if (!raw || typeof raw !== "object") return raw;
+  const actor = raw.actor;
+  const details = (raw.details && typeof raw.details === "object" ? raw.details : {}) as Record<string, unknown>;
+
+  let status: AuditLogStatus = "SUCCESS";
+  if (raw.status) {
+    status = String(raw.status).toUpperCase() === "FAILED" ? "FAILED" : "SUCCESS";
+  } else if (details.status) {
+    status = String(details.status).toUpperCase() === "FAILED" ? "FAILED" : "SUCCESS";
+  } else if (details.error || details.errorMessage || raw.errorMessage) {
+    status = "FAILED";
+  } else if (
+    typeof raw.action === "string" &&
+    (raw.action.includes("FAIL") || raw.action.includes("ERROR") || raw.action.includes("REJECT"))
+  ) {
+    status = "FAILED";
+  }
+
+  return {
+    ...raw,
+    id: raw.id,
+    userId: raw.userId ?? raw.actorId ?? actor?.id ?? null,
+    actorId: raw.actorId ?? raw.userId ?? actor?.id ?? null,
+    actor: actor ?? null,
+    userEmail: raw.userEmail ?? actor?.email ?? (typeof details.email === "string" ? details.email : null),
+    userName: raw.userName ?? actor?.fullName ?? (typeof details.fullName === "string" ? details.fullName : null),
+    userRole: raw.userRole ?? actor?.roleName ?? (typeof details.roleName === "string" ? details.roleName : null),
+    action: raw.action,
+    targetType: raw.targetType,
+    targetId: raw.targetId ?? null,
+    status,
+    errorMessage: raw.errorMessage ?? (typeof details.errorMessage === "string" ? details.errorMessage : null),
+    ipAddress: raw.ipAddress ?? null,
+    userAgent: raw.userAgent ?? null,
+    details,
+    createdAt: raw.createdAt,
+  };
+}
+
+function normalizeAuditDetail(raw: any): AuditLogDetail {
+  const item = normalizeAuditItem(raw);
+  const details = (item.details && typeof item.details === "object" ? item.details : {}) as Record<string, unknown>;
+  return {
+    ...item,
+    oldValue: (raw.oldValue as Record<string, unknown>) ?? (details.oldValue as Record<string, unknown>) ?? null,
+    newValue: (raw.newValue as Record<string, unknown>) ?? (details.newValue as Record<string, unknown>) ?? (details.oldValue ? null : details),
+    metadata: (raw.metadata as Record<string, unknown>) ?? (details.metadata as Record<string, unknown>) ?? details,
+  };
+}
+
+function normalizeAuditSummary(raw: any): AuditSummaryDto {
+  if (!raw) {
+    return {
+      totalLogs: 0,
+      configChangesCount: 0,
+      incidentReviewsCount: 0,
+      successRate: 100,
+    };
+  }
+  const categoryCounts = raw.categoryCounts || {};
+  return {
+    ...raw,
+    totalLogs: raw.totalLogs ?? 0,
+    configChangesCount: raw.configChangesCount ?? categoryCounts.config ?? 0,
+    incidentReviewsCount: raw.incidentReviewsCount ?? categoryCounts.incidentReview ?? 0,
+    successRate: raw.successRate ?? 100,
+    byAction: raw.byAction ?? (Array.isArray(raw.topActions)
+      ? Object.fromEntries(raw.topActions.map((a: any) => [a.action, a.count]))
+      : undefined),
+    byTargetType: raw.byTargetType,
+  };
+}
+
+function unwrapPaginated<T>(res: any, normalizer?: (item: any) => T): { items: T[]; meta: PaginationMeta } {
   const defaultMeta: PaginationMeta = { page: 1, limit: 20, total: 0, totalPages: 0 };
   if (!res) return { items: [], meta: defaultMeta };
-  if (Array.isArray(res)) return { items: res, meta: defaultMeta };
-  const items = Array.isArray(res.data)
+  if (Array.isArray(res)) {
+    const items = normalizer ? res.map(normalizer) : res;
+    return { items, meta: defaultMeta };
+  }
+  const rawItems = Array.isArray(res.data)
     ? res.data
     : Array.isArray(res.items)
       ? res.items
       : [];
+  const items = normalizer ? rawItems.map(normalizer) : rawItems;
   const meta = res.meta ?? res.data?.meta ?? defaultMeta;
   return { items, meta };
 }
@@ -44,7 +123,7 @@ export const auditService = {
     const res = await apiClient.get<any>("/audit-logs", {
       params,
     });
-    return unwrapPaginated<AuditLogItem>(res);
+    return unwrapPaginated<AuditLogItem>(res, normalizeAuditItem);
   },
 
   /**
@@ -53,7 +132,8 @@ export const auditService = {
    */
   async getLogDetail(id: string): Promise<AuditLogDetail> {
     const res = await apiClient.get<unknown>(`/audit-logs/${id}`);
-    return unwrapData<AuditLogDetail>(res);
+    const data = unwrapData<any>(res);
+    return normalizeAuditDetail(data);
   },
 
   /**
@@ -64,7 +144,8 @@ export const auditService = {
     const res = await apiClient.get<unknown>("/audit-logs/summary", {
       params,
     });
-    return unwrapData<AuditSummaryDto>(res);
+    const data = unwrapData<any>(res);
+    return normalizeAuditSummary(data);
   },
 
   /**
@@ -77,7 +158,7 @@ export const auditService = {
     const res = await apiClient.get<any>("/audit-logs/config-changes", {
       params,
     });
-    return unwrapPaginated<AuditLogItem>(res);
+    return unwrapPaginated<AuditLogItem>(res, normalizeAuditItem);
   },
 
   /**
@@ -90,7 +171,7 @@ export const auditService = {
     const res = await apiClient.get<any>("/audit-logs/incident-reviews", {
       params,
     });
-    return unwrapPaginated<AuditLogItem>(res);
+    return unwrapPaginated<AuditLogItem>(res, normalizeAuditItem);
   },
 
   /**
@@ -106,7 +187,7 @@ export const auditService = {
       `/audit-logs/resource/${targetType}/${targetId}`,
       { params },
     );
-    return unwrapPaginated<AuditLogItem>(res);
+    return unwrapPaginated<AuditLogItem>(res, normalizeAuditItem);
   },
 
   /**

@@ -585,7 +585,7 @@ export function CameraAiInspectorCard({
                 </div>
               ) : (
                 <div className="space-y-2 font-mono text-xs">
-                  {associations.map((a) => {
+                  {associations.map((a, aIdx) => {
                     const personState = statesById.get(a.person);
                     const isUnknown = a.status === "unknown" || personState?.status === "UNKNOWN";
                     const isViolating =
@@ -594,7 +594,7 @@ export function CameraAiInspectorCard({
 
                     return (
                       <div
-                        key={a.person}
+                        key={a.person != null ? `assoc-${a.person}-${aIdx}` : `assoc-idx-${aIdx}`}
                         className={`flex flex-wrap items-center justify-between rounded-xl border p-2.5 transition ${
                           isViolating
                             ? "border-rose-500/35 bg-rose-500/[0.05]"
@@ -728,7 +728,7 @@ export function CameraAiInspectorCard({
                       : "No persons in this frame"}
                   </span>
                 ) : (
-                  personsInFrame.map((s) => {
+                  personsInFrame.map((s, sIdx) => {
                     const isViolating = s.status === "VIOLATION_CANDIDATE" || s.status === "CONFIRMED_VIOLATION";
                     const isUnknown = s.status === "UNKNOWN";
 
@@ -747,7 +747,7 @@ export function CameraAiInspectorCard({
 
                     return (
                       <div
-                        key={s.track_id}
+                        key={s.track_id != null ? `state-${s.track_id}-${sIdx}` : `state-idx-${sIdx}`}
                         className="inline-flex items-center gap-2 rounded-xl border-0 bg-surface shadow-[3px_4px_8px_var(--shadow-dark),-2px_-2px_5px_color-mix(in_srgb,var(--shadow-light)_25%,transparent)] px-3 py-1.5 font-mono shadow-sm"
                       >
                         <User className="h-3.5 w-3.5 text-primary" />
@@ -764,14 +764,14 @@ export function CameraAiInspectorCard({
               {/* Lưới chi tiết từng công nhân trong frame */}
               {personsInFrame.length > 0 && (
                 <div className="pt-3 border-t border-border/25 grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-                  {personsInFrame.map((p) => {
+                  {personsInFrame.map((p, pIdx) => {
                     const assoc = associations.find((a) => a.person === p.track_id);
                     const det = detections.find((d) => d.class_name === "person" && d.track_id === p.track_id);
                     const isViolating = p.status === "VIOLATION_CANDIDATE" || p.status === "CONFIRMED_VIOLATION";
 
                     return (
                       <div
-                        key={p.track_id}
+                        key={p.track_id != null ? `person-frame-${p.track_id}-${pIdx}` : `person-frame-idx-${pIdx}`}
                         className={`rounded-xl p-2.5 space-y-1.5 shadow-[3px_4px_8px_var(--shadow-dark),-2px_-2px_5px_color-mix(in_srgb,var(--shadow-light)_25%,transparent)] ${
                           isViolating
                             ? "border-rose-500/40 bg-rose-500/[0.04]"

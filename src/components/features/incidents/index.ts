@@ -4,6 +4,7 @@ export * from "./incident-kpi-summary";
 export * from "./incident-filter-toolbar";
 export * from "./incident-table";
 export * from "./incident-lifecycle-stepper";
+export * from "./incident-action-guide";
 export * from "./incident-evidence-viewer";
 export * from "./incident-meta-card";
 export * from "./incident-assignment-card";
