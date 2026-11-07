@@ -91,19 +91,48 @@ export function IncidentEvidenceViewer({
 
   // 1. Ảnh AI BẰNG CHỨNG TÔ ĐỎ CHUẨN XÁC TỪ CAMERA (Pre-annotated YOLOv11 Red Box)
   const cameraFallbackUrl = useMemo(() => {
-    if (safeCamId.includes("01a19ce7") || targetCamera?.code?.includes("CAM2") || targetCamera?.streamUrl?.includes("POdSp36OulM")) {
+    // Ưu tiên ảnh chụp vi phạm thực tế từ session camera hiện hành
+    if (typeof window !== "undefined") {
+      if (incidentId) {
+        const cachedIncidentImg = sessionStorage.getItem(`ppe_incident_evidence_${incidentId}`);
+        if (cachedIncidentImg) return resolveEvidenceUrl(cachedIncidentImg);
+      }
+      if (safeCamId) {
+        const cachedCamImg = sessionStorage.getItem(`ppe_camera_evidence_${safeCamId}`);
+        if (cachedCamImg) return resolveEvidenceUrl(cachedCamImg);
+      }
+    }
+
+    if (
+      safeCamId === "01a19ce7-05b3-7dcd-97d2-35d4b8309e1d" ||
+      safeCamId.includes("test-2") ||
+      targetCamera?.code?.toLowerCase().includes("test-2") ||
+      targetCamera?.streamUrl?.includes("POdSp36OulM")
+    ) {
       return "/images/camera-01a19ce7-evidence.jpg";
     }
-    if (safeCamId.includes("01a19cf4") || targetCamera?.code?.includes("CAM3")) {
+    if (
+      safeCamId === "01a19cf4-3b78-783c-af36-f52812c9ee3b" ||
+      safeCamId.includes("cam3") ||
+      targetCamera?.code?.includes("CAM3")
+    ) {
       return "/images/camera-01a19cf4-evidence.jpg";
     }
-    if (safeCamId.includes("01a19d07") || targetCamera?.code?.includes("CAM5")) {
+    if (
+      safeCamId === "01a19d07-bd01-76f9-a7c3-4e7fbcc02538" ||
+      safeCamId.includes("cam5") ||
+      targetCamera?.code?.includes("CAM5")
+    ) {
       return "/images/camera-01a19d07-evidence.jpg";
     }
-    if (safeCamId.includes("01a19e19") || targetCamera?.code?.includes("CAMMMM")) {
+    if (
+      safeCamId === "01a19e19-ed7f-72ae-a832-6c64d2595dcf" ||
+      safeCamId.includes("cammm") ||
+      targetCamera?.code?.includes("CAMMM")
+    ) {
       return "/images/camera-01a19e19-evidence.jpg";
     }
-    if (safeCamId.includes("01a18735") || targetCamera?.code?.includes("099999") || targetCamera?.code?.includes("CAM-1") || targetCamera?.code?.includes("CAM-YOUTUBE-01")) {
+    if (safeCamId === "01a18735-39f8-7ea2-822d-1e7765c59c73" || targetCamera?.streamUrl?.includes("rcvx3ZsI4eQ")) {
       return "/images/evidence/camera-01a18735_16ee47ac_f76_red.jpg";
     }
     if (targetCamera?.streamUrl?.includes("video8")) {
@@ -114,24 +143,26 @@ export function IncidentEvidenceViewer({
     }
     if (targetCamera?.snapshotUrl) return targetCamera.snapshotUrl;
     return "/images/camera-live-evidence.jpg";
-  }, [targetCamera, safeCamId]);
+  }, [targetCamera, safeCamId, incidentId]);
 
   // 2. Ảnh GỐC HIỆN TRƯỜNG RAW (Không vẽ bounding box đè lên)
   const cameraRawUrl = useMemo(() => {
-    if (safeCamId.includes("01a19ce7") || targetCamera?.code?.includes("CAM2") || targetCamera?.streamUrl?.includes("POdSp36OulM")) {
+    if (
+      safeCamId === "01a19ce7-05b3-7dcd-97d2-35d4b8309e1d" ||
+      safeCamId.includes("test-2") ||
+      targetCamera?.code?.toLowerCase().includes("test-2") ||
+      targetCamera?.streamUrl?.includes("POdSp36OulM")
+    ) {
       return "https://img.youtube.com/vi/POdSp36OulM/hqdefault.jpg";
     }
     if (
-      safeCamId.includes("01a19cf4") ||
-      targetCamera?.code?.includes("CAM3") ||
-      safeCamId.includes("01a19d07") ||
-      targetCamera?.code?.includes("CAM5") ||
-      safeCamId.includes("01a19e19") ||
-      targetCamera?.code?.includes("CAMMMM")
+      safeCamId === "01a19cf4-3b78-783c-af36-f52812c9ee3b" ||
+      safeCamId === "01a19d07-bd01-76f9-a7c3-4e7fbcc02538" ||
+      safeCamId === "01a19e19-ed7f-72ae-a832-6c64d2595dcf"
     ) {
       return "https://img.youtube.com/vi/Ek0FCzNqfvA/hqdefault.jpg";
     }
-    if (safeCamId.includes("01a18735") || targetCamera?.code?.includes("099999") || targetCamera?.code?.includes("CAM-1")) {
+    if (safeCamId === "01a18735-39f8-7ea2-822d-1e7765c59c73" || targetCamera?.streamUrl?.includes("rcvx3ZsI4eQ")) {
       return "/images/evidence/camera-01a18735_16ee47ac_f76.jpg";
     }
     if (targetCamera?.streamUrl?.includes("video8")) {
@@ -151,11 +182,11 @@ export function IncidentEvidenceViewer({
     return targetCamera?.snapshotUrl || "/images/camera-live-evidence.jpg";
   }, [targetCamera, safeCamId]);
 
-  // 3. Chuẩn bị bộ sưu tập Đa ảnh bằng chứng (Multi-Evidence Gallery)
+  // 3. Chuẩn bị ảnh bằng chứng vi phạm tô đỏ chuyển từ camera (Single Red-Annotated Evidence)
   const galleryPhotos = useMemo<GalleryPhoto[]>(() => {
     const list: GalleryPhoto[] = [];
 
-    // Kiểm tra xem snapshotUrl có phải từ nguồn ngoài hoặc YouTube không
+    // Kiểm tra xem snapshotUrl có phải từ nguồn ngoài hoặc MinIO/Client không
     const resolvedSnap = snapshotUrl ? resolveEvidenceUrl(snapshotUrl) : "";
     const allEvidences = evidences.length > 0 ? evidences : evidence ? [evidence] : [];
 
@@ -166,132 +197,73 @@ export function IncidentEvidenceViewer({
       resolvedSnap.includes("_red") ||
       resolvedSnap.includes("annotated");
 
-    // Phân loại bằng chứng số theo Contract chuẩn: SNAPSHOT vs REFERENCE_SNAPSHOT
+    // Phân loại bằng chứng số: SNAPSHOT ưu tiên
     const snapshotItem =
       allEvidences.find((e) => e.evidenceType === EVIDENCE_TYPE.SNAPSHOT) ||
       allEvidences.find((e) => e.fileName?.includes("_red") || e.storageKey?.includes("_red")) ||
       allEvidences[0];
 
-    const referenceSnapshotItem =
-      allEvidences.find((e) => e.evidenceType === EVIDENCE_TYPE.REFERENCE_SNAPSHOT) ||
-      allEvidences.find(
-        (e) =>
-          (e.fileName?.includes("_ref") ||
-            e.storageKey?.includes("_ref") ||
-            e.fileName?.includes("reference")) &&
-          e.id !== snapshotItem?.id,
-      );
-
-    // 1. TAB 1: ẢNH TÔ ĐỎ VI PHẠM (AI Annotated Highlight từ Camera)
     const primaryUrl =
       (isSnapAnnotated ? resolvedSnap : null) ||
       (snapshotItem?.url ? resolveEvidenceUrl(snapshotItem.url) : "") ||
       (snapshotItem?.storageKey ? resolveEvidenceUrl(snapshotItem.storageKey) : "") ||
-      cameraFallbackUrl ||
-      resolvedSnap;
+      resolvedSnap ||
+      cameraFallbackUrl;
 
     list.push({
       id: snapshotItem?.id || allEvidences[0]?.id || "photo-annotated",
       title: isVietnamese ? "Ảnh Vi Phạm PPE (Tô Đỏ Vi Phạm)" : "PPE Violation Snapshot (Red Highlight)",
       category: "annotated",
-      badgeLabel: isVietnamese ? "TÔ ĐỎ VI PHẠM (T=2s)" : "VIOLATION (T=2s)",
+      badgeLabel: isVietnamese ? "TÔ ĐỎ VI PHẠM (AI)" : "VIOLATION (AI)",
       badgeColor: "danger",
       url: primaryUrl,
       description: isVietnamese
-        ? `Hệ thống AI YOLOv11 phát hiện và khoanh vùng đỏ vi phạm ${violationLabel} sau 2 giây với độ tin cậy ${(confidence * 100).toFixed(0)}%.`
-        : `YOLOv11 AI highlighted violation: ${violationLabel} after 2s (${(confidence * 100).toFixed(0)}% confidence).`,
+        ? `Ảnh chụp vi phạm ${violationLabel} từ camera giám sát đã được hệ thống AI YOLOv11 phát hiện và khoanh vùng đỏ với độ tin cậy ${(confidence * 100).toFixed(0)}%.`
+        : `Surveillance camera violation snapshot: ${violationLabel} detected and highlighted by YOLOv11 AI (${(confidence * 100).toFixed(0)}% confidence).`,
       isAiAnnotated: true,
       evidenceType: EVIDENCE_TYPE.SNAPSHOT,
     });
 
-    // 2. TAB 2: ẢNH ĐỐI CHỨNG (Reference Snapshot) hoặc ẢNH GỐC HIỆN TRƯỜNG (Raw Frame)
-    if (referenceSnapshotItem) {
-      const refUrl =
-        (referenceSnapshotItem.url ? resolveEvidenceUrl(referenceSnapshotItem.url) : "") ||
-        (referenceSnapshotItem.storageKey ? resolveEvidenceUrl(referenceSnapshotItem.storageKey) : "");
-
+    // 2. Bổ sung ảnh hiện trường gốc RAW (không vẽ bounding box) để phục vụ đối chiếu
+    if (cameraRawUrl && cameraRawUrl !== primaryUrl) {
       list.push({
-        id: referenceSnapshotItem.id || allEvidences[1]?.id || "photo-reference",
-        title: isVietnamese
-          ? "Ảnh Đối Chứng Ban Đầu (Hợp Lệ / T=0s)"
-          : "Initial Reference Snapshot (Compliant / T=0s)",
-        category: "reference",
-        badgeLabel: isVietnamese ? "ẢNH ĐỐI CHỨNG (HỢP LỆ)" : "REFERENCE (COMPLIANT)",
-        badgeColor: "success",
-        url: refUrl,
-        description: isVietnamese
-          ? "Ảnh chụp trạng thái hợp lệ trước đó hoặc lúc mới vào khu vực (t=0s), có banner ANH DOI CHUNG và khung phân định để đối chiếu hành vi."
-          : "Recorded prior compliant state or area entrance (t=0s) with reference banner for behavioral review.",
-        isAiAnnotated: false,
-        evidenceType: EVIDENCE_TYPE.REFERENCE_SNAPSHOT,
-      });
-    } else {
-      // Fallback ảnh thô khi không có ảnh đối chứng ban đầu
-      const rawEv = allEvidences.find((e) => e.id !== snapshotItem?.id);
-      const rawUrl =
-        (rawEv?.url ? resolveEvidenceUrl(rawEv.url) : "") ||
-        (rawEv?.storageKey ? resolveEvidenceUrl(rawEv.storageKey) : "") ||
-        (!isSnapAnnotated && resolvedSnap ? resolvedSnap : "") ||
-        cameraRawUrl;
-
-      list.push({
-        id: rawEv?.id || allEvidences[1]?.id || "photo-raw",
-        title: isVietnamese ? "Ảnh Gốc Hiện Trường (Raw Frame)" : "Original Scene (Raw Frame)",
+        id: "photo-raw",
+        title: isVietnamese ? "Ảnh Hiện Trường Gốc (Raw)" : "Raw Scene Photo",
         category: "raw",
-        badgeLabel: isVietnamese ? "ẢNH GỐC HIỆN TRƯỜNG" : "RAW FRAME",
-        badgeColor: "info",
-        url: rawUrl,
+        badgeLabel: isVietnamese ? "ẢNH GỐC" : "RAW FRAME",
+        badgeColor: "default",
+        url: cameraRawUrl,
         description: isVietnamese
-          ? "Ảnh trích xuất nguyên bản từ luồng camera để đối chiếu pháp lý, không phủ bounding box."
-          : "Raw unmodified frame extracted from camera stream for legal integrity verification.",
+          ? "Ảnh chụp khung hình gốc từ camera an ninh trước khi hệ thống AI xử lý lớp nhận diện và bám vết."
+          : "Original unannotated camera frame prior to AI bounding box processing.",
         isAiAnnotated: false,
-        evidenceType: rawEv?.evidenceType || "RAW",
+        evidenceType: "RAW_FRAME",
       });
     }
 
-    // 3. TAB 3: TOÀN CẢNH CAMERA (Wide View / Context)
-    const remainingEv = allEvidences.filter(
-      (e) => e.id !== snapshotItem?.id && e.id !== referenceSnapshotItem?.id,
-    );
-    const wideEv = remainingEv[0];
-    const wideUrl =
-      (wideEv?.url ? resolveEvidenceUrl(wideEv.url) : "") ||
-      (wideEv?.storageKey ? resolveEvidenceUrl(wideEv.storageKey) : "") ||
-      (safeCamId.includes("video8") ? "/images/camera-live-evidence.jpg" : cameraRawUrl);
-
-    list.push({
-      id: wideEv?.id || allEvidences[2]?.id || "photo-wide",
-      title: isVietnamese ? "Ảnh Toàn Cảnh Vị Trí Camera (Wide View)" : "Wide-Angle Context View",
-      category: "wide",
-      badgeLabel: isVietnamese ? "TOÀN CẢNH CAMERA" : "WIDE CONTEXT",
-      badgeColor: "default",
-      url: wideUrl,
-      description: isVietnamese
-        ? `Góc chụp toàn cảnh hiện trường khu vực làm việc của camera giám sát ${targetCamera?.name || targetCamera?.code || safeCamId.slice(0, 8)}.`
-        : `Wide-angle surveillance snapshot of the work zone (${targetCamera?.code || safeCamId.slice(0, 8)}).`,
-      isAiAnnotated: false,
-    });
-
-    // Nếu backend có thêm các bằng chứng khác từ vị trí thứ 3 trở đi, đưa tiếp vào gallery
-    if (remainingEv.length > 1) {
-      remainingEv.slice(1).forEach((ev, idx) => {
-        const resolved = resolveEvidenceUrl(ev.url || ev.storageKey);
-        if (resolved) {
-          list.push({
-            id: ev.id || `extra-ev-${idx}`,
-            title: isVietnamese ? `Bằng chứng bổ sung #${idx + 4}` : `Additional Evidence #${idx + 4}`,
-            category: "raw",
-            badgeLabel: isVietnamese ? `BẰNG CHỨNG PHỤ #${idx + 1}` : `EXTRA EVIDENCE #${idx + 1}`,
-            badgeColor: "default",
-            url: resolved,
-            description: isVietnamese
-              ? "Tệp bằng chứng bổ sung thu thập từ hệ thống giám sát."
-              : "Additional surveillance evidence recorded by system.",
-            isAiAnnotated: false,
-            evidenceType: ev.evidenceType,
-          });
-        }
-      });
+    // 3. Bổ sung các ảnh bằng chứng khác trong hồ sơ nếu có
+    for (const ev of allEvidences) {
+      const evUrl = ev.url ? resolveEvidenceUrl(ev.url) : ev.storageKey ? resolveEvidenceUrl(ev.storageKey) : "";
+      if (evUrl && evUrl !== primaryUrl && evUrl !== cameraRawUrl) {
+        const isRef = ev.evidenceType === "REFERENCE" || evUrl.includes("_ref");
+        list.push({
+          id: ev.id,
+          title: isRef
+            ? isVietnamese ? "Ảnh Đối Chứng Hợp Lệ" : "Reference Snapshot"
+            : isVietnamese ? "Ảnh Bằng Chứng Bổ Sung" : "Additional Evidence",
+          category: isRef ? "reference" : "annotated",
+          badgeLabel: isRef
+            ? isVietnamese ? "ĐỐI CHỨNG" : "REFERENCE"
+            : isVietnamese ? "BỔ SUNG" : "ADDITIONAL",
+          badgeColor: isRef ? "success" : "info",
+          url: evUrl,
+          description: isRef
+            ? isVietnamese ? "Ảnh đối chứng thời điểm công nhân tuân thủ bảo hộ hoặc lúc mới bước vào vùng camera." : "Reference baseline."
+            : isVietnamese ? "Ảnh bằng chứng bổ sung từ hệ thống." : "Additional evidence photo.",
+          isAiAnnotated: !isRef,
+          evidenceType: ev.evidenceType,
+        });
+      }
     }
 
     return list;
@@ -304,8 +276,6 @@ export function IncidentEvidenceViewer({
     isVietnamese,
     violationLabel,
     confidence,
-    safeCamId,
-    targetCamera,
   ]);
 
   const activePhoto = galleryPhotos[selectedIndex] || galleryPhotos[0];
@@ -357,21 +327,9 @@ export function IncidentEvidenceViewer({
     }
   };
 
-  // Nút BẬT/TẮT Khung Tô Đỏ thông minh:
-  // - Nếu có ảnh raw thực sự: Bấm TẮT -> chuyển sang ảnh raw
-  // - Nếu chỉ có ảnh vi phạm & đối chứng: Toggle hiển thị bounding box SVG overlay
+  // Nút BẬT/TẮT Khung Tô Đỏ: Toggle hiển thị bounding box SVG HUD overlay
   const handleToggleBoundingBoxes = () => {
-    if (isPreAnnotated) {
-      const rawIdx = galleryPhotos.findIndex((p) => p.category === "raw");
-      if (rawIdx !== -1 && selectedIndex !== rawIdx) {
-        setSelectedIndex(rawIdx);
-        setShowBoundingBoxes(false);
-      } else {
-        setShowBoundingBoxes((v) => !v);
-      }
-    } else {
-      setShowBoundingBoxes((v) => !v);
-    }
+    setShowBoundingBoxes((v) => !v);
   };
 
   // 4. Tìm tọa độ Bounding box thực tế từ sessionStorage hoặc metadata AI
@@ -434,8 +392,14 @@ export function IncidentEvidenceViewer({
   const activeViolationBox: BoundingBox = useMemo(() => {
     if (realBox) return realBox;
 
-    // Tọa độ chuẩn xác của Worker #10 trong Camera 2 (CAM2): 75, 224, w: 262, h: 859 trên 720x1280
-    if (safeCamId.includes("01a19ce7") || targetCamera?.code?.includes("CAM2") || targetCamera?.streamUrl?.includes("POdSp36OulM")) {
+    // Tọa độ chuẩn xác của Worker #10 trong Camera 2 (CAM2 / TEST-2 / POdSp36OulM):
+    if (
+      safeCamId.includes("01a19ce7") ||
+      safeCamId.includes("test-2") ||
+      targetCamera?.code?.toLowerCase().includes("test-2") ||
+      targetCamera?.code?.includes("CAM2") ||
+      targetCamera?.streamUrl?.includes("POdSp36OulM")
+    ) {
       return {
         x: 10.4,
         y: 17.5,
@@ -470,8 +434,8 @@ export function IncidentEvidenceViewer({
       };
     }
 
-    // Tọa độ chuẩn xác của Camera 01
-    if (safeCamId.includes("01a18735") || targetCamera?.code?.includes("099999") || targetCamera?.code?.includes("CAM-1")) {
+    // Tọa độ chuẩn xác của Camera 01 (Demo cũ)
+    if (safeCamId === "01a18735-39f8-7ea2-822d-1e7765c59c73") {
       return {
         x: 28.0,
         y: 18.0,
@@ -530,6 +494,156 @@ export function IncidentEvidenceViewer({
     if (naturalWidth && naturalHeight) {
       setIsPortrait(naturalHeight > naturalWidth);
     }
+  };
+
+  // Lớp phủ Bounding Box AI HUD Công nghệ cao & Đẳng cấp cho bằng chứng vi phạm
+  const renderAiInspectionBoundingBox = (isCompact = false) => {
+    const bx = activeViolationBox.x;
+    const by = activeViolationBox.y;
+    const bw = activeViolationBox.width;
+    const bh = activeViolationBox.height;
+
+    // Chiều dài L-bracket thước ngắm 4 góc theo % khung hình
+    const cornerX = Math.min(bw * 0.25, 4.5);
+    const cornerY = Math.min(bh * 0.25, 4.5);
+
+    // Tính toán vị trí nhãn để không bao giờ bị cắt ngoài mép trên hoặc tràn mép phải
+    const isNearTop = by < 8;
+    const badgeTop = isNearTop ? `calc(${by}% + 6px)` : `calc(${by}% - 32px)`;
+    const badgeLeft = `${Math.max(1, Math.min(65, bx))}%`;
+
+    return (
+      <>
+        {/* Lớp SVG đồ họa HUD Bounding Box */}
+        <svg
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          className="absolute inset-0 h-full w-full pointer-events-none z-20"
+        >
+          <defs>
+            <filter id="incident-hud-glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="0.8" floodColor="#f43f5e" floodOpacity="0.9" />
+            </filter>
+            <linearGradient id="incident-box-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.02" />
+            </linearGradient>
+          </defs>
+
+          {/* 1. Thân Bounding Box gradient tinh tế */}
+          <rect
+            x={`${bx}%`}
+            y={`${by}%`}
+            width={`${bw}%`}
+            height={`${bh}%`}
+            fill="url(#incident-box-grad)"
+            stroke="#f43f5e"
+            strokeWidth="0.4"
+            strokeOpacity="0.6"
+            strokeDasharray="2 1.5"
+            rx="0.6"
+          />
+
+          {/* 2. Thước ngắm HUD 4 góc (L-Brackets) phát sáng Neon sắc nét */}
+          <g filter="url(#incident-hud-glow)">
+            {/* Góc trên - trái */}
+            <path
+              d={`M ${bx} ${by + cornerY} L ${bx} ${by} L ${bx + cornerX} ${by}`}
+              fill="none"
+              stroke="#f43f5e"
+              strokeWidth="0.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Góc trên - phải */}
+            <path
+              d={`M ${bx + bw - cornerX} ${by} L ${bx + bw} ${by} L ${bx + bw} ${by + cornerY}`}
+              fill="none"
+              stroke="#f43f5e"
+              strokeWidth="0.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Góc dưới - trái */}
+            <path
+              d={`M ${bx} ${by + bh - cornerY} L ${bx} ${by + bh} L ${bx + cornerX} ${by + bh}`}
+              fill="none"
+              stroke="#f43f5e"
+              strokeWidth="0.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Góc dưới - phải */}
+            <path
+              d={`M ${bx + bw - cornerX} ${by + bh} L ${bx + bw} ${by + bh} L ${bx + bw} ${by + bh - cornerY}`}
+              fill="none"
+              stroke="#f43f5e"
+              strokeWidth="0.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </g>
+
+          {/* 3. Tia quét Laser AI & Hồng tâm định vị vi phạm */}
+          <line
+            x1={`${bx + 0.5}%`}
+            y1={`${by + bh * 0.28}%`}
+            x2={`${bx + bw - 0.5}%`}
+            y2={`${by + bh * 0.28}%`}
+            stroke="#f43f5e"
+            strokeWidth="0.35"
+            strokeDasharray="1.2 1"
+            opacity="0.8"
+            className="animate-pulse"
+          />
+          <g opacity="0.65">
+            <line
+              x1={`${bx + bw / 2 - 1.2}%`}
+              y1={`${by + bh / 2}%`}
+              x2={`${bx + bw / 2 + 1.2}%`}
+              y2={`${by + bh / 2}%`}
+              stroke="#f43f5e"
+              strokeWidth="0.3"
+            />
+            <line
+              x1={`${bx + bw / 2}%`}
+              y1={`${by + bh / 2 - 1.2}%`}
+              x2={`${bx + bw / 2}%`}
+              y2={`${by + bh / 2 + 1.2}%`}
+              stroke="#f43f5e"
+              strokeWidth="0.3"
+            />
+          </g>
+        </svg>
+
+        {/* 4. Thẻ nhãn AI HUD thông minh (Glassmorphic Cyber Card) */}
+        <div
+          style={{
+            left: badgeLeft,
+            top: badgeTop,
+          }}
+          className={`absolute z-30 flex items-center gap-1.5 sm:gap-2 rounded-lg border border-rose-500/80 bg-neutral-950/92 ${
+            isCompact ? "px-2 py-0.5" : "px-2.5 py-1"
+          } text-white shadow-[0_0_16px_rgba(244,63,94,0.45)] backdrop-blur-md pointer-events-none select-none transition-all`}
+        >
+          {/* Đèn LED radar nhấp nháy phát hiện mục tiêu */}
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
+          </span>
+
+          {/* Nhãn vi phạm chính */}
+          <span className="font-mono text-[10px] sm:text-[11px] font-extrabold tracking-wide text-rose-200">
+            {violationLabel.toUpperCase()}
+          </span>
+
+          {/* Chip độ tin cậy AI (%) */}
+          <span className="rounded bg-rose-500/20 px-1.5 py-0.5 font-mono text-[9px] sm:text-[10px] font-bold text-rose-300 border border-rose-500/30">
+            {Math.round((confidence || 0.96) * 100)}%
+          </span>
+        </div>
+      </>
+    );
   };
 
   return (
@@ -735,28 +849,8 @@ export function IncidentEvidenceViewer({
                     }
                   }}
                 />
-                {/* Lớp SVG bounding box cho ảnh vi phạm nếu showBoundingBoxes bật và chưa pre-annotated */}
-                {showBoundingBoxes && !isPreAnnotated && (
-                  <svg
-                    viewBox="0 0 100 100"
-                    preserveAspectRatio="none"
-                    className="absolute inset-0 h-full w-full pointer-events-none z-10"
-                  >
-                    <g className="animate-pulse">
-                      <rect
-                        x={`${activeViolationBox.x}%`}
-                        y={`${activeViolationBox.y}%`}
-                        width={`${activeViolationBox.width}%`}
-                        height={`${activeViolationBox.height}%`}
-                        fill="rgba(239, 68, 68, 0.24)"
-                        stroke="#ef4444"
-                        strokeWidth="2.5"
-                        rx="2"
-                        style={{ filter: "drop-shadow(0 0 8px rgba(239, 68, 68, 0.9))" }}
-                      />
-                    </g>
-                  </svg>
-                )}
+                {/* Lớp SVG Bounding Box AI HUD cho ảnh vi phạm nếu showBoundingBoxes bật */}
+                {showBoundingBoxes && renderAiInspectionBoundingBox(true)}
               </div>
 
               <div className="p-3 text-xs bg-surface/50 border-t border-border/30 text-muted-foreground">
@@ -816,7 +910,7 @@ export function IncidentEvidenceViewer({
                   target.src = cameraFallbackUrl;
                   return;
                 }
-                if (safeCamId.includes("01a18735") || targetCamera?.code?.includes("099999")) {
+                if (safeCamId === "01a18735-39f8-7ea2-822d-1e7765c59c73") {
                   target.src = "/images/evidence/camera-01a18735_16ee47ac_f76_red.jpg";
                 } else {
                   target.src = "/images/camera-live-evidence.jpg";
@@ -824,48 +918,8 @@ export function IncidentEvidenceViewer({
               }}
             />
 
-            {/* LỚP SVG BOUNDING BOX PHÁT SÁNG ĐỎ: Chỉ hiển thị khi showBoundingBoxes là TRUE và ảnh là ảnh vi phạm chưa pre-annotated */}
-            {showBoundingBoxes && !isPreAnnotated && activePhoto.category === "annotated" && (
-              <svg
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-                className="absolute inset-0 h-full w-full pointer-events-none z-10"
-              >
-                {/* Khung VI PHẠM PPE (Alert Red Viền Đỏ Rực Rỡ có ánh sáng phát quang) */}
-                <g className="animate-pulse">
-                  <rect
-                    x={`${activeViolationBox.x}%`}
-                    y={`${activeViolationBox.y}%`}
-                    width={`${activeViolationBox.width}%`}
-                    height={`${activeViolationBox.height}%`}
-                    fill="rgba(239, 68, 68, 0.24)"
-                    stroke="#ef4444"
-                    strokeWidth="2.5"
-                    rx="2"
-                    style={{
-                      filter: "drop-shadow(0 0 8px rgba(239, 68, 68, 0.9))",
-                    }}
-                  />
-                </g>
-              </svg>
-            )}
-
-            {/* NHÃN VI PHẠM TÔ ĐỎ NẰM ĐÈ TRÊN ĐỐI TƯỢNG (Chỉ hiển thị cho ảnh vi phạm chưa nướng sẵn nhãn) */}
-            {showBoundingBoxes && !isPreAnnotated && activePhoto.category === "annotated" && (
-              <div
-                style={{
-                  left: `${Math.max(1, Math.min(65, activeViolationBox.x))}%`,
-                  top: `${Math.max(2, activeViolationBox.y - 8)}%`,
-                }}
-                className="absolute z-20 flex items-center gap-1.5 rounded-lg border border-rose-400 bg-rose-600/95 px-2.5 py-1 font-mono text-[11px] font-extrabold text-white shadow-[0_4px_14px_rgba(244,63,94,0.7)] backdrop-blur-sm pointer-events-none"
-              >
-                <ShieldAlert className="size-3.5 shrink-0 animate-bounce text-amber-200" />
-                <span>{violationLabel.toUpperCase()}</span>
-                <span className="rounded bg-black/40 px-1 py-0.2 text-[10px] text-amber-200 font-bold">
-                  {Math.round((confidence || 0.96) * 100)}%
-                </span>
-              </div>
-            )}
+            {/* Lớp HUD Bounding Box AI Công nghệ cao: Hiển thị khi showBoundingBoxes là TRUE và ảnh là ảnh vi phạm */}
+            {showBoundingBoxes && activePhoto.category === "annotated" && renderAiInspectionBoundingBox(false)}
           </div>
 
           {/* BADGE THÔNG TIN ẢNH GÓC TRÊN BÊN TRÁI */}
@@ -1084,45 +1138,8 @@ export function IncidentEvidenceViewer({
                     }
                   }}
                 />
-                {/* LỚP SVG VÀ NHÃN TRONG LIGHTBOX: Chỉ hiển thị khi showBoundingBoxes là TRUE và ảnh là ảnh vi phạm chưa pre-annotated */}
-                {showBoundingBoxes && !isPreAnnotated && activePhoto.category === "annotated" && (
-                  <svg
-                    viewBox="0 0 100 100"
-                    preserveAspectRatio="none"
-                    className="absolute inset-0 h-full w-full pointer-events-none z-10"
-                  >
-                    <g className="animate-pulse">
-                      <rect
-                        x={`${activeViolationBox.x}%`}
-                        y={`${activeViolationBox.y}%`}
-                        width={`${activeViolationBox.width}%`}
-                        height={`${activeViolationBox.height}%`}
-                        fill="rgba(239, 68, 68, 0.24)"
-                        stroke="#ef4444"
-                        strokeWidth="2.5"
-                        rx="2"
-                        style={{
-                          filter: "drop-shadow(0 0 8px rgba(239, 68, 68, 0.9))",
-                        }}
-                      />
-                    </g>
-                  </svg>
-                )}
-                {showBoundingBoxes && !isPreAnnotated && activePhoto.category === "annotated" && (
-                  <div
-                    style={{
-                      left: `${Math.max(1, Math.min(65, activeViolationBox.x))}%`,
-                      top: `${Math.max(2, activeViolationBox.y - 8)}%`,
-                    }}
-                    className="absolute z-20 flex items-center gap-1.5 rounded-lg border border-rose-400 bg-rose-600/95 px-2.5 py-1 font-mono text-[11px] font-extrabold text-white shadow-[0_4px_14px_rgba(244,63,94,0.7)] backdrop-blur-sm pointer-events-none"
-                  >
-                    <ShieldAlert className="size-3.5 shrink-0 animate-bounce text-amber-200" />
-                    <span>{violationLabel.toUpperCase()}</span>
-                    <span className="rounded bg-black/40 px-1 py-0.2 text-[10px] text-amber-200">
-                      {Math.round((confidence || 0.96) * 100)}%
-                    </span>
-                  </div>
-                )}
+                {/* Lớp HUD Bounding Box AI Công nghệ cao trong Lightbox */}
+                {showBoundingBoxes && !isPreAnnotated && activePhoto.category === "annotated" && renderAiInspectionBoundingBox(false)}
               </div>
             </div>
           </div>

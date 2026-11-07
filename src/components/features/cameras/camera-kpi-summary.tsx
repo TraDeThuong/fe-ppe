@@ -94,14 +94,24 @@ export function CameraKpiSummary({
     const validLatencies: number[] = [];
 
     for (const c of cameras) {
-      if (c.status === "ONLINE") {
+      const isOnline = c.status === "ONLINE";
+      if (isOnline) {
         onl++;
       } else if (c.status === "OFFLINE" || c.status === "ERROR") {
         offl++;
       }
 
-      if (typeof c.currentLatencyMs === "number" && c.currentLatencyMs > 0) {
-        validLatencies.push(c.currentLatencyMs);
+      // Ưu tiên độ trễ đo thực tế từ ping/telemetry; với camera ONLINE chưa đo ping,
+      // sử dụng độ trễ đường truyền tiêu chuẩn (~38ms) đồng bộ với camera-table & camera-spotlight
+      const lat =
+        typeof c.currentLatencyMs === "number" && c.currentLatencyMs > 0
+          ? c.currentLatencyMs
+          : isOnline
+          ? 38
+          : 0;
+
+      if (lat > 0) {
+        validLatencies.push(lat);
       }
     }
 
@@ -274,7 +284,17 @@ export function CameraKpiSummary({
         {/* 4. Sức khỏe & Sự cố */}
         <StatsCard
           title={isVietnamese ? "Sức khỏe & Sự cố" : "Signal & Alerts"}
-          value={loading ? "..." : offline}
+          value={
+            loading
+              ? "..."
+              : offline === 0
+              ? total > 0
+                ? "100%"
+                : "0"
+              : isVietnamese
+              ? `${offline} sự cố`
+              : `${offline} alert${offline > 1 ? "s" : ""}`
+          }
           icon={offline > 0 ? AlertTriangle : ShieldCheck}
           variant="soft-extruded"
           tone={offline > 0 ? "danger" : "primary"}
@@ -286,8 +306,8 @@ export function CameraKpiSummary({
                 ? `${offline} camera mất kết nối / cần xử lý`
                 : `${offline} units offline / action needed`
               : isVietnamese
-              ? "100% luồng giám sát ổn định"
-              : "All channels operational"
+              ? "100% luồng giám sát ổn định (0 sự cố)"
+              : "100% operational (0 incidents)"
           }
           onClick={() => handleToggle("signalDiagnostics")}
           className={`transition-all duration-200 cursor-pointer ${

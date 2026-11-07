@@ -7,6 +7,7 @@ import { showToast, toast as hotToast } from "@ui/toaster";
 export const toast = {
   success: (message: string, options?: { id?: string }) => showToast(message, "success", options),
   error: (message: string, options?: { id?: string }) => showToast(message, "error", options),
+  info: (message: string, options?: { id?: string }) => showToast(message, "blank", options),
   loading: (message: string, options?: { id?: string }) => showToast(message, "loading", options),
   dismiss: (toastId?: string) => hotToast.dismiss(toastId),
 };

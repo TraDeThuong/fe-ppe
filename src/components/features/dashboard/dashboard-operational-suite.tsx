@@ -33,6 +33,7 @@ export interface DashboardOperationalSuiteProps {
   zones?: ZoneItem[];
   className?: string;
   loading?: boolean;
+  onSelectCamera?: (cameraId: string) => void;
 }
 
 export function DashboardOperationalSuite({
@@ -44,6 +45,7 @@ export function DashboardOperationalSuite({
   zones = [],
   className = "",
   loading = false,
+  onSelectCamera,
 }: DashboardOperationalSuiteProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -174,6 +176,7 @@ export function DashboardOperationalSuite({
             cameras={cameras}
             cameraRankings={cameraRankings}
             zones={zones}
+            onSelectCamera={onSelectCamera}
             loading={loading}
             className="h-full min-h-[380px]"
           />
@@ -210,6 +213,7 @@ export function DashboardOperationalSuite({
             cameras={cameras}
             cameraRankings={cameraRankings}
             zones={zones}
+            onSelectCamera={onSelectCamera}
             loading={loading}
             className="w-full min-h-[440px]"
           />

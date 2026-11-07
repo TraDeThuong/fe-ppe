@@ -148,7 +148,17 @@ export async function POST(request: Request) {
 
     await fs.writeFile(progressPath, JSON.stringify(initialProgress, null, 2), "utf-8");
 
-    const runnerScript = path.join(feRoot, "scripts", "auto_analyze_camera.py");
+    let runnerScript = path.join(feRoot, "scripts", "auto_analyze_camera.py");
+    try {
+      await fs.access(runnerScript);
+    } catch {
+      runnerScript = path.join(feRoot, "public", "scripts", "auto_analyze_camera.py");
+    }
+
+    const logFilePath = path.join(jobDir, "runner.log");
+    const logFile = await fs.open(logFilePath, "a");
+    const outStream = logFile.createWriteStream();
+
     const child = spawn(
       "/usr/bin/python3",
       [
@@ -173,9 +183,32 @@ export async function POST(request: Request) {
       {
         cwd: path.join(workspaceRoot, "smart-ppe-ai-service"),
         detached: true,
-        stdio: "ignore",
+        stdio: ["ignore", "pipe", "pipe"],
       }
     );
+
+    child.stdout?.pipe(outStream);
+    child.stderr?.pipe(outStream);
+
+    child.on("error", async (spawnErr) => {
+      try {
+        await fs.writeFile(
+          progressPath,
+          JSON.stringify(
+            {
+              jobId: `auto_${safeId}`,
+              cameraId: safeId,
+              status: "error",
+              error: `Lỗi khởi chạy tiến trình AI: ${spawnErr.message}`,
+            },
+            null,
+            2
+          ),
+          "utf-8"
+        );
+      } catch {}
+    });
+
     child.unref();
 
     return NextResponse.json({

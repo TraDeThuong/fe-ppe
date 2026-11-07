@@ -114,28 +114,46 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
   // Xác định ảnh bằng chứng AI chuẩn xác theo từng camera (Gọi ở Top-level hook tuân thủ Rules of Hooks)
   const cameraDesignatedEvidence = useMemo(() => {
     const cid = (incident?.cameraId || "").toLowerCase();
-    const ccode = (incident?.cameraCode || incidentCamera?.code || "").toLowerCase();
     const cstream = (incidentCamera?.streamUrl || "").toLowerCase();
 
-    if (cid.includes("01a19ce7") || ccode.includes("cam2") || cstream.includes("podsp36oulm")) {
+    // 1. Kiểm tra cache phiên làm việc thực tế từ camera nếu có
+    if (typeof window !== "undefined" && cid) {
+      const liveCamEvidence = sessionStorage.getItem(`ppe_camera_evidence_${cid}`);
+      if (liveCamEvidence) return liveCamEvidence;
+    }
+
+    // 2. Định danh các camera demo tĩnh cũ (chỉ khớp đúng UUID cụ thể hoặc video demo)
+    if (
+      cid === "01a19ce7-05b3-7dcd-97d2-35d4b8309e1d" ||
+      cid.includes("test-2") ||
+      incidentCamera?.code?.toLowerCase().includes("test-2") ||
+      cstream.includes("podsp36oulm")
+    ) {
       return "/images/camera-01a19ce7-evidence.jpg";
     }
-    if (cid.includes("01a19cf4") || ccode.includes("cam3")) {
+    if (
+      cid === "01a19cf4-3b78-783c-af36-f52812c9ee3b" ||
+      cid.includes("cam3") ||
+      incidentCamera?.code?.includes("CAM3") ||
+      cstream.includes("ek0fcznqfva")
+    ) {
       return "/images/camera-01a19cf4-evidence.jpg";
     }
-    if (cid.includes("01a19d07") || ccode.includes("cam5")) {
+    if (
+      cid === "01a19d07-bd01-76f9-a7c3-4e7fbcc02538" ||
+      cid.includes("cam5") ||
+      incidentCamera?.code?.includes("CAM5")
+    ) {
       return "/images/camera-01a19d07-evidence.jpg";
     }
-    if (cid.includes("01a19e19") || ccode.includes("cammmm")) {
+    if (
+      cid === "01a19e19-ed7f-72ae-a832-6c64d2595dcf" ||
+      cid.includes("cammm") ||
+      incidentCamera?.code?.includes("CAMMM")
+    ) {
       return "/images/camera-01a19e19-evidence.jpg";
     }
-    if (
-      cid.includes("01a18735") ||
-      ccode.includes("099999") ||
-      ccode.includes("cam-1") ||
-      ccode.includes("cam-youtube-01") ||
-      cstream.includes("rcvx3zsi4eq")
-    ) {
+    if (cid === "01a18735-39f8-7ea2-822d-1e7765c59c73" || cstream.includes("rcvx3zsi4eq")) {
       return "/images/evidence/camera-01a18735_16ee47ac_f76_red.jpg";
     }
     if (cstream.includes("video8")) {
@@ -145,7 +163,7 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
       return "/images/evidence/ai-cctv_3a05148c_f195_red.jpg";
     }
     return incidentCamera?.snapshotUrl || "/images/camera-live-evidence.jpg";
-  }, [incident?.cameraId, incident?.cameraCode, incidentCamera]);
+  }, [incident?.cameraId, incidentCamera]);
 
   // Mutations
   const addCommentMutation = useAddIncidentComment();

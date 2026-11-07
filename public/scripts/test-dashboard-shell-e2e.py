@@ -125,16 +125,26 @@ def main():
         print("\n--- [TEST 9] Đổi theme + EN/VI ---")
         lang_btn = page.locator("#locale-toggle-btn")
         curr_text = (lang_btn.text_content() or "").strip()
-        if "EN" in curr_text:
+        if "VI" in curr_text:
             lang_btn.click(force=True)
             page.wait_for_timeout(300)
             btn_after_en = (lang_btn.text_content() or "").strip()
-            check("TEST 9: Đổi sang EN: nút ngôn ngữ chuyển thành VI", btn_after_en == "VI")
+            check("TEST 9: Đổi sang EN: nút ngôn ngữ chuyển thành EN", btn_after_en == "EN")
             # Đổi lại VI
             lang_btn.click(force=True)
             page.wait_for_timeout(300)
             btn_after_vi = (lang_btn.text_content() or "").strip()
-            check("TEST 9: Đổi lại VI: nút ngôn ngữ chuyển về EN", btn_after_vi == "EN")
+            check("TEST 9: Đổi lại VI: nút ngôn ngữ chuyển về VI", btn_after_vi == "VI")
+        elif "EN" in curr_text:
+            lang_btn.click(force=True)
+            page.wait_for_timeout(300)
+            btn_after_vi = (lang_btn.text_content() or "").strip()
+            check("TEST 9: Đổi sang VI: nút ngôn ngữ chuyển thành VI", btn_after_vi == "VI")
+            # Đổi lại EN
+            lang_btn.click(force=True)
+            page.wait_for_timeout(300)
+            btn_after_en = (lang_btn.text_content() or "").strip()
+            check("TEST 9: Đổi lại EN: nút ngôn ngữ chuyển về EN", btn_after_en == "EN")
 
         # Đổi theme qua dropdown (Sáng / Tối / Hệ thống)
         theme_btn = page.locator("#theme-toggle-btn")

@@ -54,6 +54,15 @@ export const userService = {
   },
 
   /**
+   * GET /api/v1/users/statistics/summary
+   * Lấy số liệu thống kê tổng quan (total, active, twoFactor, locked).
+   */
+  async getUserSummary(): Promise<{ total: number; active: number; twoFactor: number; locked: number }> {
+    const res = await apiClient.get<any, any>("/users/statistics/summary");
+    return res?.data ?? res ?? { total: 0, active: 0, twoFactor: 0, locked: 0 };
+  },
+
+  /**
    * GET /api/v1/users/:id
    * Lấy thông tin chi tiết một người dùng theo ID.
    */

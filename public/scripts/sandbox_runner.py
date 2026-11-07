@@ -23,10 +23,25 @@ import cv2
 
 # Đảm bảo import được package app khi gọi trực tiếp bằng python3
 _current = Path(__file__).resolve()
-WORKSPACE_ROOT = _current.parent.parent.parent
-SERVICE_ROOT = WORKSPACE_ROOT / "smart-ppe-ai-service"
-if not SERVICE_ROOT.exists():
-    SERVICE_ROOT = _current.parent.parent
+
+def find_service_root(start_dir: Path) -> Path:
+    p = start_dir.resolve()
+    for _ in range(6):
+        candidate = p / "smart-ppe-ai-service"
+        if candidate.exists() and (candidate / "app").exists():
+            return candidate
+        if (p / "app").exists() and (p / "models").exists():
+            return p
+        if p.parent == p:
+            break
+        p = p.parent
+    cwd_candidate = Path.cwd() / "smart-ppe-ai-service"
+    if cwd_candidate.exists():
+        return cwd_candidate
+    return Path.cwd()
+
+SERVICE_ROOT = find_service_root(_current.parent)
+WORKSPACE_ROOT = SERVICE_ROOT.parent
 
 if str(SERVICE_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVICE_ROOT))

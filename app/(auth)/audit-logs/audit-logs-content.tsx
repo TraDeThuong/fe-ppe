@@ -99,17 +99,18 @@ export default function AuditLogsContent() {
   // Queries
   const { data: summaryData, isLoading: isLoadingSummary } = useAuditSummary();
 
-  const effectiveAction = useMemo(() => {
-    if (activeTab === "configChanges") return "UPDATE_CONFIG";
-    if (activeTab === "incidentReviews") return "REVIEW_INCIDENT";
-    return actionFilter || undefined;
-  }, [activeTab, actionFilter]);
+  const effectiveCategory = useMemo(() => {
+    if (activeTab === "configChanges") return "CONFIG";
+    if (activeTab === "incidentReviews") return "INCIDENT_REVIEW";
+    return undefined;
+  }, [activeTab]);
 
   const { data: logsData, isLoading: isLoadingLogs } = useAuditLogs({
     page,
     limit,
     search: debouncedSearch || undefined,
-    action: effectiveAction,
+    category: effectiveCategory,
+    action: actionFilter || undefined,
     targetType: targetTypeFilter || undefined,
     status: (statusFilter as AuditLogStatus) || undefined,
   });

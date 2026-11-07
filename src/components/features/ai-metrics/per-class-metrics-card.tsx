@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ArrowDownUp,
   BarChart3,
@@ -612,14 +613,13 @@ export function PerClassMetricsCard({
                 : "No telemetry records found for current model version."}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setShowMockData(true)}
+          <Link
+            href="/ai-metrics/test"
             className="inline-flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-1.5 text-xs font-bold text-primary transition-all hover:bg-primary/20 shadow-[2px_3px_6px_var(--shadow-dark),-2px_-2px_6px_var(--shadow-light)]"
           >
             <Sparkles className="h-3.5 w-3.5" />
-            {isVi ? "Tải dữ liệu mẫu kiểm thử" : "Load standard mock dataset"}
-          </button>
+            {isVi ? "Kiểm thử mô hình ngay" : "Run Model Test"}
+          </Link>
         </div>
       ) : processedList.length === 0 ? (
         <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-2 rounded-2xl border border-border/30 bg-surface/50 p-6 text-center shadow-[inset_3px_3px_8px_var(--shadow-dark),inset_-3px_-3px_8px_var(--shadow-light)]">

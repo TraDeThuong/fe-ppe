@@ -212,11 +212,27 @@ export default function CamerasContent() {
   };
 
   const handleSnapshot = (camera: CameraItem) => {
-    toast.success(
-      isVietnamese
-        ? `Đã lưu ảnh snapshot từ ${camera.code} thành công.`
-        : `Snapshot saved successfully from ${camera.code}.`
-    );
+    if (camera.snapshotUrl) {
+      const link = document.createElement("a");
+      link.href = camera.snapshotUrl;
+      link.download = `snapshot-${camera.code || camera.id}-${Date.now()}.jpg`;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(
+        isVietnamese
+          ? `Đã tải ảnh snapshot từ ${camera.name || camera.code}.`
+          : `Downloaded snapshot from ${camera.name || camera.code}.`
+      );
+    } else {
+      toast.info(
+        isVietnamese
+          ? `Camera ${camera.name || camera.code} chưa có ảnh chụp snapshot khả dụng.`
+          : `No snapshot available for camera ${camera.name || camera.code}.`
+      );
+    }
   };
 
   const handleCreateSubmit = async (payload: CreateCameraPayload) => {

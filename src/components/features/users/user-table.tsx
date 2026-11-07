@@ -64,9 +64,24 @@ import {
 export interface UserTableProps {
   className?: string;
   variant?: "soft" | "sculpted";
+  statusFilter?: string;
+  onStatusFilterChange?: (status: string) => void;
+  twoFactorFilter?: string;
+  onTwoFactorFilterChange?: (twoFactor: string) => void;
+  isCreateOpen?: boolean;
+  onOpenCreateChange?: (open: boolean) => void;
 }
 
-export function UserTable({ className = "", variant = "soft" }: UserTableProps) {
+export function UserTable({
+  className = "",
+  variant = "soft",
+  statusFilter: propStatusFilter,
+  onStatusFilterChange,
+  twoFactorFilter: propTwoFactorFilter,
+  onTwoFactorFilterChange,
+  isCreateOpen: propIsCreateOpen,
+  onOpenCreateChange,
+}: UserTableProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const { user: currentAdmin } = useAuth();
@@ -77,8 +92,20 @@ export function UserTable({ className = "", variant = "soft" }: UserTableProps) 
   const debouncedSearch = useDebounce(search, 350);
 
   const [roleFilter, setRoleFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [twoFactorFilter, setTwoFactorFilter] = useState<string>("all");
+  const [internalStatusFilter, setInternalStatusFilter] = useState<string>("all");
+  const statusFilter = propStatusFilter !== undefined ? propStatusFilter : internalStatusFilter;
+  const setStatusFilter = (val: string) => {
+    setInternalStatusFilter(val);
+    onStatusFilterChange?.(val);
+  };
+
+  const [internalTwoFactorFilter, setInternalTwoFactorFilter] = useState<string>("all");
+  const twoFactorFilter = propTwoFactorFilter !== undefined ? propTwoFactorFilter : internalTwoFactorFilter;
+  const setTwoFactorFilter = (val: string) => {
+    setInternalTwoFactorFilter(val);
+    onTwoFactorFilterChange?.(val);
+  };
+
   const [showFilters, setShowFilters] = useState(false);
 
   // Table internal states
@@ -122,7 +149,12 @@ export function UserTable({ className = "", variant = "soft" }: UserTableProps) 
   const updateMutation = useUpdateUser({ suppressToast: true });
 
   // Modal states
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [internalIsCreateOpen, setInternalIsCreateOpen] = useState(false);
+  const isCreateOpen = propIsCreateOpen !== undefined ? propIsCreateOpen : internalIsCreateOpen;
+  const setIsCreateOpen = (val: boolean) => {
+    setInternalIsCreateOpen(val);
+    onOpenCreateChange?.(val);
+  };
   const [editUser, setEditUser] = useState<UserResponseDto | null>(null);
   const [assignRoleUser, setAssignRoleUser] = useState<UserResponseDto | null>(null);
   const [resetPasswordUser, setResetPasswordUser] = useState<UserResponseDto | null>(null);

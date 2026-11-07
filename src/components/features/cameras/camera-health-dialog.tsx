@@ -97,7 +97,7 @@ export function CameraHealthDialog({
                 {isVietnamese ? "Độ trễ hiện tại" : "Current Latency"}
               </span>
               <p className="mt-1 font-mono text-base font-bold text-foreground">
-                {pingResult ? `${pingResult.latencyMs ?? 0} ms` : `${camera?.currentLatencyMs || 42} ms`}
+                {pingResult ? `${pingResult.latencyMs ?? 0} ms` : camera?.currentLatencyMs != null ? `${camera.currentLatencyMs} ms` : "-- ms"}
               </p>
             </div>
 
@@ -106,7 +106,7 @@ export function CameraHealthDialog({
                 {isVietnamese ? "Tỷ lệ rớt gói" : "Packet Loss"}
               </span>
               <p className="mt-1 font-mono text-base font-bold text-emerald-500">
-                {pingResult?.packetLoss ?? 0}%
+                {pingResult?.packetLoss != null ? `${pingResult.packetLoss}%` : "--%"}
               </p>
             </div>
 
@@ -115,7 +115,7 @@ export function CameraHealthDialog({
                 {isVietnamese ? "Tốc độ khung" : "Frame Rate"}
               </span>
               <p className="mt-1 font-mono text-base font-bold text-primary">
-                {camera?.currentFps || 25} FPS
+                {camera?.currentFps != null ? `${camera.currentFps} FPS` : "-- FPS"}
               </p>
             </div>
           </div>

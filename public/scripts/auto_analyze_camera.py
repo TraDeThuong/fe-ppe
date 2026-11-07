@@ -16,9 +16,35 @@ from pathlib import Path
 
 # Đảm bảo import được các module từ smart-ppe-ai-service và fe-ppe/scripts
 CURRENT_FILE = Path(__file__).resolve()
-FE_ROOT = CURRENT_FILE.parent.parent
-WORKSPACE_ROOT = FE_ROOT.parent
-SERVICE_ROOT = WORKSPACE_ROOT / "smart-ppe-ai-service"
+
+def find_fe_root(start_dir: Path) -> Path:
+    p = start_dir.resolve()
+    for _ in range(6):
+        if (p / "public").exists() and (p / "package.json").exists():
+            return p
+        if (p / "fe-ppe").exists():
+            return p / "fe-ppe"
+        if p.parent == p:
+            break
+        p = p.parent
+    return Path.cwd()
+
+def find_service_root(start_dir: Path) -> Path:
+    p = start_dir.resolve()
+    for _ in range(6):
+        candidate = p / "smart-ppe-ai-service"
+        if candidate.exists() and (candidate / "app").exists():
+            return candidate
+        if (p / "app").exists() and (p / "models").exists():
+            return p
+        if p.parent == p:
+            break
+        p = p.parent
+    return Path.cwd()
+
+FE_ROOT = find_fe_root(CURRENT_FILE.parent)
+SERVICE_ROOT = find_service_root(CURRENT_FILE.parent)
+WORKSPACE_ROOT = SERVICE_ROOT.parent
 
 if str(CURRENT_FILE.parent) not in sys.path:
     sys.path.insert(0, str(CURRENT_FILE.parent))
@@ -156,6 +182,11 @@ def auto_analyze(
                 },
             )
             return
+    elif (FE_ROOT / "public" / clean_url.lstrip("/")).exists():
+        local_cand = FE_ROOT / "public" / clean_url.lstrip("/")
+        shutil.copyfile(local_cand, raw_video)
+    elif Path(clean_url).exists():
+        shutil.copyfile(Path(clean_url), raw_video)
     else:
         write_progress(
             job_dir,
@@ -163,7 +194,7 @@ def auto_analyze(
                 "jobId": f"auto_{safe_cam_id}",
                 "cameraId": safe_cam_id,
                 "status": "error",
-                "error": f"Nguồn stream không được hỗ trợ tải tự động: {clean_url}",
+                "error": f"Nguồn stream không tìm thấy hoặc không hỗ trợ: {clean_url}",
             },
         )
         return

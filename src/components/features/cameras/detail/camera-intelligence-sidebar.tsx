@@ -109,19 +109,8 @@ export function CameraIntelligenceSidebar({
   const latestViolation =
     allViolations.length > 0 ? allViolations[allViolations.length - 1] : undefined;
 
-  const safeId = cameraId ? cameraId.replace(/[^a-zA-Z0-9_-]/g, "") : "";
   const fallbackEvidence =
-    safeId.includes("01a18735")
-      ? "/images/camera-01a18735-evidence.jpg"
-      : safeId.includes("01a19ce7")
-      ? "/images/camera-01a19ce7-evidence.jpg"
-      : safeId.includes("01a19e19")
-      ? "/images/camera-01a19e19-evidence.jpg"
-      : safeId.includes("01a19d07")
-      ? "/images/camera-01a19d07-evidence.jpg"
-      : safeId.includes("01a19cf4")
-      ? "/images/camera-01a19cf4-evidence.jpg"
-      : streamMetadata?.youtubeId
+    streamMetadata?.youtubeId
       ? `https://img.youtube.com/vi/${streamMetadata.youtubeId}/hqdefault.jpg`
       : "/images/camera-live-evidence.jpg";
 

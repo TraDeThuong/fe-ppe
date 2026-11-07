@@ -2,17 +2,24 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Activity,
+  AlertTriangle,
   Camera,
   Cpu,
   Eye,
   EyeOff,
+  Layers,
   Loader2,
+  MapPin,
   Maximize2,
   Minimize2,
   Pause,
   Play,
+  RefreshCw,
+  Scan,
   Sliders,
   Sparkles,
+  Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -93,6 +100,7 @@ export function CameraIntelligencePlayer({
   streamMetadata,
   cameraName = "Camera Giám Sát",
   cameraCode = "CAM-01",
+  siteName,
   activeModelName = "YOLOv11s-PPE (best.pt)",
   cameraStatus = "ONLINE",
   currentFps,
@@ -283,10 +291,20 @@ export function CameraIntelligencePlayer({
   const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number } | null>(null);
 
   // Kích thước chuẩn hoá theo tỷ lệ nguồn thực tế từ AI Server hoặc Video Element
-  // Ưu tiên streamMetadata để SVG viewBox khớp chính xác 100% với hệ tọa độ Bounding Box trong file log YOLOv11
-  const isVertical = streamMetadata?.isVertical ?? isShorts;
-  const viewBoxWidth = streamMetadata?.videoWidth || videoDimensions?.width || (isVertical ? 1080 : 1920);
-  const viewBoxHeight = streamMetadata?.videoHeight || videoDimensions?.height || (isVertical ? 1920 : 1080);
+  // Ưu tiên 1: Kích thước từ file log AI thật (isRealAiLog && streamMetadata)
+  // Ưu tiên 2: Kích thước đo trực tiếp từ thẻ video (videoDimensions)
+  // Ưu tiên 3: streamMetadata
+  const isVertical = videoDimensions
+    ? videoDimensions.height > videoDimensions.width
+    : (streamMetadata?.isVertical ?? isShorts);
+
+  const viewBoxWidth = isRealAiLog && streamMetadata?.videoWidth
+    ? streamMetadata.videoWidth
+    : videoDimensions?.width || streamMetadata?.videoWidth || (isVertical ? 720 : 1280);
+
+  const viewBoxHeight = isRealAiLog && streamMetadata?.videoHeight
+    ? streamMetadata.videoHeight
+    : videoDimensions?.height || streamMetadata?.videoHeight || (isVertical ? 1280 : 720);
 
   const currentTimeSec = currentEntry?.t ?? 0;
   const currentFrame = currentEntry?.frame ?? 1;
@@ -343,14 +361,29 @@ export function CameraIntelligencePlayer({
   const displayLatency = currentLatencyMs ? `${currentLatencyMs}ms` : "Pre-Buffered 0ms Drift";
   const isOnline = cameraStatus === "ONLINE";
 
+  // Tự động bỏ qua lớp phủ buffering nếu sau 2.5s để người dùng xem video ngay
+  const [forceStreamReady, setForceStreamReady] = useState(false);
+  useEffect(() => {
+    if (!liveSessionId) {
+      setForceStreamReady(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setForceStreamReady(true);
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [liveSessionId]);
+
   const isBuffering =
     Boolean(liveSessionId) &&
     !isWebcam &&
-    (liveSessionStatus === "initializing" || liveSessionStatus === "buffering");
+    !forceStreamReady &&
+    (liveSessionStatus === "initializing" || liveSessionStatus === "buffering") &&
+    bufferedFramesCount < 2;
 
   const mjpegStreamUrl =
     liveSessionId && !isWebcam
-      ? `${AI_SERVER_BASE}/api/live/${liveSessionId}/stream.mjpeg?bbox=${showBbox ? 1 : 0}&ready=${liveSessionStatus === "streaming" ? 1 : 0}`
+      ? `${AI_SERVER_BASE}/api/live/${liveSessionId}/stream.mjpeg?bbox=${showBbox ? 1 : 0}&src=${encodeURIComponent(videoSrc)}`
       : null;
 
   // Bản đồ trạng thái công nhân trong khung hình
@@ -358,11 +391,18 @@ export function CameraIntelligencePlayer({
     return new Map((currentEntry?.persons || []).map((p) => [p.track_id, p]));
   }, [currentEntry?.persons]);
 
-  // Lớp phủ Bounding Box SVG thời gian thực & Tô đỏ vùng người vi phạm
+  // Lớp phủ Bounding Box SVG thời gian thực chuẩn HUD AI Công nghệ cao & Đẳng cấp
   const renderDetectionsSvg = () => {
     if (!showBbox || !currentEntry?.detections || currentEntry.detections.length === 0) {
       return null;
     }
+
+    // Tỉ lệ scale chuẩn xác theo độ phân giải viewBox thực tế
+    const scale = Math.max(0.65, Math.min(1.4, viewBoxWidth / 1280));
+    const fontSize = Math.max(11, Math.min(16, Math.round(12.5 * scale)));
+    const badgeHeight = Math.max(22, Math.round(fontSize * 1.75));
+    const baseStrokeW = Math.max(1.2, 1.5 * scale);
+    const cornerStrokeW = Math.max(2.6, 3.2 * scale);
 
     return (
       <svg
@@ -370,10 +410,51 @@ export function CameraIntelligencePlayer({
         preserveAspectRatio="none"
         className="pointer-events-none absolute inset-0 h-full w-full z-15"
       >
+        <defs>
+          {/* Bộ lọc Neon Glow HUD cho các trạng thái phát hiện */}
+          <filter id="hud-glow-rose" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="#f43f5e" floodOpacity="0.85" />
+          </filter>
+          <filter id="hud-glow-amber" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor="#f59e0b" floodOpacity="0.75" />
+          </filter>
+          <filter id="hud-glow-emerald" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor="#10b981" floodOpacity="0.65" />
+          </filter>
+          <filter id="hud-glow-sky" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="2" floodColor="#0ea5e9" floodOpacity="0.65" />
+          </filter>
+          <filter id="hud-glow-purple" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="2" floodColor="#a855f7" floodOpacity="0.65" />
+          </filter>
+
+          {/* Dải màu chuyển tiếp bán trong suốt thanh lịch (Không làm đục hay che khuất người) */}
+          <linearGradient id="hud-grad-rose" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.02" />
+          </linearGradient>
+          <linearGradient id="hud-grad-amber" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.13" />
+            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.02" />
+          </linearGradient>
+          <linearGradient id="hud-grad-emerald" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#10b981" stopOpacity="0.09" />
+            <stop offset="100%" stopColor="#10b981" stopOpacity="0.01" />
+          </linearGradient>
+          <linearGradient id="hud-grad-sky" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.10" />
+            <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.01" />
+          </linearGradient>
+          <linearGradient id="hud-grad-purple" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#a855f7" stopOpacity="0.10" />
+            <stop offset="100%" stopColor="#a855f7" stopOpacity="0.01" />
+          </linearGradient>
+        </defs>
+
         {currentEntry.detections.map((det, idx) => {
           const [x1, y1, x2, y2] = det.bbox;
-          const w = Math.max(4, x2 - x1);
-          const h = Math.max(4, y2 - y1);
+          const w = Math.max(6, x2 - x1);
+          const h = Math.max(6, y2 - y1);
 
           const personState =
             det.class_name === "person" && typeof det.track_id === "number"
@@ -389,16 +470,15 @@ export function CameraIntelligencePlayer({
             return null;
           }
 
-          let strokeColor = "#10b981"; // Emerald (Compliant)
-          let fillColor = "rgba(16, 185, 129, 0.12)";
-          let labelBg = "rgba(16, 185, 129, 0.92)";
-          let labelText = "";
+          let themeKey = "emerald";
+          let strokeColor = "#10b981"; // Emerald
+          let mainBadgeText = "";
+          let confText = `${Math.round((det.confidence || 0.95) * 100)}%`;
 
           if (det.class_name === "person") {
             if (isViolating) {
-              strokeColor = "#f43f5e"; // Rose vi phạm
-              fillColor = "rgba(244, 63, 94, 0.28)";
-              labelBg = "rgba(244, 63, 94, 0.95)";
+              themeKey = "rose";
+              strokeColor = "#f43f5e"; // Rose
               const vTypes = (personState?.violations || [])
                 .map((v) => {
                   const lower = v.toLowerCase();
@@ -408,11 +488,10 @@ export function CameraIntelligencePlayer({
                   return v.toUpperCase();
                 })
                 .join(" + ");
-              labelText = `Worker #${det.track_id ?? 1} 🚨 VI PHẠM (≥3s)${vTypes ? `: ${vTypes}` : ""}`;
+              mainBadgeText = `WORKER #${det.track_id ?? 1} • ${isVietnamese ? "VI PHẠM (≥3s)" : "VIOLATION (≥3s)"}${vTypes ? `: ${vTypes}` : ""}`;
             } else if (isCandidate) {
-              strokeColor = "#f59e0b"; // Amber đang đếm thời gian
-              fillColor = "rgba(245, 158, 11, 0.20)";
-              labelBg = "rgba(245, 158, 11, 0.95)";
+              themeKey = "amber";
+              strokeColor = "#f59e0b"; // Amber
               const vTypes = (personState?.violations || [])
                 .map((v) => {
                   const lower = v.toLowerCase();
@@ -422,67 +501,205 @@ export function CameraIntelligencePlayer({
                   return v.toUpperCase();
                 })
                 .join(" + ");
-              labelText = `Worker #${det.track_id ?? 1} ⚠ ĐANG ĐẾM (3s)${vTypes ? `: ${vTypes}` : ""}`;
+              mainBadgeText = `WORKER #${det.track_id ?? 1} • ${isVietnamese ? "ĐANG ĐẾM (3s)" : "EVALUATING (3s)"}${vTypes ? `: ${vTypes}` : ""}`;
             } else {
-              labelText = `Worker #${det.track_id ?? 1} ✓ ĐỦ BẢO HỘ`;
+              themeKey = "emerald";
+              strokeColor = "#10b981";
+              mainBadgeText = `WORKER #${det.track_id ?? 1} • ${isVietnamese ? "ĐỦ BẢO HỘ" : "PPE COMPLIANT"}`;
             }
           } else if (det.class_name === "helmet") {
+            themeKey = "sky";
             strokeColor = "#0ea5e9";
-            fillColor = "rgba(14, 165, 233, 0.12)";
-            labelBg = "rgba(14, 165, 233, 0.92)";
-            labelText = `⛑ #${det.track_id ?? 1} Mũ bảo hộ ${(det.confidence * 100).toFixed(0)}%`;
+            mainBadgeText = `#${det.track_id ?? 1} ${isVietnamese ? "MŨ BẢO HỘ" : "HARD HAT"}`;
           } else if (det.class_name === "safety_vest") {
+            themeKey = "purple";
             strokeColor = "#a855f7";
-            fillColor = "rgba(168, 85, 247, 0.12)";
-            labelBg = "rgba(168, 85, 247, 0.92)";
-            labelText = `🦺 #${det.track_id ?? 1} Áo phản quang ${(det.confidence * 100).toFixed(0)}%`;
+            mainBadgeText = `#${det.track_id ?? 1} ${isVietnamese ? "ÁO PHẢN QUANG" : "SAFETY VEST"}`;
           } else {
-            labelText = `${det.class_name.toUpperCase()} ${(det.confidence * 100).toFixed(0)}%`;
+            themeKey = "emerald";
+            strokeColor = "#06b6d4";
+            mainBadgeText = det.class_name.toUpperCase();
           }
 
-          const fontSize = Math.max(14, Math.round(viewBoxWidth * 0.024));
-          const pillHeight = fontSize + 16;
-          const pillWidth = Math.max(100, Math.round(labelText.length * (fontSize * 0.58) + 24));
-          const pillY = Math.max(4, y1 - pillHeight);
-          const textY = pillY + fontSize + 3;
+          // Chiều dài và vị trí thước ngắm HUD 4 góc (L-shaped Reticles)
+          const cornerLen = Math.max(6, Math.min(24, Math.round(Math.min(w, h) * 0.22)));
+
+          // Kích thước chuẩn badge hiển thị trên đầu Bounding Box
+          const charWidth = fontSize * 0.60;
+          const mainTextWidth = mainBadgeText.length * charWidth;
+          const confChipWidth = confText ? Math.max(28, confText.length * (fontSize * 0.55) + 8) : 0;
+          const badgeWidth = Math.round(24 + mainTextWidth + (confChipWidth ? confChipWidth + 8 : 4));
+
+          // Đảm bảo nhãn không tràn ra khỏi 4 cạnh khung hình video
+          const pillY = y1 >= badgeHeight + 6 ? y1 - badgeHeight - 4 : y1 + 4;
+          const pillX = Math.max(4, Math.min(viewBoxWidth - badgeWidth - 4, x1));
 
           return (
             <g key={`${det.class_name}-${det.track_id ?? idx}-${idx}`}>
+              {/* 1. Khung nền gradient bán trong suốt & Viền mảnh thanh lịch */}
               <rect
                 x={x1}
                 y={y1}
                 width={w}
                 height={h}
-                fill={fillColor}
+                fill={`url(#hud-grad-${themeKey})`}
                 stroke={strokeColor}
-                strokeWidth={
-                  isViolating
-                    ? Math.max(3.5, Math.round(viewBoxWidth * 0.005))
-                    : isCandidate
-                      ? Math.max(3, Math.round(viewBoxWidth * 0.004))
-                      : Math.max(2, Math.round(viewBoxWidth * 0.003))
-                }
-                rx={6}
-                className={isViolating ? "animate-pulse" : ""}
-              />
-              <rect
-                x={x1}
-                y={pillY}
-                width={pillWidth}
-                height={pillHeight}
-                fill={labelBg}
+                strokeWidth={baseStrokeW}
+                strokeOpacity={0.6}
+                strokeDasharray={isCandidate ? "4 3" : undefined}
                 rx={4}
               />
-              <text
-                x={x1 + 8}
-                y={textY}
-                fill="#ffffff"
-                fontSize={fontSize}
-                fontWeight="bold"
-                fontFamily="system-ui, -apple-system, sans-serif"
-              >
-                {labelText}
-              </text>
+
+              {/* 2. Thước ngắm HUD 4 góc (High-Tech Laser L-Brackets) */}
+              {/* Góc Trên-Trái */}
+              <path
+                d={`M ${x1} ${y1 + cornerLen} L ${x1} ${y1} L ${x1 + cornerLen} ${y1}`}
+                fill="none"
+                stroke={strokeColor}
+                strokeWidth={cornerStrokeW}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                filter={`url(#hud-glow-${themeKey})`}
+              />
+              {/* Góc Trên-Phải */}
+              <path
+                d={`M ${x2 - cornerLen} ${y1} L ${x2} ${y1} L ${x2} ${y1 + cornerLen}`}
+                fill="none"
+                stroke={strokeColor}
+                strokeWidth={cornerStrokeW}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                filter={`url(#hud-glow-${themeKey})`}
+              />
+              {/* Góc Dưới-Trái */}
+              <path
+                d={`M ${x1} ${y2 - cornerLen} L ${x1} ${y2} L ${x1 + cornerLen} ${y2}`}
+                fill="none"
+                stroke={strokeColor}
+                strokeWidth={cornerStrokeW}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                filter={`url(#hud-glow-${themeKey})`}
+              />
+              {/* Góc Dưới-Phải */}
+              <path
+                d={`M ${x2 - cornerLen} ${y2} L ${x2} ${y2} L ${x2} ${y2 - cornerLen}`}
+                fill="none"
+                stroke={strokeColor}
+                strokeWidth={cornerStrokeW}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                filter={`url(#hud-glow-${themeKey})`}
+              />
+
+              {/* 3. Tia quét Laser AI & Hồng tâm định vị (Chỉ hiển thị khi vi phạm) */}
+              {isViolating && (
+                <>
+                  <line
+                    x1={x1 + 3}
+                    y1={y1 + h * 0.28}
+                    x2={x2 - 3}
+                    y2={y1 + h * 0.28}
+                    stroke="#f43f5e"
+                    strokeWidth={1.5}
+                    strokeDasharray="4 3"
+                    opacity={0.8}
+                    className="animate-pulse"
+                  />
+                  {/* Tâm chữ thập micro (+) ở trung tâm đối tượng vi phạm */}
+                  <g opacity={0.65}>
+                    <line
+                      x1={x1 + w / 2 - 5}
+                      y1={y1 + h / 2}
+                      x2={x1 + w / 2 + 5}
+                      y2={y1 + h / 2}
+                      stroke="#f43f5e"
+                      strokeWidth={1}
+                    />
+                    <line
+                      x1={x1 + w / 2}
+                      y1={y1 + h / 2 - 5}
+                      x2={x1 + w / 2}
+                      y2={y1 + h / 2 + 5}
+                      stroke="#f43f5e"
+                      strokeWidth={1}
+                    />
+                  </g>
+                </>
+              )}
+
+              {/* 4. Thẻ nhãn AI HUD thông minh (Glassmorphic Cyber Card) */}
+              <g filter={`url(#hud-glow-${themeKey})`}>
+                {/* Thân card nền đen kính mờ với viền phát sáng */}
+                <rect
+                  x={pillX}
+                  y={pillY}
+                  width={badgeWidth}
+                  height={badgeHeight}
+                  fill="rgba(10, 15, 29, 0.92)"
+                  stroke={strokeColor}
+                  strokeWidth={1.2}
+                  rx={4}
+                />
+
+                {/* Đèn LED trạng thái thời gian thực (Status Pip) */}
+                <circle
+                  cx={pillX + 9}
+                  cy={pillY + badgeHeight / 2}
+                  r={3.2}
+                  fill={strokeColor}
+                />
+                {isViolating && (
+                  <circle
+                    cx={pillX + 9}
+                    cy={pillY + badgeHeight / 2}
+                    r={5.5}
+                    fill="none"
+                    stroke={strokeColor}
+                    strokeWidth={1}
+                    opacity={0.8}
+                    className="animate-ping"
+                  />
+                )}
+
+                {/* Nhãn chữ chính nét sắc sảo, công nghệ cao */}
+                <text
+                  x={pillX + 18}
+                  y={pillY + badgeHeight / 2 + fontSize * 0.35}
+                  fill="#ffffff"
+                  fontSize={fontSize}
+                  fontWeight="700"
+                  fontFamily="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+                  letterSpacing="0.25px"
+                >
+                  {mainBadgeText}
+                </text>
+
+                {/* Chip hiển thị độ tin cậy AI (%) */}
+                {confText && (
+                  <g>
+                    <rect
+                      x={pillX + badgeWidth - confChipWidth - 4}
+                      y={pillY + 3}
+                      width={confChipWidth}
+                      height={badgeHeight - 6}
+                      fill="rgba(255, 255, 255, 0.12)"
+                      rx={3}
+                    />
+                    <text
+                      x={pillX + badgeWidth - confChipWidth / 2 - 4}
+                      y={pillY + badgeHeight / 2 + (fontSize - 2) * 0.35}
+                      textAnchor="middle"
+                      fill={strokeColor}
+                      fontSize={Math.max(9, fontSize - 2)}
+                      fontWeight="800"
+                      fontFamily="ui-monospace, monospace"
+                    >
+                      {confText}
+                    </text>
+                  </g>
+                )}
+              </g>
             </g>
           );
         })}
@@ -545,6 +762,14 @@ export function CameraIntelligencePlayer({
                   alt={cameraName}
                   onClick={handleControlledTogglePlay}
                   className="h-full w-full object-contain select-none cursor-pointer"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    setTimeout(() => {
+                      if (img && mjpegStreamUrl) {
+                        img.src = `${mjpegStreamUrl}&t=${Date.now()}`;
+                      }
+                    }, 1000);
+                  }}
                 />
 
                 {isBuffering && (
@@ -610,117 +835,18 @@ export function CameraIntelligencePlayer({
               </div>
             )}
 
-            {/* HUD Top Bar: Nổi mềm trên nền kính đục với token hệ thống */}
-            <div className="pointer-events-none absolute top-3.5 inset-x-3.5 z-25 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="flex items-center gap-2 rounded-xl bg-background/85 dark:bg-background/90 backdrop-blur-md px-3 py-1.5 border border-border/60 shadow-[2px_2px_6px_var(--shadow-dark),-2px_-2px_6px_var(--shadow-light)] text-foreground">
-                <span className="relative flex h-2 w-2">
-                  <span
-                    className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                      isOnline ? "animate-ping bg-success" : "bg-danger"
-                    }`}
-                  />
-                  <span
-                    className={`relative inline-flex h-2 w-2 rounded-full ${
-                      isOnline ? "bg-success" : "bg-danger"
-                    }`}
-                  />
-                </span>
-                <Badge variant="primary" size="sm" shape="rounded" className="font-mono font-bold py-0.5">
-                  {cameraCode}
-                </Badge>
-                <span className="text-border">•</span>
-                <span className="font-semibold text-foreground line-clamp-1">{cameraName}</span>
-                {cameraLocation && (
-                  <>
-                    <span className="text-border">•</span>
-                    <span className="text-muted-foreground text-[11px] line-clamp-1">
-                      {cameraLocation}
-                    </span>
-                  </>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1.5 rounded-xl bg-background/85 dark:bg-background/90 backdrop-blur-md px-3 py-1.5 border border-border/60 shadow-[2px_2px_6px_var(--shadow-dark),-2px_-2px_6px_var(--shadow-light)] text-foreground font-mono text-[11px]">
-                <Badge variant="outline" size="sm" className="font-mono text-foreground gap-1.5 py-0.5 border-border/60">
-                  <Cpu className="h-3 w-3 text-primary" />
-                  <span className="line-clamp-1">{activeModelName}</span>
-                </Badge>
-                <span className="text-border">•</span>
-                <Badge variant="outline" size="sm" className="font-mono text-success border-success/30 bg-success/10 py-0.5">
-                  {displayLatency}
-                </Badge>
-                <span className="text-border">•</span>
-                <Badge variant="outline" size="sm" className="font-mono text-info border-info/30 bg-info/10 py-0.5">
-                  {displayFps} FPS
-                </Badge>
-              </div>
-            </div>
-
-            {/* Banner Tiến trình quét AI tự động cho camera mới */}
-            {autoAnalysisState &&
-              (autoAnalysisState.status === "processing" ||
-                autoAnalysisState.status === "downloading" ||
-                autoAnalysisState.status === "initializing") && (
-                <div className="absolute top-14 inset-x-3.5 sm:inset-x-6 z-30 flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl bg-neutral-950/92 border border-primary/40 backdrop-blur-md shadow-2xl text-xs text-foreground animate-in fade-in zoom-in-95">
-                  <div className="flex items-center gap-2.5">
-                    <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
-                    <span className="font-medium text-foreground">
-                      {autoAnalysisState.message ||
-                        (isVietnamese
-                          ? "Đang tự động chạy mô hình YOLOv11 bám vết video..."
-                          : "Analyzing video with YOLOv11...")}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 ml-auto">
-                    <div className="w-24 sm:w-32 h-2 rounded-full bg-neutral-800 overflow-hidden">
-                      <div
-                        className="h-full bg-primary transition-all duration-300"
-                        style={{ width: `${Math.max(5, autoAnalysisState.progress)}%` }}
-                      />
-                    </div>
-                    <span className="font-mono font-bold text-primary">{autoAnalysisState.progress}%</span>
-                  </div>
-                </div>
-              )}
-
-            {/* HUD Bottom Bar: Nổi mềm hiển thị tọa độ & tiến độ đệm */}
-            <div className="pointer-events-none absolute bottom-3.5 inset-x-3.5 z-25 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 rounded-xl bg-background/85 dark:bg-background/90 backdrop-blur-md px-3.5 py-1.5 border border-border/60 font-mono text-[11px] shadow-[2px_2px_6px_var(--shadow-dark),-2px_-2px_6px_var(--shadow-light)] text-foreground">
-                <span
-                  className={`h-2 w-2 rounded-full ${
-                    isPlaying ? "bg-danger animate-pulse" : "bg-warning"
-                  }`}
-                />
-                <span className={`font-bold tracking-wide ${isPlaying ? "text-danger" : "text-warning"}`}>
-                  {isPlaying
-                    ? isVietnamese
-                      ? "LUỒNG AI TRỰC TIẾP"
-                      : "LIVE AI STREAM"
-                    : isVietnamese
-                      ? "TẠM DỪNG"
-                      : "PAUSED"}
-                </span>
-                <span className="text-border">•</span>
-                <span className="text-foreground">{`${viewBoxWidth}×${viewBoxHeight}`}</span>
-                <span className="text-border">•</span>
-                <span className="text-muted-foreground">
-                  t = <strong className="text-foreground">{currentTimeSec.toFixed(1)}s</strong> (F: {currentFrame})
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1.5 rounded-xl bg-background/85 dark:bg-background/90 backdrop-blur-md px-3 py-1.5 border border-border/60 text-[11px] font-mono shadow-[2px_2px_6px_var(--shadow-dark),-2px_-2px_6px_var(--shadow-light)]">
-                <Badge variant="outline" size="sm" className="font-mono text-success border-success/30 bg-success/10 gap-1.5 py-0.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-                  <span>
-                    {loopCached
-                      ? "Buffer Locked (100% Cached)"
-                      : isWebcam
-                        ? "Webcam Frame-Locked"
-                        : `Pre-Buffer Active (${bufferedFramesCount}f)`}
-                  </span>
-                </Badge>
-              </div>
-            </div>
+            {/* Nút thoát toàn màn hình góc trên-phải khi đang ở chế độ Fullscreen */}
+            {isFullscreen && (
+              <button
+                type="button"
+                onClick={handleToggleFullscreen}
+                className="absolute top-3.5 right-3.5 z-30 flex items-center gap-1.5 rounded-xl bg-neutral-900/80 hover:bg-neutral-900 text-white px-3 py-1.5 text-xs font-semibold backdrop-blur-md border border-white/20 transition-all shadow-lg"
+                title={isVietnamese ? "Thoát toàn màn hình (Esc)" : "Exit Fullscreen (Esc)"}
+              >
+                <Minimize2 className="h-3.5 w-3.5" />
+                <span>{isVietnamese ? "Thu nhỏ" : "Exit"}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -845,30 +971,18 @@ export function CameraIntelligencePlayer({
             )}
 
             {/* 5. Nút Kích hoạt phân tích AI thật nếu chưa có log */}
-            {!isRealAiLog && onStartAutoAnalyze && (
+            {/* Nút Kết nối / Khởi động lại Luồng Live AI */}
+            {onStartAutoAnalyze && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={onStartAutoAnalyze}
-                disabled={
-                  autoAnalysisState?.status === "processing" ||
-                  autoAnalysisState?.status === "downloading" ||
-                  autoAnalysisState?.status === "initializing"
-                }
                 className="gap-1.5 text-xs font-semibold h-8 px-3 rounded-xl border-primary/50 text-primary hover:bg-primary/10 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] transition-all"
-                title={isVietnamese ? "Chạy mô hình YOLOv11 phân tích video thật" : "Run YOLOv11 AI model on this video"}
+                title={isVietnamese ? "Làm mới / Khởi động lại luồng Live AI" : "Refresh Live AI Stream"}
               >
-                <Sparkles className="h-3.5 w-3.5 text-primary animate-pulse" />
+                <RefreshCw className="h-3.5 w-3.5 text-primary" />
                 <span>
-                  {autoAnalysisState?.status === "processing" ||
-                  autoAnalysisState?.status === "downloading" ||
-                  autoAnalysisState?.status === "initializing"
-                    ? isVietnamese
-                      ? `Đang quét (${autoAnalysisState.progress}%)`
-                      : `Analyzing (${autoAnalysisState.progress}%)`
-                    : isVietnamese
-                      ? "Quét AI YOLOv11"
-                      : "Run YOLOv11"}
+                  {isVietnamese ? "Làm mới Live AI" : "Refresh Live AI"}
                 </span>
               </Button>
             )}
@@ -887,6 +1001,184 @@ export function CameraIntelligencePlayer({
                 <Maximize2 className="h-3.5 w-3.5" />
               )}
             </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 3. CARD THÔNG SỐ VẬN HÀNH & CHỈ SỐ LUỒNG AI (TÁCH KHỎI MÀN HÌNH CAMERA) ── */}
+      <div className="flex flex-col gap-3.5 rounded-[24px] bg-card/40 dark:bg-card/30 p-4 sm:p-5 border border-border/60 shadow-[6px_6px_16px_var(--shadow-dark),-6px_-6px_16px_var(--shadow-light)] transition-all">
+        {/* Header của Card */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-border/40">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)] border border-primary/20">
+              <Activity className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-xs sm:text-sm font-bold text-foreground tracking-tight">
+                {isVietnamese ? "Thông số Giám sát & Luồng AI" : "Camera Telemetry & AI Stream"}
+              </h3>
+              <p className="text-[11px] text-muted-foreground">
+                {isVietnamese
+                  ? "Dữ liệu vận hành thời gian thực từ camera & mô hình AI"
+                  : "Real-time operational telemetry from camera & AI model"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              size="sm"
+              className={`gap-1.5 font-mono text-[11px] py-0.5 ${
+                isOnline
+                  ? "text-success border-success/30 bg-success/10"
+                  : "text-danger border-danger/30 bg-danger/10"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isOnline ? "bg-success animate-pulse" : "bg-danger"
+                }`}
+              />
+              <span>{isOnline ? (isVietnamese ? "TRỰC TUYẾN" : "ONLINE") : (isVietnamese ? "MẤT KẾT NỐI" : "OFFLINE")}</span>
+            </Badge>
+
+            <Badge
+              variant="outline"
+              size="sm"
+              className={`gap-1.5 font-mono text-[11px] py-0.5 ${
+                isPlaying
+                  ? "text-danger border-danger/30 bg-danger/10"
+                  : "text-warning border-warning/30 bg-warning/10"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isPlaying ? "bg-danger animate-pulse" : "bg-warning"
+                }`}
+              />
+              <span>{isPlaying ? (isVietnamese ? "LUỒNG TRỰC TIẾP" : "LIVE STREAM") : (isVietnamese ? "TẠM DỪNG" : "PAUSED")}</span>
+            </Badge>
+          </div>
+        </div>
+
+        {/* Lưới 4 ô thông số chi tiết */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Ô 1: Camera & Vị trí */}
+          <div className="flex flex-col justify-between gap-2.5 rounded-2xl p-3 bg-background/50 border border-border/50 shadow-[inset_1.5px_1.5px_4px_var(--shadow-dark),inset_-1.5px_-1.5px_4px_var(--shadow-light)]">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-[11px] font-semibold uppercase tracking-wider">
+                {isVietnamese ? "Camera & Vị trí" : "Camera & Location"}
+              </span>
+              <Camera className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <Badge variant="primary" size="sm" shape="rounded" className="font-mono font-bold text-[11px] py-0">
+                  {cameraCode}
+                </Badge>
+                <span className="font-semibold text-xs text-foreground line-clamp-1">{cameraName}</span>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                <MapPin className="h-3 w-3 shrink-0 text-muted-foreground/80" />
+                <span className="line-clamp-1">
+                  {cameraLocation || siteName || (isVietnamese ? "Khu vực chung" : "General Zone")}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Ô 2: Mô hình AI & Hiệu năng */}
+          <div className="flex flex-col justify-between gap-2.5 rounded-2xl p-3 bg-background/50 border border-border/50 shadow-[inset_1.5px_1.5px_4px_var(--shadow-dark),inset_-1.5px_-1.5px_4px_var(--shadow-light)]">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-[11px] font-semibold uppercase tracking-wider">
+                {isVietnamese ? "Mô hình AI & Tốc độ" : "AI Model & Engine"}
+              </span>
+              <Cpu className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-xs font-semibold text-foreground line-clamp-1" title={activeModelName}>
+                  {activeModelName}
+                </span>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-mono">
+                <span className="inline-flex items-center gap-1 text-success font-semibold bg-success/10 border border-success/30 px-1.5 py-0.5 rounded">
+                  <Zap className="h-2.5 w-2.5" />
+                  {displayLatency}
+                </span>
+                <span className="inline-flex items-center gap-1 text-info font-semibold bg-info/10 border border-info/30 px-1.5 py-0.5 rounded">
+                  <Activity className="h-2.5 w-2.5" />
+                  {displayFps} FPS
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Ô 3: Độ phân giải & Thời gian */}
+          <div className="flex flex-col justify-between gap-2.5 rounded-2xl p-3 bg-background/50 border border-border/50 shadow-[inset_1.5px_1.5px_4px_var(--shadow-dark),inset_-1.5px_-1.5px_4px_var(--shadow-light)]">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-[11px] font-semibold uppercase tracking-wider">
+                {isVietnamese ? "Độ phân giải & Thời gian" : "Resolution & Timeline"}
+              </span>
+              <Scan className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono font-bold text-xs text-foreground">
+                  {viewBoxWidth} × {viewBoxHeight}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-mono">px</span>
+              </div>
+              <div className="mt-1.5 flex items-center gap-2 text-[11px] font-mono text-muted-foreground">
+                <span>
+                  t = <strong className="text-foreground">{currentTimeSec.toFixed(1)}s</strong>
+                </span>
+                <span className="text-border">•</span>
+                <span>
+                  F: <strong className="text-primary font-bold">#{currentFrame}</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Ô 4: Trạng thái Bộ đệm AI */}
+          <div className="flex flex-col justify-between gap-2.5 rounded-2xl p-3 bg-background/50 border border-border/50 shadow-[inset_1.5px_1.5px_4px_var(--shadow-dark),inset_-1.5px_-1.5px_4px_var(--shadow-light)]">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-[11px] font-semibold uppercase tracking-wider">
+                {isVietnamese ? "Trạng thái Bộ đệm" : "Buffer Lock State"}
+              </span>
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5 text-xs font-mono font-semibold text-success bg-success/10 border border-success/30 px-2 py-0.5 rounded-lg line-clamp-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse shrink-0" />
+                  <span className="line-clamp-1">
+                    {loopCached
+                      ? "Buffer Locked (100% Cached)"
+                      : isWebcam
+                        ? "Webcam Frame-Locked"
+                        : `Pre-Buffer Active (${bufferedFramesCount}f)`}
+                  </span>
+                </span>
+              </div>
+              <div className="mt-1.5 text-[11px] font-mono text-muted-foreground line-clamp-1">
+                {loopCached ? (
+                  <span className="text-success font-medium">
+                    {isVietnamese ? "Đã khóa 100% đệm video" : "Zero-lag cached feed"}
+                  </span>
+                ) : isWebcam ? (
+                  <span className="text-muted-foreground">
+                    {isVietnamese ? "Đồng bộ webcam trực tiếp" : "Direct hardware sync"}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">
+                    {isVietnamese ? "Đồng bộ chống rung lag AI" : "Look-ahead drift lock"}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

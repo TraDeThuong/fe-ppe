@@ -47,7 +47,7 @@ describe("IncidentAlertToast & Evidence URL Normalizer", () => {
       assert.ok(resolved.startsWith("http"));
     });
 
-    it("preserves static images path from public directory", () => {
+    it("preserves static images and videos path from public directory", () => {
       assert.strictEqual(
         resolveEvidenceUrl("/images/evidence/camera-01.jpg"),
         "/images/evidence/camera-01.jpg"
@@ -55,6 +55,14 @@ describe("IncidentAlertToast & Evidence URL Normalizer", () => {
       assert.strictEqual(
         resolveEvidenceUrl("evidence/camera-01.jpg"),
         "/evidence/camera-01.jpg"
+      );
+      assert.strictEqual(
+        resolveEvidenceUrl("/videos/cameras/job_123/evidence/evidence_123.jpg"),
+        "/videos/cameras/job_123/evidence/evidence_123.jpg"
+      );
+      assert.strictEqual(
+        resolveEvidenceUrl("videos/cameras/evidence.jpg"),
+        "/videos/cameras/evidence.jpg"
       );
     });
 

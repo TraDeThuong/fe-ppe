@@ -126,10 +126,11 @@ export function NotificationItem({
     isVietnamese,
   );
 
-  const meta = notification.metadata || {};
+  const meta = (((notification as any).metadata || (notification as any).data || {}) as Record<string, any>);
   const siteName = meta.siteName || meta.siteId;
   const cameraCode = meta.cameraCode || meta.cameraId;
   const violationType = meta.violationType;
+  const targetIncidentId = (notification.incidentId || meta.incidentId || (notification.type === "PPE_VIOLATION" ? meta.id : undefined)) as string | undefined;
 
   return (
     <article
@@ -237,9 +238,9 @@ export function NotificationItem({
       {/* Footer Actions: Link to Incident, Mark Read, Delete */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/20 pt-3">
         <div className="flex items-center gap-2">
-          {notification.incidentId && (
+          {targetIncidentId && (
             <Link
-              href={`/incidents/${encodeURIComponent(notification.incidentId)}`}
+              href={`/incidents/${encodeURIComponent(targetIncidentId)}`}
               className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-all hover:bg-primary/15 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] active:shadow-[inset_1px_1px_3px_var(--shadow-dark)]"
             >
               <span>{t("notifications.actions.viewIncident")}</span>
@@ -247,7 +248,7 @@ export function NotificationItem({
             </Link>
           )}
 
-          {notification.actionUrl && !notification.incidentId && (
+          {notification.actionUrl && !targetIncidentId && (
             <Link
               href={notification.actionUrl}
               className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-all hover:bg-primary/15 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]"

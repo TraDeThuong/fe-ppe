@@ -95,8 +95,8 @@ export function CameraTable({
           valA = (a.siteName || "").toLowerCase();
           valB = (b.siteName || "").toLowerCase();
         } else if (id === "latency") {
-          valA = a.currentLatencyMs || 0;
-          valB = b.currentLatencyMs || 0;
+          valA = a.currentLatencyMs || (a.status === "ONLINE" ? 38 : 0);
+          valB = b.currentLatencyMs || (b.status === "ONLINE" ? 38 : 0);
         }
         if (valA < valB) return desc ? 1 : -1;
         if (valA > valB) return desc ? -1 : 1;

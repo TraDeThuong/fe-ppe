@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import {
   AlertOctagon,
+  Archive,
   Building2,
   Camera,
   Edit2,
@@ -24,6 +25,7 @@ export interface SiteCardGridProps {
   onSafetyConfig: (site: SiteItem) => void;
   onEdit: (site: SiteItem) => void;
   onDelete: (site: SiteItem) => void;
+  onArchive?: (site: SiteItem) => void;
   loading?: boolean;
 }
 
@@ -33,6 +35,7 @@ export function SiteCardGrid({
   onSafetyConfig,
   onEdit,
   onDelete,
+  onArchive,
   loading = false,
 }: SiteCardGridProps) {
   const router = useRouter();
@@ -246,6 +249,21 @@ export function SiteCardGrid({
                 >
                   <Edit2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 </button>
+
+                {onArchive && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onArchive(site);
+                    }}
+                    aria-label={isVietnamese ? `Lưu trữ ${site.name}` : `Archive ${site.name}`}
+                    title={isVietnamese ? `Lưu trữ công trường` : `Archive site`}
+                    className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-amber-500 hover:text-amber-500 dark:border-black/50 dark:hover:border-black dark:bg-background/40"
+                  >
+                    <Archive className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  </button>
+                )}
 
                 <button
                   type="button"

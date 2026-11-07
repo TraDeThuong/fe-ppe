@@ -19,6 +19,7 @@ export type { SiteStatKey };
 
 export interface SiteKpiSummaryProps {
   sites: SiteItem[];
+  siteId?: string;
   loading?: boolean;
   selectedStat?: SiteStatKey | null;
   onSelectStat?: (stat: SiteStatKey | null) => void;
@@ -29,6 +30,7 @@ export interface SiteKpiSummaryProps {
 
 export function SiteKpiSummary({
   sites,
+  siteId,
   loading = false,
   selectedStat: propSelectedStat,
   onSelectStat,
@@ -36,15 +38,15 @@ export function SiteKpiSummary({
   onSafetyConfig,
   onCreateSite,
 }: SiteKpiSummaryProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
 
   // Fetch real-time compliance rate & violations from reporting-service
-  const { data: reportingSummary, isLoading: summaryLoading } = useReportSummary();
-  const complianceRate =
-    reportingSummary && reportingSummary.complianceRate > 0
-      ? reportingSummary.complianceRate
-      : 100;
-  const complianceRateDisplay = `${complianceRate.toFixed(1)}%`;
+  const { data: reportingSummary, isLoading: summaryLoading } = useReportSummary(
+    siteId ? { siteId } : undefined
+  );
+  const hasComplianceData = reportingSummary != null && typeof reportingSummary.complianceRate === "number";
+  const complianceRate = hasComplianceData ? reportingSummary.complianceRate : 0;
+  const complianceRateDisplay = hasComplianceData ? `${complianceRate.toFixed(1)}%` : "--%";
 
   const [internalSelectedStat, setInternalSelectedStat] = useState<SiteStatKey | null>(null);
   const activeStat = propSelectedStat !== undefined ? propSelectedStat : internalSelectedStat;
@@ -174,7 +176,15 @@ export function SiteKpiSummary({
           variant="soft-extruded"
           tone="primary"
           showGlow={false}
-          description={t("sites.kpi.complianceRateDesc")}
+          description={
+            hasComplianceData
+              ? t("sites.kpi.complianceRateDesc")
+              : locale === "vi-VN"
+              ? "Chưa có dữ liệu báo cáo tuân thủ"
+              : "No compliance report data"
+          }
+          progress={hasComplianceData ? complianceRate : 0}
+          progressLabel={complianceRateDisplay}
           onClick={() => handleToggle("complianceRate")}
           className={`cursor-pointer transition-all duration-200 ${
             activeStat === "complianceRate" ? sunkenClass : "hover:border-primary/30"

@@ -1,5 +1,6 @@
 export * from "./user.query-keys";
 export * from "./use-users";
+export * from "./use-user-summary";
 export * from "./use-user-detail";
 export * from "./use-user-sessions";
 export * from "./use-user-mutations";

@@ -18,23 +18,23 @@ export function DashboardAiStatusCard({
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  const modelName =
-    activeVersion?.metrics?.modelName ||
-    (activeVersion?.version
-      ? `YOLO11m-PPE ${activeVersion.version}`
-      : "YOLO11m-PPE Edge");
+  const isModelActive = Boolean(activeVersion && activeVersion.version);
 
-  const versionTag = activeVersion?.version || "v2.1.0";
+  const modelName = isModelActive
+    ? activeVersion?.metrics?.modelName || `YOLO11m-PPE ${activeVersion?.version}`
+    : (isVietnamese ? "Chưa kích hoạt mô hình" : "No active model deployed");
+
+  const versionTag = isModelActive ? activeVersion?.version : "--";
   const mapValue = activeVersion?.metrics?.mAP50
     ? `${(activeVersion.metrics.mAP50 * 100).toFixed(1)}%`
-    : "93.2%";
+    : "--";
   const latencyValue = activeVersion?.metrics?.latencyMs
     ? `${activeVersion.metrics.latencyMs}ms`
-    : "18ms";
+    : "--";
   const fpsValue = activeVersion?.metrics?.fps
     ? `${activeVersion.metrics.fps} FPS`
-    : "28 FPS";
-  const frameworkValue = activeVersion?.framework || "TensorRT / FP16";
+    : "--";
+  const frameworkValue = isModelActive ? (activeVersion?.framework || "TensorRT / FP16") : "--";
 
   return (
     <div className="relative flex w-full flex-col overflow-hidden rounded-2xl bg-surface p-4 sm:p-5 shadow-[7px_7px_18px_var(--shadow-dark),-7px_-7px_18px_var(--shadow-light)] border border-border/20">
@@ -78,9 +78,15 @@ export function DashboardAiStatusCard({
           </span>
           <Badge
             variant="outline"
-            className="border-success/30 bg-success/10 text-[10px] font-bold text-success"
+            className={
+              isModelActive
+                ? "border-success/30 bg-success/10 text-[10px] font-bold text-success"
+                : "border-muted/30 bg-muted/20 text-[10px] font-bold text-muted-foreground"
+            }
           >
-            ● {isVietnamese ? "Hoạt động" : "Active"}
+            {isModelActive
+              ? `● ${isVietnamese ? "Hoạt động" : "Active"}`
+              : `○ ${isVietnamese ? "Chưa kích hoạt" : "Inactive"}`}
           </Badge>
         </div>
         <p className="mt-1 font-mono text-sm font-black text-foreground truncate">

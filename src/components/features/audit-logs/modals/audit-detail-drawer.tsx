@@ -1,6 +1,7 @@
 "use client";
 
-import { Clock, Globe, Shield, User } from "lucide-react";
+import Link from "next/link";
+import { Clock, ExternalLink, Globe, Shield, User } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
@@ -21,7 +22,27 @@ export function AuditDetailDrawer({
   detail,
   loading = false,
 }: AuditDetailDrawerProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
+
+  const getRelatedResourceHref = () => {
+    if (!detail?.targetType || !detail?.targetId || detail.targetId === "SYSTEM") return null;
+    if (detail.targetType === "PPE_INCIDENT" || detail.targetType === "INCIDENT") {
+      return `/incidents/${detail.targetId}`;
+    }
+    if (detail.targetType === "CAMERA") {
+      return `/cameras/${detail.targetId}`;
+    }
+    if (detail.targetType === "SITE") {
+      return `/sites/${detail.targetId}`;
+    }
+    if (detail.targetType === "USER") {
+      return `/users`;
+    }
+    return null;
+  };
+
+  const relatedResourceHref = getRelatedResourceHref();
 
   return (
     <Modal
@@ -32,12 +53,22 @@ export function AuditDetailDrawer({
       icon={<Shield className="h-5 w-5 text-primary" />}
       size="lg"
       footer={
-        <div className="flex w-full items-center justify-end sm:w-auto">
+        <div className="flex w-full items-center justify-between gap-2">
+          {relatedResourceHref && (
+            <Link
+              href={relatedResourceHref}
+              onClick={() => onOpenChange(false)}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-all hover:bg-primary/20 shadow-[2px_2px_4px_var(--shadow-dark)]"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              <span>{isVietnamese ? "Xem tài nguyên liên quan" : "View Related Resource"}</span>
+            </Link>
+          )}
           <Button
             type="button"
             variant="ghost"
             onClick={() => onOpenChange(false)}
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto ml-auto"
           >
             {t("common.close")}
           </Button>

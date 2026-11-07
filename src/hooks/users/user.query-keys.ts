@@ -9,6 +9,7 @@ export const userKeys = {
   list: (params?: UserQueryParams) => [...userKeys.lists(), params] as const,
   details: () => [...userKeys.all, "detail"] as const,
   detail: (id: string) => [...userKeys.details(), id] as const,
+  summary: () => [...userKeys.all, "summary"] as const,
   sessions: (id: string) => [...userKeys.detail(id), "sessions"] as const,
   devices: (id: string) => [...userKeys.detail(id), "devices"] as const,
 };

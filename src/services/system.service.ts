@@ -138,35 +138,97 @@ export const systemService = {
 
   /**
    * Kiểm tra nhịp tim và độ trễ toàn cụm 8 Microservices & 4 thành phần Hạ tầng.
+   * Sử dụng số liệu uptime và readiness thực tế từ backend, loại bỏ dữ liệu giả lập.
    */
   async checkServicesHealth(): Promise<SystemHealthReport> {
-    const serviceTargets = [
-      { name: "Identity & Core Auth", code: "identity-service", port: 9999, path: "/health", type: "SERVICE" as const },
-      { name: "Camera & RTSP Streams", code: "camera-service", port: 8892, path: "/cameras/health", type: "SERVICE" as const },
-      { name: "Sites & Spatial Layout", code: "site-service", port: 8891, path: "/sites/health", type: "SERVICE" as const },
-      { name: "Incidents & Evidence Hub", code: "incident-service", port: 8893, path: "/incidents/health", type: "SERVICE" as const },
-      { name: "Media & Snapshot Storage", code: "media-service", port: 8890, path: "/files/health", type: "SERVICE" as const },
-      { name: "Reporting & Safety Analytics", code: "reporting-service", port: 8894, path: "/reports/health", type: "SERVICE" as const },
-      { name: "Notification & Realtime Hub", code: "notification-service", port: 8889, path: "/notifications/health", type: "SERVICE" as const },
-      { name: "AI YOLO Inference Engine", code: "ai-service", port: 8000, path: "/health", type: "SERVICE" as const },
+    interface HealthTarget {
+      name: string;
+      code: string;
+      port: number;
+      path: string;
+      type: "SERVICE" | "INFRASTRUCTURE";
+      isDirectUrl?: boolean;
+      isDbProbe?: boolean;
+    }
+
+    const serviceTargets: HealthTarget[] = [
+      { name: "Identity & Core Auth", code: "identity-service", port: 9999, path: "/health", type: "SERVICE" },
+      { name: "Camera & RTSP Streams", code: "camera-service", port: 8892, path: "/cameras/health", type: "SERVICE" },
+      { name: "Sites & Spatial Layout", code: "site-service", port: 8891, path: "/sites/health", type: "SERVICE" },
+      { name: "Incidents & Evidence Hub", code: "incident-service", port: 8893, path: "/incidents/health", type: "SERVICE" },
+      { name: "Media & Snapshot Storage", code: "media-service", port: 8890, path: "/files/health", type: "SERVICE" },
+      { name: "Reporting & Safety Analytics", code: "reporting-service", port: 8894, path: "/reports/health", type: "SERVICE" },
+      { name: "Notification & Realtime Hub", code: "notification-service", port: 8889, path: "/notifications/health", type: "SERVICE" },
+      { name: "AI YOLO Inference Engine", code: "ai-service", port: 8000, path: "http://localhost:8000/health", type: "SERVICE", isDirectUrl: true },
     ];
 
-    const infraTargets = [
-      { name: "PostgreSQL Database", code: "postgres-db", port: 5432, path: "/health", type: "INFRASTRUCTURE" as const, fallbackLatency: 3 },
-      { name: "Apache Kafka EventBus", code: "kafka-broker", port: 9092, path: "/health", type: "INFRASTRUCTURE" as const, fallbackLatency: 5 },
-      { name: "MinIO S3 Object Storage", code: "minio-storage", port: 9000, path: "/health", type: "INFRASTRUCTURE" as const, fallbackLatency: 8 },
-      { name: "Traefik Reverse Proxy", code: "traefik-gateway", port: 80, path: "/health", type: "INFRASTRUCTURE" as const, fallbackLatency: 4 },
+    const infraTargets: HealthTarget[] = [
+      { name: "PostgreSQL Database", code: "postgres-db", port: 5432, path: "/health/readiness", type: "INFRASTRUCTURE", isDbProbe: true },
+      { name: "Apache Kafka EventBus", code: "kafka-broker", port: 9092, path: "/incidents/health", type: "INFRASTRUCTURE" },
+      { name: "MinIO S3 Object Storage", code: "minio-storage", port: 9000, path: "http://localhost:9000/minio/health/live", type: "INFRASTRUCTURE", isDirectUrl: true },
+      { name: "Traefik Reverse Proxy", code: "traefik-gateway", port: 80, path: "http://localhost:8080/ping", type: "INFRASTRUCTURE", isDirectUrl: true },
     ];
 
-    const allTargets = [...serviceTargets, ...infraTargets];
+    const allTargets: HealthTarget[] = [...serviceTargets, ...infraTargets];
+
+    const formatUptimeStr = (seconds?: number): string => {
+      if (typeof seconds !== "number" || isNaN(seconds) || seconds <= 0) return "--";
+      const days = Math.floor(seconds / 86400);
+      const hours = Math.floor((seconds % 86400) / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      if (days > 0) return `${days}d ${hours}h`;
+      if (hours > 0) return `${hours}h ${minutes}m`;
+      return `${minutes}m ${Math.floor(seconds % 60)}s`;
+    };
 
     const results = await Promise.allSettled(
       allTargets.map(async (tgt) => {
         const start = performance.now();
         try {
-          const res = await apiClient.get(tgt.path, { timeout: 3000 });
-          const latencyMs = Math.round(performance.now() - start);
-          const isHealthy = res.status >= 200 && res.status < 300;
+          let resData: Record<string, unknown> | undefined;
+          let isHealthy = false;
+          let probeLatency = 0;
+
+          if (tgt.isDirectUrl) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 2000);
+            const response = await fetch(tgt.path, { signal: controller.signal });
+            clearTimeout(timer);
+            probeLatency = Math.round(performance.now() - start);
+            isHealthy = response.ok;
+            if (response.ok) {
+              try {
+                resData = await response.json();
+              } catch {
+                resData = { status: "ok" };
+              }
+            }
+          } else {
+            const res = await apiClient.get(tgt.path, { timeout: 3000 });
+            probeLatency = Math.round(performance.now() - start);
+            isHealthy = res.status >= 200 && res.status < 300;
+            resData = res.data as Record<string, unknown>;
+          }
+
+          let uptimeStr = "--";
+          if (resData && typeof resData.uptime === "number") {
+            uptimeStr = formatUptimeStr(resData.uptime);
+          } else if (resData && typeof (resData.metrics as any)?.uptimeSeconds === "number") {
+            uptimeStr = formatUptimeStr((resData.metrics as any).uptimeSeconds);
+          }
+
+          if (tgt.isDbProbe && resData?.checks) {
+            const dbCheck = (resData.checks as any).database;
+            if (dbCheck && dbCheck.status !== "healthy") {
+              isHealthy = false;
+            }
+            if (dbCheck && typeof dbCheck.latencyMs === "number") {
+              probeLatency = dbCheck.latencyMs;
+            }
+          }
+
+          const latencyMs = Math.max(probeLatency, 1);
+
           return {
             name: tgt.name,
             serviceCode: tgt.code,
@@ -178,25 +240,21 @@ export const systemService = {
                 ? "HEALTHY"
                 : "DEGRADED"
               : "DOWN",
-            latencyMs: Math.max(latencyMs, 2),
-            uptime: "14d 8h",
+            latencyMs,
+            uptime: uptimeStr,
             lastChecked: new Date().toISOString(),
           } as ServiceHealthItem;
         } catch {
           const latencyMs = Math.round(performance.now() - start);
-          // Cho các dịch vụ nội bộ (DB, Kafka, MinIO, hoặc services chạy sau Gateway):
-          // Nếu gateway trả về nhưng endpoint probe nội bộ hoặc fallback
-          const isInfra = tgt.type === "INFRASTRUCTURE";
-          const fallbackLatency = (tgt as { fallbackLatency?: number }).fallbackLatency || 12;
           return {
             name: tgt.name,
             serviceCode: tgt.code,
             port: tgt.port,
             endpoint: tgt.path,
             type: tgt.type,
-            status: isInfra ? "HEALTHY" : "DOWN",
-            latencyMs: isInfra ? fallbackLatency : Math.min(latencyMs, 3500),
-            uptime: isInfra ? "30d 12h" : "14d 8h",
+            status: "DOWN",
+            latencyMs: Math.min(latencyMs, 3000),
+            uptime: "--",
             lastChecked: new Date().toISOString(),
           } as ServiceHealthItem;
         }
@@ -213,8 +271,8 @@ export const systemService = {
         endpoint: tgt.path,
         type: tgt.type,
         status: "DOWN",
-        latencyMs: 3500,
-        uptime: "0d",
+        latencyMs: 3000,
+        uptime: "--",
         lastChecked: new Date().toISOString(),
       };
     });

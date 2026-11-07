@@ -31,6 +31,9 @@ export interface UserKpiCardsProps {
   /** Trạng thái đang tải dữ liệu */
   loading?: boolean;
   className?: string;
+  /** Callback lọc người dùng khi click thẻ KPI */
+  onSelectFilter?: (type: "all" | "active" | "twoFactor" | "locked") => void;
+  activeFilter?: string;
 }
 
 export function UserKpiCards({
@@ -40,6 +43,8 @@ export function UserKpiCards({
   variant = "bento-console",
   loading = false,
   className = "",
+  onSelectFilter,
+  activeFilter,
 }: UserKpiCardsProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -99,10 +104,12 @@ export function UserKpiCards({
             totalValue: computedStats.total,
             totalLabel: t("users.stats.total"),
             totalSub: isVietnamese ? "Tài khoản toàn công ty" : "Total enterprise accounts",
+            onTotalClick: onSelectFilter ? () => onSelectFilter("all") : undefined,
             activeValue: computedStats.active,
             activeLabel: t("users.stats.active"),
             activeSub: isVietnamese ? "Sẵn sàng đăng nhập" : "Ready to access",
             activeRate,
+            onActiveClick: onSelectFilter ? () => onSelectFilter("active") : undefined,
             availabilityLabel: isVietnamese ? "Tỷ lệ khả dụng hệ thống" : "System availability rate",
             availabilityText: isVietnamese ? `${activeRate}% sẵn sàng` : `${activeRate}% ready`,
           }}
@@ -127,6 +134,7 @@ export function UserKpiCards({
                 : isVietnamese
                 ? "Mức độ: Cần tăng cường"
                 : "Rating: Needs improvement",
+            onClick: onSelectFilter ? () => onSelectFilter("twoFactor") : undefined,
           }}
           sentinel={{
             title: isVietnamese ? "An ninh & Truy cập" : "Security & Access",
@@ -156,6 +164,7 @@ export function UserKpiCards({
                 ? "Hệ thống an toàn"
                 : "All clear",
             isWarning: computedStats.locked > 0,
+            onClick: onSelectFilter ? () => onSelectFilter("locked") : undefined,
           }}
           loading={loading}
         />
@@ -185,6 +194,7 @@ export function UserKpiCards({
         hover
         depth="medium"
         border="subtle"
+        onClick={onSelectFilter ? () => onSelectFilter("all") : undefined}
       />
 
       {/* 2. Đang hoạt động */}
@@ -203,6 +213,7 @@ export function UserKpiCards({
         hover
         depth="medium"
         border="subtle"
+        onClick={onSelectFilter ? () => onSelectFilter("active") : undefined}
       />
 
       {/* 3. Đã kích hoạt bảo mật 2FA */}
@@ -223,6 +234,7 @@ export function UserKpiCards({
         hover
         depth="medium"
         border="subtle"
+        onClick={onSelectFilter ? () => onSelectFilter("twoFactor") : undefined}
       />
 
       {/* 4. Tài khoản bị khóa / vô hiệu hóa */}
@@ -245,6 +257,7 @@ export function UserKpiCards({
         hover
         depth="medium"
         border="subtle"
+        onClick={onSelectFilter ? () => onSelectFilter("locked") : undefined}
       />
     </section>
   );

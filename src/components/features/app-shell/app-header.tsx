@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useLocale } from "@/providers/locale-provider";
 import { ThemeToggle } from "@ui/theme-toggle";
-import { Activity, Globe2, Menu, Radio } from "lucide-react";
+import { EnglishFlag, VietnamFlag } from "@ui/flag-icons";
+import { Activity, Menu, Radio } from "lucide-react";
 
 import { NotificationBell } from "./notification-bell";
 import { SiteSelector } from "./site-selector";
@@ -220,7 +221,7 @@ export function AppHeader() {
               aria-label="Toggle language"
               title={
                 isVietnamese
-                  ? "Switch to English"
+                  ? "Chuyển sang English"
                   : "Chuyển sang tiếng Việt"
               }
               onClick={() => setLocale(isVietnamese ? "en-US" : "vi-VN")}
@@ -231,8 +232,12 @@ export function AppHeader() {
                 hover:text-foreground
               `}
             >
-              <Globe2 className="h-3.5 w-3.5 transition-transform duration-500 group-hover:rotate-[35deg]" />
-              <span>{isVietnamese ? "EN" : "VI"}</span>
+              {isVietnamese ? (
+                <VietnamFlag className="size-4 shrink-0 transition-transform duration-300 group-hover:scale-110" />
+              ) : (
+                <EnglishFlag className="size-4 shrink-0 transition-transform duration-300 group-hover:scale-110" />
+              )}
+              <span>{isVietnamese ? "VI" : "EN"}</span>
             </button>
 
             {/* Mobile: theme + language settings */}

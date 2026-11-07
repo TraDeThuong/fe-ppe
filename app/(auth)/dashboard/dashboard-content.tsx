@@ -34,7 +34,7 @@ import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
 import { useIncidents, useReviewIncident } from "@/hooks/incidents";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { useCameras } from "@/hooks/cameras";
-import { useSites } from "@/hooks/sites";
+import { useSites, useSiteZones } from "@/hooks/sites";
 import { useActiveModelVersion } from "@/hooks/ai-metrics";
 
 import { PageHeader } from "@/components/features/app-shell/page-header";
@@ -98,6 +98,8 @@ export default function DashboardContent() {
     [sites, siteId]
   );
   const siteDisplayName = currentSite?.name ?? (siteId ? `Site #${siteId.slice(0, 8)}` : null);
+
+  const { data: zonesData } = useSiteZones(siteId || "", Boolean(siteId && canViewSites));
 
   // 1. Executive Reporting Data
   const reportingFilter = useMemo(
@@ -308,6 +310,7 @@ export default function DashboardContent() {
           <DashboardKpiRibbon
             summary={summaryData}
             pendingCount={pendingCount}
+            userAssignedCount={pendingCount}
             totalCamerasCount={totalCamerasCount}
             onlineCamerasCount={onlineCamerasCount}
             loading={kpiLoading}
@@ -423,9 +426,11 @@ export default function DashboardContent() {
         <DashboardOperationalSuite
           distribution={distributionData || []}
           summary={summaryData}
-          incidents={recentIncidents}
+          incidents={pendingIncidentsData?.items?.length ? pendingIncidentsData.items : recentIncidents}
           cameras={camerasData?.items || []}
           cameraRankings={cameraRankingsData || []}
+          zones={zonesData || []}
+          onSelectCamera={(id) => router.push(`/cameras/${id}`)}
           loading={summaryLoading || distributionLoading || recentLoading || camerasLoading}
         />
       )}

@@ -45,6 +45,7 @@ export interface AuditLogQueryParams {
   page?: number;
   limit?: number;
   userId?: string;
+  category?: string;
   action?: string;
   targetType?: string;
   targetId?: string;

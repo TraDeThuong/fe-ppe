@@ -618,10 +618,12 @@ export interface BentoConsoleStatsProps {
     totalValue: React.ReactNode;
     totalLabel?: string;
     totalSub?: string;
+    onTotalClick?: () => void;
     activeValue: React.ReactNode;
     activeLabel?: string;
     activeSub?: string;
     activeRate?: number;
+    onActiveClick?: () => void;
     badgeText?: string;
     availabilityLabel?: string;
     availabilityText?: string;
@@ -636,6 +638,7 @@ export interface BentoConsoleStatsProps {
     description?: string;
     statusLabel?: string;
     statusText?: string;
+    onClick?: () => void;
   };
   sentinel: {
     title?: string;
@@ -644,6 +647,7 @@ export interface BentoConsoleStatsProps {
     description?: string;
     statusText?: string;
     isWarning?: boolean;
+    onClick?: () => void;
   };
   loading?: boolean;
   className?: string;
@@ -666,7 +670,13 @@ export function BentoConsoleStats({
       {/* MOBILE COMPACT 2x2 STATS (< md: Phone Screens) */}
       <div className="grid grid-cols-2 gap-2.5 md:hidden">
         {/* 1. Tổng người dùng */}
-        <div className="relative overflow-hidden rounded-2xl border border-white/70 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 flex flex-col justify-between">
+        <div
+          onClick={scale.onTotalClick}
+          className={cn(
+            "relative overflow-hidden rounded-2xl border border-white/70 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 flex flex-col justify-between",
+            scale.onTotalClick && "cursor-pointer active:scale-95 transition-transform"
+          )}
+        >
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20"
@@ -694,7 +704,13 @@ export function BentoConsoleStats({
         </div>
 
         {/* 2. Đang hoạt động */}
-        <div className="relative overflow-hidden rounded-2xl border border-white/70 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 flex flex-col justify-between">
+        <div
+          onClick={scale.onActiveClick}
+          className={cn(
+            "relative overflow-hidden rounded-2xl border border-white/70 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 flex flex-col justify-between",
+            scale.onActiveClick && "cursor-pointer active:scale-95 transition-transform"
+          )}
+        >
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20"
@@ -730,7 +746,13 @@ export function BentoConsoleStats({
         </div>
 
         {/* 3. Bảo mật 2FA */}
-        <div className="relative overflow-hidden rounded-2xl border border-white/70 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 flex flex-col justify-between">
+        <div
+          onClick={security.onClick}
+          className={cn(
+            "relative overflow-hidden rounded-2xl border border-white/70 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 flex flex-col justify-between",
+            security.onClick && "cursor-pointer active:scale-95 transition-transform"
+          )}
+        >
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20"
@@ -767,11 +789,13 @@ export function BentoConsoleStats({
 
         {/* 4. Tạm khóa / Cảnh báo */}
         <div
+          onClick={sentinel.onClick}
           className={cn(
             "relative overflow-hidden rounded-2xl border bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] flex flex-col justify-between",
             hasWarning
               ? "border-accent/40 bg-accent/[0.04]"
-              : "border-white/70 dark:border-white/10"
+              : "border-white/70 dark:border-white/10",
+            sentinel.onClick && "cursor-pointer active:scale-95 transition-transform"
           )}
         >
           <div
@@ -846,7 +870,10 @@ export function BentoConsoleStats({
           </div>
 
           <div className="grid grid-cols-2 gap-4 items-center py-2">
-            <div className="space-y-1">
+            <div
+              onClick={scale.onTotalClick}
+              className={cn("space-y-1", scale.onTotalClick && "cursor-pointer rounded-xl p-2 -m-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors")}
+            >
               <span className="text-xs font-bold text-muted-foreground block">
                 {scale.totalLabel ?? (isVietnamese ? "Tổng nhân sự" : "Total Personnel")}
               </span>
@@ -862,7 +889,10 @@ export function BentoConsoleStats({
               </p>
             </div>
 
-            <div className="space-y-1 border-l border-[var(--shadow-dark)]/20 pl-4 dark:border-white/10">
+            <div
+              onClick={scale.onActiveClick}
+              className={cn("space-y-1 border-l border-[var(--shadow-dark)]/20 pl-4 dark:border-white/10", scale.onActiveClick && "cursor-pointer rounded-xl p-2 -m-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors")}
+            >
               <span className="text-xs font-bold text-muted-foreground block">
                 {scale.activeLabel ?? (isVietnamese ? "Đang hoạt động" : "Active")}
               </span>
@@ -905,7 +935,13 @@ export function BentoConsoleStats({
       </div>
 
       {/* KHỐI 2 (4 CỘT): ĐỒNG HỒ TRẮC SINH BẢO MẬT 2FA (CIRCULAR DIAL) */}
-      <div className="relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-6 lg:col-span-4 flex flex-col justify-between">
+      <div
+        onClick={security.onClick}
+        className={cn(
+          "relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-6 lg:col-span-4 flex flex-col justify-between",
+          security.onClick && "cursor-pointer"
+        )}
+      >
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-8 top-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent dark:via-white/30"
@@ -992,7 +1028,13 @@ export function BentoConsoleStats({
       </div>
 
       {/* KHỐI 3 (3 CỘT): ĐÈN HẢI ĐĂNG BÁO NGUY HIỂM & KHÓA (SENTINEL BEACON) */}
-      <div className="relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-6 lg:col-span-3 flex flex-col justify-between">
+      <div
+        onClick={sentinel.onClick}
+        className={cn(
+          "relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-6 lg:col-span-3 flex flex-col justify-between",
+          sentinel.onClick && "cursor-pointer"
+        )}
+      >
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-8 top-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent dark:via-white/30"

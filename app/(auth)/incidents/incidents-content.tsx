@@ -385,6 +385,7 @@ export default function IncidentsContent() {
           onReview={handleOpenReview}
           onAssign={handleOpenAssign}
           onResolve={handleOpenResolve}
+          onDelete={handleOpenDelete}
           onFilterSite={handleSiteFilterChange}
         />
 

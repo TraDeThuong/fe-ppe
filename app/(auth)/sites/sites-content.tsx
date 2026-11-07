@@ -21,6 +21,7 @@ import {
   useDeleteSite,
   useSites,
   useUpdateSite,
+  useArchiveSite,
 } from "@/hooks/sites";
 import { useLocale } from "@/providers/locale-provider";
 import type { CreateSitePayload, SiteItem, UpdateSitePayload } from "@/types";
@@ -80,6 +81,7 @@ export default function SitesContent() {
   const createSite = useCreateSite();
   const updateSite = useUpdateSite();
   const deleteSite = useDeleteSite();
+  const archiveSite = useArchiveSite();
 
   // Modals & Drawers State
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -140,6 +142,10 @@ export default function SitesContent() {
     await deleteSite.mutateAsync({ id, name });
   };
 
+  const handleArchive = async (site: SiteItem) => {
+    await archiveSite.mutateAsync({ id: site.id, name: site.name });
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -181,6 +187,7 @@ export default function SitesContent() {
           onSafetyConfig={handleSafetyConfig}
           onEdit={handleOpenEdit}
           onDelete={handleOpenDelete}
+          onArchive={handleArchive}
           loading={isLoading}
         />
       ) : (
@@ -190,6 +197,7 @@ export default function SitesContent() {
           onSafetyConfig={handleSafetyConfig}
           onEdit={handleOpenEdit}
           onDelete={handleOpenDelete}
+          onArchive={handleArchive}
           loading={isLoading}
         />
       )}

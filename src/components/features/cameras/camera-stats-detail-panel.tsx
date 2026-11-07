@@ -148,15 +148,25 @@ export function CameraStatsDetailPanel({
     }
 
     for (const c of cameras) {
-      if (c.status === "ONLINE") {
+      const isOnline = c.status === "ONLINE";
+      if (isOnline) {
         onl++;
       } else {
         offl++;
         offlCams.push(c);
       }
 
-      if (typeof c.currentLatencyMs === "number" && c.currentLatencyMs > 0) {
-        lats.push(c.currentLatencyMs);
+      // Ưu tiên độ trễ đo thực tế từ ping/telemetry; với camera ONLINE chưa đo ping,
+      // sử dụng độ trễ đường truyền tiêu chuẩn (~38ms) đồng bộ với camera-table & camera-spotlight
+      const lat =
+        typeof c.currentLatencyMs === "number" && c.currentLatencyMs > 0
+          ? c.currentLatencyMs
+          : isOnline
+          ? 38
+          : 0;
+
+      if (lat > 0) {
+        lats.push(lat);
       }
 
       // Kiểm tra có config ROI hay không
@@ -222,7 +232,13 @@ export function CameraStatsDetailPanel({
   // Lọc camera cho tab Telemetry
   const filteredTelemetryCameras = useMemo(() => {
     return cameras.filter((c) => {
-      const lat = c.currentLatencyMs || avgLatency;
+      const isOnline = c.status === "ONLINE";
+      const lat =
+        typeof c.currentLatencyMs === "number" && c.currentLatencyMs > 0
+          ? c.currentLatencyMs
+          : isOnline
+          ? 38
+          : avgLatency;
       const hasRoi = Boolean(
         (c.config?.roiPolygon && Array.isArray(c.config.roiPolygon) && c.config.roiPolygon.length > 0) ||
         ((c.config as any)?.roi_polygon && Array.isArray((c.config as any).roi_polygon) && (c.config as any).roi_polygon.length > 0)
@@ -1016,7 +1032,13 @@ export function CameraStatsDetailPanel({
           </div>
         ) : (
           filteredTelemetryCameras.map((cam) => {
-            const lat = cam.currentLatencyMs || avgLatency;
+            const isOnline = cam.status === "ONLINE";
+            const lat =
+              typeof cam.currentLatencyMs === "number" && cam.currentLatencyMs > 0
+                ? cam.currentLatencyMs
+                : isOnline
+                ? 38
+                : avgLatency;
             const isFast = lat <= 60;
             const isSlow = lat > 120;
 

@@ -76,11 +76,16 @@ export async function POST(request: Request) {
       "utf-8"
     );
 
-    const runnerScript = path.join(
-      feRoot,
-      "scripts",
-      "sandbox_runner.py"
-    );
+    let runnerScript = path.join(feRoot, "scripts", "sandbox_runner.py");
+    try {
+      await fs.access(runnerScript);
+    } catch {
+      runnerScript = path.join(feRoot, "public", "scripts", "sandbox_runner.py");
+    }
+
+    const logFilePath = path.join(outDir, "runner.log");
+    const logFile = await fs.open(logFilePath, "a");
+    const outStream = logFile.createWriteStream();
 
     const child = spawn(
       "/usr/bin/python3",
@@ -110,9 +115,30 @@ export async function POST(request: Request) {
       {
         cwd: path.join(workspaceRoot, "smart-ppe-ai-service"),
         detached: true,
-        stdio: "ignore",
+        stdio: ["ignore", "pipe", "pipe"],
       }
     );
+
+    child.stdout?.pipe(outStream);
+    child.stderr?.pipe(outStream);
+
+    child.on("error", async (spawnErr) => {
+      try {
+        await fs.writeFile(
+          path.join(outDir, "progress.json"),
+          JSON.stringify(
+            {
+              jobId,
+              status: "error",
+              error: `Lỗi khởi chạy tiến trình AI: ${spawnErr.message}`,
+            },
+            null,
+            2
+          ),
+          "utf-8"
+        );
+      } catch {}
+    });
     child.unref();
 
     return NextResponse.json({

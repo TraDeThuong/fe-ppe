@@ -31,11 +31,21 @@ export function resolveEvidenceUrl(keyOrUrl?: string | null): string {
     return `${gatewayOrigin}${trimmed}`;
   }
 
-  // 3. Đường dẫn tĩnh trong thư mục public của Next.js (VD: /images/... hoặc images/...)
-  if (trimmed.startsWith("/images/") || trimmed.startsWith("/evidence/")) {
+  // 3. Đường dẫn tĩnh trong thư mục public của Next.js (VD: /images/..., /evidence/..., /videos/..., /data/...)
+  if (
+    trimmed.startsWith("/images/") ||
+    trimmed.startsWith("/evidence/") ||
+    trimmed.startsWith("/videos/") ||
+    trimmed.startsWith("/data/")
+  ) {
     return trimmed;
   }
-  if (trimmed.startsWith("images/") || trimmed.startsWith("evidence/")) {
+  if (
+    trimmed.startsWith("images/") ||
+    trimmed.startsWith("evidence/") ||
+    trimmed.startsWith("videos/") ||
+    trimmed.startsWith("data/")
+  ) {
     return `/${trimmed}`;
   }
 

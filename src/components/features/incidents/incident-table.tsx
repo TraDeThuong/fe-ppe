@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Building2, Camera, CheckSquare, ExternalLink, Eye, Shield, UserCheck, Video } from "lucide-react";
+import { AlertTriangle, Building2, Camera, CheckSquare, ExternalLink, Eye, Shield, Trash2, UserCheck, Video } from "lucide-react";
 import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
 import { useLocale } from "@/providers/locale-provider";
@@ -14,12 +14,21 @@ export interface IncidentTableProps {
   onReview?: (incident: IncidentItem) => void;
   onResolve?: (incident: IncidentItem) => void;
   onAssign?: (incident: IncidentItem) => void;
+  onDelete?: (incident: IncidentItem) => void;
   onFilterSite?: (siteId: string) => void;
   loading?: boolean;
   highlightedId?: string | null;
 }
 
 export function getIncidentEvidenceUrl(incident: IncidentItem): string {
+  if (typeof window !== "undefined") {
+    const cachedByIncident = sessionStorage.getItem(`ppe_incident_evidence_${incident.id}`);
+    if (cachedByIncident) return resolveEvidenceUrl(cachedByIncident);
+    if (incident.cameraId) {
+      const cachedByCamera = sessionStorage.getItem(`ppe_camera_evidence_${incident.cameraId}`);
+      if (cachedByCamera) return resolveEvidenceUrl(cachedByCamera);
+    }
+  }
   if (incident.snapshotUrl) return resolveEvidenceUrl(incident.snapshotUrl);
   const ev =
     incident.evidences?.find((e) => e.evidenceType === EVIDENCE_TYPE.SNAPSHOT) ||
@@ -28,16 +37,7 @@ export function getIncidentEvidenceUrl(incident: IncidentItem): string {
   if (ev?.storageKey) {
     return resolveEvidenceUrl(ev.storageKey);
   }
-  if (incident.violationType === "NO_HELMET") {
-    return "/images/evidence/camera-01a18735_16ee47ac_f76.jpg";
-  }
-  if (incident.violationType === "NO_VEST") {
-    return "/images/camera-01a18735-evidence.jpg";
-  }
-  if (incident.violationType === "RESTRICTED_AREA" || incident.violationType === "MULTI_VIOLATION") {
-    return "/images/evidence/video8_ea579346_f91.jpg";
-  }
-  return "/images/camera-live-evidence.jpg";
+  return "";
 }
 
 export function IncidentTable({
@@ -45,6 +45,7 @@ export function IncidentTable({
   onReview,
   onResolve,
   onAssign,
+  onDelete,
   onFilterSite,
   loading = false,
   highlightedId,
@@ -135,11 +136,8 @@ export function IncidentTable({
                     className="h-full w-full object-cover"
                     onError={(e) => {
                       const target = e.currentTarget;
-                      if (!target.src.includes("/images/evidence/")) {
-                        target.src =
-                          incident.violationType === "NO_HELMET"
-                            ? "/images/evidence/camera-01a18735_16ee47ac_f76.jpg"
-                            : "/images/camera-01a18735-evidence.jpg";
+                      if (!target.src.includes("/images/camera-live-evidence.jpg")) {
+                        target.src = "/images/camera-live-evidence.jpg";
                       } else {
                         target.style.display = "none";
                       }
@@ -232,6 +230,17 @@ export function IncidentTable({
                       <Shield className="h-3.5 w-3.5" />
                     </button>
                   )}
+
+                  {onDelete && (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(incident)}
+                      className="flex size-7 items-center justify-center rounded-lg border border-rose-500/30 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 transition"
+                      title={t("incidents.actions.delete")}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -283,11 +292,8 @@ export function IncidentTable({
                           className="h-full w-full object-cover"
                           onError={(e) => {
                             const target = e.currentTarget;
-                            if (!target.src.includes("/images/evidence/")) {
-                              target.src =
-                                incident.violationType === "NO_HELMET"
-                                  ? "/images/evidence/camera-01a18735_16ee47ac_f76.jpg"
-                                  : "/images/camera-01a18735-evidence.jpg";
+                            if (!target.src.includes("/images/camera-live-evidence.jpg")) {
+                              target.src = "/images/camera-live-evidence.jpg";
                             } else {
                               target.style.display = "none";
                             }
@@ -454,6 +460,17 @@ export function IncidentTable({
                           className="rounded-lg p-1.5 text-emerald-500 hover:bg-emerald-500/10 transition"
                         >
                           <Shield className="h-4 w-4" />
+                        </button>
+                      )}
+
+                      {onDelete && (
+                        <button
+                          type="button"
+                          onClick={() => onDelete(incident)}
+                          title={t("incidents.actions.delete")}
+                          className="rounded-lg p-1.5 text-rose-500 hover:bg-rose-500/10 transition"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       )}
                     </div>

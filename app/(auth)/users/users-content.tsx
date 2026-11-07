@@ -5,21 +5,42 @@ import { Users, UserPlus } from "lucide-react";
 import { Button } from "@ui/button";
 
 import { PageHeader } from "@/components/features/app-shell/page-header";
-import { UserKpiCards, UserTable, CreateUserModal } from "@/components/features/users";
+import { UserKpiCards, UserTable } from "@/components/features/users";
 import { useAuth } from "@/contexts/AuthContext";
-import { useUsers } from "@/hooks/users";
+import { useUsers, useUserSummary } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
 
 export default function UsersContent() {
   const { t } = useLocale();
   const { user } = useAuth();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [twoFactorFilter, setTwoFactorFilter] = useState<string>("all");
 
-  // Hook lấy số lượng thống kê người dùng cho Bento Console
-  const { data: usersData, isLoading: isLoadingKpi } = useUsers({
+  // Hook lấy số lượng thống kê người dùng tổng quan toàn hệ thống
+  const { data: summaryData, isLoading: isLoadingSummary } = useUserSummary();
+
+  // Fallback pagination query nếu summary chưa có
+  const { data: usersData, isLoading: isLoadingUsers } = useUsers({
     page: 1,
-    limit: 50,
+    limit: 10,
   });
+
+  const handleSelectKpiFilter = (type: "all" | "active" | "twoFactor" | "locked") => {
+    if (type === "all") {
+      setStatusFilter("all");
+      setTwoFactorFilter("all");
+    } else if (type === "active") {
+      setStatusFilter((prev) => (prev === "active" ? "all" : "active"));
+      setTwoFactorFilter("all");
+    } else if (type === "locked") {
+      setStatusFilter((prev) => (prev === "inactive" ? "all" : "inactive"));
+      setTwoFactorFilter("all");
+    } else if (type === "twoFactor") {
+      setStatusFilter("all");
+      setTwoFactorFilter((prev) => (prev === "enabled" ? "all" : "enabled"));
+    }
+  };
 
   const canCreateUser = useMemo(() => {
     return user?.role === "ADMIN" || user?.permissions?.includes("USER_CREATE");
@@ -58,20 +79,24 @@ export default function UsersContent() {
         actions={headerActions}
       />
 
-      {/* 2. User KPI Stats (Dòng 4: Bố cục Bento Console Bất Đối Xứng) */}
+      {/* 2. User KPI Stats (Dòng 4: Bố cục Bento Console Bất Đối Xứng - Kết nối bộ lọc) */}
       <UserKpiCards
+        stats={summaryData}
         users={usersData?.data ?? []}
-        totalCount={usersData?.meta?.total}
-        loading={isLoadingKpi}
+        totalCount={summaryData?.total ?? usersData?.meta?.total}
+        loading={isLoadingSummary || isLoadingUsers}
+        onSelectFilter={handleSelectKpiFilter}
       />
 
-      {/* 3. Neumorphic Data Table với đầy đủ tính năng */}
-      <UserTable variant="soft" />
-
-      {/* Modal Thêm Người Dùng kích hoạt từ Header Action */}
-      <CreateUserModal
-        open={isCreateOpen}
-        onOpenChange={setIsCreateOpen}
+      {/* 3. Neumorphic Data Table với đầy đủ tính năng & liên kết bộ lọc */}
+      <UserTable
+        variant="soft"
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        twoFactorFilter={twoFactorFilter}
+        onTwoFactorFilterChange={setTwoFactorFilter}
+        isCreateOpen={isCreateOpen}
+        onOpenCreateChange={setIsCreateOpen}
       />
     </div>
   );

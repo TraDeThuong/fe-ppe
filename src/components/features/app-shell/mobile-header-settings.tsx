@@ -4,7 +4,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocale } from "@/providers/locale-provider";
 import { ThemeToggle } from "@ui/theme-toggle";
-import { Globe2, Settings2, ChevronRight } from "lucide-react";
+import { EnglishFlag, VietnamFlag } from "@ui/flag-icons";
+import { Settings2, ChevronRight } from "lucide-react";
 
 export function MobileHeaderSettings() {
   const [isOpen, setIsOpen] = useState(false);
@@ -127,7 +128,11 @@ export function MobileHeaderSettings() {
             "
           >
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-background text-muted-foreground shadow-[2px_2px_4px_color-mix(in_srgb,var(--shadow-dark)_16%,transparent),-2px_-2px_4px_color-mix(in_srgb,var(--shadow-light)_65%,transparent)]">
-              <Globe2 className="h-4 w-4" />
+              {isVietnamese ? (
+                <VietnamFlag className="size-5 shrink-0" />
+              ) : (
+                <EnglishFlag className="size-5 shrink-0" />
+              )}
             </div>
 
             <div className="min-w-0 flex-1">

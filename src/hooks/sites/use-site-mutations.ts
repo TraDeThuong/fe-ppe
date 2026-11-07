@@ -59,3 +59,22 @@ export function useDeleteSite() {
     },
   });
 }
+
+export function useArchiveSite() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name?: string }) =>
+      siteService.archiveSite(id),
+    onSuccess: (_, { name }) => {
+      queryClient.invalidateQueries({ queryKey: siteKeys.all });
+      toast.success(
+        name ? `Đã lưu trữ công trường "${name}" thành công.` : "Đã lưu trữ công trường thành công.",
+      );
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Không thể lưu trữ công trường.";
+      toast.error(msg);
+    },
+  });
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Building2, Edit2, Layers, Shield, Trash2 } from "lucide-react";
+import { Archive, Building2, Edit2, Layers, Shield, Trash2 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 import type { SiteItem } from "@/types";
 
@@ -11,6 +11,7 @@ export interface SiteTableProps {
   onSafetyConfig: (site: SiteItem) => void;
   onEdit: (site: SiteItem) => void;
   onDelete: (site: SiteItem) => void;
+  onArchive?: (site: SiteItem) => void;
   loading?: boolean;
 }
 
@@ -20,10 +21,12 @@ export function SiteTable({
   onSafetyConfig,
   onEdit,
   onDelete,
+  onArchive,
   loading = false,
 }: SiteTableProps) {
   const router = useRouter();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   if (loading) {
     return (
@@ -159,6 +162,17 @@ export function SiteTable({
                     >
                       <Edit2 className="h-4 w-4" />
                     </button>
+
+                    {onArchive && (
+                      <button
+                        type="button"
+                        onClick={() => onArchive(site)}
+                        title={isVietnamese ? "Lưu trữ công trường" : "Archive site"}
+                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-amber-500 transition"
+                      >
+                        <Archive className="h-4 w-4" />
+                      </button>
+                    )}
 
                     <button
                       type="button"
