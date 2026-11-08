@@ -40,6 +40,14 @@ describe("IncidentAlertToast & Evidence URL Normalizer", () => {
       assert.strictEqual(resolveEvidenceUrl(url), url);
     });
 
+    it("rewrites Docker internal ppe-minio host to localhost for browser compatibility", () => {
+      const dockerUrl = "http://ppe-minio:9000/ppe-evidences/camera1/snap.jpg";
+      assert.strictEqual(
+        resolveEvidenceUrl(dockerUrl),
+        "http://localhost:9000/ppe-evidences/camera1/snap.jpg"
+      );
+    });
+
     it("prefixes relative /api/ URLs with the Gateway host", () => {
       const relative = "/api/v1/incidents/evidences/ev-123/download";
       const resolved = resolveEvidenceUrl(relative);

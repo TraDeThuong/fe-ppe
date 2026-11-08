@@ -15,7 +15,12 @@ export function resolveEvidenceUrl(keyOrUrl?: string | null): string {
   const trimmed = keyOrUrl.trim();
   if (!trimmed) return "";
 
-  // 1. URL tuyệt đối hoặc base64 / blob
+  // 1. URL chứa hostname nội bộ Docker (ppe-minio:9000) -> Chuyển thành localhost cho trình duyệt
+  if (trimmed.includes("ppe-minio:9000")) {
+    return trimmed.replace(/http:\/\/ppe-minio:9000/g, "http://localhost:9000");
+  }
+
+  // 1b. URL tuyệt đối hoặc base64 / blob
   if (
     trimmed.startsWith("http://") ||
     trimmed.startsWith("https://") ||

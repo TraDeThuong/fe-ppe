@@ -109,7 +109,7 @@ export function UserKpiCards({
             activeLabel: t("users.stats.active"),
             activeSub: isVietnamese ? "Sẵn sàng đăng nhập" : "Ready to access",
             activeRate,
-            onActiveClick: undefined,
+            onActiveClick: onSelectFilter ? () => onSelectFilter("active") : undefined,
             availabilityLabel: isVietnamese ? "Tỷ lệ khả dụng hệ thống" : "System availability rate",
             availabilityText: isVietnamese ? `${activeRate}% sẵn sàng` : `${activeRate}% ready`,
           }}
@@ -134,7 +134,7 @@ export function UserKpiCards({
                 : isVietnamese
                 ? "Mức độ: Cần tăng cường"
                 : "Rating: Needs improvement",
-            onClick: undefined,
+            onClick: onSelectFilter ? () => onSelectFilter("twoFactor") : undefined,
           }}
           sentinel={{
             title: isVietnamese ? "An ninh & Truy cập" : "Security & Access",
@@ -164,7 +164,7 @@ export function UserKpiCards({
                 ? "Hệ thống an toàn"
                 : "All clear",
             isWarning: computedStats.locked > 0,
-            onClick: undefined,
+            onClick: onSelectFilter ? () => onSelectFilter("locked") : undefined,
           }}
           loading={loading}
         />
@@ -213,7 +213,7 @@ export function UserKpiCards({
         hover
         depth="medium"
         border="subtle"
-        onClick={undefined}
+        onClick={onSelectFilter ? () => onSelectFilter("active") : undefined}
       />
 
       {/* 3. Đã kích hoạt bảo mật 2FA */}
@@ -234,7 +234,7 @@ export function UserKpiCards({
         hover
         depth="medium"
         border="subtle"
-        onClick={undefined}
+        onClick={onSelectFilter ? () => onSelectFilter("twoFactor") : undefined}
       />
 
       {/* 4. Tài khoản bị khóa / vô hiệu hóa */}
@@ -257,7 +257,7 @@ export function UserKpiCards({
         hover
         depth="medium"
         border="subtle"
-        onClick={undefined}
+        onClick={onSelectFilter ? () => onSelectFilter("locked") : undefined}
       />
     </section>
   );
