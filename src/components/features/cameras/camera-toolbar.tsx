@@ -14,7 +14,8 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useSites, useSiteZones } from "@/hooks/sites";
+import { useSitesCatalog, useSiteZones } from "@/hooks/sites";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 
 export interface CameraToolbarProps {
@@ -57,10 +58,11 @@ export function CameraToolbar({
   isRefreshing = false,
 }: CameraToolbarProps) {
   const { t, locale } = useLocale();
+  const canCreate = useCan()("PPE_CAMERA_MANAGE");
   const isVietnamese = locale === "vi-VN";
 
-  const { data: sitesData } = useSites();
-  const sites = sitesData?.items || [];
+  const { data: sitesData } = useSitesCatalog();
+  const sites = sitesData || [];
 
   const { data: zonesData = [] } = useSiteZones(
     siteFilter,
@@ -224,7 +226,7 @@ export function CameraToolbar({
           )}
 
           {/* Create Camera */}
-          <Button
+          {canCreate ? <Button
             variant="primary"
             onClick={onCreateCamera}
             className="h-10 shrink-0 gap-2 rounded-xl px-4 shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all hover:-translate-y-0.5 hover:shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)] active:translate-y-0"
@@ -233,7 +235,7 @@ export function CameraToolbar({
             <span className="text-xs font-bold">
               {t("cameras.toolbar.createCamera")}
             </span>
-          </Button>
+          </Button> : null}
         </div>
       </div>
 

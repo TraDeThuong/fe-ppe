@@ -10,18 +10,14 @@ import {
   ChevronRight,
   ExternalLink,
   Eye,
-  Filter,
   HardHat,
   Inbox,
-  Mail,
   Radio,
-  RefreshCw,
   ShieldAlert,
   SlidersHorizontal,
   Volume2,
   VolumeX,
   X,
-  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -622,8 +618,8 @@ export function NotificationStatsDetailPanel({
           <div className="flex flex-wrap items-center justify-between gap-1.5 rounded-xl border border-border/30 bg-background/40 px-3 py-2 text-[11px] text-muted-foreground">
             <span className="text-[10px]">
               {isVietnamese
-                ? "💡 Mẹo: Có thể tùy chỉnh âm thanh và ngưỡng lọc cảnh báo trong tab Cài đặt nhận tin."
-                : "💡 Tip: Adjust sound presets and alert fatigue thresholds under Preferences tab."}
+                ? "Mẹo: Có thể tùy chỉnh âm thanh và ngưỡng lọc cảnh báo trong tab Cài đặt nhận tin."
+                : "Tip: Adjust sound presets and alert fatigue thresholds under Preferences tab."}
             </span>
             {onOpenPreferences && (
               <button

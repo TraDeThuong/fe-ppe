@@ -1,7 +1,7 @@
 
 "use client";
 
-import { KeyRound, ShieldCheck } from "lucide-react";
+import { KeyRound } from "lucide-react";
 
 import { ChangePasswordForm } from "@/components/features/auth/forms/change-password-form";
 
@@ -38,10 +38,6 @@ export function PasswordPanel() {
 
         {/* Security note */}
         <div className="mt-4 flex items-center justify-center gap-2 text-center">
-          <ShieldCheck
-            className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
-            aria-hidden="true"
-          />
           <p className="text-[10px] leading-4 text-muted-foreground">
             Your password is protected by secure authentication.
           </p>

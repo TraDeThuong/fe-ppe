@@ -94,14 +94,8 @@ export function FileUpload({
 }: FileUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const nextId = useRef(0);
-
-  let isVietnamese = true;
-  try {
-    const localeCtx = useLocale();
-    isVietnamese = localeCtx.locale === "vi-VN";
-  } catch {
-    // fallback if outside LocaleProvider
-  }
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);

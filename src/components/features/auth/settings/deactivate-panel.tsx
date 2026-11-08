@@ -5,15 +5,12 @@ import { useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertTriangle,
-  ArrowRight,
-  Check,
   Clock3,
   Fingerprint,
   Loader2,
   MailCheck,
   ShieldAlert,
   ShieldCheck,
-  Sparkles,
   UserRoundX,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
@@ -166,10 +163,6 @@ export function DeactivatePanel() {
                 aria-hidden="true"
               />
             </div>
-
-            <span className="absolute right-1 top-1 flex size-7 items-center justify-center rounded-full border-2 border-background bg-emerald-500 text-white shadow-md">
-              <Check className="size-3.5" aria-hidden="true" />
-            </span>
           </div>
 
           <div className="space-y-2">
@@ -224,9 +217,6 @@ export function DeactivatePanel() {
               strokeWidth={1.8}
               aria-hidden="true"
             />
-            <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full border-2 border-background bg-danger text-white shadow-sm">
-              <AlertTriangle className="size-2.5" />
-            </span>
           </div>
 
           <div className="min-w-0 flex-1 pt-0.5">
@@ -315,7 +305,6 @@ export function DeactivatePanel() {
             />
           </FormField>
           <p className="mt-2 flex items-center gap-1.5 text-[10px] leading-4 text-muted-foreground">
-            <ShieldCheck className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
             Your password is used only to verify your identity.
           </p>
         </div>
@@ -416,28 +405,16 @@ export function DeactivatePanel() {
                     aria-hidden="true"
                   />
                   {t("security.deactivate.submit")}
-                  <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </>
               )}
             </span>
           </Button>
 
           <p className="flex items-center justify-center gap-1.5 text-center text-[10px] leading-4 text-muted-foreground">
-            <ShieldCheck className="size-3.5 shrink-0" />
             Protected by your account security verification
           </p>
         </div>
       </form>
-
-      {/* Decorative detail */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute bottom-0 right-0 size-24 overflow-hidden opacity-30"
-      >
-        <div className="absolute -bottom-10 -right-10 size-24 rounded-full border border-danger/20" />
-        <div className="absolute -bottom-6 -right-6 size-16 rounded-full border border-danger/15" />
-        <Sparkles className="absolute bottom-4 right-4 size-3 text-danger/50" />
-      </div>
     </section>
   );
 }

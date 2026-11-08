@@ -2,6 +2,7 @@
 
 import { LayoutGrid, List, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 
 export interface SiteToolbarProps {
@@ -24,6 +25,7 @@ export function SiteToolbar({
   onCreateSite,
 }: SiteToolbarProps) {
   const { t } = useLocale();
+  const canCreate = useCan()("PPE_SITE_MANAGE");
 
   return (
     <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -50,7 +52,8 @@ export function SiteToolbar({
           <option value="">{t("sites.toolbar.allStatuses")}</option>
           <option value="ACTIVE">{t("sites.status.active")}</option>
           <option value="INACTIVE">{t("sites.status.inactive")}</option>
-          <option value="SUSPENDED">{t("sites.status.suspended")}</option>
+          <option value="COMPLETED">{t("sites.status.completed")}</option>
+          <option value="ARCHIVED">{t("sites.status.archived")}</option>
         </select>
       </div>
 
@@ -84,7 +87,7 @@ export function SiteToolbar({
           </button>
         </div>
 
-        <Button
+        {canCreate ? <Button
           variant="primary"
           onClick={onCreateSite}
           className="flex items-center justify-center gap-1 sm:gap-1.5 rounded-xl h-7 sm:h-8 text-[11px] sm:text-xs px-2.5 sm:px-3"
@@ -92,7 +95,7 @@ export function SiteToolbar({
           <Plus className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{t("sites.toolbar.createSite")}</span>
           <span className="sm:hidden">{t("sites.toolbar.createSiteShort")}</span>
-        </Button>
+        </Button> : null}
       </div>
     </div>
   );

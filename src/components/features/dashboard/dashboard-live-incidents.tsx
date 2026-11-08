@@ -23,6 +23,8 @@ import type { IncidentItem, IncidentSeverity, IncidentStatus, ViolationType } fr
 export interface DashboardLiveIncidentsProps {
   incidents: IncidentItem[];
   loading?: boolean;
+  error?: boolean;
+  viewAllHref?: string;
   highlightedId?: string | null;
   onReview?: (incident: IncidentItem) => void;
   canReview?: boolean;
@@ -65,6 +67,8 @@ function formatRelativeTime(dateStr: string, isVietnamese: boolean): string {
 export function DashboardLiveIncidents({
   incidents,
   loading = false,
+  error = false,
+  viewAllHref = "/incidents",
   highlightedId,
   onReview,
   canReview = true,
@@ -102,7 +106,7 @@ export function DashboardLiveIncidents({
           </div>
 
           <Link
-            href="/incidents"
+            href={viewAllHref}
             className="flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
           >
             <span>{t("dashboard.liveIncidents.viewAll")}</span>
@@ -121,7 +125,7 @@ export function DashboardLiveIncidents({
                 />
               ))}
             </div>
-          ) : incidents.length === 0 ? (
+          ) : error ? <p className="py-10 text-center text-sm text-muted-foreground">{t("dashboard.data.error")}</p> : incidents.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/10 text-success mb-2 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
                 <CheckCircle2 className="h-6 w-6" />
@@ -131,8 +135,8 @@ export function DashboardLiveIncidents({
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {isVietnamese
-                  ? "Môi trường công trường hiện tại đang tuân thủ an toàn tốt."
-                  : "All monitored areas are currently compliant."}
+                  ? "Chưa ghi nhận sự cố trong danh sách hiện tại."
+                  : "No incidents recorded in the current list."}
               </p>
             </div>
           ) : (
@@ -242,11 +246,11 @@ export function DashboardLiveIncidents({
       <div className="mt-4 pt-3 border-t border-border/30 flex items-center justify-between text-[11px] text-muted-foreground">
         <span>
           {isVietnamese
-            ? "Tự động phân tích vi phạm bằng YOLO11 qua RTSP Edge"
-            : "Automatic violation analysis via Edge YOLO11 RTSP"}
+            ? "Nguồn: hồ sơ sự cố · kiểm tra tự động mỗi 15 giây"
+            : "Source: incident records · checked every 15 seconds"}
         </span>
         <span className="font-mono text-xs text-primary font-semibold">
-          Kafka: ppe.violation.detected
+          {isVietnamese ? "Mọi ngày" : "All dates"}
         </span>
       </div>
     </div>

@@ -5,12 +5,11 @@ import { useState } from "react";
 import {
   Laptop,
   Loader2,
-  MapPin,
   ShieldAlert,
   ShieldCheck,
-  Clock3,
   MonitorSmartphone,
   Fingerprint,
+  ChevronLeft,
   ChevronRight,
   Globe2,
   LockKeyhole,
@@ -23,6 +22,8 @@ import {
   useSessions,
 } from "@/hooks/auth";
 import { useLocale } from "@/providers/locale-provider";
+
+const SESSIONS_PER_PAGE = 5;
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("vi-VN", {
@@ -42,6 +43,13 @@ export function SessionsPanel() {
 
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [confirmRevokeAll, setConfirmRevokeAll] = useState(false);
+  const [page, setPage] = useState(1);
+
+  function handlePageChange(nextPage: number) {
+    setPage(nextPage);
+    setConfirmId(null);
+    setConfirmRevokeAll(false);
+  }
 
   function handleRevoke(id: string) {
     if (confirmId === id) {
@@ -101,6 +109,18 @@ export function SessionsPanel() {
 
   const otherSessions = sessions.data.filter((session) => !session.isCurrent);
   const currentSession = sessions.data.find((session) => session.isCurrent);
+  const pageCount = Math.ceil(sessions.data.length / SESSIONS_PER_PAGE);
+  const currentPage = Math.min(page, pageCount);
+  const startIndex = (currentPage - 1) * SESSIONS_PER_PAGE;
+  const visibleSessions = sessions.data.slice(
+    startIndex,
+    startIndex + SESSIONS_PER_PAGE,
+  );
+
+  // Keep the selected page valid when revoking sessions removes the last page.
+  if (page !== currentPage) {
+    setPage(currentPage);
+  }
 
   return (
     <div data-testid="sessions-panel" className="flex w-full flex-col gap-5">
@@ -113,9 +133,6 @@ export function SessionsPanel() {
           <div className="flex items-center gap-4">
             <div className="relative flex size-14 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-transparent shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
               <Fingerprint className="size-7 text-primary" strokeWidth={1.7} />
-              <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border-2 border-background bg-emerald-500 text-white shadow-sm">
-                <ShieldCheck className="size-3" strokeWidth={2.5} />
-              </span>
             </div>
 
             <div className="min-w-0">
@@ -186,13 +203,10 @@ export function SessionsPanel() {
               {sessions.data.length === 1 ? "" : "s"} connected to your account
             </p>
           </div>
-          <div className="flex size-9 items-center justify-center rounded-xl border border-border/30 bg-transparent text-muted-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
-            <Laptop className="size-4" />
-          </div>
         </div>
 
-        <ul className="flex flex-col gap-3">
-          {sessions.data.map((session, index) => {
+        <ul id="security-sessions-list" className="flex flex-col gap-3">
+          {visibleSessions.map((session, index) => {
             const isCurrent = session.isCurrent;
             const pendingConfirm = confirmId === session.id;
 
@@ -253,13 +267,11 @@ export function SessionsPanel() {
                         )}
                       </div>
 
-                      <div className="mt-2 flex flex-col gap-1.5">
+                      <div className="mt-2 flex flex-col gap-1">
                         <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                          <MapPin className="size-3.5 shrink-0 text-primary/70" />
                           <span className="truncate">{session.ipAddress}</span>
                         </p>
                         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <Clock3 className="size-3.5 shrink-0" />
                           <span>{formatDate(session.createdAt)}</span>
                         </p>
                       </div>
@@ -292,10 +304,7 @@ export function SessionsPanel() {
                             {t("security.sessions.revokeConfirm")}
                           </>
                         ) : (
-                          <>
-                            {t("security.sessions.revoke")}
-                            <ChevronRight className="ml-1 size-3.5 transition-transform group-hover:translate-x-0.5" />
-                          </>
+                          t("security.sessions.revoke")
                         )}
                       </Button>
                     </div>
@@ -315,6 +324,60 @@ export function SessionsPanel() {
             );
           })}
         </ul>
+
+        {pageCount > 1 && (
+          <nav
+            aria-label={t("security.sessions.pagination.label")}
+            data-testid="sessions-pagination"
+            className="mt-1 flex flex-col gap-3 rounded-2xl border border-border/30 bg-transparent p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4"
+          >
+            <p className="text-xs text-muted-foreground" aria-live="polite">
+              {t("security.sessions.pagination.showing", {
+                from: startIndex + 1,
+                to: startIndex + visibleSessions.length,
+                total: sessions.data.length,
+              })}
+            </p>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
+              <span
+                className="whitespace-nowrap text-xs font-semibold tabular-nums text-primary"
+                aria-live="polite"
+              >
+                {t("security.sessions.pagination.page", {
+                  page: currentPage,
+                  total: pageCount,
+                })}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border border-border/30"
+                  aria-label={t("security.sessions.pagination.previous")}
+                  aria-controls="security-sessions-list"
+                  disabled={currentPage === 1}
+                  onClick={() => handlePageChange(currentPage - 1)}
+                >
+                  <ChevronLeft className="size-4" aria-hidden="true" />
+                  {t("security.sessions.pagination.previous")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border border-border/30"
+                  aria-label={t("security.sessions.pagination.next")}
+                  aria-controls="security-sessions-list"
+                  disabled={currentPage === pageCount}
+                  onClick={() => handlePageChange(currentPage + 1)}
+                >
+                  {t("security.sessions.pagination.next")}
+                  <ChevronRight className="size-4" aria-hidden="true" />
+                </Button>
+              </div>
+            </div>
+          </nav>
+        )}
       </section>
 
       {/* Revoke other sessions */}

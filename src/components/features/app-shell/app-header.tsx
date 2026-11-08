@@ -179,10 +179,6 @@ export function AppHeader() {
                 )}
               </span>
 
-              <span className="hidden text-[10px] font-extrabold tracking-[0.16em] xl:inline">
-                {isConnected ? "LIVE" : "OFFLINE"}
-              </span>
-
               <span
                 aria-hidden="true"
                 className={`

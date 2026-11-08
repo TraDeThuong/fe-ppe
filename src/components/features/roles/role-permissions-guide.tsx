@@ -4,25 +4,42 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
+  Bell,
   BookOpen,
+  Cctv,
   CheckCircle2,
+  Cpu,
   ExternalLink,
   Lock,
   Search,
+  Settings2,
   Shield,
   ShieldAlert,
   ShieldCheck,
+  Users,
+  Webhook,
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/providers/locale-provider";
 import type { PermissionDto, RoleDto, ResourceCategory } from "@/types";
-import { RESOURCE_CATEGORY_MAP } from "@/types";
+import { RESOURCE_CATEGORY_ORDER, getPermissionCategory } from "@/types";
 import {
   getRoleKnowledgeProfile,
   type RoleKnowledgeProfile,
 } from "./role-guide-data";
+
+const CATEGORY_ICONS: Record<ResourceCategory, typeof Shield> = {
+  INCIDENTS_SAFETY: ShieldAlert,
+  SITES_CAMERAS: Cctv,
+  ANALYTICS_AI: Cpu,
+  USER_MANAGEMENT: Users,
+  RBAC_SECURITY: ShieldCheck,
+  NOTIFICATIONS: Bell,
+  WEBHOOK: Webhook,
+  SYSTEM_OPS: Settings2,
+};
 
 export interface RolePermissionsGuideProps {
   roles: RoleDto[];
@@ -76,28 +93,36 @@ export function RolePermissionsGuide({
     return getRoleKnowledgeProfile(currentRole, locale);
   }, [currentRole, locale]);
 
-  // Phân loại quyền kỹ thuật của vai trò theo 4 nhóm
+  // Phân loại quyền kỹ thuật của vai trò theo 8 nhóm nghiệp vụ
   const categorizedPermissions = useMemo(() => {
-    if (!currentRole?.permissions) return {};
-    const groups: Record<string, PermissionDto[]> = {
-      MONITORING: [],
-      ANALYTICS: [],
-      IDENTITY: [],
-      SYSTEM: [],
-    };
+    const groups = Object.fromEntries(
+      RESOURCE_CATEGORY_ORDER.map((cat) => [cat, [] as PermissionDto[]]),
+    ) as Record<ResourceCategory, PermissionDto[]>;
+
+    if (!currentRole?.permissions) return groups;
 
     currentRole.permissions.forEach((p) => {
-      const cat = (RESOURCE_CATEGORY_MAP[p.resource as keyof typeof RESOURCE_CATEGORY_MAP] ||
-        "SYSTEM") as ResourceCategory;
-      if (groups[cat]) {
-        groups[cat].push(p);
-      } else {
-        groups.SYSTEM.push(p);
-      }
+      const cat = getPermissionCategory(p);
+      const target = groups[cat] ?? groups.SYSTEM_OPS;
+      target.push(p);
     });
 
     return groups;
   }, [currentRole]);
+
+  // Tổng số quyền mỗi nhóm trên toàn hệ thống để hiển thị tỷ lệ X/Y
+  const totalPerCategory = useMemo(() => {
+    const counts = Object.fromEntries(
+      RESOURCE_CATEGORY_ORDER.map((cat) => [cat, 0]),
+    ) as Record<ResourceCategory, number>;
+
+    allPermissions.forEach((p) => {
+      const cat = getPermissionCategory(p);
+      counts[cat] = (counts[cat] ?? 0) + 1;
+    });
+
+    return counts;
+  }, [allPermissions]);
 
   return (
     <div className="space-y-3 sm:space-y-4">
@@ -414,18 +439,26 @@ export function RolePermissionsGuide({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {Object.entries(categorizedPermissions).map(([catKey, perms]) => {
+                  {RESOURCE_CATEGORY_ORDER.map((catKey) => {
+                    const perms = categorizedPermissions[catKey] ?? [];
                     if (perms.length === 0) return null;
+                    const CategoryIcon = CATEGORY_ICONS[catKey] || Shield;
+                    const totalInCat = totalPerCategory[catKey] || perms.length;
 
                     return (
                       <div
                         key={catKey}
                         className="rounded-xl border border-border/40 bg-background/50 p-3 shadow-[inset_1px_1px_2px_var(--shadow-dark)] space-y-2"
                       >
-                        <div className="flex items-center justify-between text-xs font-bold text-foreground">
-                          <span>{t(`rbac.category.${catKey}`)}</span>
-                          <span className="font-mono text-[11px] text-primary">
-                            {perms.length} {locale === "en-US" ? "endpoints" : "mã"}
+                        <div className="flex items-center justify-between gap-2 text-xs font-bold text-foreground">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                              <CategoryIcon className="h-3.5 w-3.5" />
+                            </span>
+                            <span className="truncate">{t(`rbac.category.${catKey}`)}</span>
+                          </div>
+                          <span className="font-mono text-[11px] text-primary shrink-0">
+                            {perms.length}/{totalInCat} {locale === "en-US" ? "endpoints" : "mã"}
                           </span>
                         </div>
 

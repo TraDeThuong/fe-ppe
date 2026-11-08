@@ -33,15 +33,9 @@ export function TableBulkActions({
   selectionLabel,
   clearSelectionLabel,
 }: TableBulkActionsProps) {
-  const { table } = useTableContext();
-
-  let isVietnamese = true;
-  try {
-    const localeCtx = useLocale();
-    isVietnamese = localeCtx.locale === "vi-VN";
-  } catch {
-    // fallback if outside LocaleProvider
-  }
+  const { table, features } = useTableContext();
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const effectiveSelectionLabel =
     selectionLabel ?? (isVietnamese ? "dòng đang chọn" : "rows selected");
@@ -54,7 +48,7 @@ export function TableBulkActions({
   const clearSelection =
     onClearSelection ?? (() => table.resetRowSelection());
 
-  if (resolvedCount === 0) return null;
+  if (features.rowSelection === false || resolvedCount === 0) return null;
 
   return (
     <div

@@ -51,7 +51,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {isMaintenanceActive && isBypassed && <MaintenanceAdminBanner />}
         <AppHeader />
 
-        <main className="relative z-10 flex-1 overflow-y-auto bg-background p-3 sm:p-6 lg:p-8">
+        <main
+          data-page-scroll
+          className="relative z-10 flex-1 overflow-y-auto bg-background p-3 sm:p-6 lg:p-8"
+        >
           {forbidden ? <ForbiddenView /> : children}
         </main>
       </div>

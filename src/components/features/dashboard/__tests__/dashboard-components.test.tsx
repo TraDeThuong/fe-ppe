@@ -18,6 +18,7 @@ import {
   DashboardSeveritySlaChart,
   DashboardZoneRiskChart,
 } from "../index";
+import { aggregateDashboard } from "@/lib/dashboard-data";
 import type { AuthUser, IncidentItem } from "@/types";
 
 function renderWithProviders(element: React.ReactElement) {
@@ -42,7 +43,11 @@ const MOCK_USER: AuthUser = {
   fullName: "Nguyễn Văn An",
   role: "SAFETY_MANAGER",
   roleId: "role-1",
-  permissions: ["PPE_REPORTING_READ", "PPE_INCIDENT_READ", "PPE_INCIDENT_REVIEW"],
+  permissions: [
+    "PPE_REPORTING_READ",
+    "PPE_INCIDENT_READ",
+    "PPE_INCIDENT_REVIEW",
+  ],
 };
 
 const MOCK_INCIDENT: IncidentItem = {
@@ -69,7 +74,7 @@ describe("Dashboard Components", () => {
           user={MOCK_USER}
           siteName="Công trường Landmark 81"
           isRealtimeConnected={true}
-        />
+        />,
       );
 
       assert.ok(html.includes("Nguyễn Văn An"));
@@ -83,66 +88,101 @@ describe("Dashboard Components", () => {
           user={MOCK_USER}
           siteName={null}
           isRealtimeConnected={false}
-        />
+        />,
       );
 
       assert.ok(html.includes("Mất kết nối") || html.includes("Disconnected"));
-      assert.ok(html.includes("Toàn bộ công trường") || html.includes("All Sites"));
+      assert.ok(
+        html.includes("Toàn bộ công trường") || html.includes("All Sites"),
+      );
     });
   });
 
   describe("DashboardKpiRibbon", () => {
-    it("renders 4 executive KPI cards when canViewReports = true", () => {
+    it("shows period totals and reviewed denominator, without safety claims", () => {
+      const analytics = aggregateDashboard([
+        ...Array.from({ length: 4 }, (_, i) => ({
+          ...MOCK_INCIDENT,
+          id: `pending-${i}`,
+        })),
+        ...Array.from({ length: 3 }, (_, i) => ({
+          ...MOCK_INCIDENT,
+          id: `confirmed-${i}`,
+          status: "CONFIRMED",
+        })),
+        ...Array.from({ length: 2 }, (_, i) => ({
+          ...MOCK_INCIDENT,
+          id: `dismissed-${i}`,
+          status: "DISMISSED",
+        })),
+        { ...MOCK_INCIDENT, id: "resolved", status: "RESOLVED" },
+      ]);
       const html = renderWithProviders(
         <DashboardKpiRibbon
-          summary={{
-            totalIncidents: 45,
-            openIncidents: 8,
-            resolvedIncidents: 37,
-            trueViolations: 40,
-            falseAlarms: 5,
-            falseAlarmRate: 3.5,
-            complianceRate: 94.2,
-            meanTimeToResolveHours: 1.2,
-          }}
-          pendingCount={8}
-          totalCamerasCount={10}
-          onlineCamerasCount={9}
-          loading={false}
-          canViewReports={true}
-        />
+          total={10}
+          analytics={analytics}
+          pendingCount={180}
+          totalCamerasCount={125}
+          onlineCamerasCount={102}
+          canViewReports
+          canViewIncidents
+          canViewCameras
+        />,
       );
-
-      assert.ok(html.includes("94.2%"));
-      assert.ok(html.includes("8"));
-      assert.ok(html.includes("9/10"));
-      assert.ok(html.includes("3.5%"));
+      assert.ok(html.includes("Tổng sự cố trong kỳ"));
+      assert.ok(html.includes("102/125"));
+      assert.ok(html.includes("180"));
+      assert.ok(html.includes("33,3%"));
+      assert.ok(html.includes("2 / 6"));
+      assert.ok(html.includes("Hiện tại · mọi ngày"));
+      assert.ok(!html.includes("Đạt chuẩn"));
     });
-
-    it("renders personalized tasks view when canViewReports = false", () => {
+    it("does not invent zero percentages or personalized tasks", () => {
       const html = renderWithProviders(
         <DashboardKpiRibbon
-          pendingCount={3}
-          totalCamerasCount={5}
-          onlineCamerasCount={5}
-          loading={false}
+          total={null}
+          analytics={null}
+          pendingCount={null}
+          totalCamerasCount={null}
+          onlineCamerasCount={null}
           canViewReports={false}
-          userAssignedCount={2}
-        />
+          canViewIncidents
+          canViewCameras={false}
+        />,
       );
-
-      assert.ok(html.includes("Vi phạm được phân công") || html.includes("Assigned"));
-      assert.ok(html.includes("5/5"));
+      assert.ok(!html.includes("100%"));
+      assert.ok(!html.includes("Việc của tôi"));
+      assert.ok(!html.includes("Camera trực tuyến"));
+      assert.ok(!html.includes("Tổng sự cố trong kỳ"));
+    });
+    it("distinguishes no reviews from an observed zero dismissal rate", () => {
+      const props = {
+        total: 0,
+        pendingCount: 0,
+        totalCamerasCount: 0,
+        onlineCamerasCount: 0,
+        canViewReports: true,
+        canViewIncidents: true,
+        canViewCameras: true,
+      };
+      const html = renderWithProviders(
+        <DashboardKpiRibbon {...props} analytics={aggregateDashboard([])} />,
+      );
+      assert.ok(html.includes("Chưa có dữ liệu thẩm duyệt"));
+      assert.ok(!html.includes("0%"));
     });
   });
 
   describe("DashboardLiveIncidents", () => {
     it("renders empty compliant message when there are no incidents", () => {
       const html = renderWithProviders(
-        <DashboardLiveIncidents incidents={[]} loading={false} />
+        <DashboardLiveIncidents incidents={[]} loading={false} />,
       );
 
-      assert.ok(html.includes("Không có vi phạm nào gần đây") || html.includes("No recent violations"));
+      assert.ok(
+        html.includes("Không có vi phạm nào gần đây") ||
+          html.includes("No recent violations"),
+      );
     });
 
     it("renders incidents list with violation badges and camera name", () => {
@@ -152,7 +192,7 @@ describe("Dashboard Components", () => {
           loading={false}
           canReview={true}
           onReview={() => {}}
-        />
+        />,
       );
 
       assert.ok(html.includes("Không đội mũ") || html.includes("No Helmet"));
@@ -181,7 +221,7 @@ describe("Dashboard Components", () => {
             },
           }}
           loading={false}
-        />
+        />,
       );
 
       assert.ok(html.includes("YOLO11m-PPE (FP16)"));
@@ -197,12 +237,18 @@ describe("Dashboard Components", () => {
         <DashboardQuickActions
           canExportReports={true}
           canReviewIncidents={true}
-        />
+        />,
       );
 
-      assert.ok(html.includes("Duyệt vi phạm tồn đọng") || html.includes("Review Pending"));
+      assert.ok(
+        html.includes("Duyệt vi phạm tồn đọng") ||
+          html.includes("Review Pending"),
+      );
       assert.ok(html.includes("Mở Video Wall") || html.includes("Video Wall"));
-      assert.ok(html.includes("Xuất báo cáo") || html.includes("Generate Safety Report"));
+      assert.ok(
+        html.includes("Xuất báo cáo") ||
+          html.includes("Generate Safety Report"),
+      );
       assert.ok(html.includes("Cấu hình an toàn") || html.includes("Safety"));
     });
   });
@@ -213,7 +259,7 @@ describe("Dashboard Components", () => {
         <HelmetShowcase
           title="Mô Hình PPE 3D"
           subtitle="Mũ bảo hộ tiêu chuẩn ANSI Z89.1"
-        />
+        />,
       );
 
       assert.ok(html.includes("PPE 3D MODEL"));
@@ -224,129 +270,58 @@ describe("Dashboard Components", () => {
   });
 
   describe("Operational Suite & Charts", () => {
-    it("renders DashboardPpeRadarChart with 4 real AI rules and average score", () => {
+    const analytics = aggregateDashboard([
+      { ...MOCK_INCIDENT, detectedAt: "2026-11-03T17:30:00Z" },
+      {
+        ...MOCK_INCIDENT,
+        id: "other",
+        violationType: "NEW_TYPE",
+        severity: "NEW_LEVEL",
+        status: "RESOLVED",
+        detectedAt: "2026-11-03T03:00:00Z",
+        resolvedAt: "2026-11-03T03:20:00Z",
+      },
+    ]);
+    it("renders a count radar including unknown types, without compliance", () => {
       const html = renderWithProviders(
-        <DashboardPpeRadarChart
-          distribution={[
-            {
-              violationType: "NO_HELMET",
-              count: 8,
-              percentage: 50,
-              severityBreakdown: { LOW: 0, MEDIUM: 3, HIGH: 5, CRITICAL: 0 },
-            },
-            {
-              violationType: "NO_VEST",
-              count: 5,
-              percentage: 31.25,
-              severityBreakdown: { LOW: 1, MEDIUM: 4, HIGH: 0, CRITICAL: 0 },
-            },
-            {
-              violationType: "RESTRICTED_AREA",
-              count: 2,
-              percentage: 12.5,
-              severityBreakdown: { LOW: 0, MEDIUM: 0, HIGH: 1, CRITICAL: 1 },
-            },
-            {
-              violationType: "MULTI_VIOLATION",
-              count: 1,
-              percentage: 6.25,
-              severityBreakdown: { LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 1 },
-            },
-          ]}
-          summary={{
-            totalIncidents: 16,
-            openIncidents: 4,
-            resolvedIncidents: 12,
-            trueViolations: 15,
-            falseAlarms: 1,
-            falseAlarmRate: 6.25,
-            complianceRate: 92.5,
-            meanTimeToResolveHours: 0.8,
-          }}
-        />
+        <DashboardPpeRadarChart distribution={analytics.distribution} />,
       );
-      assert.ok(html.includes("Mũ bảo hộ") || html.includes("Safety Helmet"));
-      assert.ok(html.includes("Áo phản quang") || html.includes("High-Vis Vest"));
-      assert.ok(html.includes("Vùng nguy hiểm") || html.includes("Hazard Zone"));
-      assert.ok(html.includes("Radar tuân thủ an toàn") || html.includes("Safety Compliance Radar"));
+      assert.ok(html.includes("Radar số sự cố"));
+      assert.ok(html.includes("Khác"));
+      assert.ok(!html.includes("tuân thủ"));
+      assert.ok(!html.replace(/<[^>]*>/g, "").includes("%"));
     });
-
-    it("renders DashboardHourlyRiskChart with real incident items and shifts", () => {
+    it("includes all 24 hours and the night shift", () => {
       const html = renderWithProviders(
-        <DashboardHourlyRiskChart
-          incidents={[
-            { ...MOCK_INCIDENT, id: "inc-1", detectedAt: "2026-11-03T10:15:00.000Z" },
-            { ...MOCK_INCIDENT, id: "inc-2", detectedAt: "2026-11-03T14:30:00.000Z" },
-          ]}
-        />
+        <DashboardHourlyRiskChart analytics={analytics} />,
       );
-      assert.ok(html.includes("Ca sáng") || html.includes("Ca Sáng") || html.includes("Morning"));
-      assert.ok(html.includes("Ca chiều") || html.includes("Ca Chiều") || html.includes("Afternoon"));
-      assert.ok(html.includes("Ca đêm") || html.includes("Ca Đêm") || html.includes("Night"));
-      assert.ok(html.includes("10h") || html.includes("10:00"));
+      assert.ok(html.includes("00:00: 1"));
+      assert.ok(html.includes("23:00"));
+      assert.ok(html.includes("Ca đêm"));
     });
-
-    it("renders DashboardSeveritySlaChart with 4 severity levels and MTTR metrics", () => {
+    it("shows real duration samples and no SLA claims", () => {
       const html = renderWithProviders(
-        <DashboardSeveritySlaChart
-          incidents={[
-            { ...MOCK_INCIDENT, severity: "CRITICAL", status: "PENDING_REVIEW" },
-            { ...MOCK_INCIDENT, severity: "HIGH", status: "RESOLVED" },
-          ]}
-          meanTimeToResolveHours={0.5}
-        />
+        <DashboardSeveritySlaChart analytics={analytics} />,
       );
-      assert.ok(html.includes("Nguy cấp") || html.includes("Critical"));
-      assert.ok(html.includes("Nghiêm trọng") || html.includes("High Risk"));
-      assert.ok(html.includes("Trung bình") || html.includes("Medium Risk"));
-      assert.ok(html.includes("Đạt SLA"));
+      assert.ok(html.includes("20 phút"));
+      assert.ok(html.includes("mẫu hợp lệ"));
+      assert.ok(!html.includes("SLA"));
     });
-
-    it("renders DashboardZoneRiskChart with cameras and violation rankings", () => {
+    it("does not invent online status or safety for an unknown camera", () => {
       const html = renderWithProviders(
-        <DashboardZoneRiskChart
-          cameras={[
-            {
-              id: "cam-1",
-              name: "Camera Cổng Số 1",
-              code: "CAM-GATE-01",
-              status: "ONLINE",
-              siteId: "site-1",
-              location: "Cổng chính",
-              sourceType: "RTSP",
-              streamUrl: "rtsp://camera.ppe.local/gate1",
-              createdAt: "2026-01-01T00:00:00Z",
-              updatedAt: "2026-01-01T00:00:00Z",
-            },
-          ]}
-          cameraRankings={[
-            {
-              cameraId: "cam-1",
-              cameraName: "Camera Cổng Số 1",
-              totalViolations: 6,
-              confirmedCount: 6,
-              falseAlarmCount: 0,
-              resolvedCount: 4,
-            },
-          ]}
-        />
+        <DashboardZoneRiskChart cameraStats={analytics.cameras} />,
       );
-      assert.ok(html.includes("CAM-GATE-01") || html.includes("Camera Cổng Số 1"));
-      assert.ok(html.includes("Camera"));
-      assert.ok(html.includes("ONLINE") || html.includes("Trực tuyến") || html.includes("Đang hoạt động"));
+      assert.ok(html.includes("Chưa có trạng thái"));
+      assert.ok(!html.includes("An toàn"));
+      assert.ok(!html.includes("Trực tuyến"));
     });
-
-    it("renders DashboardOperationalSuite with switcher tabs and real data", () => {
+    it("renders the suite with period analytics", () => {
       const html = renderWithProviders(
-        <DashboardOperationalSuite
-          distribution={[]}
-          incidents={[MOCK_INCIDENT]}
-        />
+        <DashboardOperationalSuite analytics={analytics} />,
       );
-      assert.ok(html.includes("Phân Tích Tác Chiến An Toàn") || html.includes("Safety Operational"));
-      assert.ok(html.includes("Lưới 2x2") || html.includes("Overview"));
+      assert.ok(html.includes("Phân tích sự cố trong kỳ"));
+      assert.ok(html.includes("Lưới 2x2"));
       assert.ok(html.includes("Radar"));
-      assert.ok(html.includes("Khung Giờ") || html.includes("Hourly"));
     });
   });
 });

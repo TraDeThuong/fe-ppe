@@ -8,7 +8,6 @@ import {
   Link2,
   ShieldCheck,
   UserX,
-  Settings2,
 } from "lucide-react";
 
 import { SettingsTabNav } from "./settings-tab-nav";
@@ -60,7 +59,6 @@ export function SecuritySettingsContent() {
         title={t("security.title")}
         description={t("security.subtitle")}
         badge="Account preferences"
-        badgeIcon={Settings2}
         breadcrumbs={[
           { label: t("nav.settings") || "Cài đặt tài khoản" },
           { label: t("security.title") },

@@ -26,15 +26,9 @@ export function TableContent({
   skeletonRows,
   showMobileScrollHint = true,
 }: TableContentProps) {
-  const { variant } = useTableContext();
-
-  let isVietnamese = true;
-  try {
-    const localeCtx = useLocale();
-    isVietnamese = localeCtx.locale === "vi-VN";
-  } catch {
-    // fallback if outside LocaleProvider
-  }
+  const { variant, table } = useTableContext();
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -62,6 +56,9 @@ export function TableContent({
 
     el.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleResize);
+    const observer = new ResizeObserver(checkScrollState);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
 
     // Kích hoạt lại sau khi render DOM cập nhật
     const timer = setTimeout(checkScrollState, 150);
@@ -70,8 +67,9 @@ export function TableContent({
       el.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleResize);
       clearTimeout(timer);
+      observer.disconnect();
     };
-  }, []);
+  }, [table.getVisibleLeafColumns().length, table.getRowModel().rows.length]);
 
   return (
     <div className="relative w-full overflow-hidden">
@@ -79,11 +77,12 @@ export function TableContent({
       {showMobileScrollHint && canScrollRight && (
         <div className="flex sm:hidden items-center justify-between px-4 py-1.5 bg-accent/10 border-b border-accent/20 text-[11px] font-bold text-accent">
           <span className="flex items-center gap-1.5">
-            <span className="size-1.5 rounded-full bg-accent animate-ping" />
+            <span className="size-1.5 rounded-full bg-accent animate-ping motion-reduce:animate-none" />
             {isVietnamese ? "Bảng rộng hơn màn hình" : "Table wider than screen"}
           </span>
           <span className="inline-flex items-center gap-1 text-[10px] font-semibold">
-            {isVietnamese ? "Vuốt ngang" : "Scroll sideways"} <MoveRight size={12} className="animate-pulse" />
+            {isVietnamese ? "Vuốt ngang" : "Scroll sideways"}{" "}
+            <MoveRight size={12} className="animate-pulse motion-reduce:animate-none" aria-hidden="true" />
           </span>
         </div>
       )}
@@ -107,8 +106,11 @@ export function TableContent({
       {/* Vùng cuộn ngang chính */}
       <div
         ref={containerRef}
+        role="region"
+        tabIndex={0}
+        aria-label={isVietnamese ? "Bảng dữ liệu có thể cuộn ngang" : "Scrollable data table"}
         className={[
-          "w-full overflow-x-auto scroll-smooth",
+          "w-full overflow-x-auto scroll-smooth focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40",
           // Tối ưu vuốt cảm ứng mượt trên iOS & Android
           "[-webkit-overflow-scrolling:touch]",
           // Custom Neumorphic scrollbar

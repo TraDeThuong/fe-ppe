@@ -66,9 +66,11 @@ export const incidentService = {
    */
   async getIncidents(
     params?: IncidentQueryParams,
+    options?: { signal?: AbortSignal },
   ): Promise<{ items: IncidentItem[]; meta?: PaginationMeta }> {
     const res = await apiClient.get<unknown, any>("/incidents", {
       params,
+      signal: options?.signal,
     });
     return unwrapPaginated<IncidentItem>(res);
   },

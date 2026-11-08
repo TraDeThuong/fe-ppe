@@ -65,3 +65,5 @@ export type {
   TableRowActionsProps,
   TableRowAction,
 } from "./table-row-actions";
+export { TableFilterPanel, TableRefresh } from "./table-filter-panel";
+export { TableError } from "./table-error";

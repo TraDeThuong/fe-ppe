@@ -17,7 +17,6 @@ import {
   RotateCcw,
   ShieldAlert,
   ShieldCheck,
-  Sparkles,
   User,
   UserRound,
 } from "lucide-react";
@@ -206,7 +205,6 @@ export function ProfileSettingsContent() {
         title={t("profile.title")}
         description={t("profile.subtitle")}
         badge={t("profile.badge")}
-        badgeIcon={Sparkles}
         breadcrumbs={[
           { label: t("nav.settings") || "Cài đặt tài khoản" },
           { label: t("profile.title") },
@@ -590,7 +588,6 @@ export function ProfileSettingsContent() {
                   text-primary
                 "
               >
-                <ShieldCheck className="size-3" />
                 {t("profile.identity.emailVerified")}
               </span>
             </div>

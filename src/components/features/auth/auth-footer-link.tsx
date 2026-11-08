@@ -12,7 +12,7 @@ export function AuthFooterLink({ href, children, className = "" }: AuthFooterLin
   return (
     <Link
       href={href}
-      className={`text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline ${className}`}
+      className={`inline-flex items-center py-2 text-sm text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline ${className}`}
     >
       {children}
     </Link>

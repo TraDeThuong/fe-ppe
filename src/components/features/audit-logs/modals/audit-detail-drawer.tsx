@@ -39,6 +39,9 @@ export function AuditDetailDrawer({
     if (detail.targetType === "USER") {
       return `/users`;
     }
+    if (detail.targetType === "ROLE") {
+      return `/roles/${detail.targetId}`;
+    }
     return null;
   };
 

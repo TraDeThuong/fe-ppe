@@ -5,25 +5,13 @@ import Link from "next/link";
 import {
   Activity,
   AlertTriangle,
-  Building2,
   Camera,
-  CheckCircle2,
-  ChevronRight,
-  Clock,
-  Cpu,
   ExternalLink,
   Eye,
-  HardHat,
   Layers,
-  Radio,
-  Shield,
   ShieldAlert,
   ShieldCheck,
-  Sparkles,
-  User,
   Users,
-  Wifi,
-  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -224,17 +212,17 @@ export function CameraIntelligenceSidebar({
             {isCurrentFrameViolating ? (
               <span className="flex items-center gap-1 font-bold">
                 <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-ping" />
-                {isVietnamese ? "🚨 PHÁT HIỆN VI PHẠM" : "🚨 VIOLATION DETECTED"}
+                {isVietnamese ? "PHÁT HIỆN VI PHẠM" : "VIOLATION DETECTED"}
               </span>
             ) : isCurrentFrameCandidate ? (
               <span className="flex items-center gap-1 font-bold">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                {isVietnamese ? "⚠ ĐANG ĐẾM THỜI GIAN" : "⚠ TEMPORAL COUNT"}
+                {isVietnamese ? "ĐANG ĐẾM THỜI GIAN" : "TEMPORAL COUNT"}
               </span>
             ) : (
               <span className="flex items-center gap-1 font-bold">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                {isVietnamese ? "✓ KHU VỰC AN TOÀN" : "✓ SAFE ZONE"}
+                {isVietnamese ? "KHU VỰC AN TOÀN" : "SAFE ZONE"}
               </span>
             )}
           </Badge>
@@ -304,7 +292,7 @@ export function CameraIntelligenceSidebar({
                 const isCandidate = p.status === "VIOLATION_CANDIDATE";
 
                 // Kiểm tra liên kết mũ, áo của người này
-                const assoc = currentEntry?.associations.find(
+                const assoc = currentEntry?.associations?.find(
                   (a) => a.person === p.track_id
                 );
                 const hasHelmet = assoc?.helmet != null;
@@ -335,7 +323,7 @@ export function CameraIntelligenceSidebar({
                               hasHelmet ? "text-emerald-500 font-semibold" : "text-rose-500 font-bold"
                             }
                           >
-                            {hasHelmet ? "⛑️ Có mũ" : "❌ Thiếu mũ"}
+                            {hasHelmet ? "Có mũ" : "Thiếu mũ"}
                           </span>
                           <span className="text-border">•</span>
                           <span
@@ -343,7 +331,7 @@ export function CameraIntelligenceSidebar({
                               hasVest ? "text-emerald-500 font-semibold" : "text-rose-500 font-bold"
                             }
                           >
-                            {hasVest ? "🦺 Có áo" : "❌ Thiếu áo"}
+                            {hasVest ? "Có áo" : "Thiếu áo"}
                           </span>
                         </div>
                       </div>
@@ -355,15 +343,15 @@ export function CameraIntelligenceSidebar({
                     >
                       {isViolating
                         ? isVietnamese
-                          ? "🚨 VI PHẠM (≥3s)"
-                          : "🚨 VIOLATION (≥3s)"
+                          ? "VI PHẠM (≥3s)"
+                          : "VIOLATION (≥3s)"
                         : isCandidate
                           ? isVietnamese
-                            ? "⚠ ĐANG ĐẾM..."
-                            : "⚠ COUNTING..."
+                            ? "ĐANG ĐẾM..."
+                            : "COUNTING..."
                           : isVietnamese
-                            ? "✓ ĐỦ BẢO HỘ"
-                            : "✓ COMPLIANT"}
+                            ? "ĐỦ BẢO HỘ"
+                            : "COMPLIANT"}
                     </Badge>
                   </div>
                 );

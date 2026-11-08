@@ -30,15 +30,10 @@ export function Loader({
   className = "",
   showLabel = false,
 }: LoaderProps) {
-  let isVietnamese = true;
-  try {
-    const localeCtx = useLocale();
-    isVietnamese = localeCtx.locale === "vi-VN";
-  } catch {
-    // fallback if outside LocaleProvider
-  }
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
-  const effectiveLabel = label ?? (isVietnamese ? "Đang tải..." : "Loading...");
+  const effectiveLabel = label ?? (isVietnamese ? "Đang tải…" : "Loading…");
   const [dark, setDark] = useState(false);
   const config = sizeConfig[size];
 

@@ -2,22 +2,16 @@
 
 import { useMemo } from "react";
 import {
-  AlertOctagon,
-  Building2,
-  Camera,
-  Filter,
-  HardHat,
   RefreshCw,
   RotateCcw,
   Search,
-  ShieldAlert,
   SlidersHorizontal,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useSites } from "@/hooks/sites";
-import { useCameras } from "@/hooks/cameras";
+import { useSitesCatalog } from "@/hooks/sites";
+import { useCamerasCatalog } from "@/hooks/cameras";
 import { useLocale } from "@/providers/locale-provider";
 
 export interface IncidentFilterToolbarProps {
@@ -61,14 +55,11 @@ export function IncidentFilterToolbar({
   const isVietnamese = locale === "vi-VN";
 
   // Danh mục Site & Camera
-  const { data: sitesData } = useSites({ limit: 100 });
-  const sites = sitesData?.items || [];
+  const { data: sitesData } = useSitesCatalog();
+  const sites = sitesData || [];
 
-  const { data: camerasData } = useCameras({
-    siteId: siteFilter || undefined,
-    limit: 100,
-  });
-  const cameras = camerasData?.items || [];
+  const { data: camerasData } = useCamerasCatalog();
+  const cameras = (camerasData || []).filter(camera => !siteFilter || camera.siteId === siteFilter);
 
   // Tìm tên hiển thị của site và camera đang chọn
   const activeSiteName = useMemo(() => {
@@ -344,7 +335,6 @@ export function IncidentFilterToolbar({
 
           {siteFilter && onSiteFilterChange && (
             <span className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 px-2 py-0.5 text-[11px] text-primary">
-              <Building2 className="h-3 w-3 shrink-0" />
               <span className="max-w-[150px] truncate font-medium">{activeSiteName}</span>
               <button
                 type="button"
@@ -362,7 +352,6 @@ export function IncidentFilterToolbar({
 
           {cameraIdFilter && onCameraIdFilterChange && (
             <span className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 px-2 py-0.5 text-[11px] text-primary">
-              <Camera className="h-3 w-3 shrink-0" />
               <span className="max-w-[140px] truncate font-mono font-medium">{activeCameraName}</span>
               <button
                 type="button"

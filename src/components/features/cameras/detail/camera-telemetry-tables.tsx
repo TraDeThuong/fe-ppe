@@ -1,39 +1,17 @@
 "use client";
+import { Table } from "@/components/ui/table";
 
-import React, { memo, useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
-import {
-  Activity,
-  AlertTriangle,
-  Building2,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  Cpu,
-  ExternalLink,
-  Eye,
-  HardHat,
-  Layers,
-  MapPin,
-  Radio,
-  RotateCcw,
-  Scan,
-  Shield,
-  ShieldAlert,
-  ShieldCheck,
-  Sliders,
-  User,
-  Wifi,
-  Zap,
-} from "lucide-react";
-import { Table, type TableFeatureSet } from "@/components/ui/table";
+import { Activity, Cpu, ExternalLink, Eye, Scan, ShieldAlert, Sliders } from "lucide-react";
+import { type TableProps, type TableFeatureSet } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useLocale } from "@/providers/locale-provider";
 import { incidentService } from "@/services/incident.service";
-import type { CameraItem, IncidentItem, IncidentSeverity, IncidentStatus, ViolationType } from "@/types";
+import type { CameraItem, IncidentItem } from "@/types";
 import type { AiInspectionConfig, ViolationEvent } from "./types";
 
 export interface CameraTelemetryTablesProps {
@@ -44,6 +22,7 @@ export interface CameraTelemetryTablesProps {
   safetyConfig?: Partial<AiInspectionConfig>;
   activeModelName?: string;
   realIncidents: IncidentItem[];
+  incidentsTableState?: Partial<TableProps<IncidentItem>>;
   totalIncidents?: number;
   isIncidentsLoading: boolean;
   fps?: number;
@@ -84,6 +63,7 @@ function formatDate(dateInput?: string | Date | null, loc: string = "vi-VN"): st
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
+
     }).format(d);
   } catch {
     return "—";
@@ -123,29 +103,7 @@ function EvidenceButtonCell({
       return;
     }
 
-    // 3. Fallback theo frame chuẩn trích xuất từ video của camera 01a18735 hoặc camera 01a19ce7
-    if (cameraId.includes("01a18735") || incident.cameraId?.includes("01a18735")) {
-      onViewSnapshot?.("/images/camera-01a18735-evidence.jpg");
-      return;
-    }
-    if (cameraId.includes("01a19ce7") || incident.cameraId?.includes("01a19ce7")) {
-      onViewSnapshot?.("/images/camera-01a19ce7-evidence.jpg");
-      return;
-    }
-    if (cameraId.includes("01a19d07") || incident.cameraId?.includes("01a19d07")) {
-      onViewSnapshot?.("/images/camera-01a19d07-evidence.jpg");
-      return;
-    }
-    if (cameraId.includes("01a19e19") || incident.cameraId?.includes("01a19e19")) {
-      onViewSnapshot?.("/images/camera-01a19e19-evidence.jpg");
-      return;
-    }
-    if (cameraId.includes("01a19cf4") || incident.cameraId?.includes("01a19cf4")) {
-      onViewSnapshot?.("/images/camera-01a19cf4-evidence.jpg");
-      return;
-    }
-
-    // 4. Nếu có evidence ID, gọi API lấy presigned download URL
+    // 3. Nếu có evidence ID, gọi API lấy presigned download URL
     if (ev?.id) {
       try {
         setLoading(true);
@@ -164,13 +122,9 @@ function EvidenceButtonCell({
 
   const hasEvidence = Boolean(
     incident.snapshotUrl ||
-      ev?.url ||
-      ev?.storageKey ||
-      ev?.id ||
-      cameraId.includes("01a18735") ||
-      incident.cameraId?.includes("01a18735") ||
-      cameraId.includes("01a19ce7") ||
-      incident.cameraId?.includes("01a19ce7")
+    ev?.url ||
+    ev?.storageKey ||
+    ev?.id
   );
 
   if (!hasEvidence) {
@@ -199,6 +153,7 @@ export function CameraTelemetryTablesComponent({
   safetyConfig,
   activeModelName = "YOLOv11s-PPE (best.pt)",
   realIncidents,
+  incidentsTableState,
   totalIncidents,
   isIncidentsLoading,
   fps = 25,
@@ -242,6 +197,7 @@ export function CameraTelemetryTablesComponent({
             <span>#{row.original.id.slice(0, 8)}</span>
           </Link>
         ),
+
       },
       {
         id: "violationType",
@@ -258,6 +214,7 @@ export function CameraTelemetryTablesComponent({
             </div>
           );
         },
+
       },
       {
         id: "severity",
@@ -277,6 +234,7 @@ export function CameraTelemetryTablesComponent({
             </Badge>
           );
         },
+
       },
       {
         id: "status",
@@ -310,6 +268,7 @@ export function CameraTelemetryTablesComponent({
             </Badge>
           );
         },
+
       },
       {
         id: "detectedAt",
@@ -320,6 +279,7 @@ export function CameraTelemetryTablesComponent({
             {formatDate(row.original.detectedAt, locale)}
           </span>
         ),
+
       },
       {
         id: "confidence",
@@ -344,6 +304,7 @@ export function CameraTelemetryTablesComponent({
             </span>
           );
         },
+
       },
       {
         id: "evidence",
@@ -356,6 +317,7 @@ export function CameraTelemetryTablesComponent({
             onViewSnapshot={onViewSnapshot}
           />
         ),
+
       },
       {
         id: "action",
@@ -370,6 +332,7 @@ export function CameraTelemetryTablesComponent({
             <ExternalLink className="h-3 w-3" />
           </Link>
         ),
+
       },
     ];
   }, [isVietnamese, locale, safetyConfig?.confidenceThreshold, onViewSnapshot]);
@@ -381,16 +344,19 @@ export function CameraTelemetryTablesComponent({
         value: "incidents",
         label: isVietnamese ? "Lịch Sử Sự Cố & Vi Phạm" : "Incidents & Violations",
         icon: <ShieldAlert className="h-4 w-4" />,
+
       },
       {
         value: "rules",
         label: isVietnamese ? "Quy Tắc An Toàn & Vùng ROI" : "Safety Rules & ROI",
         icon: <Sliders className="h-4 w-4" />,
+
       },
       {
         value: "diagnostics",
         label: isVietnamese ? "Thông Số Kỹ Thuật & Luồng" : "Stream & Specs",
         icon: <Cpu className="h-4 w-4" />,
+
       },
     ],
     [isVietnamese]
@@ -480,223 +446,24 @@ export function CameraTelemetryTablesComponent({
       {/* ── NỘI DUNG TỪNG TAB ── */}
       <div className="pt-1">
         {/* TAB 1: SỰ CỐ THỰC TẾ & VI PHẠM TRỰC TIẾP */}
-        {activeTab === "incidents" && (
-          <div className="space-y-3">
-            {/* Bộ chuyển đổi giữa Sự Cố Cơ Sở Dữ Liệu & Vi Phạm Trực Tiếp */}
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              {isSandbox ? (
-                <div className="flex items-center gap-2">
-                  <span className="rounded-lg bg-primary px-3 py-1 font-semibold text-primary-foreground shadow-sm text-xs">
-                    {isVietnamese ? "Vi Phạm Trực Tiếp Trong Video Test" : "Live Detections in Test Video"} ({liveViolations.length})
-                  </span>
-                  <span className="text-[11px] text-muted-foreground font-mono">
-                    ({isVietnamese ? "Chế độ Sandbox: Cách ly CSDL 100%" : "Sandbox: 100% Isolated from DB"})
-                  </span>
-                </div>
-              ) : (
-                <div className="inline-flex rounded-xl bg-background/60 p-1 border border-border/30 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setIncidentSubTab("db")}
-                    className={`rounded-lg px-3 py-1 font-semibold transition ${
-                      incidentSubTab === "db"
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {isVietnamese ? "Sự Cố Cơ Sở Dữ Liệu" : "Database Incidents"} ({effectiveTotalIncidents})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIncidentSubTab("live")}
-                    className={`rounded-lg px-3 py-1 font-semibold transition ${
-                      incidentSubTab === "live"
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {isVietnamese ? "Vi Phạm Trực Tiếp (Phiên Xem)" : "Live Detections"} ({liveViolations.length})
-                  </button>
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                {incidentSubTab === "live" && liveViolations.length > 0 && onResetSessionLog && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={onResetSessionLog}
-                    className="h-7 text-xs text-muted-foreground hover:text-foreground gap-1 border border-border/30"
-                    title={isVietnamese ? "Xóa lịch sử phiên xem và ghi nhận lại từ đầu" : "Reset session log"}
-                  >
-                    <RotateCcw className="h-3 w-3" />
-                    <span>{isVietnamese ? "Làm mới phiên" : "Reset Log"}</span>
-                  </Button>
-                )}
-
-                {incidentSubTab === "db" && !isSandbox && (
-                  <Link
-                    href={`/incidents?cameraId=${cameraId}`}
-                    className="font-mono text-xs text-primary font-bold hover:underline flex items-center gap-1"
-                  >
-                    <span>{effectiveTotalIncidents} {isVietnamese ? "sự cố đã lưu trong DB" : "stored in DB"}</span>
-                    <ExternalLink className="h-3 w-3" />
-                  </Link>
-                )}
-              </div>
-            </div>
-
-            {/* SubTab 1: Danh sách Sự cố DB */}
-            {incidentSubTab === "db" && (
-              <>
-                {isIncidentsLoading ? (
-                  <div className="rounded-2xl border border-border/30 bg-background/40 p-8 text-center space-y-3">
-                    <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    <p className="text-xs text-muted-foreground">
-                      {isVietnamese ? "Đang tải dữ liệu sự cố từ máy chủ..." : "Loading incidents from server..."}
-                    </p>
-                  </div>
-                ) : realIncidents.length === 0 ? (
-                  <div className="rounded-2xl border border-border/30 bg-background/40 p-8 text-center space-y-2">
-                    <ShieldCheck className="mx-auto h-8 w-8 text-emerald-500" />
-                    <h4 className="font-bold text-foreground text-sm">
-                      {isVietnamese
-                        ? "Chưa có sự cố vi phạm nào trong cơ sở dữ liệu"
-                        : "No Incidents Recorded in Database"}
-                    </h4>
-                    <p className="text-xs text-muted-foreground max-w-md mx-auto">
-                      {isVietnamese
-                        ? `Camera ${camera?.code || cameraId} chưa có sự cố vi phạm nào được lưu trữ chính thức.`
-                        : `Camera ${camera?.code || cameraId} has no recorded violations stored in the database.`}
-                    </p>
-                  </div>
-                ) : (
-                  <Table
-                    data={realIncidents}
-                    columns={incidentColumns}
-                    variant="soft"
-                    hideTopHighlight
-                    loading={isIncidentsLoading}
-                    emptyMessage={
-                      isVietnamese ? "Không có dữ liệu sự cố." : "No incidents available."
-                    }
-                  />
-                )}
-              </>
-            )}
-
-            {/* SubTab 2: Danh sách Vi phạm Live phát hiện trong phiên (Tích lũy & Ổn định) */}
-            {incidentSubTab === "live" && (
-              <div className="min-h-[200px]">
-                {liveViolations.length === 0 ? (
-                  <div className="rounded-2xl border border-border/30 bg-background/40 p-8 text-center space-y-2">
-                    <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
-                    <h4 className="font-bold text-foreground text-sm">
-                      {isVietnamese
-                        ? "Chưa phát hiện vi phạm nào trong phiên xem video hiện tại"
-                        : "No Violations Detected in Current Live Session"}
-                    </h4>
-                    <p className="text-xs text-muted-foreground max-w-md mx-auto">
-                      {isVietnamese
-                        ? "Hệ thống AI đang giám sát liên tục theo thời gian thực (VI-04..VI-07). Khi công nhân thiếu PPE đạt ngưỡng xác nhận 3 giây, sự kiện vi phạm sẽ hiển thị tại đây và duy trì ổn định trong phiên."
-                        : "AI Engine is actively monitoring (VI-04..VI-07). Confirmed violations exceeding 3s window will appear here and persist stably during the session."}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-2xl border border-border/30 bg-background/40">
-                    <table className="w-full text-left text-xs">
-                      <thead className="border-b border-border/30 bg-surface/50 text-muted-foreground font-semibold">
-                        <tr>
-                          <th className="py-2.5 px-3">Mã Sự Kiện</th>
-                          <th className="py-2.5 px-3">Đối Tượng</th>
-                          <th className="py-2.5 px-3">Loại Vi Phạm</th>
-                          <th className="py-2.5 px-3">Khung Hình & Thời Điểm</th>
-                          <th className="py-2.5 px-3">Thời Lượng</th>
-                          <th className="py-2.5 px-3 text-center">Ảnh Bằng Chứng</th>
-                          <th className="py-2.5 px-3 text-right">Quy Chuẩn AI</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border/20 font-mono">
-                        {liveViolations.map((v, idx) => (
-                          <tr key={v.event_id || `${v.person}-${v.frame}-${idx}`} className="hover:bg-background/80 transition-colors">
-                            <td className="py-2.5 px-3 font-bold text-primary">
-                              #{v.event_id.slice(0, 8)}
-                              {idx === 0 && (
-                                <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/10 text-rose-500 border border-rose-500/20 font-sans">
-                                  {isVietnamese ? "MỚI" : "NEW"}
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 font-sans font-semibold text-foreground">
-                              person #{v.person}
-                              {v.canonical_person && v.canonical_person !== v.person && (
-                                <span className="text-[10px] text-muted-foreground block font-mono">
-                                  (canon #{v.canonical_person})
-                                </span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 font-sans font-semibold text-rose-500">
-                              {getViolationName(v.violation_type)}
-                            </td>
-                            <td className="py-2.5 px-3">
-                              {onSeekToFrame ? (
-                                <button
-                                  type="button"
-                                  onClick={() => onSeekToFrame(v.frame)}
-                                  className="inline-flex items-center gap-1 font-semibold text-sky-500 hover:underline"
-                                  title={isVietnamese ? `Tua tới frame ${v.frame}` : `Seek to frame ${v.frame}`}
-                                >
-                                  <span>Frame {v.frame}</span>
-                                  <span className="text-[10px] text-muted-foreground">({v.confirmed_t.toFixed(1)}s)</span>
-                                </button>
-                              ) : (
-                                <span>Frame {v.frame} ({v.confirmed_t.toFixed(1)}s)</span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-foreground">
-                              ≥ {v.duration_s.toFixed(1)}s
-                            </td>
-                            <td className="py-2.5 px-3 text-center">
-                              {v.evidence_path || onViewSnapshot ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    if (v.evidence_path) {
-                                      onViewSnapshot?.(v.evidence_path);
-                                    } else {
-                                      if (cameraId.includes("01a18735")) onViewSnapshot?.("/images/camera-01a18735-evidence.jpg");
-                                      else if (cameraId.includes("01a19ce7")) onViewSnapshot?.("/images/camera-01a19ce7-evidence.jpg");
-                                      else if (cameraId.includes("01a19d07")) onViewSnapshot?.("/images/camera-01a19d07-evidence.jpg");
-                                      else if (cameraId.includes("01a19e19")) onViewSnapshot?.("/images/camera-01a19e19-evidence.jpg");
-                                      else if (cameraId.includes("01a19cf4")) onViewSnapshot?.("/images/camera-01a19cf4-evidence.jpg");
-                                      else onViewSnapshot?.("/images/camera-01a18735-evidence.jpg");
-                                    }
-                                  }}
-                                  className="h-7 gap-1 text-[11px] text-primary border-primary/30 hover:bg-primary/10"
-                                >
-                                  <Eye className="h-3 w-3" />
-                                  <span>{isVietnamese ? "Xem ảnh" : "View"}</span>
-                                </Button>
-                              ) : (
-                                <span className="text-muted-foreground text-xs italic">—</span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-right">
-                              <Badge variant="danger" size="sm">
-                                VI-06/07 XÁC NHẬN
-                              </Badge>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        <Table
+          surface="embedded"
+          data={realIncidents}
+          features={{
+            sorting: false,
+            globalFilter: false,
+            rowSelection: false
+          }}
+          getRowId={incident => incident.id}
+          {...incidentsTableState}
+          columns={incidentColumns}
+          variant="soft"
+          hideTopHighlight
+          loading={isIncidentsLoading}
+          emptyMessage={
+            isVietnamese ? "Không có dữ liệu sự cố." : "No incidents available."
+          }
+        />
 
         {/* TAB 2: CẤU HÌNH QUY TẮC AN TOÀN & VÙNG ROI */}
         {activeTab === "rules" && (

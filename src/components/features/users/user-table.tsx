@@ -1,75 +1,100 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import type {
-  ColumnDef,
-  PaginationState,
-  RowSelectionState,
-  SortingState,
-} from "@tanstack/react-table";
-import {
-  User,
-  Mail,
-  Phone,
-  Shield,
-  ShieldCheck,
-  ShieldAlert,
-  Pencil,
-  Trash2,
-  KeyRound,
-  Eye,
-  RotateCcw,
-  Filter,
-  RefreshCw,
-  UserPlus,
-  SlidersHorizontal,
-  Lock,
-  Unlock,
-  CheckCircle2,
-  AlertTriangle,
-  X,
-} from "lucide-react";
+import type { ColumnDef, PaginationState, RowSelectionState, SortingState } from "@tanstack/react-table";
+import { Shield, ShieldCheck, ShieldAlert, Pencil, Trash2, Eye, EyeOff, RotateCcw, RefreshCw, UserPlus, Lock, Unlock, Building2 } from "lucide-react";
 
-import {
-  Table,
-  TableToolbar,
-  TableContent,
-  TablePagination,
-  TableSelectionHeader,
-  TableSelectionRow,
-  TableRowActions,
-  type TableFeatureSet,
-  type TableRowAction,
-  type TableBulkAction,
-  TableBulkActions,
-} from "@/components/ui/table";
+import { Table, TableToolbar, TableContent, TablePagination, TableSelectionHeader, TableSelectionRow, TableRowActions, type TableFeatureSet, type TableRowAction, type TableBulkAction, TableBulkActions, TableFilterPanel } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { useUsers, useDeleteUser, useUpdateUser } from "@/hooks/users";
-import { useRoles } from "@/hooks/rbac";
+import { useUsers } from "@/hooks/users";
+import { useQueryClient } from "@tanstack/react-query";
+import { userService } from "@/services/user.service";
+import { userKeys } from "@/hooks/users/user.query-keys";
+import { mapTableSort, settleInBatches } from "@/lib/table-utils";
+import { ConfirmDialog } from "@/components/ui/dialog";
+import { useRolesCatalog as useRoles } from "@/hooks/rbac";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
 import { toast } from "@/lib/toast";
 import type { UserResponseDto } from "@/types";
 
-import {
-  CreateUserModal,
-  EditUserModal,
-  AssignUserRoleModal,
-  AdminResetPasswordModal,
-  ConfirmUserDeleteModal,
-  UserDetailModal,
-} from "./modals";
+import { CreateUserModal, EditUserModal, AssignUserRoleModal, AdminResetPasswordModal, ConfirmUserDeleteModal, UserDetailModal } from "./modals";
 
 export interface UserTableProps {
   className?: string;
   variant?: "soft" | "sculpted";
   statusFilter?: string;
   onStatusFilterChange?: (status: string) => void;
-  twoFactorFilter?: string;
-  onTwoFactorFilterChange?: (twoFactor: string) => void;
   isCreateOpen?: boolean;
   onOpenCreateChange?: (open: boolean) => void;
+}
+
+function PhoneNumberCell({
+  phoneNumber,
+  isVietnamese,
+}: {
+  phoneNumber?: string | null;
+  isVietnamese: boolean;
+}) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  if (!phoneNumber) {
+    return <span className="text-xs font-mono text-muted-foreground">-</span>;
+  }
+
+  if (!isVisible) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsVisible(true);
+        }}
+        title={
+          isVietnamese
+            ? "Nhấn để xem số điện thoại"
+            : "Click to view phone number"
+        }
+        aria-label={
+          isVietnamese
+            ? "Nhấn để xem số điện thoại"
+            : "Click to view phone number"
+        }
+        className="inline-flex size-7 items-center justify-center rounded-lg border border-border/50 bg-background text-muted-foreground shadow-[1.5px_1.5px_3px_var(--shadow-dark),-1.5px_-1.5px_3px_var(--shadow-light)] transition-all hover:text-primary hover:border-primary/40 active:shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)]"
+      >
+        <Eye size={14} />
+      </button>
+    );
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <span className="text-xs font-mono font-semibold text-foreground">
+        {phoneNumber}
+      </span>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsVisible(false);
+        }}
+        title={
+          isVietnamese
+            ? "Ẩn số điện thoại"
+            : "Hide phone number"
+        }
+        aria-label={
+          isVietnamese
+            ? "Ẩn số điện thoại"
+            : "Hide phone number"
+        }
+        className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground hover:bg-muted/60"
+      >
+        <EyeOff size={13} />
+      </button>
+    </div>
+  );
 }
 
 export function UserTable({
@@ -77,8 +102,6 @@ export function UserTable({
   variant = "soft",
   statusFilter: propStatusFilter,
   onStatusFilterChange,
-  twoFactorFilter: propTwoFactorFilter,
-  onTwoFactorFilterChange,
   isCreateOpen: propIsCreateOpen,
   onOpenCreateChange,
 }: UserTableProps) {
@@ -86,6 +109,14 @@ export function UserTable({
   const isVietnamese = locale === "vi-VN";
   const { user: currentAdmin } = useAuth();
   const { data: roles = [] } = useRoles();
+  const queryClient = useQueryClient();
+  const can = (permission: string) => (currentAdmin?.role === "ADMIN" || currentAdmin?.role === "SUPER_ADMIN") || Boolean(currentAdmin?.permissions?.includes(permission));
+  const canUpdate = can("USER_UPDATE");
+  const canCreate = can("USER_CREATE");
+  const canDelete = can("USER_DELETE");
+  const canRestore = can("USER_RESTORE") || canDelete;
+  const [bulkPending, setBulkPending] = useState(false);
+  const [bulkMode, setBulkMode] = useState<boolean | null>(null);
 
   // Query States
   const [search, setSearch] = useState("");
@@ -99,15 +130,6 @@ export function UserTable({
     onStatusFilterChange?.(val);
   };
 
-  const [internalTwoFactorFilter, setInternalTwoFactorFilter] = useState<string>("all");
-  const twoFactorFilter = propTwoFactorFilter !== undefined ? propTwoFactorFilter : internalTwoFactorFilter;
-  const setTwoFactorFilter = (val: string) => {
-    setInternalTwoFactorFilter(val);
-    onTwoFactorFilterChange?.(val);
-  };
-
-  const [showFilters, setShowFilters] = useState(false);
-
   // Table internal states
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -117,6 +139,8 @@ export function UserTable({
     { id: "createdAt", desc: true },
   ]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+
+  const apiSorting = mapTableSort(sorting, { user: "fullName", email: "email", createdAt: "createdAt" }, { sortBy: "createdAt", order: "desc" });
 
   // Fetch Users
   const queryParams = useMemo(() => {
@@ -129,11 +153,12 @@ export function UserTable({
         statusFilter === "active"
           ? true
           : statusFilter === "inactive"
-          ? false
-          : undefined,
+            ? false
+            : undefined,
       isDeleted: statusFilter === "deleted" ? true : undefined,
-      sortBy: (sorting[0]?.id as any) || "createdAt",
-      order: (sorting[0]?.desc ? "desc" : "asc") as "asc" | "desc",
+      sortBy: apiSorting.sortBy,
+      order: apiSorting.order,
+
     };
   }, [pagination.pageIndex, pagination.pageSize, debouncedSearch, roleFilter, statusFilter, sorting]);
 
@@ -141,12 +166,9 @@ export function UserTable({
     data: usersData,
     isLoading,
     isFetching,
+    error,
     refetch,
   } = useUsers(queryParams);
-
-  // Mutations for bulk actions
-  const deleteMutation = useDeleteUser({ suppressToast: true });
-  const updateMutation = useUpdateUser({ suppressToast: true });
 
   // Modal states
   const [internalIsCreateOpen, setInternalIsCreateOpen] = useState(false);
@@ -160,23 +182,17 @@ export function UserTable({
   const [resetPasswordUser, setResetPasswordUser] = useState<UserResponseDto | null>(null);
   const [deleteModalState, setDeleteModalState] = useState<{
     user: UserResponseDto | null;
-    mode: "delete" | "restore";
+    mode: "delete" | "restore" | "activate" | "deactivate";
     open: boolean;
   }>({
     user: null,
     mode: "delete",
     open: false,
+
   });
   const [detailUser, setDetailUser] = useState<UserResponseDto | null>(null);
 
-  // Data processing: optional 2FA client-side filter
-  const tableData = useMemo(() => {
-    const rawData = usersData?.data ?? [];
-    if (twoFactorFilter === "all") return rawData;
-    if (twoFactorFilter === "enabled") return rawData.filter((u) => u.twoFactorEnabled);
-    if (twoFactorFilter === "disabled") return rawData.filter((u) => !u.twoFactorEnabled);
-    return rawData;
-  }, [usersData?.data, twoFactorFilter]);
+  const tableData = usersData?.data ?? [];
 
   const totalCount = usersData?.meta?.total ?? tableData.length;
   const pageCount = usersData?.meta?.totalPages ?? Math.ceil(totalCount / pagination.pageSize);
@@ -184,14 +200,12 @@ export function UserTable({
   const hasActiveFilters =
     roleFilter !== "all" ||
     statusFilter !== "all" ||
-    twoFactorFilter !== "all" ||
     Boolean(debouncedSearch);
 
   const handleResetFilters = () => {
     setSearch("");
     setRoleFilter("all");
     setStatusFilter("all");
-    setTwoFactorFilter("all");
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   };
 
@@ -207,58 +221,76 @@ export function UserTable({
           label: isVietnamese ? "Xem chi tiết & Phiên" : "View Details & Sessions",
           icon: <Eye size={14} />,
           onClick: (u) => setDetailUser(u),
+
         },
         {
+          hidden: !canUpdate || isDeleted,
           id: "edit",
           label: isVietnamese ? "Chỉnh sửa thông tin" : "Edit Profile",
           icon: <Pencil size={14} />,
           onClick: (u) => setEditUser(u),
+
         },
         {
+          hidden: !can("USER_ROLE_ASSIGN") || isDeleted,
           id: "assign-role",
           label: isVietnamese ? "Phân vai trò RBAC" : "Assign RBAC Role",
           icon: <Shield size={14} />,
           disabled: isSelf,
           onClick: (u) => setAssignRoleUser(u),
-        },
-        {
-          id: "reset-password",
-          label: isVietnamese ? "Đặt lại mật khẩu" : "Reset Password",
-          icon: <KeyRound size={14} />,
-          onClick: (u) => setResetPasswordUser(u),
+
         },
       ];
 
       if (isDeleted) {
         actions.push({
+          hidden: !canRestore,
           id: "restore",
           label: isVietnamese ? "Khôi phục tài khoản" : "Restore Account",
           icon: <RotateCcw size={14} />,
           variant: "primary",
           onClick: (u) =>
-            setDeleteModalState({ user: u, mode: "restore", open: true }),
+            setDeleteModalState({
+              user: u,
+              mode: "restore",
+              open: true
+            }),
+
         });
       } else {
         actions.push({
+          id: "toggle-active",
+          label: rowUser.isActive ? (isVietnamese ? "Vô hiệu hóa" : "Deactivate") : (isVietnamese ? "Kích hoạt" : "Activate"),
+          icon: rowUser.isActive ? <Lock size={14} /> : <Unlock size={14} />,
+          hidden: !canUpdate,
+          disabled: isSelf && rowUser.isActive,
+          onClick: u => setDeleteModalState({
+            user: u,
+            mode: u.isActive ? "deactivate" : "activate",
+            open: true
+          }),
+
+        });
+        actions.push({
           id: "delete",
-          label: isSelf
-            ? isVietnamese
-              ? "Không thể tự khóa"
-              : "Cannot lock own account"
-            : isVietnamese
-            ? "Khóa tài khoản"
-            : "Deactivate Account",
+          hidden: !canDelete,
+          label: isVietnamese ? "Xóa tài khoản" : "Delete account",
           icon: <Trash2 size={14} />,
           variant: "danger",
           disabled: isSelf,
           onClick: (u) =>
-            setDeleteModalState({ user: u, mode: "delete", open: true }),
+            setDeleteModalState({
+              user: u,
+              mode: "delete",
+              open: true
+            }),
+
         });
       }
 
       return actions;
     },
-    [currentAdmin, isVietnamese],
+    [currentAdmin, isVietnamese, canUpdate, canDelete, canRestore],
   );
 
   // Columns definition
@@ -270,6 +302,7 @@ export function UserTable({
         cell: ({ row }) => <TableSelectionRow row={row} />,
         enableSorting: false,
         enableColumnFilter: false,
+
       },
       {
         id: "user",
@@ -303,9 +336,11 @@ export function UserTable({
             </div>
           );
         },
+
       },
       {
         id: "role",
+        enableSorting: false,
         accessorKey: "roleId",
         header: isVietnamese ? "Vai trò" : "Role",
         cell: ({ row }) => {
@@ -317,23 +352,36 @@ export function UserTable({
             SAFETY_MANAGER: "border-accent/40 bg-accent/10 text-accent",
             SAFETY_OFFICER: "border-accent/30 bg-accent/10 text-accent",
             MANAGER: "border-accent/30 bg-accent/10 text-accent",
+
           };
 
           const colorClass =
             roleColors[rName] || "border-border/60 bg-muted/40 text-muted-foreground";
 
+          const siteCount = Array.isArray(row.original.siteIds) ? row.original.siteIds.length : 0;
+
           return (
-            <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg border font-mono text-[10px] font-bold tracking-wide uppercase ${colorClass}`}
-            >
-              <Shield size={11} className="shrink-0" />
-              {rName}
-            </span>
+            <div className="flex flex-col gap-1 items-start">
+              <span
+                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg border font-mono text-[10px] font-bold tracking-wide uppercase ${colorClass}`}
+              >
+                <Shield size={11} className="shrink-0" />
+                {rName}
+              </span>
+              {rName !== "ADMIN" && siteCount > 0 && (
+                <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-medium">
+                  <Building2 size={10} className="text-primary shrink-0" />
+                  {siteCount} {isVietnamese ? "công trường" : "sites"}
+                </span>
+              )}
+            </div>
           );
         },
+
       },
       {
         id: "status",
+        enableSorting: false,
         accessorKey: "isActive",
         header: isVietnamese ? "Trạng thái" : "Status",
         cell: ({ row }) => {
@@ -376,9 +424,11 @@ export function UserTable({
             </span>
           );
         },
+
       },
       {
         id: "twoFactor",
+        enableSorting: false,
         accessorKey: "twoFactorEnabled",
         header: isVietnamese ? "Bảo mật 2FA" : "2FA Security",
         cell: ({ row }) => {
@@ -395,16 +445,21 @@ export function UserTable({
             </span>
           );
         },
+
       },
       {
         id: "phoneNumber",
+        enableSorting: false,
         accessorKey: "phoneNumber",
         header: isVietnamese ? "Số điện thoại" : "Phone Number",
         cell: ({ row }) => (
-          <span className="text-xs font-mono text-muted-foreground">
-            {row.original.phoneNumber || "-"}
-          </span>
+          <PhoneNumberCell
+            key={row.original.id}
+            phoneNumber={row.original.phoneNumber}
+            isVietnamese={isVietnamese}
+          />
         ),
+
       },
       {
         id: "createdAt",
@@ -414,11 +469,12 @@ export function UserTable({
           <span className="text-xs text-muted-foreground font-mono">
             {row.original.createdAt
               ? new Date(row.original.createdAt).toLocaleDateString(
-                  isVietnamese ? "vi-VN" : "en-US",
-                )
+                isVietnamese ? "vi-VN" : "en-US",
+              )
               : "-"}
           </span>
         ),
+
       },
       {
         id: "actions",
@@ -435,59 +491,30 @@ export function UserTable({
         },
         enableSorting: false,
         enableColumnFilter: false,
+
       },
     ];
   }, [getRowActions, isVietnamese]);
 
-  // Bulk actions handlers
-  const handleBulkDeactivate = async (selectedIds: string[]) => {
-    // Filter out current admin for anti-lockout
-    const validIds = selectedIds.filter((id) => id !== currentAdmin?.id);
-    if (validIds.length === 0) {
-      toast.error(
-        isVietnamese
-          ? "Không thể khóa chính tài khoản của bạn."
-          : "Cannot deactivate your own account.",
-      );
+  const runBulk = async (isActive: boolean) => {
+    if (bulkPending || !canUpdate) return;
+    const selectedIds = Object.keys(rowSelection).filter(id => rowSelection[id]);
+    const validIds = selectedIds.filter(id => tableData.some(u => u.id === id && !u.deletedAt) && (isActive || id !== currentAdmin?.id));
+    if (!validIds.length) {
+      toast.error(isVietnamese ? "Không có tài khoản hợp lệ để cập nhật. Không thể tự vô hiệu hóa hoặc cập nhật tài khoản đã xóa." : "No eligible accounts. You cannot deactivate yourself or update deleted accounts.");
+      setBulkMode(null);
       return;
     }
-
+    setBulkPending(true);
     try {
-      await Promise.all(validIds.map((id) => deleteMutation.mutateAsync(id)));
-      toast.success(
-        isVietnamese
-          ? `Đã khóa thành công ${validIds.length} tài khoản.`
-          : `Successfully deactivated ${validIds.length} accounts.`,
-      );
-      setRowSelection({});
-    } catch {
-      toast.error(
-        isVietnamese
-          ? "Đã xảy ra lỗi khi khóa tài khoản hàng loạt."
-          : "An error occurred while bulk deactivating accounts.",
-      );
-    }
-  };
-
-  const handleBulkActivate = async (selectedIds: string[]) => {
-    try {
-      await Promise.all(
-        selectedIds.map((id) =>
-          updateMutation.mutateAsync({ id, payload: { isActive: true } }),
-        ),
-      );
-      toast.success(
-        isVietnamese
-          ? `Đã kích hoạt lại ${selectedIds.length} tài khoản.`
-          : `Successfully reactivated ${selectedIds.length} accounts.`,
-      );
-      setRowSelection({});
-    } catch {
-      toast.error(
-        isVietnamese
-          ? "Đã xảy ra lỗi khi kích hoạt tài khoản hàng loạt."
-          : "An error occurred while bulk reactivating accounts.",
-      );
+      const { succeeded, failed } = await settleInBatches(validIds, id => userService.updateUser(id, { isActive }));
+      setRowSelection(Object.fromEntries(failed.map(id => [id, true])));
+      const message = isVietnamese ? `${succeeded.length} thành công, ${failed.length} thất bại.` : `${succeeded.length} succeeded, ${failed.length} failed.`;
+      if (failed.length) toast.error(message); else toast.success(message);
+      await queryClient.invalidateQueries({ queryKey: userKeys.all });
+    } finally {
+      setBulkPending(false);
+      setBulkMode(null);
     }
   };
 
@@ -504,17 +531,21 @@ export function UserTable({
         label: isVietnamese ? "Kích hoạt" : "Activate",
         icon: <Unlock size={14} />,
         variant: "primary",
-        onClick: () => handleBulkActivate(selectedIds),
+        disabled: bulkPending || !canUpdate,
+        onClick: () => setBulkMode(true),
+
       },
       {
         id: "bulk-deactivate",
-        label: isVietnamese ? "Khóa tài khoản" : "Deactivate",
+        label: isVietnamese ? "Vô hiệu hóa" : "Deactivate",
         icon: <Lock size={14} />,
         variant: "danger",
-        onClick: () => handleBulkDeactivate(selectedIds),
+        disabled: bulkPending || !canUpdate,
+        onClick: () => setBulkMode(false),
+
       },
     ];
-  }, [rowSelection, isVietnamese]);
+  }, [rowSelection, isVietnamese, bulkPending, canUpdate]);
 
   const selectFilterClass = [
     "h-9 rounded-xl px-3 text-xs font-semibold",
@@ -531,6 +562,15 @@ export function UserTable({
         columns={columns}
         variant={variant}
         loading={isLoading}
+        fetching={isFetching || bulkPending}
+        error={error}
+        onRetry={() => {
+          void refetch();
+        }}
+        globalFilter={search}
+        onGlobalFilterChange={value => setSearch(String(value ?? ""))}
+        filterKey={`${roleFilter}:${statusFilter}`}
+        features={{ rowSelection: canUpdate && statusFilter !== "deleted" }}
         emptyMessage={
           isVietnamese
             ? "Không tìm thấy người dùng nào phù hợp với điều kiện tìm kiếm."
@@ -557,42 +597,11 @@ export function UserTable({
               ? "Tìm kiếm họ tên, email, số điện thoại..."
               : "Search by name, email, phone number..."
           }
-          columnsLabel={isVietnamese ? "Cột" : "Columns"}
-          toggleColumnsLabel={isVietnamese ? "Hiển thị cột" : "Toggle columns"}
-          resetLabel={isVietnamese ? "Mặc định" : "Default"}
-          recordsText={(all, filtered, isFilt) =>
-            isVietnamese
-              ? isFilt
-                ? `${filtered} / ${all} bản ghi`
-                : `${all} bản ghi`
-              : isFilt
-              ? `${filtered} / ${all} records`
-              : `${all} records`
-          }
-          loadingText={isVietnamese ? "Đang tải dữ liệu..." : "Loading records..."}
-          clearSearchLabel={isVietnamese ? "Xóa tìm kiếm" : "Clear search"}
           showSearch={true}
           showColumnVisibility={true}
           actions={
             <div className="flex items-center gap-2">
               {/* Filter Panel Toggle */}
-              <button
-                type="button"
-                onClick={() => setShowFilters(!showFilters)}
-                className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-all ${
-                  showFilters || hasActiveFilters
-                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                    : "border-border/60 bg-background text-muted-foreground shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] hover:text-foreground"
-                }`}
-                title={isVietnamese ? "Lọc dữ liệu nâng cao" : "Advanced filters"}
-              >
-                <Filter size={13} />
-                <span>{isVietnamese ? "Bộ lọc" : "Filters"}</span>
-                {hasActiveFilters && (
-                  <span className="flex size-2 rounded-full bg-amber-400 animate-ping" />
-                )}
-              </button>
-
               {/* Refresh Button */}
               <button
                 type="button"
@@ -603,9 +612,8 @@ export function UserTable({
               >
                 <RefreshCw size={14} className={isFetching ? "animate-spin text-primary" : ""} />
               </button>
-
               {/* Add User Button */}
-              <Button
+              {canCreate ? <Button
                 variant="primary"
                 size="md"
                 className="gap-2 shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)]"
@@ -613,40 +621,20 @@ export function UserTable({
               >
                 <UserPlus size={15} />
                 <span>{t("users.create")}</span>
-              </Button>
+              </Button> : null}
             </div>
           }
         />
 
         {/* Expandable Filter Panel */}
-        {showFilters && (
-          <div className="p-4 sm:p-5 border-b border-border/30 bg-black/[0.015] dark:bg-white/[0.015] space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <SlidersHorizontal size={13} className="text-primary" />
-                {isVietnamese ? "Bộ lọc nâng cao" : "Advanced Filters"}
-              </span>
-
-              {hasActiveFilters && (
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
-                >
-                  <RotateCcw size={12} />
-                  {isVietnamese ? "Xóa toàn bộ lọc" : "Clear all filters"}
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <TableFilterPanel active={hasActiveFilters} onReset={handleResetFilters}>
               {/* Filter: Role */}
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
                   {isVietnamese ? "Vai trò (Role)" : "Role"}
                 </label>
                 <select
-                  value={roleFilter}
+                  id="users-role-filter" aria-label={isVietnamese ? "Vai trò" : "Role"} value={roleFilter}
                   onChange={(e) => {
                     setRoleFilter(e.target.value);
                     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
@@ -670,7 +658,7 @@ export function UserTable({
                   {isVietnamese ? "Trạng thái tài khoản" : "Account Status"}
                 </label>
                 <select
-                  value={statusFilter}
+                  id="users-status-filter" aria-label={isVietnamese ? "Trạng thái tài khoản" : "Account status"} value={statusFilter}
                   onChange={(e) => {
                     setStatusFilter(e.target.value);
                     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
@@ -678,39 +666,13 @@ export function UserTable({
                   className={`w-full ${selectFilterClass}`}
                 >
                   <option value="all">{t("users.filter.allStatus")}</option>
-                  <option value="active">{t("users.filter.active")}</option>
+                  <option value="active">{isVietnamese ? "Đã kích hoạt" : "Enabled accounts"}</option>
                   <option value="inactive">{t("users.filter.inactive")}</option>
                   <option value="deleted">{t("users.filter.deleted")}</option>
                 </select>
               </div>
 
-              {/* Filter: 2FA */}
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                  {isVietnamese ? "Bảo mật hai lớp (2FA)" : "Two-factor authentication (2FA)"}
-                </label>
-                <select
-                  value={twoFactorFilter}
-                  onChange={(e) => {
-                    setTwoFactorFilter(e.target.value);
-                    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-                  }}
-                  className={`w-full ${selectFilterClass}`}
-                >
-                  <option value="all">
-                    {isVietnamese ? "Tất cả thiết lập" : "All 2FA settings"}
-                  </option>
-                  <option value="enabled">
-                    {isVietnamese ? "Đã bật 2FA TOTP" : "2FA TOTP enabled"}
-                  </option>
-                  <option value="disabled">
-                    {isVietnamese ? "Chưa bật 2FA" : "2FA disabled"}
-                  </option>
-                </select>
-              </div>
-            </div>
-          </div>
-        )}
+            </TableFilterPanel>
 
         {/* Bulk Actions Floating Bar */}
         {selectedCount > 0 && (
@@ -735,32 +697,24 @@ export function UserTable({
           pageSizeOptions={[10, 20, 50]}
           showPageSizeSelector={true}
           showRowCount={true}
-          pageSizeLabel={isVietnamese ? "Số dòng" : "Rows"}
-          perPageSuffix={isVietnamese ? "/ trang" : "/ page"}
-          emptyText={isVietnamese ? "Không có bản ghi" : "No records found"}
-          showingText={(startRow, endRow, totalRows) =>
-            isVietnamese ? (
-              <span>
-                Hiển thị <strong className="text-foreground font-mono font-bold">{startRow}–{endRow}</strong> trong <strong className="text-foreground font-mono font-bold">{totalRows}</strong> dòng
-              </span>
-            ) : (
-              <span>
-                Showing <strong className="text-foreground font-mono font-bold">{startRow}–{endRow}</strong> of <strong className="text-foreground font-mono font-bold">{totalRows}</strong> users
-              </span>
-            )
-          }
-          pageOfText={(currentPage, pageCount) =>
-            isVietnamese
-              ? `Trang ${currentPage} / ${pageCount}`
-              : `Page ${currentPage} of ${pageCount}`
-          }
-          firstPageTitle={isVietnamese ? "Trang đầu" : "First page"}
-          prevPageTitle={isVietnamese ? "Trang trước" : "Previous page"}
-          nextPageTitle={isVietnamese ? "Trang tiếp theo" : "Next page"}
-          lastPageTitle={isVietnamese ? "Trang cuối" : "Last page"}
         />
       </Table>
 
+      <ConfirmDialog
+        confirmText={t("common.confirm")}
+        cancelText={t("common.cancel")}
+        open={bulkMode !== null}
+        onClose={() => {
+          if (!bulkPending) setBulkMode(null);
+        }}
+        onConfirm={async () => {
+          if (bulkMode !== null) await runBulk(bulkMode);
+        }}
+        loading={bulkPending}
+        variant={bulkMode ? "default" : "danger"}
+        title={isVietnamese ? "Xác nhận cập nhật trạng thái tài khoản" : "Confirm account status update"}
+        description={isVietnamese ? `Thao tác trên ${selectedCount} tài khoản đã chọn. Tài khoản hiện tại và tài khoản đã xóa sẽ được bỏ qua khi cần.` : `Update ${selectedCount} selected accounts. Your own and deleted accounts will be skipped where applicable.`}
+      />
       {/* Modals & Dialogs */}
       <CreateUserModal
         open={isCreateOpen}
@@ -787,7 +741,11 @@ export function UserTable({
 
       <ConfirmUserDeleteModal
         open={deleteModalState.open}
-        onClose={() => setDeleteModalState({ user: null, mode: "delete", open: false })}
+        onClose={() => setDeleteModalState({
+          user: null,
+          mode: "delete",
+          open: false
+        })}
         user={deleteModalState.user}
         mode={deleteModalState.mode}
       />

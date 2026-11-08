@@ -103,6 +103,10 @@ export function ForgotPasswordForm() {
   }
 
   function onSubmit(values: ForgotPasswordFormValues) {
+    if (turnstileRequired && !turnstileToken) {
+      setFailure({ kind: "captcha", message: t("forgotPassword.captchaRequired") });
+      return;
+    }
     setFailure({ kind: "none" });
     forgotPassword.mutate({
       email: normalizeEmail(values.email),
@@ -142,6 +146,7 @@ export function ForgotPasswordForm() {
         <Input
           type="email"
           autoComplete="email"
+          spellCheck={false}
           placeholder={t("forgotPassword.emailPlaceholder")}
           prefix={<Mail aria-hidden="true" />}
           disabled={forgotPassword.isPending}
@@ -158,7 +163,7 @@ export function ForgotPasswordForm() {
       {failure.kind === "captcha" && (
         <div
           role="alert"
-          className="rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-2.5 text-sm text-warning"
+          className="rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-2.5 text-sm text-amber-800 dark:text-amber-300"
         >
           {failure.message}
         </div>
@@ -176,7 +181,7 @@ export function ForgotPasswordForm() {
       <Button
         type="submit"
         className="w-full"
-        disabled={forgotPassword.isPending || (turnstileRequired && !turnstileToken)}
+        disabled={forgotPassword.isPending}
       >
         {forgotPassword.isPending ? (
           <span className="inline-flex items-center gap-2">

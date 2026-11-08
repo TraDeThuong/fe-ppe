@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BarChart3, FilePlus2, RefreshCw } from "lucide-react";
+import { useTableState } from "@/hooks/use-table-state";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
@@ -93,6 +94,9 @@ export default function ReportsContent() {
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [period, setPeriod] = useState("30d");
 
+  const [historyType, setHistoryType] = useState("");
+  const [historyStatus, setHistoryStatus] = useState("");
+  const historyTable = useTableState([], `${selectedSiteId}:${historyType}:${historyStatus}`);
   const { startDate, endDate } = useMemo(() => computeDateRange(period), [period]);
 
   const filterParams: ReportingFilterParams = useMemo(
@@ -100,6 +104,7 @@ export default function ReportsContent() {
       siteId: selectedSiteId || undefined,
       startDate,
       endDate,
+
     }),
     [selectedSiteId, startDate, endDate]
   );
@@ -141,9 +146,16 @@ export default function ReportsContent() {
   const {
     data: historyResult,
     isLoading: isHistoryLoading,
+    isFetching: isHistoryFetching,
+    error: historyError,
     refetch: refetchHistory,
   } = useReportHistory({
+    page: historyTable.pagination.pageIndex + 1,
+    limit: historyTable.pagination.pageSize,
+    reportType: historyType || undefined,
+    status: historyStatus || undefined,
     siteId: selectedSiteId || undefined,
+
   });
 
   // Live Incidents Query (đảm bảo luôn đồng bộ với ppe_incident_db thực tế)
@@ -170,8 +182,8 @@ export default function ReportsContent() {
   const isRollupAuthoritative = useMemo(() => {
     return Boolean(
       rawSummary &&
-        rawSummary.totalIncidents >= filteredIncidents.length &&
-        rawSummary.totalIncidents > 0
+      rawSummary.totalIncidents >= filteredIncidents.length &&
+      rawSummary.totalIncidents > 0
     );
   }, [rawSummary, filteredIncidents.length]);
 
@@ -217,11 +229,11 @@ export default function ReportsContent() {
     const complianceRate =
       totalIncidents > 0
         ? Number(
-            Math.max(
-              0,
-              100 - (trueViolations / (totalIncidents * 1.5 || 1)) * 100
-            ).toFixed(2)
-          )
+          Math.max(
+            0,
+            100 - (trueViolations / (totalIncidents * 1.5 || 1)) * 100
+          ).toFixed(2)
+        )
         : 100;
     const meanTimeToResolveHours =
       resolvedWithTimestamp > 0
@@ -239,6 +251,7 @@ export default function ReportsContent() {
       meanTimeToResolveHours,
       periodStart: startDate,
       periodEnd: endDate,
+
     };
   }, [isRollupAuthoritative, rawSummary, filteredIncidents, startDate, endDate]);
 
@@ -257,6 +270,7 @@ export default function ReportsContent() {
         trueViolations: 0,
         falseAlarms: 0,
         resolvedCount: 0,
+
       };
       existing.totalIncidents += 1;
       if (inc.status === "DISMISSED") {
@@ -295,7 +309,13 @@ export default function ReportsContent() {
       const vType = inc.violationType || "UNKNOWN";
       const item = map.get(vType) || {
         count: 0,
-        severityBreakdown: { LOW: 0, NORMAL: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 },
+        severityBreakdown: {
+          LOW: 0,
+          NORMAL: 0,
+          MEDIUM: 0,
+          HIGH: 0,
+          CRITICAL: 0
+        },
       };
       item.count += 1;
       const sev = (inc.severity || "HIGH").toUpperCase();
@@ -311,6 +331,7 @@ export default function ReportsContent() {
       count: data.count,
       percentage: grandTotal > 0 ? Number(((data.count / grandTotal) * 100).toFixed(2)) : 0,
       severityBreakdown: data.severityBreakdown,
+
     }));
   }, [isRollupAuthoritative, rawDistribution, filteredIncidents]);
 
@@ -320,7 +341,7 @@ export default function ReportsContent() {
       isRollupAuthoritative && rawCameraRankings.length > 0
         ? rawCameraRankings
         : filteredIncidents.length > 0
-        ? (() => {
+          ? (() => {
             const camMap = new Map<string, CameraStatDto>();
             for (const inc of filteredIncidents) {
               if (!inc.cameraId) continue;
@@ -330,6 +351,7 @@ export default function ReportsContent() {
                 confirmedCount: 0,
                 falseAlarmCount: 0,
                 resolvedCount: 0,
+
               };
               item.totalViolations += 1;
               if (inc.status === "CONFIRMED" || inc.status === "RESOLVED" || inc.status === "CLOSED") {
@@ -347,7 +369,7 @@ export default function ReportsContent() {
               .sort((a, b) => b.totalViolations - a.totalViolations)
               .slice(0, 5);
           })()
-        : rawCameraRankings;
+          : rawCameraRankings;
 
     return baseList.map((item) => {
       const cam = getCamera(item.cameraId);
@@ -400,18 +422,29 @@ export default function ReportsContent() {
     <div className="space-y-6">
       {/* Page Header */}
       <PageHeader
+
         icon={BarChart3}
+
         title={t("reports.title")}
+
         description={t("reports.description")}
+
         badge="Analytics & Exports"
+
         badgeIcon={BarChart3}
+
         actions={
           <div className="flex items-center gap-2">
             <Button
+
               variant="ghost"
+
               onClick={handleRefreshAll}
+
               disabled={isRefetching}
+
               className="gap-2"
+
             >
               <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
               <span>{t("common.refresh")}</span>
@@ -427,35 +460,59 @@ export default function ReportsContent() {
             </Button>
           </div>
         }
+
       />
 
       {/* Bento Console KPI Summary with Interactive Detail Panel */}
       <ReportKpiSummary
+
         summary={summary}
+
         reportsCount={historyResult?.meta?.total ?? history.length}
+
         loading={isOverallLoading}
+
         selectedStat={selectedStat}
+
         onSelectStat={handleSelectStat}
+
         distribution={distribution}
+
         trends={trends}
+
         cameraRankings={cameraRankings}
+
         templates={templates}
+
         history={history}
+
         sites={sites}
+
         incidents={filteredIncidents}
+
         onGenerateReport={(tpl) => handleOpenGenerate(tpl)}
+
       />
 
       {/* Filter Toolbar */}
       <ReportFilterToolbar
+
         sites={sites}
+
         selectedSiteId={selectedSiteId}
+
         onSiteChange={setSelectedSiteId}
+
         period={period}
+
         onPeriodChange={setPeriod}
+
         onGenerateClick={() => handleOpenGenerate()}
+
         onRefresh={handleRefreshAll}
+
         loading={isRefetching}
+
       />
 
       {/* 2-Column: Trends Line Chart (Left: 8 cols) & Violation Donut (Right: 4 cols) */}
@@ -485,21 +542,40 @@ export default function ReportsContent() {
 
       {/* Export History & Queue Table */}
       <div id="reports-history-section">
-        <ReportHistoryTable history={history} loading={isHistoryLoading} />
+        <ReportHistoryTable history={history} loading={isHistoryLoading} tableState={{
+          ...historyTable,
+          rowCount: historyResult?.meta?.total ?? history.length,
+          pageCount: historyResult?.meta?.totalPages ?? 1,
+          fetching: isHistoryFetching,
+          error: historyError,
+          onRetry: () => {
+            void refetchHistory();
+          },
+          toolbar: <div className="flex flex-wrap gap-3"><label className="text-xs">{t("reports.history.type")}<select value={historyType} onChange={e => setHistoryType(e.target.value)} className="ml-2 rounded-xl border border-border bg-background p-2"><option value="">{t("table.all")}</option>{["DAILY", "WEEKLY", "MONTHLY", "VIOLATION_SUMMARY", "AI_PERFORMANCE"].map(value => <option key={value}>{value}</option>)}</select></label><label className="text-xs">{t("reports.history.status")}<select value={historyStatus} onChange={e => setHistoryStatus(e.target.value)} className="ml-2 rounded-xl border border-border bg-background p-2"><option value="">{t("table.all")}</option>{["PENDING", "PROCESSING", "COMPLETED", "FAILED"].map(value => <option key={value}>{value}</option>)}</select></label></div>
+        }} />
       </div>
 
       {/* Generate Report Modal */}
       <GenerateReportModal
+
         open={isGenerateOpen}
+
         onOpenChange={setIsGenerateOpen}
+
         templates={templates}
+
         sites={sites}
+
         selectedTemplate={selectedTemplate}
+
         defaultSiteId={selectedSiteId}
+
         loading={generateMutation.isPending}
+
         onSubmit={async (dto) => {
           await generateMutation.mutateAsync(dto);
         }}
+
       />
     </div>
   );

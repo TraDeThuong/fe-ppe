@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Pencil, User, Phone, CheckCircle2, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Pencil, User, Phone, CheckCircle2, AlertTriangle, Building2, Shield } from "lucide-react";
 import { SculptedModal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useUpdateUser } from "@/hooks/users";
+import { useSitesCatalog } from "@/hooks/sites";
+import { userService } from "@/services/user.service";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
 import type { UserResponseDto } from "@/types";
@@ -23,6 +25,11 @@ export function EditUserModal({ open, onOpenChange, user }: EditUserModalProps) 
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [assignedSiteIds, setAssignedSiteIds] = useState<string[]>([]);
+  const [isAssigningSites, setIsAssigningSites] = useState(false);
+
+  const { data: sitesCatalog, isLoading: sitesLoading } = useSitesCatalog();
+  const allSites = useMemo(() => sitesCatalog ?? [], [sitesCatalog]);
 
   const isSelf = Boolean(currentAdmin?.id && user?.id === currentAdmin.id);
   const updateUserMutation = useUpdateUser();
@@ -32,6 +39,7 @@ export function EditUserModal({ open, onOpenChange, user }: EditUserModalProps) 
       setFullName(user.fullName || "");
       setPhoneNumber(user.phoneNumber || "");
       setIsActive(user.isActive);
+      setAssignedSiteIds(user.siteIds || []);
     }
   }, [user]);
 
@@ -48,6 +56,21 @@ export function EditUserModal({ open, onOpenChange, user }: EditUserModalProps) 
           isActive: isSelf ? true : isActive,
         },
       });
+
+      // Synchronize assigned sites if admin changed them
+      const initialSites = user.siteIds || [];
+      const hasChanged =
+        initialSites.length !== assignedSiteIds.length ||
+        assignedSiteIds.some((id) => !initialSites.includes(id));
+
+      if (hasChanged) {
+        setIsAssigningSites(true);
+        try {
+          await userService.assignUserSites(user.id, assignedSiteIds);
+        } finally {
+          setIsAssigningSites(false);
+        }
+      }
 
       onOpenChange(false);
     } catch {
@@ -88,9 +111,9 @@ export function EditUserModal({ open, onOpenChange, user }: EditUserModalProps) 
             type="submit"
             form="edit-user-form"
             variant="primary"
-            disabled={updateUserMutation.isPending}
+            disabled={updateUserMutation.isPending || isAssigningSites}
           >
-            {updateUserMutation.isPending
+            {updateUserMutation.isPending || isAssigningSites
               ? isVietnamese
                 ? "Đang lưu..."
                 : "Saving..."
@@ -170,6 +193,70 @@ export function EditUserModal({ open, onOpenChange, user }: EditUserModalProps) 
             </p>
           )}
         </div>
+        {/* Phân công công trường phụ trách */}
+        {user?.role?.name !== "ADMIN" && (
+          <div className="rounded-xl border border-border/50 bg-background p-3.5 shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-primary" />
+                <span className="font-bold text-foreground block">
+                  {isVietnamese ? "Công trường phụ trách (Phân quyền truy cập)" : "Assigned Sites (Access Scope)"}
+                </span>
+              </div>
+              <span className="text-[10px] font-semibold text-primary px-2 py-0.5 rounded-full bg-primary/10">
+                {assignedSiteIds.length} {isVietnamese ? "đã chọn" : "selected"}
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {isVietnamese
+                ? "Người dùng chỉ có thể xem danh sách và giám sát an toàn tại các công trường được chọn dưới đây:"
+                : "User can only view and monitor safety at the selected sites below:"}
+            </p>
+
+            {sitesLoading ? (
+              <p className="text-[11px] text-muted-foreground italic py-2">
+                {isVietnamese ? "Đang tải danh sách công trường..." : "Loading sites..."}
+              </p>
+            ) : allSites.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground italic py-2">
+                {isVietnamese ? "Chưa có công trường nào trong hệ thống." : "No sites found in system."}
+              </p>
+            ) : (
+              <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1 pt-1">
+                {allSites.map((site) => {
+                  const isChecked = assignedSiteIds.includes(site.id);
+                  return (
+                    <label
+                      key={site.id}
+                      className={`flex items-center justify-between p-2 rounded-lg border transition cursor-pointer text-xs ${
+                        isChecked
+                          ? "border-primary/40 bg-primary/5 text-foreground font-semibold"
+                          : "border-border/30 bg-surface/40 text-muted-foreground hover:bg-surface-elevated"
+                      }`}
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="truncate font-medium text-foreground">{site.name}</div>
+                        <div className="text-[10px] font-mono text-muted-foreground">{site.code}</div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setAssignedSiteIds((prev) => [...prev, site.id]);
+                          } else {
+                            setAssignedSiteIds((prev) => prev.filter((id) => id !== site.id));
+                          }
+                        }}
+                        className="size-4 rounded border-border text-primary focus:ring-primary"
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </form>
     </SculptedModal>
   );

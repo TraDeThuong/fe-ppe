@@ -26,7 +26,7 @@ type ConfirmStatus =
  * guard ref chống StrictMode double-fire. Thành công: hook đã dọn tokenStore,
  * cache, AuthContext (BE xóa cookie + revoke toàn bộ session) → màn "tạm biệt".
  *
- * ⚠️ Nằm trong nhóm (public) nhưng user ĐANG đăng nhập khi bấm link email —
+ * Lưu ý: Nằm trong nhóm (public) nhưng user ĐANG đăng nhập khi bấm link email —
  * proxy.ts và (public) layout đều có ngoại lệ không đá về "/".
  */
 export default function DeactivateConfirmPage() {

@@ -26,6 +26,7 @@ export interface UserResponseDto {
   phoneNumber?: string | null;
   roleId: string;
   role?: UserRoleSummary;
+  siteIds?: string[];
   isActive: boolean;
   twoFactorEnabled?: boolean;
   mustChangePassword?: boolean;

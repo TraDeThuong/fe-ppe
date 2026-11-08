@@ -197,15 +197,11 @@ export const reportingService = {
   async getReportHistory(
     params?: ReportHistoryQueryDto
   ): Promise<{ items: ReportGenerationDto[]; meta?: PaginationMeta }> {
-    try {
       const res = await apiClient.get<unknown, any>(
         "/reports/history",
         { params }
       );
       return unwrapPaginated<ReportGenerationDto>(res);
-    } catch {
-      return { items: [] };
-    }
   },
 
   /**

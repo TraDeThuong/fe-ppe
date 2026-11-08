@@ -113,7 +113,11 @@ export function SiteCardGrid({
                     ? t("sites.status.active")
                     : site.status === "INACTIVE"
                       ? t("sites.status.inactive")
-                      : t("sites.status.suspended")}
+                      : site.status === "COMPLETED"
+                        ? t("sites.status.completed")
+                        : site.status === "ARCHIVED"
+                          ? t("sites.status.archived")
+                          : t("sites.status.suspended")}
                 </span>
               </div>
 

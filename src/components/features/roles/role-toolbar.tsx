@@ -2,6 +2,7 @@
 
 import { BookOpen, LayoutGrid, List, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 
 export interface RoleToolbarProps {
@@ -26,6 +27,7 @@ export function RoleToolbar({
   onOpenGuide,
 }: RoleToolbarProps) {
   const { t } = useLocale();
+  const canCreate = useCan()("ROLE_CREATE");
 
   return (
     <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -102,7 +104,7 @@ export function RoleToolbar({
           )}
 
           {/* Create Role Button */}
-          <Button
+          {canCreate ? <Button
             variant="primary"
             onClick={onCreateRole}
             className="flex items-center justify-center gap-1 sm:gap-1.5 rounded-xl h-7 sm:h-8 text-[11px] sm:text-xs px-2.5 sm:px-3 flex-1 sm:flex-initial"
@@ -110,7 +112,7 @@ export function RoleToolbar({
             <Plus className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">{t("roles.create")}</span>
             <span className="sm:hidden">{t("roles.createShort")}</span>
-          </Button>
+          </Button> : null}
         </div>
       </div>
     </div>

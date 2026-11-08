@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-} from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 import { useTableContext } from "./table-context";
 import { useLocale } from "@/providers/locale-provider";
@@ -17,14 +13,8 @@ export function TableHeader({
   className = "",
 }: TableHeaderProps) {
   const { table, variant } = useTableContext();
-
-  let isVietnamese = true;
-  try {
-    const localeCtx = useLocale();
-    isVietnamese = localeCtx.locale === "vi-VN";
-  } catch {
-    // fallback if outside LocaleProvider
-  }
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   return (
     <thead
@@ -72,7 +62,7 @@ export function TableHeader({
                 }
                 className={[
                   "px-4 sm:px-5 py-3.5 sm:py-4 align-middle",
-                  "text-left text-[11px] font-black uppercase tracking-[0.12em]",
+                  "whitespace-nowrap text-left text-[11px] font-black uppercase tracking-[0.12em]",
                   "border-r border-border/15 last:border-r-0",
                   sorted ? "text-primary" : "text-muted-foreground",
                 ].join(" ")}
@@ -94,7 +84,7 @@ export function TableHeader({
                         className={[
                           "group inline-flex min-w-0 items-center gap-2",
                           "rounded-xl px-2.5 py-1.5 -ml-2.5 text-left",
-                          "transition-all duration-200",
+                          "transition-[background-color,color,box-shadow] duration-200",
                           sorted
                             ? "bg-primary/10 shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] text-primary"
                             : "hover:bg-foreground/[0.04] hover:text-foreground",
@@ -110,7 +100,7 @@ export function TableHeader({
                           className={[
                             "flex size-5 shrink-0 items-center justify-center rounded-md",
                             "border border-border/40 bg-background",
-                            "transition-all duration-200 group-hover:scale-105",
+                            "transition-[transform,color,box-shadow] duration-200 group-hover:scale-105 motion-reduce:transform-none",
                             sorted
                               ? "text-primary shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]"
                               : "text-muted-foreground/60 shadow-[1.5px_1.5px_3px_var(--shadow-dark),-1.5px_-1.5px_3px_var(--shadow-light)] group-hover:text-foreground",

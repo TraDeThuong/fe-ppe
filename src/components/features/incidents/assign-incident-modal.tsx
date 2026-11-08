@@ -228,7 +228,7 @@ export function AssignIncidentModal({
               >
                 {siteOfficers.map((u) => (
                   <option key={u.id} value={u.id}>
-                    ⭐ {u.fullName || u.email} ({u.role?.name || (isVietnamese ? "Cán bộ tại chỗ" : "Site Officer")}
+                    {u.fullName || u.email} ({u.role?.name || (isVietnamese ? "Cán bộ tại chỗ" : "Site Officer")}
                     {u.phoneNumber ? ` - ${u.phoneNumber}` : ""})
                   </option>
                 ))}

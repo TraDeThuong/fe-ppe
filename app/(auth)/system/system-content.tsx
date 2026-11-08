@@ -94,7 +94,7 @@ export default function SystemContent() {
   // State tìm kiếm và lọc danh mục
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
-  const debouncedSearch = useDebounce(search, 300);
+  const debouncedSearch = useDebounce(search, 350);
 
   // State phân trang cho bảng cấu hình
   const [page, setPage] = useState(1);
@@ -121,11 +121,12 @@ export default function SystemContent() {
   const [pendingTargetEnabled, setPendingTargetEnabled] = useState(false);
 
   // Data queries
-  const { data: configsData, isLoading: isLoadingConfigs } = useSystemConfigs({
+  const { data: configsData, isLoading: isLoadingConfigs, isFetching: configsFetching, error: configsError, refetch: refetchConfigs } = useSystemConfigs({
     search: debouncedSearch || undefined,
     category: category || undefined,
     page,
     limit,
+
   });
 
   const {
@@ -263,11 +264,17 @@ export default function SystemContent() {
       </Link>
 
       <Button
+
         variant="outline"
+
         size="sm"
+
         onClick={() => refetchHealth()}
+
         disabled={isRefreshingHealth}
+
         className="flex items-center gap-1.5 rounded-xl text-xs h-8"
+
       >
         <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingHealth ? "animate-spin" : ""}`} />
         <span>{t("system.refresh")}</span>
@@ -279,13 +286,21 @@ export default function SystemContent() {
     <div className="space-y-6">
       {/* 1. Page Header */}
       <PageHeader
+
         icon={Settings2}
+
         title={t("system.title")}
+
         description={t("system.description")}
+
         badge={canManage ? t("system.badge") : t("system.readOnlyBadge")}
+
         badgeIcon={Settings2}
+
         breadcrumbs={breadcrumbs}
+
         actions={headerActions}
+
       />
 
       {/* Thông báo chế độ Read-only cho Safety Manager / người dùng không có quyền Manage */}
@@ -303,66 +318,117 @@ export default function SystemContent() {
 
       {/* 2. Bento Console KPI Summary (Thiết kế chuẩn tương tự như trang /roles) */}
       <SystemKpiSummary
+
         totalConfigs={totalConfigsCount}
+
         healthReport={healthReport}
+
         featureFlags={featureFlags}
+
         configs={configsData?.items ?? []}
+
         loading={isLoadingConfigs || isLoadingFlags}
+
         selectedStat={selectedStat}
+
         onSelectStat={handleSelectStat}
+
         activeTab={activeTab}
+
         onSelectTab={handleTabChange}
+
         onRefreshHealth={() => refetchHealth()}
+
         isRefreshingHealth={isRefreshingHealth}
+
         onCreateConfig={() => setCreateModalOpen(true)}
+
         onToggleFlag={handleOpenToggleDialog}
+
         canManage={canManage}
+
       />
 
       {/* 3. Neumorphic Tabs (Thiết kế cuộn ngang thông minh cho mobile) */}
       <SystemTabs
+
         activeTab={activeTab}
+
         onTabChange={handleTabChange}
+
         flagsCount={featureFlags.length}
+
         configsCount={totalConfigsCount}
+
       />
 
       {/* Tab 1: Feature Flags */}
       {activeTab === "flags" && (
         <FeatureFlagsTab
+
           flags={featureFlags}
+
           onToggle={handleOpenToggleDialog}
+
           loading={isLoadingFlags}
+
           canManage={canManage}
+
         />
       )}
 
       {/* Tab 2: System Configs */}
       {activeTab === "configs" && (
         <div className="space-y-4">
-          <SystemConfigToolbar
-            search={search}
-            onSearchChange={handleSearchChange}
-            category={category}
-            onCategoryChange={handleCategoryChange}
-            onAddConfig={() => setCreateModalOpen(true)}
-            canManage={canManage}
-          />
 
           <SystemConfigTable
+
             items={configsData?.items ?? []}
+
             onEdit={handleOpenEdit}
+
             onDelete={handleOpenDelete}
+
             loading={isLoadingConfigs}
+
             page={page}
+
             pageSize={limit}
+
             totalItems={totalConfigsCount}
+
             onPageChange={setPage}
+
             onPageSizeChange={(newLimit) => {
               setLimit(newLimit);
               setPage(1);
             }}
+
             canManage={canManage}
+
+            tableState={{
+              fetching: configsFetching,
+              error: configsError,
+              onRetry: () => {
+                void refetchConfigs();
+              },
+              toolbar: <SystemConfigToolbar
+
+                search={search}
+
+                onSearchChange={handleSearchChange}
+
+                category={category}
+
+                onCategoryChange={handleCategoryChange}
+
+                onAddConfig={() => setCreateModalOpen(true)}
+
+                canManage={canManage}
+
+              />
+            }}
+
           />
         </div>
       )}
@@ -381,35 +447,59 @@ export default function SystemContent() {
 
       {/* Modals & Dialogs */}
       <CreateConfigModal
+
         open={createModalOpen}
+
         onOpenChange={setCreateModalOpen}
+
         onSubmit={handleSaveCreate}
+
         loading={isCreating}
+
       />
 
       <EditConfigModal
+
         open={editModalOpen}
+
         onOpenChange={setEditModalOpen}
+
         config={selectedConfig}
+
         onSubmit={handleSaveEdit}
+
         loading={isUpdating}
+
       />
 
       <DeleteConfigDialog
+
         open={deleteModalOpen}
+
         onOpenChange={setDeleteModalOpen}
+
         config={selectedConfig}
+
         onConfirm={handleConfirmDelete}
+
         loading={isDeleting}
+
       />
 
       <ToggleFlagDialog
+
         open={toggleDialogOpen}
+
         onOpenChange={setToggleDialogOpen}
+
         flag={pendingFlag}
+
         targetEnabled={pendingTargetEnabled}
+
         onConfirm={handleConfirmToggleFlag}
+
         loading={isToggling}
+
       />
     </div>
   );

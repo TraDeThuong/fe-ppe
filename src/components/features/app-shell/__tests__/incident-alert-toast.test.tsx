@@ -90,7 +90,7 @@ describe("IncidentAlertToast & Evidence URL Normalizer", () => {
       cameraCode: "CAM-GATE-02",
       violationType: "NO_HELMET",
       severity: "CRITICAL",
-      title: "🚨 Cảnh báo vi phạm PPE [CRITICAL]: NO_HELMET",
+      title: "Cảnh báo vi phạm PPE [CRITICAL]: NO_HELMET",
       content: "Phát hiện công nhân không đội mũ bảo hộ tại cổng số 2.",
       evidenceUrl: "http://localhost:9000/ppe-evidences/camera-evidence.jpg",
       detectedAt: "2026-11-03T12:00:00.000Z",

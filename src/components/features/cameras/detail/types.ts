@@ -32,12 +32,24 @@ export interface ViolationEvent {
   duration_s: number;
   frame: number;
   evidence_path?: string;
+  reference_path?: string;
+  reference_type?: string;
+  box?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    label?: string;
+    confidence?: number;
+  };
 }
 
 export interface EvidenceRecord {
   event_id: string;
   status: "saved" | "error" | string;
   path?: string;
+  reference_path?: string;
+  has_reference?: boolean;
   error?: string;
   frame: number;
 }
@@ -53,7 +65,7 @@ export interface FrameLogEntry {
     tracks: number;
   };
   events: string[];
-  associations: FrameAssociation[];
+  associations?: FrameAssociation[];
   persons: PersonStatus[];
   confirmations: any[];
   violations: ViolationEvent[];

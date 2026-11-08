@@ -10,7 +10,7 @@ export const notificationKeys = {
   unreadCount: () => [...notificationKeys.all, "unread-count"] as const,
   preferences: () => [...notificationKeys.all, "preferences"] as const,
   templates: (params?: unknown) =>
-    [...notificationKeys.all, "templates", params] as const,
+    params === undefined ? [...notificationKeys.all, "templates"] as const : [...notificationKeys.all, "templates", params] as const,
   templateDetail: (code: string) =>
     [...notificationKeys.all, "templates", "detail", code] as const,
   emailLogs: (params?: unknown) =>

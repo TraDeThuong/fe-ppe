@@ -211,7 +211,7 @@ export function ConfirmDialog({
       `}</style>
 
       <div
-        className="cd-backdrop-in fixed inset-0 z-[1000] flex items-center justify-center overflow-y-auto bg-[#111820]/45 p-3 backdrop-blur-[7px] sm:p-6"
+        className="cd-backdrop-in fixed inset-0 z-[1000] flex items-center justify-center overflow-y-auto overscroll-contain bg-[#111820]/45 p-3 backdrop-blur-[7px] sm:p-6"
         onMouseDown={(event) => {
           if (
             closeOnOverlayClick &&
@@ -229,7 +229,7 @@ export function ConfirmDialog({
           aria-describedby={descriptionId}
           aria-busy={busy}
           className={[
-            "cd-dialog-in relative my-auto w-full max-w-[440px] max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)] overflow-y-auto rounded-[32px]",
+            "cd-dialog-in relative my-auto w-full max-w-[440px] max-h-[calc(100dvh-1.5rem)] sm:max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain rounded-[32px]",
             "border border-white/40 bg-background text-foreground",
             "shadow-[18px_18px_42px_rgba(20,28,38,0.20),-12px_-12px_36px_rgba(255,255,255,0.58)]",
             "dark:border-white/[0.07] dark:shadow-[18px_18px_42px_rgba(0,0,0,0.38),-8px_-8px_30px_rgba(41,55,71,0.30)]",
@@ -283,9 +283,9 @@ export function ConfirmDialog({
                 onClick={handleClose}
                 disabled={busy}
                 aria-label="Close dialog"
-                className="group flex h-9 w-9 items-center justify-center rounded-xl border border-border/60 bg-background text-muted-foreground shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all duration-200 hover:text-foreground active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] disabled:cursor-not-allowed disabled:opacity-40"
+                className="group flex h-9 w-9 items-center justify-center rounded-xl border border-border/60 bg-background text-muted-foreground shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-[transform,color,box-shadow] duration-200 hover:text-foreground active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transform-none disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <X className="h-4 w-4 transition-transform duration-200 group-hover:rotate-90" />
+                <X className="h-4 w-4 transition-transform duration-200 group-hover:rotate-90 motion-reduce:transform-none" />
               </button>
             </div>
 
@@ -372,7 +372,8 @@ export function ConfirmDialog({
                 className={[
                   "group relative flex min-h-[54px] w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl px-5 py-3",
                   "text-[13px] font-bold tracking-[0.01em]",
-                  "transition-all duration-200 ease-out",
+                  "transition-[transform,background-color,box-shadow,color] duration-200 ease-out",
+                  "motion-reduce:transform-none motion-reduce:transition-none",
                   "hover:-translate-y-0.5 active:translate-y-0",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0",
@@ -387,13 +388,13 @@ export function ConfirmDialog({
                 {busy ? (
                   <>
                     <LoaderCircle className="h-[17px] w-[17px] animate-spin" />
-                    <span>Processing...</span>
+                    <span>Processing…</span>
                   </>
                 ) : (
                   <>
-                    <Icon className="h-[17px] w-[17px] transition-transform duration-200 group-hover:scale-110" />
+                    <Icon className="h-[17px] w-[17px] transition-transform duration-200 group-hover:scale-110 motion-reduce:transform-none" />
                     <span>{confirmText}</span>
-                    <ArrowRight className="absolute right-5 h-4 w-4 opacity-60 transition-all duration-200 group-hover:translate-x-1 group-hover:opacity-100" />
+                    <ArrowRight className="absolute right-5 h-4 w-4 opacity-60 transition-[transform,opacity] duration-200 group-hover:translate-x-1 group-hover:opacity-100 motion-reduce:transform-none" />
                   </>
                 )}
               </button>
@@ -403,9 +404,9 @@ export function ConfirmDialog({
                 type="button"
                 onClick={handleClose}
                 disabled={busy}
-                className="group mt-3 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-border/50 bg-background px-4 py-3 text-[13px] font-semibold text-muted-foreground shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)] transition-all duration-200 hover:text-foreground active:shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="group mt-3 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border border-border/50 bg-background px-4 py-3 text-[13px] font-semibold text-muted-foreground shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)] transition-[transform,color,box-shadow] duration-200 hover:text-foreground active:shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary motion-reduce:transform-none disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Check className="h-4 w-4 opacity-50 transition-transform group-hover:scale-110" />
+                <Check className="h-4 w-4 opacity-50 transition-transform group-hover:scale-110 motion-reduce:transform-none" />
                 {cancelText}
               </button>
 

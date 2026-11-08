@@ -36,16 +36,35 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
     let source: EventSource | null = null;
     let disposed = false;
+    let reconnectTimer: NodeJS.Timeout | null = null;
 
-    (async () => {
+    const connect = async () => {
       try {
         const ticket = await fetchStreamTicket();
         if (disposed) return;
+
         source = new EventSource(
           `${env.apiBaseUrl}/notifications/stream?ticket=${encodeURIComponent(ticket)}`,
         );
+
         source.onopen = () => setIsConnected(true);
-        source.onerror = () => setIsConnected(false);
+
+        source.onerror = () => {
+          setIsConnected(false);
+          // Đóng kết nối ngay để chặn browser EventSource tự retry vô tận với ticket cũ đã hết hạn
+          source?.close();
+
+          // Thử kết nối lại bằng ticket mới sau 5 giây nếu người dùng vẫn đang đăng nhập và chưa unmount
+          if (!disposed && !reconnectTimer) {
+            reconnectTimer = setTimeout(() => {
+              reconnectTimer = null;
+              if (!disposed) {
+                connect();
+              }
+            }, 5000);
+          }
+        };
+
         for (const eventName of ALERT_EVENTS) {
           source.addEventListener(eventName, (event) => {
             const msg = event as MessageEvent<string>;
@@ -60,11 +79,24 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {
         setIsConnected(false);
+        if (!disposed && !reconnectTimer) {
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            if (!disposed) {
+              connect();
+            }
+          }, 10000);
+        }
       }
-    })();
+    };
+
+    connect();
 
     return () => {
       disposed = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
       source?.close();
       setIsConnected(false);
     };

@@ -2,13 +2,9 @@
 
 import { useState } from "react";
 import {
-  FileText,
   Volume2,
   X,
   Plus,
-  HelpCircle,
-  ShieldAlert,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -240,11 +236,11 @@ export function CreateNotificationTemplateModal({
                 }}
                 className="w-full rounded-xl border border-border/40 bg-background px-3 py-2 text-xs font-semibold text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark)] outline-none focus:border-primary/60"
               >
-                <option value="critical">{isVietnamese ? "🚨 Còi khẩn cấp (Siren)" : "🚨 Emergency Siren"}</option>
-                <option value="warning">{isVietnamese ? "🔔 Chuông tam âm (Warning)" : "🔔 Tri-tone Chime"}</option>
-                <option value="info">{isVietnamese ? "💧 Giọt nước (Glass Pop)" : "💧 Glass Pop"}</option>
-                <option value="success">{isVietnamese ? "✨ Hợp âm (Success Chord)" : "✨ Success Chord"}</option>
-                <option value="radio">{isVietnamese ? "📻 Bộ đàm (Radio Chirp)" : "📻 Dispatch Radio"}</option>
+                <option value="critical">{isVietnamese ? "Còi khẩn cấp (Siren)" : "Emergency Siren"}</option>
+                <option value="warning">{isVietnamese ? "Chuông tam âm (Warning)" : "Tri-tone Chime"}</option>
+                <option value="info">{isVietnamese ? "Giọt nước (Glass Pop)" : "Glass Pop"}</option>
+                <option value="success">{isVietnamese ? "Hợp âm (Success Chord)" : "Success Chord"}</option>
+                <option value="radio">{isVietnamese ? "Bộ đàm (Radio Chirp)" : "Dispatch Radio"}</option>
               </select>
             </div>
           </div>
@@ -258,7 +254,7 @@ export function CreateNotificationTemplateModal({
               type="text"
               value={subjectTemplate}
               onChange={(e) => setSubjectTemplate(e.target.value)}
-              placeholder={isVietnamese ? "VD: ⚠️ Cảnh báo an toàn tại {{siteName}}" : "e.g., ⚠️ Safety Alert at {{siteName}}"}
+              placeholder={isVietnamese ? "VD: Cảnh báo an toàn tại {{siteName}}" : "e.g., Safety Alert at {{siteName}}"}
               className="w-full rounded-xl border border-border/40 bg-background px-3 py-2 text-xs text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark)] outline-none focus:border-primary/60"
             />
           </div>

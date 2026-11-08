@@ -1,4 +1,5 @@
 "use client";
+import { Table, TableToolbar, TableContent, TablePagination, TableRefresh } from "@/components/ui/table";
 
 import { useMemo, useState } from "react";
 import {
@@ -6,18 +7,14 @@ import {
   Building2,
   Calculator,
   Camera,
-  CheckCircle2,
   ChevronRight,
   HardHat,
   Layers,
   Loader2,
-  MapPin,
   Plus,
   Shield,
-  ShieldAlert,
   ShieldCheck,
   Shirt,
-  User,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -102,6 +99,7 @@ export function SiteStatsDetailPanel({
         siteName: site.name,
         siteCode: site.code,
         site,
+
       }))
     );
     if (embeddedZones.length > 0) return embeddedZones;
@@ -114,12 +112,14 @@ export function SiteStatsDetailPanel({
         status: "ACTIVE",
         createdAt: z.createdAt,
         updatedAt: z.updatedAt,
+
       };
       return {
         ...z,
         siteName: z.site?.name || parentSite.name || "",
         siteCode: z.site?.code || parentSite.code || "",
         site: parentSite,
+
       };
     });
   }, [sites, fetchedZones, sitesMap, t]);
@@ -137,6 +137,7 @@ export function SiteStatsDetailPanel({
         siteName: site.name,
         siteCode: site.code,
         site,
+
       }))
     );
     if (embeddedRestricted.length > 0) return embeddedRestricted;
@@ -149,6 +150,7 @@ export function SiteStatsDetailPanel({
         status: "ACTIVE",
         createdAt: a.createdAt,
         updatedAt: a.updatedAt,
+
       };
       return {
         ...a,
@@ -156,6 +158,7 @@ export function SiteStatsDetailPanel({
         siteName: a.site?.name || parentSite.name || "",
         siteCode: a.site?.code || parentSite.code || "",
         site: parentSite,
+
       };
     });
   }, [sites, fetchedRestricted, sitesMap, t]);
@@ -225,11 +228,17 @@ export function SiteStatsDetailPanel({
         <div className="flex items-center gap-1.5 shrink-0">
           {activeStat === "totalSites" && onCreateSite && (
             <Button
+
               type="button"
+
               variant="outline"
+
               size="sm"
+
               onClick={onCreateSite}
+
               className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs text-primary hover:text-primary px-2 sm:px-3"
+
             >
               <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span className="hidden sm:inline">{t("sites.detail.createSiteBtn")}</span>
@@ -238,11 +247,17 @@ export function SiteStatsDetailPanel({
 
           {activeStat === "totalZones" && sites[0] && onManageZones && (
             <Button
+
               type="button"
+
               variant="outline"
+
               size="sm"
+
               onClick={() => onManageZones(sites[0])}
+
               className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs text-primary hover:text-primary px-2 sm:px-3"
+
             >
               <Layers className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span className="hidden sm:inline">{t("sites.detail.manageZonesBtn")}</span>
@@ -251,11 +266,17 @@ export function SiteStatsDetailPanel({
 
           {activeStat === "restrictedAreas" && sites[0] && onManageZones && (
             <Button
+
               type="button"
+
               variant="outline"
+
               size="sm"
+
               onClick={() => onManageZones(sites[0])}
+
               className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs text-accent hover:text-accent px-2 sm:px-3"
+
             >
               <AlertOctagon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span className="hidden sm:inline">{t("sites.zonesDrawer.tabRestricted")}</span>
@@ -264,11 +285,17 @@ export function SiteStatsDetailPanel({
 
           {activeStat === "complianceRate" && sites[0] && onSafetyConfig && (
             <Button
+
               type="button"
+
               variant="outline"
+
               size="sm"
+
               onClick={() => onSafetyConfig(sites[0])}
+
               className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs text-primary hover:text-primary px-2 sm:px-3"
+
             >
               <Shield className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span className="hidden sm:inline">{t("sites.detail.safetyRulesBtn")}</span>
@@ -276,10 +303,15 @@ export function SiteStatsDetailPanel({
           )}
 
           <button
+
             type="button"
+
             onClick={onClose}
+
             className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg sm:rounded-xl border border-border/40 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+
             aria-label={t("sites.detail.closeAria")}
+
           >
             <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
@@ -295,163 +327,152 @@ export function SiteStatsDetailPanel({
                 active: activeSites,
                 inactive: inactiveSites,
                 suspended: suspendedSites,
+
               })}
             </span>
             <span className="text-[10px] italic">{t("sites.detail.totalSitesDesc")}</span>
           </div>
 
           {/* MOBILE VIEW */}
-          <div className="block sm:hidden max-h-[260px] overflow-y-auto space-y-2 pr-0.5">
-            {sites.map((site) => {
-              const zoneCount = site.zoneCount ?? site.zones?.length ?? site._count?.zones ?? 0;
-              const restrictedCount = site.restrictedAreaCount ?? site.restrictedAreas?.length ?? site._count?.restrictedAreas ?? 0;
-              const isActive = site.status === "ACTIVE";
 
-              return (
-                <div
-                  key={site.id}
-                  className="rounded-xl border border-border/40 bg-background/60 p-2.5 shadow-[inset_1px_1px_2px_var(--shadow-dark)] space-y-1.5 dark:border-black/50 dark:bg-card/70"
-                >
-                  <div className="flex items-center justify-between gap-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <Building2 className="h-3 w-3 text-primary shrink-0" />
-                      <span className="font-mono text-xs font-bold text-primary">{site.code}</span>
-                      <span className="text-xs font-semibold text-foreground truncate">{site.name}</span>
+          {/* DESKTOP VIEW */}
+          <div className="min-w-0">
+            <Table
+              surface="embedded"
+              data={sites}
+              columns={[{
+                id: "name",
+                header: t("sites.table.name"),
+                accessorFn: (site) => site.name,
+                enableSorting: true,
+                cell: ({ row }) => {
+                  const site = row.original;
+
+                  return <div className={"font-bold text-foreground"}>
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <div>
+                        <span className="font-semibold text-foreground">{site.name}</span>
+                        <span className="block font-mono text-[10px] text-primary">{site.code}</span>
+                      </div>
                     </div>
+                  </div>;
+                }
+              },
+              {
+                id: "status",
+                header: t("sites.table.status"),
+                accessorFn: (site) => site.status,
+                enableSorting: true,
+                cell: ({ row }) => {
+                  const site = row.original;
 
+                  const isActive = site.status === "ACTIVE";
+                  return <div className={""}>
                     <span
-                      className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold border shrink-0 ${
-                        isActive
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border ${isActive
                           ? "bg-primary/10 text-primary border-primary/20"
                           : "bg-muted/40 text-muted-foreground border-border/40"
-                      }`}
+                        }`}
                     >
                       {isActive
                         ? t("sites.status.active")
                         : site.status === "INACTIVE"
                           ? t("sites.status.inactive")
-                          : t("sites.status.suspended")}
+                          : site.status === "COMPLETED"
+                            ? t("sites.status.completed")
+                            : site.status === "ARCHIVED"
+                              ? t("sites.status.archived")
+                              : t("sites.status.suspended")}
                     </span>
-                  </div>
+                  </div>;
+                }
+              },
+              {
+                id: "address",
+                header: t("sites.table.address"),
+                accessorFn: (site) => site.address,
+                enableSorting: true,
+                cell: ({ row }) => {
+                  const site = row.original;
 
-                  {site.address && (
-                    <p className="text-[11px] text-muted-foreground line-clamp-1">{site.address}</p>
-                  )}
+                  return <div className={"text-muted-foreground max-w-xs truncate"}>
+                    {site.address || t("sites.card.noAddress")}
+                  </div>;
+                }
+              },
+              {
+                id: "zoneCount",
+                header: t("sites.table.zonesCount"),
+                accessorFn: (site) => site.zoneCount ?? site.zones?.length ?? site._count?.zones ?? 0,
+                enableSorting: true,
+                cell: ({ row }) => {
+                  const site = row.original;
+                  const zoneCount = site.zoneCount ?? site.zones?.length ?? site._count?.zones ?? 0;
 
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t border-border/20 pt-1.5">
-                    <div className="flex items-center gap-2">
-                      <span>{zoneCount} {t("sites.units.zones")}</span>
-                      <span>•</span>
-                      <span className="text-accent">{restrictedCount} {t("sites.units.restricted")}</span>
-                    </div>
+                  return <div className={"text-center font-mono font-semibold"}>
+                    {zoneCount}
+                  </div>;
+                }
+              },
+              {
+                id: "restrictedAreaCount",
+                header: t("sites.table.restrictedCount"),
+                accessorFn: (site) => site.restrictedAreaCount ?? site.restrictedAreas?.length ?? site._count?.restrictedAreas ?? 0,
+                enableSorting: true,
+                cell: ({ row }) => {
+                  const site = row.original;
+                  const restrictedCount = site.restrictedAreaCount ?? site.restrictedAreas?.length ?? site._count?.restrictedAreas ?? 0;
 
-                    <div className="flex items-center gap-2">
+                  return <div className={"text-center font-mono font-semibold text-accent"}>
+                    {restrictedCount}
+                  </div>;
+                }
+              },
+              {
+                id: "actions",
+                header: t("sites.table.actions"),
+                enableSorting: false,
+                cell: ({ row }) => {
+                  const site = row.original;
+
+                  return <div className={"text-right"}>
+                    <div className="flex items-center justify-end gap-1.5">
                       {onManageZones && (
                         <button
                           type="button"
                           onClick={() => onManageZones(site)}
-                          className="text-primary font-semibold hover:underline"
+                          className="text-[11px] font-semibold text-primary hover:underline"
                         >
-                          {t("sites.units.zones")}
+                          {t("sites.card.zonesAndRestricted")}
                         </button>
                       )}
                       {onSafetyConfig && (
                         <button
                           type="button"
                           onClick={() => onSafetyConfig(site)}
-                          className="text-accent font-semibold hover:underline"
+                          className="text-[11px] font-semibold text-accent hover:underline"
                         >
                           PPE
                         </button>
                       )}
                     </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* DESKTOP VIEW */}
-          <div className="hidden sm:block max-h-[280px] overflow-y-auto rounded-xl border border-border/30 bg-background/50 shadow-[inset_1px_1px_3px_var(--shadow-dark)]">
-            <table className="w-full text-left text-xs">
-              <thead className="sticky top-0 bg-background/95 backdrop-blur-sm border-b border-border/40 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th className="py-2.5 px-3.5">{t("sites.table.name")}</th>
-                  <th className="py-2.5 px-3">{t("sites.table.status")}</th>
-                  <th className="py-2.5 px-3">{t("sites.table.address")}</th>
-                  <th className="py-2.5 px-3 text-center">{t("sites.table.zonesCount")}</th>
-                  <th className="py-2.5 px-3 text-center">{t("sites.table.restrictedCount")}</th>
-                  <th className="py-2.5 px-3 text-right">{t("sites.table.actions")}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/20">
-                {sites.map((site) => {
-                  const zoneCount = site.zoneCount ?? site.zones?.length ?? site._count?.zones ?? 0;
-                  const restrictedCount = site.restrictedAreaCount ?? site.restrictedAreas?.length ?? site._count?.restrictedAreas ?? 0;
-                  const isActive = site.status === "ACTIVE";
-
-                  return (
-                    <tr key={site.id} className="transition-colors hover:bg-muted/30 group">
-                      <td className="py-2.5 px-3.5 font-bold text-foreground">
-                        <div className="flex items-center gap-2">
-                          <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                          <div>
-                            <span className="font-semibold text-foreground">{site.name}</span>
-                            <span className="block font-mono text-[10px] text-primary">{site.code}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
-                            isActive
-                              ? "bg-primary/10 text-primary border-primary/20"
-                              : "bg-muted/40 text-muted-foreground border-border/40"
-                          }`}
-                        >
-                          {isActive
-                            ? t("sites.status.active")
-                            : site.status === "INACTIVE"
-                              ? t("sites.status.inactive")
-                              : t("sites.status.suspended")}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-muted-foreground max-w-xs truncate">
-                        {site.address || t("sites.card.noAddress")}
-                      </td>
-                      <td className="py-2.5 px-3 text-center font-mono font-semibold">
-                        {zoneCount}
-                      </td>
-                      <td className="py-2.5 px-3 text-center font-mono font-semibold text-accent">
-                        {restrictedCount}
-                      </td>
-                      <td className="py-2.5 px-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {onManageZones && (
-                            <button
-                              type="button"
-                              onClick={() => onManageZones(site)}
-                              className="text-[11px] font-semibold text-primary hover:underline"
-                            >
-                              {t("sites.card.zonesAndRestricted")}
-                            </button>
-                          )}
-                          {onSafetyConfig && (
-                            <button
-                              type="button"
-                              onClick={() => onSafetyConfig(site)}
-                              className="text-[11px] font-semibold text-accent hover:underline"
-                            >
-                              PPE
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </div>;
+                }
+              }]}
+              loading={false}
+              getRowId={row => row.id}
+              features={{
+                globalFilter: false,
+                sorting: true,
+                rowSelection: false,
+                pagination: false
+              }}
+            >
+              <TableToolbar showSearch={false} actions={<TableRefresh />} />
+              <TableContent />
+              <TablePagination />
+            </Table>
           </div>
         </div>
       )}
@@ -535,14 +556,18 @@ export function SiteStatsDetailPanel({
             <div className="flex items-center gap-1.5">
               {["ALL", "CRITICAL", "HIGH", "MEDIUM"].map((sev) => (
                 <button
+
                   key={sev}
+
                   type="button"
+
                   onClick={() => setSelectedSeverity(sev)}
-                  className={`rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase transition ${
-                    selectedSeverity === sev
+
+                  className={`rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase transition ${selectedSeverity === sev
                       ? "bg-accent text-white shadow-sm"
                       : "bg-surface-elevated text-muted-foreground hover:text-foreground"
-                  }`}
+                    }`}
+
                 >
                   {sev === "ALL" ? t("sites.detail.severityFilterAll") : sev}
                 </button>
@@ -742,33 +767,30 @@ export function SiteStatsDetailPanel({
                     {/* PPE Rules Badges */}
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span
-                        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium border ${
-                          hasHelmet
+                        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium border ${hasHelmet
                             ? "bg-primary/10 text-primary border-primary/20"
                             : "bg-muted/40 text-muted-foreground border-border/40 line-through"
-                        }`}
+                          }`}
                       >
                         <HardHat className="h-3 w-3" />
                         <span>{t("sites.safetyConfig.hardHat")}</span>
                       </span>
 
                       <span
-                        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium border ${
-                          hasVest
+                        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium border ${hasVest
                             ? "bg-primary/10 text-primary border-primary/20"
                             : "bg-muted/40 text-muted-foreground border-border/40 line-through"
-                        }`}
+                          }`}
                       >
                         <Shirt className="h-3 w-3" />
                         <span>{t("sites.safetyConfig.vest")}</span>
                       </span>
 
                       <span
-                        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium border ${
-                          hasRestricted
+                        className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium border ${hasRestricted
                             ? "bg-accent/15 text-accent border-accent/20"
                             : "bg-muted/40 text-muted-foreground border-border/40 line-through"
-                        }`}
+                          }`}
                       >
                         <AlertOctagon className="h-3 w-3" />
                         <span>{t("sites.safetyConfig.restrictedArea")}</span>

@@ -15,6 +15,7 @@ import {
 import {
   Table,
   TableContent,
+  TableToolbar,
   type TableFeatureSet,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,7 @@ export function SystemHealthMatrix({
   ]);
 
   const filteredServices = useMemo(() => {
-    let list = rawServices.filter((svc) => {
+    const list = rawServices.filter((svc) => {
       const matchesType = typeFilter === "ALL" || (svc.type || "SERVICE") === typeFilter;
       const matchesStatus = statusFilter === "ALL" || svc.status === statusFilter;
       const matchesSearch =
@@ -60,36 +61,9 @@ export function SystemHealthMatrix({
       return matchesType && matchesStatus && matchesSearch;
     });
 
-    if (sorting.length > 0) {
-      const { id, desc } = sorting[0];
-      list = [...list].sort((a, b) => {
-        let valA: string | number = "";
-        let valB: string | number = "";
-        if (id === "name") {
-          valA = a.name.toLowerCase();
-          valB = b.name.toLowerCase();
-        } else if (id === "serviceCode") {
-          valA = a.serviceCode.toLowerCase();
-          valB = b.serviceCode.toLowerCase();
-        } else if (id === "port") {
-          valA = a.port;
-          valB = b.port;
-        } else if (id === "latencyMs") {
-          valA = a.latencyMs;
-          valB = b.latencyMs;
-        } else if (id === "status") {
-          const rank = { HEALTHY: 1, DEGRADED: 2, DOWN: 3 };
-          valA = rank[a.status] || 4;
-          valB = rank[b.status] || 4;
-        }
-        if (valA < valB) return desc ? 1 : -1;
-        if (valA > valB) return desc ? -1 : 1;
-        return 0;
-      });
-    }
 
     return list;
-  }, [rawServices, typeFilter, statusFilter, search, sorting]);
+  }, [rawServices, typeFilter, statusFilter, search]);
 
   const getStatusBadge = (status: "HEALTHY" | "DEGRADED" | "DOWN") => {
     switch (status) {
@@ -128,13 +102,12 @@ export function SystemHealthMatrix({
           return (
             <div className="flex items-center gap-2.5 py-1">
               <span
-                className={`h-2.5 w-2.5 rounded-full shrink-0 ${
-                  svc.status === "HEALTHY"
+                className={`h-2.5 w-2.5 rounded-full shrink-0 ${svc.status === "HEALTHY"
                     ? "bg-success animate-pulse"
                     : svc.status === "DEGRADED"
-                    ? "bg-warning"
-                    : "bg-danger"
-                }`}
+                      ? "bg-warning"
+                      : "bg-danger"
+                  }`}
               />
               <span className="font-semibold text-foreground text-xs sm:text-sm">
                 {svc.name}
@@ -142,6 +115,7 @@ export function SystemHealthMatrix({
             </div>
           );
         },
+
       },
       {
         id: "type",
@@ -151,16 +125,16 @@ export function SystemHealthMatrix({
           const isInfra = row.original.type === "INFRASTRUCTURE";
           return (
             <span
-              className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-                isInfra
+              className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${isInfra
                   ? "border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400"
                   : "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400"
-              }`}
+                }`}
             >
               {isInfra ? t("system.health.typeInfra") : t("system.health.typeService")}
             </span>
           );
         },
+
       },
       {
         id: "serviceCode",
@@ -171,6 +145,7 @@ export function SystemHealthMatrix({
             {row.original.serviceCode}
           </span>
         ),
+
       },
       {
         id: "port",
@@ -181,12 +156,18 @@ export function SystemHealthMatrix({
             :{row.original.port}
           </span>
         ),
+
       },
       {
         id: "status",
         accessorKey: "status",
+        sortFn: (left, right) => {
+          const rank = { HEALTHY: 1, DEGRADED: 2, DOWN: 3 };
+          return rank[left.original.status] - rank[right.original.status];
+        },
         header: t("system.health.tableStatus"),
         cell: ({ row }) => getStatusBadge(row.original.status),
+
       },
       {
         id: "latencyMs",
@@ -197,21 +178,20 @@ export function SystemHealthMatrix({
           return (
             <div className="flex items-center gap-1.5 font-mono text-xs">
               <Activity
-                className={`h-3.5 w-3.5 ${
-                  lat < 100
+                className={`h-3.5 w-3.5 ${lat < 100
                     ? "text-success"
                     : lat < 300
-                    ? "text-warning"
-                    : "text-danger"
-                }`}
+                      ? "text-warning"
+                      : "text-danger"
+                  }`}
               />
               <span
                 className={
                   lat < 100
                     ? "text-foreground font-semibold"
                     : lat < 300
-                    ? "text-warning font-semibold"
-                    : "text-danger font-semibold"
+                      ? "text-warning font-semibold"
+                      : "text-danger font-semibold"
                 }
               >
                 {lat} ms
@@ -219,6 +199,7 @@ export function SystemHealthMatrix({
             </div>
           );
         },
+
       },
       {
         id: "uptime",
@@ -229,6 +210,7 @@ export function SystemHealthMatrix({
             {row.original.uptime ?? "14d 8h"}
           </span>
         ),
+
       },
     ];
   }, [t]);
@@ -252,11 +234,17 @@ export function SystemHealthMatrix({
         </div>
 
         <Button
+
           variant="outline"
+
           size="sm"
+
           onClick={onRefresh}
+
           disabled={isRefreshing}
+
           className="flex items-center gap-1.5 rounded-xl self-start sm:self-auto text-xs"
+
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
           <span>{t("system.refresh")}</span>
@@ -268,42 +256,66 @@ export function SystemHealthMatrix({
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
+
             type="text"
+
             value={search}
+
             onChange={(e) => setSearch(e.target.value)}
+
             placeholder={isVietnamese ? "Tìm kiếm node dịch vụ hoặc cổng..." : "Search service node or port..."}
+
             className="w-full rounded-xl border border-border/40 bg-surface pl-9 pr-3 py-1.5 text-xs text-foreground shadow-[inset_1px_1px_2px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:border-black/50 dark:bg-card/70"
+
           />
         </div>
 
         {/* Type Filter Pills */}
         <div className="flex items-center gap-1.5 shrink-0 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
           <Button
+
             type="button"
+
             variant={typeFilter === "ALL" ? "primary" : "outline"}
+
             size="sm"
+
             onClick={() => setTypeFilter("ALL")}
+
             className="h-8 text-xs rounded-xl px-2.5"
+
           >
             {t("system.health.filterAll", { count: rawServices.length })}
           </Button>
           <Button
+
             type="button"
+
             variant={typeFilter === "SERVICE" ? "primary" : "outline"}
+
             size="sm"
+
             onClick={() => setTypeFilter("SERVICE")}
+
             className="h-8 text-xs rounded-xl px-2.5"
+
           >
             {t("system.health.filterServices", {
               count: rawServices.filter((s) => (s.type || "SERVICE") === "SERVICE").length,
             })}
           </Button>
           <Button
+
             type="button"
+
             variant={typeFilter === "INFRASTRUCTURE" ? "primary" : "outline"}
+
             size="sm"
+
             onClick={() => setTypeFilter("INFRASTRUCTURE")}
+
             className="h-8 text-xs rounded-xl px-2.5"
+
           >
             {t("system.health.filterInfra", {
               count: rawServices.filter((s) => s.type === "INFRASTRUCTURE").length,
@@ -314,14 +326,35 @@ export function SystemHealthMatrix({
 
       {/* Common Table Component */}
       <Table
+
+        surface="embedded"
+
+        fetching={isRefreshing}
+
+        onRetry={onRefresh}
+
         data={filteredServices}
+
+        features={{
+          pagination: false,
+          globalFilter: false,
+          rowSelection: false
+        }}
+
         columns={columns}
+
         variant={variant}
+
         sorting={sorting}
+
         onSortingChange={setSorting}
+
         emptyMessage={t("system.health.noServices")}
+
         getRowId={(row) => row.serviceCode}
+
       >
+        <TableToolbar showSearch={false} />
         <TableContent />
       </Table>
     </div>

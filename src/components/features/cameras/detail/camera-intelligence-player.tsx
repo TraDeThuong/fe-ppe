@@ -19,6 +19,7 @@ import {
   Scan,
   Sliders,
   Sparkles,
+  VideoOff,
   Zap,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +47,7 @@ export function getYouTubeEmbedUrl(url?: string): {
 }
 
 export interface CameraIntelligencePlayerProps {
-  videoSrc: string;
+  videoSrc?: string;
   currentEntry: FrameLogEntry | null;
   isPlaying: boolean;
   showBbox: boolean;
@@ -82,10 +83,11 @@ export interface CameraIntelligencePlayerProps {
   bufferedFramesCount?: number;
   loopCached?: boolean;
   onLiveStateUpdate?: (state: any) => void;
+  roiPolygon?: Array<{ x: number; y: number }> | null;
 }
 
 export function CameraIntelligencePlayer({
-  videoSrc,
+  videoSrc = "",
   currentEntry,
   isPlaying,
   showBbox,
@@ -116,20 +118,35 @@ export function CameraIntelligencePlayer({
   bufferedFramesCount = 0,
   loopCached = false,
   onLiveStateUpdate,
+  roiPolygon,
 }: CameraIntelligencePlayerProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
   const hiddenWebcamVideoRef = useRef<HTMLVideoElement | null>(null);
+  const lastSyncEmitMsRef = useRef<number>(0);
 
-  const [webcamRenderedB64, setWebcamRenderedB64] = useState<string | null>(null);
+  const [webcamReady, setWebcamReady] = useState<boolean>(false);
   const [webcamError, setWebcamError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number } | null>(null);
 
-  const { embedUrl: youtubeEmbedUrl, isShorts, youtubeId } = getYouTubeEmbedUrl(videoSrc);
-  const isWebcam = videoSrc.toLowerCase().includes("webcam");
+  const cleanVideoSrc = (videoSrc || "").trim();
+  const { embedUrl: youtubeEmbedUrl, isShorts, youtubeId } = getYouTubeEmbedUrl(cleanVideoSrc);
+  const isWebcam = Boolean(cleanVideoSrc && cleanVideoSrc.toLowerCase().includes("webcam"));
   const isPreRenderedJobVideo =
-    videoSrc.includes("/api/ai-test/jobs/") || videoSrc.includes("-annotated.mp4");
+    Boolean(cleanVideoSrc && (cleanVideoSrc.includes("/api/ai-test/jobs/") || cleanVideoSrc.includes("-annotated.mp4")));
+  const isNativePlayableVideo =
+    Boolean(
+      cleanVideoSrc &&
+      !isWebcam &&
+      !youtubeEmbedUrl &&
+      (cleanVideoSrc.startsWith("/videos/") ||
+        cleanVideoSrc.startsWith("/api/") ||
+        cleanVideoSrc.startsWith("blob:") ||
+        cleanVideoSrc.startsWith("data:") ||
+        /\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(cleanVideoSrc))
+    );
 
   // ── LẮNG NGHE SỰ KIỆN FULLSCREEN ──
   useEffect(() => {
@@ -151,10 +168,10 @@ export function CameraIntelligencePlayer({
     }
   };
 
-  // ── 1. VÒNG LẶP KHÓA KHUNG HÌNH (FRAME-LOCKED) CHO WEBCAM LAPTOP ──
+  // ── 1. LUỒNG WEBCAM 60FPS TRỰC TIẾP + WORKER SUY LUẬN AI BẤT ĐỒNG BỘ ──
   useEffect(() => {
     if (!isWebcam) {
-      setWebcamRenderedB64(null);
+      setWebcamReady(false);
       setWebcamError(null);
       return;
     }
@@ -177,7 +194,7 @@ export function CameraIntelligencePlayer({
           return;
         }
         localStream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 640 }, height: { ideal: 480 } },
+          video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
           audio: false,
         });
         if (!active) {
@@ -188,28 +205,35 @@ export function CameraIntelligencePlayer({
         if (v) {
           v.srcObject = localStream;
           await v.play().catch(() => {});
+          if (v.videoWidth && v.videoHeight) {
+            setVideoDimensions({ width: v.videoWidth, height: v.videoHeight });
+          }
+          setWebcamReady(true);
         }
 
         while (active) {
           if (!isPlaying || !liveSessionId || !v || v.readyState < 2 || !ctx) {
-            await new Promise((r) => setTimeout(r, 80));
+            await new Promise((r) => setTimeout(r, 100));
             continue;
           }
 
-          if (v.videoWidth && v.videoHeight) {
-            offscreenCanvas.width = v.videoWidth;
-            offscreenCanvas.height = v.videoHeight;
-          }
-          ctx.drawImage(v, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
+          const targetW = 640;
+          const targetH =
+            v.videoWidth && v.videoHeight
+              ? Math.round((v.videoHeight / v.videoWidth) * targetW)
+              : 360;
+          offscreenCanvas.width = targetW;
+          offscreenCanvas.height = targetH;
+          ctx.drawImage(v, 0, 0, targetW, targetH);
 
           const blob: Blob | null = await new Promise((resolve) =>
-            offscreenCanvas.toBlob(resolve, "image/jpeg", 0.8)
+            offscreenCanvas.toBlob(resolve, "image/jpeg", 0.72)
           );
           if (!blob || !active) continue;
 
           try {
             const res = await fetch(
-              `${AI_SERVER_BASE}/api/live/${liveSessionId}/webcam_frame?bbox=${showBbox ? 1 : 0}`,
+              `${AI_SERVER_BASE}/api/live/${liveSessionId}/webcam_frame?bbox=0`,
               {
                 method: "POST",
                 body: blob,
@@ -217,9 +241,6 @@ export function CameraIntelligencePlayer({
             );
             if (res.ok && active) {
               const data = await res.json();
-              if (data.image_b64) {
-                setWebcamRenderedB64(data.image_b64);
-              }
               if (data.state) {
                 onLiveStateUpdate?.(data.state);
               }
@@ -227,8 +248,9 @@ export function CameraIntelligencePlayer({
           } catch {
             await new Promise((r) => setTimeout(r, 200));
           }
+          await new Promise((r) => setTimeout(r, 75));
         }
-      } catch (err: any) {
+      } catch {
         if (active) {
           setWebcamError(
             isVietnamese
@@ -247,27 +269,33 @@ export function CameraIntelligencePlayer({
         localStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [isWebcam, isPlaying, liveSessionId, showBbox, isVietnamese, onLiveStateUpdate]);
+  }, [isWebcam, isPlaying, liveSessionId, isVietnamese, onLiveStateUpdate]);
 
-  // ── 2. ĐỒNG BỘ PLAY/PAUSE CHO VIDEO NATIVE (KHI XEM JOB ĐÃ XỬ LÝ) ──
+  const mjpegStreamUrl =
+    liveSessionId && !isWebcam && !isNativePlayableVideo && !youtubeEmbedUrl && cleanVideoSrc
+      ? `${AI_SERVER_BASE}/api/live/${liveSessionId}/stream.mjpeg?bbox=${showBbox ? 1 : 0}&src=${encodeURIComponent(cleanVideoSrc)}`
+      : null;
+
+  // ── 2. ĐỒNG BỘ PLAY/PAUSE CHO VIDEO NATIVE 60FPS ──
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v || liveSessionId) return;
+    const v = isWebcam ? hiddenWebcamVideoRef.current : videoRef.current;
+    if (!v || mjpegStreamUrl || !cleanVideoSrc) return;
 
     if (isPlaying) {
       v.play().catch(() => {});
     } else {
       v.pause();
     }
-  }, [isPlaying, videoSrc, liveSessionId, videoRef]);
+  }, [isPlaying, cleanVideoSrc, isWebcam, mjpegStreamUrl, videoRef]);
 
   useEffect(() => {
-    if (!isPlaying || liveSessionId) return;
+    if (!isPlaying || mjpegStreamUrl || isWebcam || !cleanVideoSrc) return;
 
     let animId: number;
-    const syncLoop = () => {
+    const syncLoop = (now: number) => {
       const v = videoRef.current;
-      if (v && !v.paused) {
+      if (v && !v.paused && now - lastSyncEmitMsRef.current >= 33) {
+        lastSyncEmitMsRef.current = now;
         onSyncTime?.(v.currentTime);
       }
       animId = requestAnimationFrame(syncLoop);
@@ -275,25 +303,21 @@ export function CameraIntelligencePlayer({
 
     animId = requestAnimationFrame(syncLoop);
     return () => cancelAnimationFrame(animId);
-  }, [isPlaying, liveSessionId, videoRef, onSyncTime]);
+  }, [isPlaying, mjpegStreamUrl, isWebcam, videoRef, onSyncTime, cleanVideoSrc]);
 
   const handleControlledTogglePlay = () => {
-    if (!liveSessionId && videoRef.current) {
+    const v = isWebcam ? hiddenWebcamVideoRef.current : videoRef.current;
+    if (!mjpegStreamUrl && v) {
       if (isPlaying) {
-        videoRef.current.pause();
+        v.pause();
       } else {
-        videoRef.current.play().catch(() => {});
+        v.play().catch(() => {});
       }
     }
     onTogglePlay();
   };
 
-  const [videoDimensions, setVideoDimensions] = useState<{ width: number; height: number } | null>(null);
-
   // Kích thước chuẩn hoá theo tỷ lệ nguồn thực tế từ AI Server hoặc Video Element
-  // Ưu tiên 1: Kích thước từ file log AI thật (isRealAiLog && streamMetadata)
-  // Ưu tiên 2: Kích thước đo trực tiếp từ thẻ video (videoDimensions)
-  // Ưu tiên 3: streamMetadata
   const isVertical = videoDimensions
     ? videoDimensions.height > videoDimensions.width
     : (streamMetadata?.isVertical ?? isShorts);
@@ -309,11 +333,147 @@ export function CameraIntelligencePlayer({
   const currentTimeSec = currentEntry?.t ?? 0;
   const currentFrame = currentEntry?.frame ?? 1;
 
-  // Chụp Snapshot trực tiếp từ AI Server (hoạt động cho cả YouTube, Webcam, RTSP không lo CORS)
+  // Chụp Snapshot trực tiếp từ thẻ Video 60FPS hoặc AI Server
   const handleCaptureSnapshot = async () => {
-    if (isWebcam && webcamRenderedB64) {
-      onSnapshot?.(webcamRenderedB64, true);
-      return;
+    const activeVideoEl = isWebcam ? hiddenWebcamVideoRef.current : videoRef.current;
+    if (activeVideoEl && activeVideoEl.videoWidth && activeVideoEl.videoHeight) {
+      const canvas = document.createElement("canvas");
+      canvas.width = activeVideoEl.videoWidth;
+      canvas.height = activeVideoEl.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(activeVideoEl, 0, 0, canvas.width, canvas.height);
+
+        // Nếu đang bật hiển thị Bounding Box và có detections thực tế -> vẽ chính xác lên canvas
+        if (showBbox && currentEntry?.detections?.length) {
+          const scaleX = canvas.width / viewBoxWidth;
+          const scaleY = canvas.height / viewBoxHeight;
+
+          // Vẽ ROI polygon nếu có
+          if (Array.isArray(roiPolygon) && roiPolygon.length >= 3) {
+            ctx.save();
+            ctx.beginPath();
+            roiPolygon.forEach((pt, i) => {
+              const px = (pt.x <= 1 && pt.y <= 1 ? pt.x * viewBoxWidth : pt.x) * scaleX;
+              const py = (pt.y <= 1 && pt.y <= 1 ? pt.y * viewBoxHeight : pt.y) * scaleY;
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            });
+            ctx.closePath();
+            ctx.fillStyle = "rgba(6, 182, 212, 0.08)";
+            ctx.fill();
+            ctx.strokeStyle = "#06b6d4";
+            ctx.lineWidth = Math.max(2, Math.round(canvas.width / 500));
+            ctx.setLineDash([8, 5]);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          for (const det of currentEntry.detections) {
+            if (!Array.isArray(det.bbox) || det.bbox.length !== 4) continue;
+            const [x1, y1, x2, y2] = det.bbox;
+            const bx = x1 * scaleX;
+            const by = y1 * scaleY;
+            const bw = Math.max(6, (x2 - x1) * scaleX);
+            const bh = Math.max(6, (y2 - y1) * scaleY);
+
+            const pState =
+              det.class_name === "person" && typeof det.track_id === "number"
+                ? personStates.get(det.track_id)
+                : undefined;
+
+            const isViolating =
+              pState?.status === "CONFIRMED_VIOLATION" || pState?.status === "VIOLATION";
+            const isCandidate = !isViolating && pState?.status === "VIOLATION_CANDIDATE";
+
+            let strokeColor = "#10b981";
+            let fillColor = "rgba(16, 185, 129, 0.10)";
+            let labelText = "";
+            const confPct = `${Math.round((det.confidence || 0.95) * 100)}%`;
+
+            if (det.class_name === "person") {
+              if (isViolating) {
+                strokeColor = "#f43f5e";
+                fillColor = "rgba(244, 63, 94, 0.18)";
+                const vTypes = (pState?.violations || [])
+                  .map((v) => {
+                    const lower = v.toLowerCase();
+                    if (lower.includes("helmet")) return isVietnamese ? "THIẾU MŨ" : "NO HELMET";
+                    if (lower.includes("vest")) return isVietnamese ? "THIẾU ÁO" : "NO VEST";
+                    return v.toUpperCase();
+                  })
+                  .join(" + ");
+                labelText = `WORKER #${det.track_id ?? 1} • ${
+                  isVietnamese ? "VI PHẠM (≥3s)" : "VIOLATION (≥3s)"
+                }${vTypes ? `: ${vTypes}` : ""} (${confPct})`;
+              } else if (isCandidate) {
+                strokeColor = "#f59e0b";
+                fillColor = "rgba(245, 158, 11, 0.14)";
+                labelText = `WORKER #${det.track_id ?? 1} • ${
+                  isVietnamese ? "ĐANG ĐẾM (3s)" : "EVALUATING"
+                } (${confPct})`;
+              } else {
+                strokeColor = "#10b981";
+                fillColor = "rgba(16, 185, 129, 0.10)";
+                labelText = `WORKER #${det.track_id ?? 1} • ${
+                  isVietnamese ? "ĐỦ BẢO HỘ" : "COMPLIANT"
+                } (${confPct})`;
+              }
+            } else if (det.class_name === "helmet") {
+              strokeColor = "#0ea5e9";
+              fillColor = "rgba(14, 165, 233, 0.10)";
+              labelText = `#${det.track_id ?? 1} ${isVietnamese ? "MŨ BẢO HỘ" : "HARD HAT"} (${confPct})`;
+            } else if (det.class_name === "safety_vest") {
+              strokeColor = "#a855f7";
+              fillColor = "rgba(168, 85, 247, 0.10)";
+              labelText = `#${det.track_id ?? 1} ${isVietnamese ? "ÁO PHẢN QUANG" : "SAFETY VEST"} (${confPct})`;
+            } else {
+              strokeColor = "#06b6d4";
+              fillColor = "rgba(6, 182, 212, 0.10)";
+              labelText = `${det.class_name.toUpperCase()} (${confPct})`;
+            }
+
+            ctx.fillStyle = fillColor;
+            ctx.fillRect(bx, by, bw, bh);
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = Math.max(1.5, Math.round(canvas.width / 500));
+            ctx.strokeRect(bx, by, bw, bh);
+
+            const cl = Math.min(bw * 0.22, bh * 0.22, Math.max(12, canvas.width / 42));
+            ctx.lineWidth = Math.max(2.5, Math.round(canvas.width / 280));
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.beginPath();
+            ctx.moveTo(bx, by + cl); ctx.lineTo(bx, by); ctx.lineTo(bx + cl, by);
+            ctx.moveTo(bx + bw - cl, by); ctx.lineTo(bx + bw, by); ctx.lineTo(bx + bw, by + cl);
+            ctx.moveTo(bx, by + bh - cl); ctx.lineTo(bx, by + bh); ctx.lineTo(bx + cl, by + bh);
+            ctx.moveTo(bx + bw - cl, by + bh); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw, by + bh - cl);
+            ctx.stroke();
+
+            const fontSize = Math.max(11, Math.min(18, Math.round(canvas.width / 62)));
+            ctx.font = `bold ${fontSize}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+            const textMetrics = ctx.measureText(labelText);
+            const bannerW = textMetrics.width + 18;
+            const bannerH = fontSize + 10;
+            const bannerY = by > bannerH + 6 ? by - bannerH - 4 : by + 4;
+            const bannerX = Math.max(4, Math.min(canvas.width - bannerW - 4, bx));
+
+            ctx.fillStyle = "rgba(10, 15, 29, 0.92)";
+            ctx.fillRect(bannerX, bannerY, bannerW, bannerH);
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 1.2;
+            ctx.strokeRect(bannerX, bannerY, bannerW, bannerH);
+            ctx.fillStyle = strokeColor;
+            ctx.fillRect(bannerX, bannerY, 4, bannerH);
+            ctx.fillStyle = "#ffffff";
+            ctx.textBaseline = "middle";
+            ctx.fillText(labelText, bannerX + 10, bannerY + bannerH / 2);
+          }
+        }
+
+        onSnapshot?.(canvas.toDataURL("image/jpeg", 0.95), true);
+        return;
+      }
     }
 
     if (liveSessionId) {
@@ -332,21 +492,6 @@ export function CameraIntelligencePlayer({
         }
       } catch {
         // fallback dưới
-      }
-    }
-
-    if (videoRef.current) {
-      const v = videoRef.current;
-      if (v.videoWidth && v.videoHeight) {
-        const canvas = document.createElement("canvas");
-        canvas.width = v.videoWidth;
-        canvas.height = v.videoHeight;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-          onSnapshot?.(canvas.toDataURL("image/jpeg", 0.95), true);
-          return;
-        }
       }
     }
 
@@ -375,25 +520,23 @@ export function CameraIntelligencePlayer({
   }, [liveSessionId]);
 
   const isBuffering =
-    Boolean(liveSessionId) &&
+    Boolean(mjpegStreamUrl) &&
     !isWebcam &&
     !forceStreamReady &&
     (liveSessionStatus === "initializing" || liveSessionStatus === "buffering") &&
     bufferedFramesCount < 2;
-
-  const mjpegStreamUrl =
-    liveSessionId && !isWebcam
-      ? `${AI_SERVER_BASE}/api/live/${liveSessionId}/stream.mjpeg?bbox=${showBbox ? 1 : 0}&src=${encodeURIComponent(videoSrc)}`
-      : null;
 
   // Bản đồ trạng thái công nhân trong khung hình
   const personStates = useMemo(() => {
     return new Map((currentEntry?.persons || []).map((p) => [p.track_id, p]));
   }, [currentEntry?.persons]);
 
-  // Lớp phủ Bounding Box SVG thời gian thực chuẩn HUD AI Công nghệ cao & Đẳng cấp
+  // Lớp phủ Bounding Box SVG + ROI Polygon thời gian thực chuẩn HUD AI 60FPS (Đã tối ưu GPU, gỡ bỏ feDropShadow nặng)
   const renderDetectionsSvg = () => {
-    if (!showBbox || !currentEntry?.detections || currentEntry.detections.length === 0) {
+    const hasDetections = showBbox && Boolean(currentEntry?.detections?.length);
+    const hasRoi = Array.isArray(roiPolygon) && roiPolygon.length >= 3;
+
+    if (!hasDetections && !hasRoi) {
       return null;
     }
 
@@ -404,31 +547,24 @@ export function CameraIntelligencePlayer({
     const baseStrokeW = Math.max(1.2, 1.5 * scale);
     const cornerStrokeW = Math.max(2.6, 3.2 * scale);
 
+    const roiPointsStr = hasRoi
+      ? roiPolygon!
+          .map((pt) => {
+            const px = pt.x <= 1 && pt.y <= 1 ? pt.x * viewBoxWidth : pt.x;
+            const py = pt.x <= 1 && pt.y <= 1 ? pt.y * viewBoxHeight : pt.y;
+            return `${Math.round(px)},${Math.round(py)}`;
+          })
+          .join(" ")
+      : "";
+
     return (
       <svg
         viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`}
-        preserveAspectRatio="none"
+        preserveAspectRatio="xMidYMid meet"
         className="pointer-events-none absolute inset-0 h-full w-full z-15"
       >
         <defs>
-          {/* Bộ lọc Neon Glow HUD cho các trạng thái phát hiện */}
-          <filter id="hud-glow-rose" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="0" stdDeviation="3.5" floodColor="#f43f5e" floodOpacity="0.85" />
-          </filter>
-          <filter id="hud-glow-amber" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor="#f59e0b" floodOpacity="0.75" />
-          </filter>
-          <filter id="hud-glow-emerald" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor="#10b981" floodOpacity="0.65" />
-          </filter>
-          <filter id="hud-glow-sky" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="0" stdDeviation="2" floodColor="#0ea5e9" floodOpacity="0.65" />
-          </filter>
-          <filter id="hud-glow-purple" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="0" stdDeviation="2" floodColor="#a855f7" floodOpacity="0.65" />
-          </filter>
-
-          {/* Dải màu chuyển tiếp bán trong suốt thanh lịch (Không làm đục hay che khuất người) */}
+          {/* Dải màu chuyển tiếp bán trong suốt thanh lịch (GPU-friendly) */}
           <linearGradient id="hud-grad-rose" x1="0%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.16" />
             <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.02" />
@@ -451,267 +587,278 @@ export function CameraIntelligencePlayer({
           </linearGradient>
         </defs>
 
-        {currentEntry.detections.map((det, idx) => {
-          const [x1, y1, x2, y2] = det.bbox;
-          const w = Math.max(6, x2 - x1);
-          const h = Math.max(6, y2 - y1);
+        {/* Vùng giám sát ROI Polygon */}
+        {hasRoi && (
+          <g>
+            <polygon
+              points={roiPointsStr}
+              fill="rgba(6, 182, 212, 0.08)"
+              stroke="#06b6d4"
+              strokeWidth={Math.max(1.8, 2 * scale)}
+              strokeDasharray="8 5"
+            />
+            {roiPolygon!.map((pt, i) => {
+              const px = pt.x <= 1 && pt.y <= 1 ? pt.x * viewBoxWidth : pt.x;
+              const py = pt.x <= 1 && pt.y <= 1 ? pt.y * viewBoxHeight : pt.y;
+              return (
+                <circle
+                  key={`roi-pt-${i}`}
+                  cx={px}
+                  cy={py}
+                  r={Math.max(3.5, 4 * scale)}
+                  fill="#06b6d4"
+                  stroke="#083344"
+                  strokeWidth={1.2}
+                />
+              );
+            })}
+          </g>
+        )}
 
-          const personState =
-            det.class_name === "person" && typeof det.track_id === "number"
-              ? personStates.get(det.track_id)
-              : undefined;
+        {hasDetections &&
+          currentEntry!.detections.map((det, idx) => {
+            const [x1, y1, x2, y2] = det.bbox;
+            const w = Math.max(6, x2 - x1);
+            const h = Math.max(6, y2 - y1);
 
-          const isViolating =
-            personState?.status === "CONFIRMED_VIOLATION" || personState?.status === "VIOLATION";
-          const isCandidate = personState?.status === "VIOLATION_CANDIDATE";
+            const personState =
+              det.class_name === "person" && typeof det.track_id === "number"
+                ? personStates.get(det.track_id)
+                : undefined;
 
-          // Nếu video đã vẽ sẵn box cơ bản (-annotated.mp4) thì chỉ vẽ đè lớp phủ ĐỎ VI PHẠM
-          if (isPreRenderedJobVideo && !isViolating) {
-            return null;
-          }
+            const isViolating =
+              personState?.status === "CONFIRMED_VIOLATION" || personState?.status === "VIOLATION";
+            const isCandidate = personState?.status === "VIOLATION_CANDIDATE";
 
-          let themeKey = "emerald";
-          let strokeColor = "#10b981"; // Emerald
-          let mainBadgeText = "";
-          let confText = `${Math.round((det.confidence || 0.95) * 100)}%`;
+            // Nếu video đã vẽ sẵn box cơ bản (-annotated.mp4) thì chỉ vẽ đè lớp phủ ĐỎ VI PHẠM
+            if (isPreRenderedJobVideo && !isViolating) {
+              return null;
+            }
 
-          if (det.class_name === "person") {
-            if (isViolating) {
-              themeKey = "rose";
-              strokeColor = "#f43f5e"; // Rose
-              const vTypes = (personState?.violations || [])
-                .map((v) => {
-                  const lower = v.toLowerCase();
-                  if (lower === "no_helmet") return isVietnamese ? "THIẾU MŨ" : "NO HELMET";
-                  if (lower === "no_safety_vest" || lower === "no_vest") return isVietnamese ? "THIẾU ÁO" : "NO VEST";
-                  if (lower === "restricted_area") return isVietnamese ? "VÙNG CẤM" : "RESTRICTED";
-                  return v.toUpperCase();
-                })
-                .join(" + ");
-              mainBadgeText = `WORKER #${det.track_id ?? 1} • ${isVietnamese ? "VI PHẠM (≥3s)" : "VIOLATION (≥3s)"}${vTypes ? `: ${vTypes}` : ""}`;
-            } else if (isCandidate) {
-              themeKey = "amber";
-              strokeColor = "#f59e0b"; // Amber
-              const vTypes = (personState?.violations || [])
-                .map((v) => {
-                  const lower = v.toLowerCase();
-                  if (lower === "no_helmet") return isVietnamese ? "THIẾU MŨ" : "NO HELMET";
-                  if (lower === "no_safety_vest" || lower === "no_vest") return isVietnamese ? "THIẾU ÁO" : "NO VEST";
-                  if (lower === "restricted_area") return isVietnamese ? "VÙNG CẤM" : "RESTRICTED";
-                  return v.toUpperCase();
-                })
-                .join(" + ");
-              mainBadgeText = `WORKER #${det.track_id ?? 1} • ${isVietnamese ? "ĐANG ĐẾM (3s)" : "EVALUATING (3s)"}${vTypes ? `: ${vTypes}` : ""}`;
+            let themeKey = "emerald";
+            let strokeColor = "#10b981"; // Emerald
+            let mainBadgeText = "";
+            let confText = `${Math.round((det.confidence || 0.95) * 100)}%`;
+
+            if (det.class_name === "person") {
+              if (isViolating) {
+                themeKey = "rose";
+                strokeColor = "#f43f5e"; // Rose
+                const vTypes = (personState?.violations || [])
+                  .map((v) => {
+                    const lower = v.toLowerCase();
+                    if (lower === "no_helmet") return isVietnamese ? "THIẾU MŨ" : "NO HELMET";
+                    if (lower === "no_safety_vest" || lower === "no_vest") return isVietnamese ? "THIẾU ÁO" : "NO VEST";
+                    if (lower === "restricted_area") return isVietnamese ? "VÙNG CẤM" : "RESTRICTED";
+                    return v.toUpperCase();
+                  })
+                  .join(" + ");
+                mainBadgeText = `WORKER #${det.track_id ?? 1} • ${isVietnamese ? "VI PHẠM (≥3s)" : "VIOLATION (≥3s)"}${vTypes ? `: ${vTypes}` : ""}`;
+              } else if (isCandidate) {
+                themeKey = "amber";
+                strokeColor = "#f59e0b"; // Amber
+                const vTypes = (personState?.violations || [])
+                  .map((v) => {
+                    const lower = v.toLowerCase();
+                    if (lower === "no_helmet") return isVietnamese ? "THIẾU MŨ" : "NO HELMET";
+                    if (lower === "no_safety_vest" || lower === "no_vest") return isVietnamese ? "THIẾU ÁO" : "NO VEST";
+                    if (lower === "restricted_area") return isVietnamese ? "VÙNG CẤM" : "RESTRICTED";
+                    return v.toUpperCase();
+                  })
+                  .join(" + ");
+                mainBadgeText = `WORKER #${det.track_id ?? 1} • ${isVietnamese ? "ĐANG ĐẾM (3s)" : "EVALUATING (3s)"}${vTypes ? `: ${vTypes}` : ""}`;
+              } else {
+                themeKey = "emerald";
+                strokeColor = "#10b981";
+                mainBadgeText = `WORKER #${det.track_id ?? 1} • ${isVietnamese ? "ĐỦ BẢO HỘ" : "PPE COMPLIANT"}`;
+              }
+            } else if (det.class_name === "helmet") {
+              themeKey = "sky";
+              strokeColor = "#0ea5e9";
+              mainBadgeText = `#${det.track_id ?? 1} ${isVietnamese ? "MŨ BẢO HỘ" : "HARD HAT"}`;
+            } else if (det.class_name === "safety_vest") {
+              themeKey = "purple";
+              strokeColor = "#a855f7";
+              mainBadgeText = `#${det.track_id ?? 1} ${isVietnamese ? "ÁO PHẢN QUANG" : "SAFETY VEST"}`;
             } else {
               themeKey = "emerald";
-              strokeColor = "#10b981";
-              mainBadgeText = `WORKER #${det.track_id ?? 1} • ${isVietnamese ? "ĐỦ BẢO HỘ" : "PPE COMPLIANT"}`;
+              strokeColor = "#06b6d4";
+              mainBadgeText = det.class_name.toUpperCase();
             }
-          } else if (det.class_name === "helmet") {
-            themeKey = "sky";
-            strokeColor = "#0ea5e9";
-            mainBadgeText = `#${det.track_id ?? 1} ${isVietnamese ? "MŨ BẢO HỘ" : "HARD HAT"}`;
-          } else if (det.class_name === "safety_vest") {
-            themeKey = "purple";
-            strokeColor = "#a855f7";
-            mainBadgeText = `#${det.track_id ?? 1} ${isVietnamese ? "ÁO PHẢN QUANG" : "SAFETY VEST"}`;
-          } else {
-            themeKey = "emerald";
-            strokeColor = "#06b6d4";
-            mainBadgeText = det.class_name.toUpperCase();
-          }
 
-          // Chiều dài và vị trí thước ngắm HUD 4 góc (L-shaped Reticles)
-          const cornerLen = Math.max(6, Math.min(24, Math.round(Math.min(w, h) * 0.22)));
+            // Chiều dài và vị trí thước ngắm HUD 4 góc (L-shaped Reticles)
+            const cornerLen = Math.max(6, Math.min(24, Math.round(Math.min(w, h) * 0.22)));
 
-          // Kích thước chuẩn badge hiển thị trên đầu Bounding Box
-          const charWidth = fontSize * 0.60;
-          const mainTextWidth = mainBadgeText.length * charWidth;
-          const confChipWidth = confText ? Math.max(28, confText.length * (fontSize * 0.55) + 8) : 0;
-          const badgeWidth = Math.round(24 + mainTextWidth + (confChipWidth ? confChipWidth + 8 : 4));
+            // Kích thước chuẩn badge hiển thị trên đầu Bounding Box
+            const charWidth = fontSize * 0.60;
+            const mainTextWidth = mainBadgeText.length * charWidth;
+            const confChipWidth = confText ? Math.max(28, confText.length * (fontSize * 0.55) + 8) : 0;
+            const badgeWidth = Math.round(24 + mainTextWidth + (confChipWidth ? confChipWidth + 8 : 4));
 
-          // Đảm bảo nhãn không tràn ra khỏi 4 cạnh khung hình video
-          const pillY = y1 >= badgeHeight + 6 ? y1 - badgeHeight - 4 : y1 + 4;
-          const pillX = Math.max(4, Math.min(viewBoxWidth - badgeWidth - 4, x1));
+            // Đảm bảo nhãn không tràn ra khỏi 4 cạnh khung hình video
+            const pillY = y1 >= badgeHeight + 6 ? y1 - badgeHeight - 4 : y1 + 4;
+            const pillX = Math.max(4, Math.min(viewBoxWidth - badgeWidth - 4, x1));
 
-          return (
-            <g key={`${det.class_name}-${det.track_id ?? idx}-${idx}`}>
-              {/* 1. Khung nền gradient bán trong suốt & Viền mảnh thanh lịch */}
-              <rect
-                x={x1}
-                y={y1}
-                width={w}
-                height={h}
-                fill={`url(#hud-grad-${themeKey})`}
-                stroke={strokeColor}
-                strokeWidth={baseStrokeW}
-                strokeOpacity={0.6}
-                strokeDasharray={isCandidate ? "4 3" : undefined}
-                rx={4}
-              />
-
-              {/* 2. Thước ngắm HUD 4 góc (High-Tech Laser L-Brackets) */}
-              {/* Góc Trên-Trái */}
-              <path
-                d={`M ${x1} ${y1 + cornerLen} L ${x1} ${y1} L ${x1 + cornerLen} ${y1}`}
-                fill="none"
-                stroke={strokeColor}
-                strokeWidth={cornerStrokeW}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                filter={`url(#hud-glow-${themeKey})`}
-              />
-              {/* Góc Trên-Phải */}
-              <path
-                d={`M ${x2 - cornerLen} ${y1} L ${x2} ${y1} L ${x2} ${y1 + cornerLen}`}
-                fill="none"
-                stroke={strokeColor}
-                strokeWidth={cornerStrokeW}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                filter={`url(#hud-glow-${themeKey})`}
-              />
-              {/* Góc Dưới-Trái */}
-              <path
-                d={`M ${x1} ${y2 - cornerLen} L ${x1} ${y2} L ${x1 + cornerLen} ${y2}`}
-                fill="none"
-                stroke={strokeColor}
-                strokeWidth={cornerStrokeW}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                filter={`url(#hud-glow-${themeKey})`}
-              />
-              {/* Góc Dưới-Phải */}
-              <path
-                d={`M ${x2 - cornerLen} ${y2} L ${x2} ${y2} L ${x2} ${y2 - cornerLen}`}
-                fill="none"
-                stroke={strokeColor}
-                strokeWidth={cornerStrokeW}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                filter={`url(#hud-glow-${themeKey})`}
-              />
-
-              {/* 3. Tia quét Laser AI & Hồng tâm định vị (Chỉ hiển thị khi vi phạm) */}
-              {isViolating && (
-                <>
-                  <line
-                    x1={x1 + 3}
-                    y1={y1 + h * 0.28}
-                    x2={x2 - 3}
-                    y2={y1 + h * 0.28}
-                    stroke="#f43f5e"
-                    strokeWidth={1.5}
-                    strokeDasharray="4 3"
-                    opacity={0.8}
-                    className="animate-pulse"
-                  />
-                  {/* Tâm chữ thập micro (+) ở trung tâm đối tượng vi phạm */}
-                  <g opacity={0.65}>
-                    <line
-                      x1={x1 + w / 2 - 5}
-                      y1={y1 + h / 2}
-                      x2={x1 + w / 2 + 5}
-                      y2={y1 + h / 2}
-                      stroke="#f43f5e"
-                      strokeWidth={1}
-                    />
-                    <line
-                      x1={x1 + w / 2}
-                      y1={y1 + h / 2 - 5}
-                      x2={x1 + w / 2}
-                      y2={y1 + h / 2 + 5}
-                      stroke="#f43f5e"
-                      strokeWidth={1}
-                    />
-                  </g>
-                </>
-              )}
-
-              {/* 4. Thẻ nhãn AI HUD thông minh (Glassmorphic Cyber Card) */}
-              <g filter={`url(#hud-glow-${themeKey})`}>
-                {/* Thân card nền đen kính mờ với viền phát sáng */}
+            return (
+              <g key={`${det.class_name}-${det.track_id ?? idx}-${idx}`}>
+                {/* 1. Khung nền gradient bán trong suốt & Viền mảnh thanh lịch */}
                 <rect
-                  x={pillX}
-                  y={pillY}
-                  width={badgeWidth}
-                  height={badgeHeight}
-                  fill="rgba(10, 15, 29, 0.92)"
+                  x={x1}
+                  y={y1}
+                  width={w}
+                  height={h}
+                  fill={`url(#hud-grad-${themeKey})`}
                   stroke={strokeColor}
-                  strokeWidth={1.2}
+                  strokeWidth={baseStrokeW}
+                  strokeOpacity={0.65}
+                  strokeDasharray={isCandidate ? "4 3" : undefined}
                   rx={4}
                 />
 
-                {/* Đèn LED trạng thái thời gian thực (Status Pip) */}
-                <circle
-                  cx={pillX + 9}
-                  cy={pillY + badgeHeight / 2}
-                  r={3.2}
-                  fill={strokeColor}
+                {/* 2. Thước ngắm HUD 4 góc (High-Tech Laser L-Brackets) */}
+                <path
+                  d={`M ${x1} ${y1 + cornerLen} L ${x1} ${y1} L ${x1 + cornerLen} ${y1}`}
+                  fill="none"
+                  stroke={strokeColor}
+                  strokeWidth={cornerStrokeW}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
+                <path
+                  d={`M ${x2 - cornerLen} ${y1} L ${x2} ${y1} L ${x2} ${y1 + cornerLen}`}
+                  fill="none"
+                  stroke={strokeColor}
+                  strokeWidth={cornerStrokeW}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d={`M ${x1} ${y2 - cornerLen} L ${x1} ${y2} L ${x1 + cornerLen} ${y2}`}
+                  fill="none"
+                  stroke={strokeColor}
+                  strokeWidth={cornerStrokeW}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d={`M ${x2 - cornerLen} ${y2} L ${x2} ${y2} L ${x2} ${y2 - cornerLen}`}
+                  fill="none"
+                  stroke={strokeColor}
+                  strokeWidth={cornerStrokeW}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+
+                {/* 3. Tia quét Laser AI & Hồng tâm định vị (Chỉ hiển thị khi vi phạm) */}
                 {isViolating && (
+                  <>
+                    <line
+                      x1={x1 + 3}
+                      y1={y1 + h * 0.28}
+                      x2={x2 - 3}
+                      y2={y1 + h * 0.28}
+                      stroke="#f43f5e"
+                      strokeWidth={1.5}
+                      strokeDasharray="4 3"
+                      opacity={0.8}
+                    />
+                    <g opacity={0.65}>
+                      <line
+                        x1={x1 + w / 2 - 5}
+                        y1={y1 + h / 2}
+                        x2={x1 + w / 2 + 5}
+                        y2={y1 + h / 2}
+                        stroke="#f43f5e"
+                        strokeWidth={1}
+                      />
+                      <line
+                        x1={x1 + w / 2}
+                        y1={y1 + h / 2 - 5}
+                        x2={x1 + w / 2}
+                        y2={y1 + h / 2 + 5}
+                        stroke="#f43f5e"
+                        strokeWidth={1}
+                      />
+                    </g>
+                  </>
+                )}
+
+                {/* 4. Thẻ nhãn AI HUD thông minh */}
+                <g>
+                  <rect
+                    x={pillX}
+                    y={pillY}
+                    width={badgeWidth}
+                    height={badgeHeight}
+                    fill="rgba(10, 15, 29, 0.92)"
+                    stroke={strokeColor}
+                    strokeWidth={1.2}
+                    rx={4}
+                  />
+
                   <circle
                     cx={pillX + 9}
                     cy={pillY + badgeHeight / 2}
-                    r={5.5}
-                    fill="none"
-                    stroke={strokeColor}
-                    strokeWidth={1}
-                    opacity={0.8}
-                    className="animate-ping"
+                    r={3.2}
+                    fill={strokeColor}
                   />
-                )}
-
-                {/* Nhãn chữ chính nét sắc sảo, công nghệ cao */}
-                <text
-                  x={pillX + 18}
-                  y={pillY + badgeHeight / 2 + fontSize * 0.35}
-                  fill="#ffffff"
-                  fontSize={fontSize}
-                  fontWeight="700"
-                  fontFamily="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
-                  letterSpacing="0.25px"
-                >
-                  {mainBadgeText}
-                </text>
-
-                {/* Chip hiển thị độ tin cậy AI (%) */}
-                {confText && (
-                  <g>
-                    <rect
-                      x={pillX + badgeWidth - confChipWidth - 4}
-                      y={pillY + 3}
-                      width={confChipWidth}
-                      height={badgeHeight - 6}
-                      fill="rgba(255, 255, 255, 0.12)"
-                      rx={3}
+                  {isViolating && (
+                    <circle
+                      cx={pillX + 9}
+                      cy={pillY + badgeHeight / 2}
+                      r={5.5}
+                      fill="none"
+                      stroke={strokeColor}
+                      strokeWidth={1}
+                      opacity={0.8}
                     />
-                    <text
-                      x={pillX + badgeWidth - confChipWidth / 2 - 4}
-                      y={pillY + badgeHeight / 2 + (fontSize - 2) * 0.35}
-                      textAnchor="middle"
-                      fill={strokeColor}
-                      fontSize={Math.max(9, fontSize - 2)}
-                      fontWeight="800"
-                      fontFamily="ui-monospace, monospace"
-                    >
-                      {confText}
-                    </text>
-                  </g>
-                )}
+                  )}
+
+                  <text
+                    x={pillX + 18}
+                    y={pillY + badgeHeight / 2 + fontSize * 0.35}
+                    fill="#ffffff"
+                    fontSize={fontSize}
+                    fontWeight="700"
+                    fontFamily="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+                    letterSpacing="0.25px"
+                  >
+                    {mainBadgeText}
+                  </text>
+
+                  {confText && (
+                    <g>
+                      <rect
+                        x={pillX + badgeWidth - confChipWidth - 4}
+                        y={pillY + 3}
+                        width={confChipWidth}
+                        height={badgeHeight - 6}
+                        fill="rgba(255, 255, 255, 0.12)"
+                        rx={3}
+                      />
+                      <text
+                        x={pillX + badgeWidth - confChipWidth / 2 - 4}
+                        y={pillY + badgeHeight / 2 + (fontSize - 2) * 0.35}
+                        textAnchor="middle"
+                        fill={strokeColor}
+                        fontSize={Math.max(9, fontSize - 2)}
+                        fontWeight="800"
+                        fontFamily="ui-monospace, monospace"
+                      >
+                        {confText}
+                      </text>
+                    </g>
+                  )}
+                </g>
               </g>
-            </g>
-          );
-        })}
+            );
+          })}
       </svg>
     );
   };
 
   return (
     <div ref={playerContainerRef} className="flex flex-col gap-4 font-sans select-none">
-      {/* Thẻ video ẩn phục vụ chụp frame Webcam Laptop */}
-      <video ref={hiddenWebcamVideoRef} muted playsInline className="hidden" />
-
       {/* ── 1. KHUNG PHÁT VIDEO: NEUMORPHIC DOCK & DEEP CONCAVE WELL ── */}
       <div className="relative rounded-[28px] p-2.5 sm:p-3.5 bg-card/40 dark:bg-card/30 border border-border/60 shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)] transition-all">
         {/* Vát rãnh viền / Bezel lõm tầng 1 */}
@@ -730,31 +877,44 @@ export function CameraIntelligencePlayer({
             <div className="pointer-events-none absolute inset-0 z-20 shadow-[inset_0_0_36px_rgba(0,0,0,0.7)]" />
 
             {isWebcam ? (
-              /* CHẾ ĐỘ 1: WEBCAM LAPTOP */
+              /* CHẾ ĐỘ 1: WEBCAM LAPTOP 60FPS TRỰC TIẾP + VECTOR HUD OVERLAY */
               <div className="relative h-full w-full flex items-center justify-center bg-neutral-950">
+                <video
+                  ref={hiddenWebcamVideoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  onClick={handleControlledTogglePlay}
+                  onLoadedMetadata={(e) => {
+                    const v = e.currentTarget;
+                    if (v.videoWidth && v.videoHeight) {
+                      setVideoDimensions({ width: v.videoWidth, height: v.videoHeight });
+                    }
+                    setWebcamReady(true);
+                  }}
+                  className={`h-full w-full object-contain select-none cursor-pointer ${
+                    webcamReady && !webcamError ? "block" : "hidden"
+                  }`}
+                />
+                {webcamReady && !webcamError && renderDetectionsSvg()}
+
                 {webcamError ? (
                   <div className="p-6 text-center text-xs text-danger border border-danger/30 bg-danger/10 rounded-2xl max-w-sm m-4 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] backdrop-blur-md">
-                    <p className="font-bold text-sm mb-1">⚠️ {webcamError}</p>
+                    <p className="font-bold text-sm mb-1">{webcamError}</p>
                   </div>
-                ) : webcamRenderedB64 ? (
-                  <img
-                    src={webcamRenderedB64}
-                    alt="Webcam AI Frame-Locked"
-                    className="h-full w-full object-contain select-none"
-                  />
-                ) : (
+                ) : !webcamReady ? (
                   <div className="flex flex-col items-center gap-2 text-xs text-muted-foreground">
                     <Loader2 className="h-7 w-7 animate-spin text-primary" />
                     <span>
                       {isVietnamese
-                        ? "Đang khởi động Webcam & khóa khung hình YOLOv11..."
-                        : "Initializing Laptop Webcam & YOLOv11 Frame-Lock..."}
+                        ? "Đang khởi động Webcam 60FPS & đồng bộ YOLOv11..."
+                        : "Initializing Laptop Webcam 60FPS & YOLOv11..."}
                     </span>
                   </div>
-                )}
+                ) : null}
               </div>
             ) : mjpegStreamUrl ? (
-              /* CHẾ ĐỘ 2: LUỒNG AI THỜI GIAN THỰC */
+              /* CHẾ ĐỘ 2: LUỒNG RTSP QUA AI MJPEG STREAM */
               <div className="relative h-full w-full flex items-center justify-center bg-neutral-950">
                 <img
                   key={mjpegStreamUrl}
@@ -809,16 +969,17 @@ export function CameraIntelligencePlayer({
                 />
                 {renderDetectionsSvg()}
               </div>
-            ) : (
-              /* CHẾ ĐỘ 4: VIDEO ĐÃ XỬ LÝ SẴN HOẶC VIDEO HTML5 NATIVE */
+            ) : cleanVideoSrc ? (
+              /* CHẾ ĐỘ 4: VIDEO HTML5 NATIVE GIẢI MÃ PHẦN CỨNG GPU 60FPS + VECTOR HUD OVERLAY */
               <div className="relative h-full w-full flex items-center justify-center bg-neutral-950">
                 <video
                   ref={videoRef}
-                  src={videoSrc}
+                  src={cleanVideoSrc}
                   autoPlay
                   playsInline
                   loop
                   muted
+                  preload="auto"
                   className="h-full w-full object-contain cursor-pointer"
                   onClick={handleControlledTogglePlay}
                   onLoadedMetadata={(e) => {
@@ -829,9 +990,33 @@ export function CameraIntelligencePlayer({
                   }}
                   onPlay={() => onSyncPlaying?.(true)}
                   onPause={() => onSyncPlaying?.(false)}
-                  onTimeUpdate={(e) => onSyncTime?.(e.currentTarget.currentTime)}
                 />
                 {renderDetectionsSvg()}
+              </div>
+            ) : (
+              /* CHẾ ĐỘ 5: KHÔNG CÓ TÍN HIỆU VIDEO / CHƯA CẤU HÌNH LUỒNG */
+              <div className="relative h-full w-full flex flex-col items-center justify-center bg-neutral-950 text-neutral-400 p-6 text-center select-none">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-900/80 border border-neutral-800 text-neutral-500 mb-3 shadow-inner">
+                  <VideoOff className="h-7 w-7 text-neutral-400" />
+                </div>
+                <p className="text-sm font-semibold text-neutral-200">
+                  {isVietnamese ? "Không có nguồn video" : "No video source"}
+                </p>
+                <p className="text-xs text-neutral-400 mt-1 max-w-sm">
+                  {isVietnamese
+                    ? "Camera chưa được cấu hình URL luồng phát (RTSP, MP4, YouTube hoặc Webcam)."
+                    : "No stream URL configured (RTSP, MP4, YouTube, or Webcam) for this camera."}
+                </p>
+                {onChangeVideoSource && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onChangeVideoSource("/videos/sample-construction.mp4")}
+                    className="mt-4 text-xs rounded-xl border-neutral-700 bg-neutral-900/60 hover:bg-neutral-800 text-neutral-200"
+                  >
+                    {isVietnamese ? "Tải video mẫu thử nghiệm" : "Load sample test video"}
+                  </Button>
+                )}
               </div>
             )}
 

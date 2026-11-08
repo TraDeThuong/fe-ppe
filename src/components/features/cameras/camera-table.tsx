@@ -2,39 +2,13 @@
 
 import { useMemo, useState, useCallback } from "react";
 import Link from "next/link";
-import type {
-  ColumnDef,
-  PaginationState,
-  RowSelectionState,
-  SortingState,
-} from "@tanstack/react-table";
-import {
-  Activity,
-  ArrowUpRight,
-  Building2,
-  Camera,
-  CheckCircle2,
-  Edit2,
-  MapPin,
-  Play,
-  ShieldAlert,
-  Sliders,
-  Trash2,
-  Wifi,
-} from "lucide-react";
-import {
-  Table,
-  TableToolbar,
-  TableContent,
-  TablePagination,
-  TableSelectionHeader,
-  TableSelectionRow,
-  TableRowActions,
-  type TableFeatureSet,
-  type TableRowAction,
-  type TableBulkAction,
-  TableBulkActions,
-} from "@/components/ui/table";
+import type { ColumnDef, RowSelectionState } from "@tanstack/react-table";
+import { Activity, Camera, CheckCircle2, Edit2, Play, ShieldAlert, Sliders, Trash2 } from "lucide-react";
+import { Table, TableToolbar, TableContent, TablePagination, TableSelectionHeader, TableSelectionRow, TableRowActions, TableRefresh, type TableProps, type TableFeatureSet, type TableRowAction, type TableBulkAction, TableBulkActions } from "@/components/ui/table";
+import { cameraService } from "@/services/camera.service";
+import { settleInBatches } from "@/lib/table-utils";
+import { toast } from "@/lib/toast";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import type { CameraItem } from "@/types";
 
@@ -46,6 +20,7 @@ export interface CameraTableProps {
   onEdit: (camera: CameraItem) => void;
   onDelete: (camera: CameraItem) => void;
   loading?: boolean;
+  tableState?: Partial<TableProps<CameraItem>>;
   onRefresh?: () => void;
   variant?: "soft" | "sculpted";
 }
@@ -58,62 +33,36 @@ export function CameraTable({
   onEdit,
   onDelete,
   loading = false,
+  tableState,
   onRefresh,
   variant = "soft",
 }: CameraTableProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  // Table internal state
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 10,
-  });
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "name", desc: false },
-  ]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
-  // Client-side pagination & sorting
-  const sortedData = useMemo(() => {
-    const list = [...cameras];
-    if (sorting.length > 0) {
-      const { id, desc } = sorting[0];
-      list.sort((a, b) => {
-        let valA: string | number = "";
-        let valB: string | number = "";
-        if (id === "name") {
-          valA = a.name.toLowerCase();
-          valB = b.name.toLowerCase();
-        } else if (id === "code") {
-          valA = a.code.toLowerCase();
-          valB = b.code.toLowerCase();
-        } else if (id === "status") {
-          valA = a.status;
-          valB = b.status;
-        } else if (id === "site") {
-          valA = (a.siteName || "").toLowerCase();
-          valB = (b.siteName || "").toLowerCase();
-        } else if (id === "latency") {
-          valA = a.currentLatencyMs || (a.status === "ONLINE" ? 38 : 0);
-          valB = b.currentLatencyMs || (b.status === "ONLINE" ? 38 : 0);
-        }
-        if (valA < valB) return desc ? 1 : -1;
-        if (valA > valB) return desc ? -1 : 1;
-        return 0;
+  const can = useCan();
+  const canManage = can("PPE_CAMERA_MANAGE");
+  const canPing = can("PPE_CAMERA_MANAGE");
+  const [pingPending, setPingPending] = useState(false);
+  const runBulkPing = async () => {
+    if (pingPending || !canPing) return;
+    const ids = cameras.filter(camera => rowSelection[camera.id]).map(camera => camera.id);
+    setPingPending(true);
+    try {
+      const result = await settleInBatches(ids, async id => {
+        const ping = await cameraService.pingCamera(id);
+        if (!ping.success) throw new Error(ping.errorMessage || "Ping failed");
       });
+      setRowSelection(Object.fromEntries(result.failed.map(id => [id, true])));
+      const text = isVietnamese ? `${result.succeeded.length} thành công, ${result.failed.length} thất bại.` : `${result.succeeded.length} succeeded, ${result.failed.length} failed.`;
+      if (result.failed.length) toast.error(text); else toast.success(text);
+      onRefresh?.();
+    } finally {
+      setPingPending(false);
     }
-    return list;
-  }, [cameras, sorting]);
-
-  const totalCount = sortedData.length;
-  const pageCount = Math.max(1, Math.ceil(totalCount / pagination.pageSize));
-
-  const paginatedData = useMemo(() => {
-    const start = pagination.pageIndex * pagination.pageSize;
-    return sortedData.slice(start, start + pagination.pageSize);
-  }, [sortedData, pagination.pageIndex, pagination.pageSize]);
-
+  };
   // Bulk Actions
   const bulkActions = useMemo<TableBulkAction[]>(() => {
     const selectedIds = Object.keys(rowSelection).filter(
@@ -129,15 +78,14 @@ export function CameraTable({
           : `Ping Test (${selectedIds.length})`,
         icon: <Activity size={14} />,
         variant: "primary",
+        disabled: pingPending || !canPing,
         onClick: () => {
-          const selectedCams = cameras.filter((c) => selectedIds.includes(c.id));
-          if (selectedCams.length > 0) {
-            onPing(selectedCams[0]);
-          }
+          void runBulkPing();
         },
+
       },
     ];
-  }, [rowSelection, isVietnamese, cameras, onPing]);
+  }, [rowSelection, isVietnamese, cameras, onPing, pingPending, canPing]);
 
   // Row Actions definition
   const getRowActions = useCallback(
@@ -148,35 +96,44 @@ export function CameraTable({
           label: isVietnamese ? "Xem Live Stream" : "View Live Stream",
           icon: <Play size={14} className="text-primary" />,
           onClick: (c) => onViewLive(c),
+
         },
         {
           id: "ping",
+          hidden: !canPing,
           label: isVietnamese ? "Đo Ping kiểm tra mạng" : "Ping Health Check",
           icon: <Activity size={14} />,
           onClick: (c) => onPing(c),
+
         },
         {
           id: "roi",
+          hidden: !canManage,
           label: isVietnamese ? "Cấu hình AI ROI" : "Configure AI ROI",
           icon: <Sliders size={14} />,
           onClick: (c) => onConfigureRoi(c),
+
         },
         {
           id: "edit",
+          hidden: !canManage,
           label: isVietnamese ? "Chỉnh sửa thông số" : "Edit Settings",
           icon: <Edit2 size={14} />,
           onClick: (c) => onEdit(c),
+
         },
         {
           id: "delete",
+          hidden: !canManage,
           label: isVietnamese ? "Xóa camera" : "Delete Camera",
           icon: <Trash2 size={14} />,
           variant: "danger",
           onClick: (c) => onDelete(c),
+
         },
       ];
     },
-    [isVietnamese, onViewLive, onPing, onConfigureRoi, onEdit, onDelete]
+    [isVietnamese, onViewLive, onPing, onConfigureRoi, onEdit, onDelete, canManage, canPing]
   );
 
   // TanStack Columns definition
@@ -188,6 +145,7 @@ export function CameraTable({
         cell: ({ row }) => <TableSelectionRow row={row} />,
         enableSorting: false,
         size: 40,
+
       },
       {
         id: "name",
@@ -201,9 +159,8 @@ export function CameraTable({
               <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-elevated/70 text-primary shadow-[inset_1px_1px_2px_var(--shadow-dark)]">
                 <Camera className="h-5 w-5" />
                 <span
-                  className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background ${
-                    isOnline ? "bg-emerald-500 animate-pulse" : "bg-danger"
-                  }`}
+                  className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background ${isOnline ? "bg-emerald-500 animate-pulse" : "bg-danger"
+                    }`}
                 />
               </div>
               <div className="min-w-0">
@@ -225,9 +182,11 @@ export function CameraTable({
             </div>
           );
         },
+
       },
       {
         id: "site",
+        enableSorting: false,
         header: t("cameras.table.site"),
         cell: ({ row }) => {
           const camera = row.original;
@@ -239,7 +198,6 @@ export function CameraTable({
                   className="inline-flex items-center gap-1 text-xs font-semibold text-foreground hover:text-primary transition hover:underline"
                   title={isVietnamese ? "Mở trung tâm điều hành công trường này" : "Open site operations center"}
                 >
-                  <Building2 className="h-3 w-3 text-primary shrink-0" />
                   <span className="line-clamp-1">
                     {camera.siteName || (isVietnamese ? "Công trường chính" : "Main Site")}
                   </span>
@@ -250,15 +208,16 @@ export function CameraTable({
                 </span>
               )}
               <span className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                <MapPin className="h-2.5 w-2.5" />
                 {camera.location || camera.zoneName || (isVietnamese ? "Khu vực thi công" : "Construction Zone")}
               </span>
             </div>
           );
         },
+
       },
       {
         id: "specs",
+        enableSorting: false,
         header: isVietnamese ? "Độ phân giải & FPS" : "Resolution & FPS",
         cell: ({ row }) => {
           const camera = row.original;
@@ -273,6 +232,7 @@ export function CameraTable({
             </div>
           );
         },
+
       },
       {
         id: "status",
@@ -282,24 +242,24 @@ export function CameraTable({
           const isOnline = row.original.status === "ONLINE";
           return (
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                isOnline
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-bold ${isOnline
                   ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
                   : "bg-danger/15 text-danger border border-danger/30"
-              }`}
+                }`}
             >
               <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  isOnline ? "bg-emerald-500 animate-pulse" : "bg-danger"
-                }`}
+                className={`h-1.5 w-1.5 rounded-full ${isOnline ? "bg-emerald-500 animate-pulse" : "bg-danger"
+                  }`}
               />
               {row.original.status}
             </span>
           );
         },
+
       },
       {
         id: "latency",
+        enableSorting: false,
         header: isVietnamese ? "Độ trễ & Mạng" : "Latency & Health",
         cell: ({ row }) => {
           const camera = row.original;
@@ -309,23 +269,23 @@ export function CameraTable({
           return (
             <div className="flex items-center gap-2 font-mono text-xs">
               <span
-                className={`inline-flex items-center gap-1 font-semibold ${
-                  isFast
+                className={`inline-flex items-center gap-1 font-semibold ${isFast
                     ? "text-emerald-600 dark:text-emerald-400"
                     : isOnline
-                    ? "text-foreground"
-                    : "text-muted-foreground"
-                }`}
+                      ? "text-foreground"
+                      : "text-muted-foreground"
+                  }`}
               >
-                <Wifi className="h-3 w-3" />
                 {lat}ms
               </span>
             </div>
           );
         },
+
       },
       {
         id: "roi",
+        enableSorting: false,
         header: isVietnamese ? "Vùng AI ROI" : "AI ROI Zone",
         cell: ({ row }) => {
           const camera = row.original;
@@ -353,9 +313,11 @@ export function CameraTable({
             </button>
           );
         },
+
       },
       {
         id: "incidents",
+        enableSorting: false,
         header: isVietnamese ? "Sự cố PPE" : "Alerts",
         cell: ({ row }) => {
           const camera = row.original;
@@ -371,6 +333,7 @@ export function CameraTable({
             </Link>
           );
         },
+
       },
       {
         id: "actions",
@@ -413,6 +376,7 @@ export function CameraTable({
         },
         enableSorting: false,
         size: 90,
+
       },
     ];
   }, [t, isVietnamese, getRowActions, onConfigureRoi, onViewLive, onPing]);
@@ -420,23 +384,19 @@ export function CameraTable({
   return (
     <div className="space-y-4">
       <Table
-        data={paginatedData}
+        data={cameras}
         columns={columns}
         variant={variant}
         loading={loading}
         emptyMessage={t("cameras.table.empty")}
-        manualPagination={true}
-        manualSorting={true}
-        pageCount={pageCount}
-        rowCount={totalCount}
-        pagination={pagination}
-        onPaginationChange={setPagination}
-        sorting={sorting}
-        onSortingChange={setSorting}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
         getRowId={(row) => row.id}
+        features={{ rowSelection: canPing }}
+        {...tableState}
+        fetching={Boolean(tableState?.fetching) || pingPending}
       >
+        <TableToolbar showSearch={false} actions={<TableRefresh />} />
         {/* Bulk Action Bar if items selected */}
         <TableBulkActions actions={bulkActions} />
 

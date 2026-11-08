@@ -4,19 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Activity,
   ArrowLeft,
-  CheckCircle2,
   Cpu,
-  Download,
-  Film,
   FlaskConical,
   Loader2,
-  Play,
   RefreshCw,
-  ShieldAlert,
   ShieldCheck,
-  Sparkles,
   Upload,
   Video,
   X,
@@ -688,7 +681,7 @@ export default function AiModelTestContent() {
               >
                 {sandboxJobs.map((j) => (
                   <option key={j.job_id} value={`job:${j.job_id}`}>
-                    🎬 {j.source} ({j.total_frames} frames · {j.fps} FPS)
+                    {j.source} ({j.total_frames} frames · {j.fps} FPS)
                   </option>
                 ))}
               </optgroup>
@@ -696,7 +689,7 @@ export default function AiModelTestContent() {
             <optgroup label={isVietnamese ? "Video Mẫu Có Sẵn" : "Built-in Sample Videos"}>
               {PRESET_SAMPLES.map((p) => (
                 <option key={p.id} value={`preset:${p.id}`}>
-                  📹 {p.label}
+                  {p.label}
                 </option>
               ))}
             </optgroup>

@@ -24,7 +24,6 @@ import {
   ShieldAlert,
   ShieldCheck,
   Shirt,
-  Sparkles,
   Timer,
   X,
   Zap,

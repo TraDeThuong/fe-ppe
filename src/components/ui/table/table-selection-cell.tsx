@@ -1,7 +1,6 @@
 
 "use client";
 
-import type { ChangeEvent } from "react";
 import type { Row } from "@tanstack/react-table";
 
 import { useTableContext } from "./table-context";
@@ -55,7 +54,7 @@ export function TableSelectionCell({
 }
 
 export function TableSelectionHeader() {
-  const { table } = useTableContext();
+  const { table, loading, fetching } = useTableContext();
 
   const rows = table.getRowModel().rows;
   const checked = table.getIsAllPageRowsSelected();
@@ -69,7 +68,7 @@ export function TableSelectionHeader() {
     <TableSelectionCell
       checked={checked}
       indeterminate={indeterminate}
-      disabled={!hasSelectableRows}
+      disabled={!hasSelectableRows || loading || fetching}
       ariaLabel="Chọn tất cả dòng trên trang hiện tại"
       onChange={(nextChecked) =>
         table.toggleAllPageRowsSelected(nextChecked)
@@ -88,10 +87,11 @@ export interface TableSelectionRowProps {
 }
 
 export function TableSelectionRow({ row }: TableSelectionRowProps) {
+  const { loading, fetching } = useTableContext();
   return (
     <TableSelectionCell
       checked={row.getIsSelected()}
-      disabled={!row.getCanSelect()}
+      disabled={!row.getCanSelect() || loading || fetching}
       ariaLabel={`Chọn dòng ${row.id}`}
       onChange={(checked) => row.toggleSelected(checked)}
     />

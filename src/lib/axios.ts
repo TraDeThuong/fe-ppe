@@ -160,6 +160,7 @@ export function createApiClient(baseURL: string): AxiosInstance {
       return body;
     },
     async (error: AxiosError<ApiErrorBody>) => {
+      if (axios.isCancel(error)) return Promise.reject(error);
       const config = error.config as RetryableConfig | undefined;
       const status = error.response?.status ?? 0;
       const body = error.response?.data;

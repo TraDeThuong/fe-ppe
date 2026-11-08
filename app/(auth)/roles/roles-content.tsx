@@ -17,7 +17,7 @@ import {
   type RoleStatKey,
 } from "@/components/features/roles";
 import {
-  useRoles,
+  useRolesCatalog,
   usePermissions,
   useCreateRole,
   useUpdateRole,
@@ -67,7 +67,7 @@ export default function RolesContent() {
   };
 
   // Data fetching
-  const { data: roles = [], isLoading: rolesLoading } = useRoles();
+  const { data: roles = [], isLoading: rolesLoading, isFetching: rolesFetching, error: rolesError, refetch: refetchRoles } = useRolesCatalog();
   const { data: permissions = [], isLoading: permsLoading } = usePermissions();
 
   // Mutations
@@ -148,24 +148,58 @@ export default function RolesContent() {
   const isGuideView = viewParam === "guide";
   const guideRoleParam = searchParams.get("role");
 
+  const toolbar = (<RoleToolbar
+
+    search={search}
+
+    onSearchChange={setSearch}
+
+    systemFilter={systemFilter}
+
+    onSystemFilterChange={setSystemFilter}
+
+    viewMode={viewMode}
+
+    onViewModeChange={setViewMode}
+
+    onCreateRole={handleOpenCreate}
+
+    onOpenGuide={() => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("view", "guide");
+      params.delete("stat");
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }}
+
+  />);
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <PageHeader
+
         icon={ShieldCheck}
+
         title={isGuideView ? t("roles.guide.title") : t("roles.title")}
+
         description={
           isGuideView ? t("roles.guide.description") : t("roles.description")
         }
+
         badge={isGuideView ? t("roles.guide.badge") : t("roles.badge.security")}
+
         badgeIcon={ShieldCheck}
+
       />
 
       {isGuideView ? (
         /* Giao diện Cẩm nang tài liệu hướng dẫn (Không có thẻ stats) */
         <RolePermissionsGuide
+
           roles={roles}
+
           allPermissions={permissions}
+
           selectedRoleId={
             roles.find(
               (r) =>
@@ -173,6 +207,7 @@ export default function RolesContent() {
                 r.name.toUpperCase() === guideRoleParam?.toUpperCase(),
             )?.id
           }
+
           onSelectRole={(id) => {
             const targetRole = roles.find((r) => r.id === id);
             const params = new URLSearchParams(searchParams.toString());
@@ -181,6 +216,7 @@ export default function RolesContent() {
             }
             router.replace(`${pathname}?${params.toString()}`, { scroll: false });
           }}
+
           onBackToList={() => {
             const params = new URLSearchParams(searchParams.toString());
             params.delete("view");
@@ -188,56 +224,77 @@ export default function RolesContent() {
             const q = params.toString();
             router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
           }}
+
           onConfigurePermissions={handleOpenMatrix}
+
         />
       ) : (
         /* Giao diện Quản trị Vai trò chuẩn (Có thẻ stats + Toolbar + Danh sách vai trò) */
         <>
           {/* KPI Bento Summary */}
           <RoleKpiSummary
+
             roles={roles}
+
             permissions={permissions}
+
             totalPermissionsCount={permissions.length}
+
             loading={rolesLoading || permsLoading}
+
             selectedStat={selectedStat}
+
             onSelectStat={handleSelectStat}
+
             onConfigurePermissions={handleOpenMatrix}
+
             onCreateRole={handleOpenCreate}
+
           />
 
           {/* Filter & Action Toolbar */}
-          <RoleToolbar
-            search={search}
-            onSearchChange={setSearch}
-            systemFilter={systemFilter}
-            onSystemFilterChange={setSystemFilter}
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            onCreateRole={handleOpenCreate}
-            onOpenGuide={() => {
-              const params = new URLSearchParams(searchParams.toString());
-              params.set("view", "guide");
-              params.delete("stat");
-              router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-            }}
-          />
+          {viewMode !== "table" ? toolbar : null}
 
           {/* Roles Display (Grid or Table) */}
           {viewMode === "grid" ? (
             <RoleCardGrid
+
               roles={filteredRoles}
+
               onConfigurePermissions={handleOpenMatrix}
+
               onEdit={handleOpenEdit}
+
               onDelete={handleOpenDelete}
+
               loading={rolesLoading}
+
             />
           ) : (
             <RoleTable
+
               roles={filteredRoles}
+
               onConfigurePermissions={handleOpenMatrix}
+
               onEdit={handleOpenEdit}
+
               onDelete={handleOpenDelete}
+
               loading={rolesLoading}
+
+              tableState={{
+                manualFiltering: true,
+                globalFilter: search,
+                filterKey: systemFilter,
+                fetching: rolesFetching,
+                error: rolesError,
+                onRetry: () => {
+                  void refetchRoles();
+                },
+                toolbar
+              }}
+
             />
           )}
         </>
@@ -245,38 +302,62 @@ export default function RolesContent() {
 
       {/* Create Role Modal */}
       <CreateRoleModal
+
         open={createModalOpen}
+
         onOpenChange={setCreateModalOpen}
+
         onSubmit={handleCreateSubmit}
+
         loading={createRole.isPending}
+
       />
 
       {/* Edit Role Modal */}
       <EditRoleModal
+
         open={editModalOpen}
+
         onOpenChange={setEditModalOpen}
+
         role={selectedRole}
+
         onSubmit={handleEditSubmit}
+
         loading={updateRole.isPending}
+
       />
 
       {/* Delete Role Dialog */}
       <DeleteRoleDialog
+
         open={deleteDialogOpen}
+
         onOpenChange={setDeleteDialogOpen}
+
         role={selectedRole}
+
         onConfirm={handleDeleteConfirm}
+
         loading={deleteRole.isPending}
+
       />
 
       {/* Permission Matrix Drawer */}
       <PermissionMatrixDrawer
+
         open={matrixDrawerOpen}
+
         onOpenChange={setMatrixDrawerOpen}
+
         role={selectedRole}
+
         allPermissions={permissions}
+
         onSave={handleSavePermissions}
+
         loading={syncPermissions.isPending}
+
       />
     </div>
   );

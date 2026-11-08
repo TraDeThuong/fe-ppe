@@ -13,13 +13,15 @@ export function TableBody({
   className = "",
   skeletonRows = 4,
 }: TableBodyProps) {
-  const { table, loading, emptyMessage } = useTableContext();
+  const { table, loading, emptyMessage, error } = useTableContext();
 
   const rows = table.getRowModel().rows;
   const columnCount = Math.max(
     table.getVisibleLeafColumns().length,
     1,
   );
+
+  if (error && !rows.length && !loading) return null;
 
   return (
     <tbody

@@ -31,19 +31,19 @@ export function CameraRoiDrawer({
 
   const [points, setPoints] = useState<RoiPoint[]>([]);
   const [processingEnabled, setProcessingEnabled] = useState(true);
-  const [captureFps, setCaptureFps] = useState(15);
+  const [captureFps, setCaptureFps] = useState(10);
   const [motionSensitivity, setMotionSensitivity] = useState(75);
 
   useEffect(() => {
     if (config) {
       setPoints(config.roiPolygon || []);
       setProcessingEnabled(config.processingEnabled ?? true);
-      setCaptureFps(config.captureFps || 15);
+      setCaptureFps(config.captureFps || 10);
       setMotionSensitivity(config.motionSensitivity || 75);
     } else if (camera?.config) {
       setPoints(camera.config.roiPolygon || []);
       setProcessingEnabled(camera.config.processingEnabled ?? true);
-      setCaptureFps(camera.config.captureFps || 15);
+      setCaptureFps(camera.config.captureFps || 10);
       setMotionSensitivity(camera.config.motionSensitivity || 75);
     }
   }, [config, camera]);
@@ -163,7 +163,7 @@ export function CameraRoiDrawer({
             </div>
             <input
               type="range"
-              min={5}
+              min={1}
               max={30}
               step={1}
               value={captureFps}
@@ -184,9 +184,9 @@ export function CameraRoiDrawer({
             </div>
             <input
               type="range"
-              min={10}
+              min={1}
               max={100}
-              step={5}
+              step={1}
               value={motionSensitivity}
               onChange={(e) => setMotionSensitivity(Number(e.target.value))}
               className="w-full accent-primary"

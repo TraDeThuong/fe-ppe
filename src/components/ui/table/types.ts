@@ -1,15 +1,5 @@
 
-import type {
-  ColumnDef,
-  ColumnFiltersState,
-  ColumnVisibilityState,
-  OnChangeFn,
-  PaginationState,
-  Row,
-  RowData,
-  RowSelectionState,
-  SortingState,
-} from "@tanstack/react-table";
+import type { ColumnDef, ColumnFiltersState, ColumnVisibilityState, OnChangeFn, PaginationState, Row, RowData, RowSelectionState, SortingState } from "@tanstack/react-table";
 
 import type { TableFeatureSet } from "./table-config";
 
@@ -36,13 +26,23 @@ export type TableCellEditHandler<TData> = (params: {
 }) => void | Promise<void>;
 
 export interface TableProps<TData extends RowData> {
+  toolbar?: import("react").ReactNode;
   data: TData[];
   columns: ColumnDef<TableFeatureSet, TData, any>[];
 
   variant?: TableVariant;
+  surface?: "standalone" | "embedded";
   features?: TableFeatures;
 
   loading?: boolean;
+  fetching?: boolean;
+  error?: unknown;
+  onRetry?: () => void;
+  /** Total unfiltered rows, when supplied by a summary endpoint. */
+  totalRowCount?: number;
+  /** Changes to external filters reset pagination and page-scoped selection. */
+  filterKey?: string;
+  getRowClassName?: (row: TData) => string;
   emptyMessage?: string;
   className?: string;
   /** Removes the specular white top edge for surfaces embedded in a muted parent card. */
@@ -76,7 +76,6 @@ export interface TableProps<TData extends RowData> {
   onColumnVisibilityChange?: OnChangeFn<ColumnVisibilityState>;
 
   onCellEdit?: TableCellEditHandler<TData>;
-
 
   /** Enable server-side sorting when the server returns sorted data. */
   manualSorting?: boolean;

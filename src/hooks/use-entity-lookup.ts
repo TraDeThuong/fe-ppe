@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { useSites } from "@/hooks/sites";
-import { useCameras } from "@/hooks/cameras";
+import { useSitesCatalog } from "@/hooks/sites";
+import { useCamerasCatalog } from "@/hooks/cameras";
 import type { CameraItem, SiteItem, ZoneItem } from "@/types";
 
 /**
@@ -14,11 +14,11 @@ import type { CameraItem, SiteItem, ZoneItem } from "@/types";
  * ("Công trường" vô danh hoặc UUID cắt ngắn).
  */
 export function useEntityLookup() {
-  const { data: sitesData, isLoading: sitesLoading } = useSites({ limit: 100 });
-  const { data: camerasData, isLoading: camerasLoading } = useCameras({ limit: 100 });
+  const { data: sitesData, isLoading: sitesLoading } = useSitesCatalog();
+  const { data: camerasData, isLoading: camerasLoading } = useCamerasCatalog();
 
-  const sites = useMemo(() => sitesData?.items ?? [], [sitesData]);
-  const cameras = useMemo(() => camerasData?.items ?? [], [camerasData]);
+  const sites = useMemo(() => sitesData ?? [], [sitesData]);
+  const cameras = useMemo(() => camerasData ?? [], [camerasData]);
 
   // Map tra cứu nhanh Site theo ID
   const sitesMap = useMemo(() => {

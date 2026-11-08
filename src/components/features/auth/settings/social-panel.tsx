@@ -5,14 +5,11 @@ import { useEffect, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
-  Check,
-  Clock3,
   Fingerprint,
   Link2,
   Loader2,
   ShieldAlert,
   ShieldCheck,
-  Sparkles,
   Unlink,
 } from "lucide-react";
 
@@ -177,9 +174,6 @@ export function SocialPanel() {
             strokeWidth={1.8}
             aria-hidden="true"
           />
-          <span className="absolute -right-1 -top-1 flex size-5 items-center justify-center rounded-full border-2 border-background bg-emerald-500 text-white shadow-sm">
-            <Check className="size-3" aria-hidden="true" />
-          </span>
         </div>
 
         <div className="min-w-0 flex-1 pt-0.5">
@@ -339,10 +333,6 @@ export function SocialPanel() {
                       ) : (
                         <Link2 className="size-5" aria-hidden="true" />
                       )}
-
-                      <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border-2 border-background bg-emerald-500 text-white shadow-sm">
-                        <Check className="size-2.5" aria-hidden="true" />
-                      </span>
                     </div>
 
                     <div className="min-w-0 flex-1">
@@ -357,7 +347,6 @@ export function SocialPanel() {
                       </div>
 
                       <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                        <Clock3 className="size-3.5 shrink-0" aria-hidden="true" />
                         {t("security.social.linkedAt")}{" "}
                         <span className="font-medium text-foreground/75">
                           {formatDate(account.createdAt)}
@@ -532,11 +521,9 @@ export function SocialPanel() {
 
       {/* Footer */}
       <footer className="flex items-center justify-center gap-2 border-t border-border/40 pt-4 text-center">
-        <ShieldCheck className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
         <p className="text-[10px] leading-4 text-muted-foreground">
           Your linked accounts are managed through secure authentication.
         </p>
-        <Sparkles className="size-3 shrink-0 text-primary/50" aria-hidden="true" />
       </footer>
     </section>
   );

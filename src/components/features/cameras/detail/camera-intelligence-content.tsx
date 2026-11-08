@@ -28,6 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCameraDetail } from "@/hooks/cameras";
+import { useTableState } from "@/hooks/use-table-state";
 import { useIncidents } from "@/hooks/incidents";
 import { useSiteSafetyConfig } from "@/hooks/sites";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
@@ -72,13 +73,19 @@ export function CameraIntelligenceContent({
   // 1. Lấy dữ liệu Camera thực tế từ Database / Camera Service
   const { data: camera, isLoading: isCameraLoading } = useCameraDetail(cameraId);
 
+  const incidentsTable = useTableState([{ id: "detectedAt", desc: true }], cameraId);
+
   // 2. Lấy dữ liệu sự cố vi phạm THỰC TẾ từ Backend API theo cameraId này
   const {
     data: incidentsResult,
     isLoading: isIncidentsLoading,
+    isFetching: incidentsFetching,
+    error: incidentsError,
+    refetch: refetchIncidents,
   } = useIncidents({
     cameraId,
-    limit: 20,
+    page: incidentsTable.pagination.pageIndex + 1,
+    limit: incidentsTable.pagination.pageSize,
     sortBy: "detectedAt",
     sortOrder: "desc",
   });
@@ -371,65 +378,111 @@ export function CameraIntelligenceContent({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Vòng lặp đồng bộ thời gian phát video tĩnh / RTSP
+  // Vòng lặp đồng bộ thời gian phát dự phòng khi không dùng thẻ <video> native
   useEffect(() => {
-    if (!isPlaying || liveSessionId) return;
+    if (!isPlaying) return;
 
     const isNativeVideo =
       effectiveStreamUrl.endsWith(".mp4") ||
       effectiveStreamUrl.endsWith(".webm") ||
-      effectiveStreamUrl.startsWith("blob:");
+      effectiveStreamUrl.startsWith("blob:") ||
+      effectiveStreamUrl.startsWith("/videos/");
 
-    if (isNativeVideo) return;
+    if (isNativeVideo || liveSessionId) return;
 
     const interval = setInterval(() => {
-      setLiveElapsedSec((prev) => prev + 0.1);
-    }, 100);
+      setLiveElapsedSec((prev) => prev + 0.04);
+    }, 40);
     return () => clearInterval(interval);
   }, [isPlaying, effectiveStreamUrl, liveSessionId]);
 
   useEffect(() => {
     let active = true;
-    // Chỉ dùng static log nếu không chạy Live AI Session
-    if (liveSessionId) {
-      return () => {
-        active = false;
-      };
-    }
 
     const safeId = cameraId ? cameraId.replace(/[^a-zA-Z0-9_-]/g, "") : "";
     const shortId = safeId ? safeId.slice(0, 8) : "";
-    const logUrl = safeId ? `/data/camera-${safeId}-log.json` : null;
-    const fallback = shortId && shortId !== safeId ? `/data/camera-${shortId}-log.json` : undefined;
+    const rawStreamLower = (cameraStreamUrl || "").toLowerCase();
 
-    if (logUrl) {
-      const tryFetch = (urlToFetch: string, fallbackUrl?: string) => {
-        fetch(urlToFetch)
-          .then((res) => {
-            if (!res.ok) {
-              if (fallbackUrl) {
-                return fetch(fallbackUrl).then((r2) => {
-                  if (!r2.ok) throw new Error("Log not found");
-                  return r2.json();
-                });
-              }
-              throw new Error("Log not found");
-            }
-            return res.json();
-          })
-          .then((data) => {
-            const frames = Array.isArray(data) ? data : data?.frames;
-            if (active && frames && frames.length > 0) {
-              setRealLogData({ frames, meta: data?.meta });
-              setAnalyzedVideoUrl(`/videos/cameras/camera-${safeId}.mp4`);
-            }
-          })
-          .catch(() => {
-            if (active) setRealLogData(null);
-          });
+    // Danh sách ứng viên (logUrl, videoUrl) ưu tiên khớp chính xác ID camera hoặc nguồn video chuẩn
+    const candidates: Array<{ logUrl: string; videoUrl: string }> = [];
+    if (safeId) {
+      candidates.push({
+        logUrl: `/data/camera-${safeId}-log.json`,
+        videoUrl: `/videos/cameras/camera-${safeId}.mp4`,
+      });
+    }
+    if (shortId && shortId !== safeId) {
+      candidates.push({
+        logUrl: `/data/camera-${shortId}-log.json`,
+        videoUrl: `/videos/cameras/camera-${shortId}.mp4`,
+      });
+    }
+
+    const inferLogMeta = (frames: FrameLogEntry[], rawMeta?: any) => {
+      if (rawMeta?.size && Array.isArray(rawMeta.size) && rawMeta.size.length === 2) {
+        return rawMeta;
+      }
+      let maxX = 0;
+      let maxY = 0;
+      for (const fr of frames.slice(0, 120)) {
+        for (const det of fr.detections || []) {
+          if (Array.isArray(det.bbox) && det.bbox.length === 4) {
+            if (det.bbox[2] > maxX) maxX = det.bbox[2];
+            if (det.bbox[3] > maxY) maxY = det.bbox[3];
+          }
+        }
+      }
+      let inferredSize: [number, number] = [1280, 720];
+      if (maxY > 1280 && maxX <= 1080) {
+        inferredSize = [1080, 1920];
+      } else if (maxY > 1280 && maxX <= 900) {
+        inferredSize = [900, 1596];
+      } else if (maxY > 720 && maxX <= 720) {
+        inferredSize = [720, 1280];
+      } else if (maxY > 640 && maxX <= 480) {
+        inferredSize = [480, 854];
+      } else if (maxY <= 640 && maxX <= 360 && maxY > maxX) {
+        inferredSize = [360, 640];
+      }
+      const lastT = frames[frames.length - 1]?.t || 10;
+      const inferredFps = lastT > 0 ? Math.round(frames.length / lastT) || 25 : 25;
+      return {
+        ...rawMeta,
+        size: inferredSize,
+        viewBox: inferredSize,
+        isVertical: inferredSize[1] > inferredSize[0],
+        fps: rawMeta?.fps || inferredFps,
       };
+    };
 
-      tryFetch(logUrl, fallback);
+    const loadCandidateAt = async (idx: number) => {
+      if (!active || idx >= candidates.length) {
+        if (active) setRealLogData(null);
+        return;
+      }
+      const cand = candidates[idx];
+      try {
+        const res = await fetch(cand.logUrl);
+        if (!res.ok) {
+          await loadCandidateAt(idx + 1);
+          return;
+        }
+        const data = await res.json();
+        const frames: FrameLogEntry[] = Array.isArray(data) ? data : data?.frames;
+        if (active && Array.isArray(frames) && frames.length > 0) {
+          const normalizedMeta = inferLogMeta(frames, data?.meta);
+          setRealLogData({ frames, meta: normalizedMeta });
+          setAnalyzedVideoUrl(cand.videoUrl);
+        } else {
+          await loadCandidateAt(idx + 1);
+        }
+      } catch {
+        await loadCandidateAt(idx + 1);
+      }
+    };
+
+    if (candidates.length > 0) {
+      loadCandidateAt(0);
     } else {
       setRealLogData(null);
     }
@@ -437,7 +490,7 @@ export function CameraIntelligenceContent({
     return () => {
       active = false;
     };
-  }, [cameraId, effectiveStreamUrl, liveSessionId]);
+  }, [cameraId, cameraStreamUrl]);
 
   // Bộ tính toán Pipeline an toàn thời gian thực ĐỘNG (chỉ làm fallback khi port 8000 tắt)
   const liveTrackingData = useMemo(() => {
@@ -478,10 +531,18 @@ export function CameraIntelligenceContent({
           if (!allViolations.some((x) => x.event_id === v.event_id)) {
             const matchedEv =
               f.evidence?.find((e) => e.event_id === v.event_id) || f.evidence?.[0];
+            const rawEvPath = v.evidence_path || matchedEv?.path;
+            const rawRefPath =
+              v.reference_path ||
+              matchedEv?.reference_path ||
+              (rawEvPath?.startsWith("/api/jobs/live/evidence/")
+                ? rawEvPath.replace(/\.jpg$/i, "_ref.jpg")
+                : undefined);
             allViolations.push({
               ...v,
               frame: v.frame || f.frame,
-              evidence_path: v.evidence_path || matchedEv?.path,
+              evidence_path: rawEvPath,
+              reference_path: rawRefPath,
             });
           }
         }
@@ -521,9 +582,102 @@ export function CameraIntelligenceContent({
     };
   }, [realLogData]);
 
-  // Đồng bộ Bounding Box & Telemetry chuẩn xác 100% theo từng frame từ Look-Ahead Live AI Engine
+  // Đồng bộ Bounding Box & Telemetry chuẩn xác 100% theo từng frame
   const resolvedTrackingData = useMemo(() => {
-    // 1. Ưu tiên tuyệt đối dữ liệu thực tế từ Look-Ahead Live AI Engine (Port 8000)
+    const isUsingLocalAnalyzedVideo =
+      !customStreamUrl && Boolean(analyzedVideoUrl && realLogData?.frames?.length);
+
+    // 1. Khi phát thẻ <video> MP4 cục bộ có sẵn file Log AI chuẩn:
+    // Đồng bộ trực tiếp với currentTime của thẻ <video> để khớp 100% từng miligiây (0ms drift)
+    if (isUsingLocalAnalyzedVideo && realLogData?.frames && realLogData.frames.length > 0) {
+      const frames = realLogData.frames;
+      const totalDuration = frames[frames.length - 1].t || 10.08;
+      const loopedTime = totalDuration > 0 ? liveElapsedSec % totalDuration : 0;
+
+      // Tìm frame có timestamp t gần nhất bằng Binary Search
+      let low = 0;
+      let high = frames.length - 1;
+      let bestIdx = 0;
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        if (frames[mid].t <= loopedTime) {
+          bestIdx = mid;
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
+      }
+      const rawFrame = frames[bestIdx];
+
+      // Nếu tắt xử lý AI (processingEnabled === false), trả về khung hình trống không vẽ box
+      if (camera?.config?.processingEnabled === false) {
+        return {
+          entry: {
+            ...rawFrame,
+            detections: [],
+            persons: [],
+            associations: [],
+            confirmations: [],
+          },
+          violations: [],
+          personTracks: [],
+          isRealAiLog: true,
+        };
+      }
+
+      // Lọc theo vùng ROI Polygon nếu camera có cấu hình ROI
+      const roiPoly = camera?.config?.roiPolygon;
+      const [coordW, coordH] = realLogData.meta?.size || [streamMetadata.videoWidth || 1280, streamMetadata.videoHeight || 720];
+      let filteredDetections = rawFrame.detections || [];
+      let filteredPersons = rawFrame.persons || [];
+
+      if (Array.isArray(roiPoly) && roiPoly.length >= 3 && coordW > 0 && coordH > 0) {
+        const isPointInRoi = (px: number, py: number) => {
+          let inside = false;
+          for (let i = 0, j = roiPoly.length - 1; i < roiPoly.length; j = i++) {
+            const xi = roiPoly[i].x <= 1 && roiPoly[i].y <= 1 ? roiPoly[i].x : roiPoly[i].x / coordW;
+            const yi = roiPoly[i].x <= 1 && roiPoly[i].y <= 1 ? roiPoly[i].y : roiPoly[i].y / coordH;
+            const xj = roiPoly[j].x <= 1 && roiPoly[j].y <= 1 ? roiPoly[j].x : roiPoly[j].x / coordW;
+            const yj = roiPoly[j].x <= 1 && roiPoly[j].y <= 1 ? roiPoly[j].y : roiPoly[j].y / coordH;
+            const intersect =
+              yi > py !== yj > py &&
+              px < ((xj - xi) * (py - yi)) / (Math.abs(yj - yi) > 1e-9 ? yj - yi : 1e-9) + xi;
+            if (intersect) inside = !inside;
+          }
+          return inside;
+        };
+
+        const allowedPersonIds = new Set<number>();
+        filteredDetections = filteredDetections.filter((d) => {
+          if (d.class_name === "person" && Array.isArray(d.bbox) && d.bbox.length === 4) {
+            const footX = (d.bbox[0] + d.bbox[2]) * 0.5 / coordW;
+            const footY = d.bbox[3] / coordH;
+            const inside = isPointInRoi(footX, footY);
+            if (inside && typeof d.track_id === "number") {
+              allowedPersonIds.add(d.track_id);
+            }
+            return inside;
+          }
+          return true;
+        });
+        filteredPersons = filteredPersons.filter((p) => allowedPersonIds.has(p.track_id));
+      }
+
+      const currentViolations = fullViolations.filter((v) => v.frame <= rawFrame.frame);
+
+      return {
+        entry: {
+          ...rawFrame,
+          detections: filteredDetections,
+          persons: filteredPersons,
+        },
+        violations: currentViolations,
+        personTracks: fullPersonTracks.length > 0 ? fullPersonTracks : liveTrackingData.personTracks,
+        isRealAiLog: true,
+      };
+    }
+
+    // 2. Dữ liệu thời gian thực từ Look-Ahead Live AI Engine (Port 8000) cho luồng RTSP / YouTube mới / Webcam
     if (liveSessionId && liveSessionState) {
       const liveEntry: FrameLogEntry = liveSessionState.entry || {
         frame: liveSessionState.current_frame || 0,
@@ -556,13 +710,12 @@ export function CameraIntelligenceContent({
       };
     }
 
-    // 2. Nếu đang xem một Job đã xử lý sẵn
+    // 3. Nếu đang xem một Job đã xử lý sẵn với customStreamUrl
     if (realLogData?.frames && realLogData.frames.length > 0) {
       const frames = realLogData.frames;
       const totalDuration = frames[frames.length - 1].t || 10.08;
       const loopedTime = totalDuration > 0 ? liveElapsedSec % totalDuration : 0;
 
-      // Tìm frame có timestamp t gần nhất bằng Binary Search
       let low = 0;
       let high = frames.length - 1;
       let bestIdx = 0;
@@ -576,7 +729,6 @@ export function CameraIntelligenceContent({
         }
       }
       const frame = frames[bestIdx];
-
       const currentViolations = fullViolations.filter((v) => v.frame <= frame.frame);
 
       return {
@@ -587,7 +739,7 @@ export function CameraIntelligenceContent({
       };
     }
 
-    // 3. Nếu chưa có log AI thực tế hoặc đang chạy phân tích, KHÔNG sinh box hay vi phạm giả lập
+    // 4. Nếu chưa có log AI thực tế hoặc đang chạy phân tích, KHÔNG sinh box hay vi phạm giả lập
     return {
       entry: null,
       violations: [],
@@ -595,6 +747,8 @@ export function CameraIntelligenceContent({
       isRealAiLog: false,
     };
   }, [
+    customStreamUrl,
+    analyzedVideoUrl,
     liveSessionId,
     liveSessionState,
     realLogData,
@@ -602,6 +756,10 @@ export function CameraIntelligenceContent({
     fullViolations,
     fullPersonTracks,
     liveTrackingData,
+    camera?.config?.processingEnabled,
+    camera?.config?.roiPolygon,
+    streamMetadata.videoWidth,
+    streamMetadata.videoHeight,
   ]);
 
   // Tên hiển thị mô hình AI trên HUD Video Player, Sidebar & Telemetry
@@ -643,6 +801,224 @@ export function CameraIntelligenceContent({
   const knownViolationsRef = useRef<Set<string>>(new Set());
 
   /**
+   * Chụp khung hình thực tế từ thẻ <video> hiện tại và vẽ chính xác các Bounding Box AI thực tế
+   * từ `resolvedTrackingData.entry.detections` (tuyệt đối không dùng tọa độ giả lập cố định).
+   */
+  const captureCurrentVideoFrame = useCallback(
+    (annotate: boolean = true, forceViolationHighlight: boolean = false): string | null => {
+      try {
+        const v =
+          videoRef.current && videoRef.current.videoWidth && videoRef.current.videoHeight
+            ? videoRef.current
+            : typeof document !== "undefined"
+            ? document.querySelector<HTMLVideoElement>('video[data-webcam-video="true"]')
+            : null;
+
+        if (!v || !v.videoWidth || !v.videoHeight) {
+          return null;
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = v.videoWidth;
+        canvas.height = v.videoHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return null;
+
+        // 1. Vẽ frame video gốc
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+
+        // 2. Nếu annotate=true: Vẽ trực tiếp các detections thực tế từ frame AI hiện tại lên canvas
+        if (annotate) {
+          const entryDets = resolvedTrackingData.entry?.detections || [];
+          const entryPersons = resolvedTrackingData.entry?.persons || [];
+          const personMap = new Map(entryPersons.map((p) => [p.track_id, p]));
+
+          // Xác định hệ tọa độ gốc của các detections
+          const [coordW, coordH] =
+            !customStreamUrl && analyzedVideoUrl && realLogData?.meta?.size
+              ? realLogData.meta.size
+              : liveSessionState?.size && liveSessionState.size.length === 2
+              ? liveSessionState.size
+              : [
+                  streamMetadata.videoWidth || canvas.width,
+                  streamMetadata.videoHeight || canvas.height,
+                ];
+
+          const scaleX = coordW > 0 ? canvas.width / coordW : 1;
+          const scaleY = coordH > 0 ? canvas.height / coordH : 1;
+
+          // Vẽ vùng ROI Polygon nếu có
+          const roiPoly = camera?.config?.roiPolygon;
+          if (Array.isArray(roiPoly) && roiPoly.length >= 3) {
+            ctx.save();
+            ctx.beginPath();
+            roiPoly.forEach((pt, idx) => {
+              const px = (pt.x <= 1 && pt.y <= 1 ? pt.x * coordW : pt.x) * scaleX;
+              const py = (pt.x <= 1 && pt.y <= 1 ? pt.y * coordH : pt.y) * scaleY;
+              if (idx === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            });
+            ctx.closePath();
+            ctx.fillStyle = "rgba(6, 182, 212, 0.08)";
+            ctx.fill();
+            ctx.strokeStyle = "#06b6d4";
+            ctx.lineWidth = Math.max(2, Math.round(canvas.width / 500));
+            ctx.setLineDash([8, 5]);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // Nếu đang chụp ảnh cho Sự cố (forceViolationHighlight) mà frame hiện tại chưa có người ở trạng thái CONFIRMED_VIOLATION,
+          // chọn person đầu tiên được AI phát hiện thực tế trong frame để tô đỏ đúng vị trí của họ.
+          const hasConfirmedInFrame = entryPersons.some(
+            (p) => p.status === "CONFIRMED_VIOLATION" || p.status === "VIOLATION" || p.status === "VIOLATION_CANDIDATE"
+          );
+          const fallbackViolatorTrackId =
+            forceViolationHighlight && !hasConfirmedInFrame
+              ? entryDets.find((d) => d.class_name === "person")?.track_id
+              : undefined;
+
+          for (const det of entryDets) {
+            if (!Array.isArray(det.bbox) || det.bbox.length !== 4) continue;
+            const [x1, y1, x2, y2] = det.bbox;
+            const bx = x1 * scaleX;
+            const by = y1 * scaleY;
+            const bw = Math.max(6, (x2 - x1) * scaleX);
+            const bh = Math.max(6, (y2 - y1) * scaleY);
+
+            const pState =
+              det.class_name === "person" && typeof det.track_id === "number"
+                ? personMap.get(det.track_id)
+                : undefined;
+
+            const isViolating =
+              pState?.status === "CONFIRMED_VIOLATION" ||
+              pState?.status === "VIOLATION" ||
+              (forceViolationHighlight &&
+                det.class_name === "person" &&
+                det.track_id !== undefined &&
+                det.track_id === fallbackViolatorTrackId);
+            const isCandidate = !isViolating && pState?.status === "VIOLATION_CANDIDATE";
+
+            let strokeColor = "#10b981";
+            let fillColor = "rgba(16, 185, 129, 0.10)";
+            let labelText = "";
+            const confPct = `${Math.round((det.confidence || 0.95) * 100)}%`;
+
+            if (det.class_name === "person") {
+              if (isViolating) {
+                strokeColor = "#f43f5e";
+                fillColor = "rgba(244, 63, 94, 0.18)";
+                const vTypes = (pState?.violations || [])
+                  .map((v) => {
+                    const lower = v.toLowerCase();
+                    if (lower.includes("helmet")) return isVietnamese ? "THIẾU MŨ" : "NO HELMET";
+                    if (lower.includes("vest")) return isVietnamese ? "THIẾU ÁO" : "NO VEST";
+                    return v.toUpperCase();
+                  })
+                  .join(" + ");
+                labelText = `WORKER #${det.track_id ?? 1} • ${
+                  isVietnamese ? "VI PHẠM" : "VIOLATION"
+                }${vTypes ? `: ${vTypes}` : ""} (${confPct})`;
+              } else if (isCandidate) {
+                strokeColor = "#f59e0b";
+                fillColor = "rgba(245, 158, 11, 0.14)";
+                labelText = `WORKER #${det.track_id ?? 1} • ${
+                  isVietnamese ? "ĐANG ĐẾM (3s)" : "EVALUATING"
+                } (${confPct})`;
+              } else {
+                strokeColor = "#10b981";
+                fillColor = "rgba(16, 185, 129, 0.10)";
+                labelText = `WORKER #${det.track_id ?? 1} • ${
+                  isVietnamese ? "ĐỦ BẢO HỘ" : "COMPLIANT"
+                } (${confPct})`;
+              }
+            } else if (det.class_name === "helmet") {
+              strokeColor = "#0ea5e9";
+              fillColor = "rgba(14, 165, 233, 0.10)";
+              labelText = `#${det.track_id ?? 1} ${isVietnamese ? "MŨ BẢO HỘ" : "HARD HAT"} (${confPct})`;
+            } else if (det.class_name === "safety_vest") {
+              strokeColor = "#a855f7";
+              fillColor = "rgba(168, 85, 247, 0.10)";
+              labelText = `#${det.track_id ?? 1} ${isVietnamese ? "ÁO PHẢN QUANG" : "SAFETY VEST"} (${confPct})`;
+            } else {
+              strokeColor = "#06b6d4";
+              fillColor = "rgba(6, 182, 212, 0.10)";
+              labelText = `${det.class_name.toUpperCase()} (${confPct})`;
+            }
+
+            // 2.1 Nền bán trong suốt & viền mảnh
+            ctx.fillStyle = fillColor;
+            ctx.fillRect(bx, by, bw, bh);
+
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = Math.max(1.5, Math.round(canvas.width / 500));
+            ctx.strokeRect(bx, by, bw, bh);
+
+            // 2.2 Thước ngắm 4 góc (L-Brackets)
+            const cl = Math.min(bw * 0.22, bh * 0.22, Math.max(12, canvas.width / 42));
+            ctx.lineWidth = Math.max(2.5, Math.round(canvas.width / 280));
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+            ctx.beginPath();
+            ctx.moveTo(bx, by + cl); ctx.lineTo(bx, by); ctx.lineTo(bx + cl, by);
+            ctx.moveTo(bx + bw - cl, by); ctx.lineTo(bx + bw, by); ctx.lineTo(bx + bw, by + cl);
+            ctx.moveTo(bx, by + bh - cl); ctx.lineTo(bx, by + bh); ctx.lineTo(bx + cl, by + bh);
+            ctx.moveTo(bx + bw - cl, by + bh); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw, by + bh - cl);
+            ctx.stroke();
+
+            // 2.3 Tia laser quét ngang nếu đang vi phạm
+            if (isViolating) {
+              const scanY = by + bh * 0.28;
+              ctx.strokeStyle = "rgba(244, 63, 94, 0.9)";
+              ctx.lineWidth = Math.max(1.5, Math.round(canvas.width / 520));
+              ctx.beginPath();
+              ctx.moveTo(bx + 4, scanY);
+              ctx.lineTo(bx + bw - 4, scanY);
+              ctx.stroke();
+            }
+
+            // 2.4 Nhãn HUD
+            const fontSize = Math.max(11, Math.min(18, Math.round(canvas.width / 62)));
+            ctx.font = `bold ${fontSize}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+            const textMetrics = ctx.measureText(labelText);
+            const bannerW = textMetrics.width + 18;
+            const bannerH = fontSize + 10;
+            const bannerY = by > bannerH + 6 ? by - bannerH - 4 : by + 4;
+            const bannerX = Math.max(4, Math.min(canvas.width - bannerW - 4, bx));
+
+            ctx.fillStyle = "rgba(10, 15, 29, 0.92)";
+            ctx.fillRect(bannerX, bannerY, bannerW, bannerH);
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 1.2;
+            ctx.strokeRect(bannerX, bannerY, bannerW, bannerH);
+            ctx.fillStyle = strokeColor;
+            ctx.fillRect(bannerX, bannerY, 4, bannerH);
+            ctx.fillStyle = "#ffffff";
+            ctx.textBaseline = "middle";
+            ctx.fillText(labelText, bannerX + 10, bannerY + bannerH / 2);
+          }
+        }
+
+        return canvas.toDataURL("image/jpeg", 0.95);
+      } catch {
+        return null;
+      }
+    },
+    [
+      resolvedTrackingData.entry,
+      customStreamUrl,
+      analyzedVideoUrl,
+      realLogData?.meta?.size,
+      liveSessionState?.size,
+      streamMetadata.videoWidth,
+      streamMetadata.videoHeight,
+      camera?.config?.roiPolygon,
+      isVietnamese,
+    ]
+  );
+
+  /**
    * Kích hoạt sự cố trực tiếp từ luồng Camera/YouTube/Webcam (Tạo Incident thật vào DB + Hú còi + Bung Toast 10s)
    */
   const triggerLiveIncidentAlert = useCallback(
@@ -652,111 +1028,92 @@ export function CameraIntelligenceContent({
         const vType = customPayload?.violationType || "NO_HELMET";
         const sev = vType === "NO_HELMET" ? "CRITICAL" : "HIGH";
 
-        // 1. Trích xuất ảnh bằng chứng AI thực tế từ Camera/Video stream đang phát
+        // 1. Trích xuất ảnh bằng chứng AI thực tế ngay tại frame hiện tại của Camera/Video stream
         const safeCamStr = (cameraId || camera?.id || camera?.code || "").toLowerCase();
         const latestViol =
           resolvedTrackingData.violations[resolvedTrackingData.violations.length - 1];
 
-        let cameraEvidenceImage: string | null = null;
-        const streamUrlLower = (effectiveStreamUrl || "").toLowerCase();
-        if (
-          safeCamStr.includes("01a19ce7") ||
-          safeCamStr.includes("cam2") ||
-          safeCamStr.includes("test-2") ||
-          streamUrlLower.includes("podsp36oulm")
-        ) {
-          cameraEvidenceImage = "/images/camera-01a19ce7-evidence.jpg";
-        } else if (
-          safeCamStr.includes("01a19cf4") ||
-          safeCamStr.includes("cam3") ||
-          safeCamStr.includes("01a19d07") ||
-          safeCamStr.includes("cam5") ||
-          streamUrlLower.includes("ek0fcznqfva")
-        ) {
-          cameraEvidenceImage = "/images/camera-01a19cf4-evidence.jpg";
-        } else if (safeCamStr.includes("01a19e19") || safeCamStr.includes("cammm")) {
-          cameraEvidenceImage = "/images/camera-01a19e19-evidence.jpg";
-        } else if (
-          safeCamStr.includes("01a18735") ||
-          safeCamStr.includes("099999") ||
-          streamUrlLower.includes("rcvx3zsi4eq")
-        ) {
-          cameraEvidenceImage = "/images/evidence/camera-01a18735_16ee47ac_f76_red.jpg";
-        } else if (effectiveStreamUrl.includes("video8") || vType === "RESTRICTED_AREA") {
-          cameraEvidenceImage = "/images/evidence/video8_ea579346_f91_red.jpg";
-        } else if (effectiveStreamUrl.includes("cctv") || effectiveStreamUrl.includes("ai-cctv")) {
-          cameraEvidenceImage = "/images/evidence/ai-cctv_3a05148c_f195_red.jpg";
-        }
+        const freshAnnotatedFrame = captureCurrentVideoFrame(true, true);
+        const freshRawFrame = captureCurrentVideoFrame(false, false);
 
-        let actualEvidenceUrl =
-          capturedSnapshotUrl ||
+        // Ưu tiên số 1: Ảnh bằng chứng vi phạm thực tế từ AI Service hoặc snapshot trực tiếp từ video
+        const actualEvidenceUrl =
           latestViol?.evidence_path ||
+          capturedSnapshotUrl ||
+          freshAnnotatedFrame ||
+          (liveSessionId && (liveSessionState?.status === "streaming" || liveSessionState?.status === "buffering")
+            ? `/api/live/${liveSessionId}/frame.jpg?bbox=1`
+            : null) ||
           resolvedTrackingData.entry?.evidence?.[0]?.path ||
-          cameraEvidenceImage ||
-          captureCurrentVideoFrame(true) ||
           camera?.snapshotUrl ||
-          "/images/camera-01a19ce7-evidence.jpg";
+          null;
 
-        // Trích xuất tọa độ Bounding Box thực tế từ frame AI hiện tại (Chuẩn hóa % trên khung hình)
+        // 1b. Trích xuất Ảnh Đối Chứng (Reference Snapshot: từ AI Service hoặc frame gốc)
+        const derivedLiveRefPath =
+          latestViol?.reference_path ||
+          resolvedTrackingData.entry?.evidence?.[0]?.reference_path ||
+          (latestViol?.evidence_path?.startsWith("/api/jobs/live/evidence/")
+            ? latestViol.evidence_path.replace(/\.jpg$/i, "_ref.jpg")
+            : null);
+
+        const actualReferenceUrl =
+          latestViol?.reference_path ||
+          freshRawFrame ||
+          (liveSessionId && (liveSessionState?.status === "streaming" || liveSessionState?.status === "buffering")
+            ? `/api/live/${liveSessionId}/frame.jpg?bbox=0`
+            : null) ||
+          derivedLiveRefPath ||
+          (streamMetadata?.youtubeId ? `https://img.youtube.com/vi/${streamMetadata.youtubeId}/hqdefault.jpg` : null) ||
+          camera?.snapshotUrl ||
+          null;
+
+        // Trích xuất tọa độ Bounding Box thực tế từ AI Service (Ưu tiên box [0..1] chuẩn hóa từ latestViol)
         let realViolationBox: { x: number; y: number; width: number; height: number; label: string; confidence: number } | null = null;
-        const entryDets = resolvedTrackingData.entry?.detections || [];
-        const entryPersons = resolvedTrackingData.entry?.persons || [];
-        
-        // Tìm person đang bị đánh dấu vi phạm trong frame
-        const violatorTrack = entryPersons.find((p) => p.status === "CONFIRMED_VIOLATION" || p.status === "VIOLATION_CANDIDATE") || entryPersons[0];
-        const violatorDet = violatorTrack
-          ? entryDets.find((d) => d.class_name === "person" && d.track_id === violatorTrack.track_id)
-          : entryDets.find((d) => d.class_name === "person");
-
-        if (violatorDet && violatorDet.bbox) {
-          const [bx1, by1, bx2, by2] = violatorDet.bbox;
-          const vw = streamMetadata.videoWidth || (streamMetadata.isVertical ? 720 : 1280);
-          const vh = streamMetadata.videoHeight || (streamMetadata.isVertical ? 1280 : 720);
+        if (latestViol?.box && typeof latestViol.box.x === "number") {
+          const rawBox = latestViol.box;
           realViolationBox = {
-            x: Number(((bx1 / vw) * 100).toFixed(1)),
-            y: Number(((by1 / vh) * 100).toFixed(1)),
-            width: Number((((bx2 - bx1) / vw) * 100).toFixed(1)),
-            height: Number((((by2 - by1) / vh) * 100).toFixed(1)),
-            label: vType,
-            confidence: Number((violatorDet.confidence || 0.96).toFixed(2)),
+            x: Number((rawBox.x <= 1 ? rawBox.x * 100 : rawBox.x).toFixed(1)),
+            y: Number((rawBox.y <= 1 ? rawBox.y * 100 : rawBox.y).toFixed(1)),
+            width: Number((rawBox.width <= 1 ? rawBox.width * 100 : rawBox.width).toFixed(1)),
+            height: Number((rawBox.height <= 1 ? rawBox.height * 100 : rawBox.height).toFixed(1)),
+            label: rawBox.label || vType,
+            confidence: Number((rawBox.confidence || 0.96).toFixed(2)),
           };
-        } else if (safeCamStr.includes("01a19ce7") || safeCamStr.includes("cam2")) {
-          // Tọa độ chuẩn xác của Worker #10 trong video CAM2 (720x1280)
-          realViolationBox = { x: 10.4, y: 17.5, width: 36.4, height: 67.1, label: vType, confidence: 0.96 };
-        } else if (safeCamStr.includes("01a19cf4") || safeCamStr.includes("01a19d07")) {
-          realViolationBox = { x: 43.0, y: 28.6, width: 4.8, height: 22.5, label: vType, confidence: 0.96 };
-        } else if (safeCamStr.includes("01a19e19")) {
-          realViolationBox = { x: 39.7, y: 28.2, width: 3.6, height: 19.2, label: vType, confidence: 0.96 };
-        } else if (safeCamStr.includes("01a18735")) {
-          realViolationBox = { x: 28.0, y: 18.0, width: 44.0, height: 20.0, label: vType, confidence: 0.96 };
-        }
+        } else {
+          const entryDets = resolvedTrackingData.entry?.detections || [];
+          const entryPersons = resolvedTrackingData.entry?.persons || [];
+          
+          // Tìm person đang bị đánh dấu vi phạm trong frame
+          const violatorTrack = entryPersons.find((p) => p.status === "CONFIRMED_VIOLATION" || p.status === "VIOLATION_CANDIDATE") || entryPersons[0];
+          const violatorDet = violatorTrack
+            ? entryDets.find((d) => d.class_name === "person" && d.track_id === violatorTrack.track_id)
+            : entryDets.find((d) => d.class_name === "person");
 
-        // 2. Đảm bảo siteId và cameraId luôn là UUID hợp lệ trong Postgres DB
-        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        let effectiveCameraId = camera?.id;
-        let effectiveSiteId = camera?.siteId;
-
-        if (!effectiveCameraId || !UUID_REGEX.test(effectiveCameraId)) {
-          if (cameraId && UUID_REGEX.test(cameraId)) {
-            effectiveCameraId = cameraId;
-          } else if (cameraId?.includes("01a18735") || camera?.code?.includes("01a18735") || camera?.code?.includes("099999")) {
-            effectiveCameraId = "01a18735-39f8-7ea2-822d-1e7765c59c73";
-          } else if (cameraId?.includes("01a19ce7") || camera?.code?.includes("CAM2")) {
-            effectiveCameraId = "01a19ce7-05b3-7dcd-97d2-35d4b8309e1d";
-          } else if (cameraId?.includes("01a19cf4") || camera?.code?.includes("CAM3")) {
-            effectiveCameraId = "01a19cf4-3b78-783c-af36-f52812c9ee3b";
-          } else if (cameraId?.includes("01a19d07") || camera?.code?.includes("CAM5")) {
-            effectiveCameraId = "01a19d07-bd01-76f9-a7c3-4e7fbcc02538";
-          } else if (cameraId?.includes("01a19e19") || camera?.code?.includes("CAMMM")) {
-            effectiveCameraId = "01a19e19-ed7f-72ae-a832-6c64d2595dcf";
-          } else {
-            effectiveCameraId = "01a18735-39f8-7ea2-822d-1e7765c59c73";
+          if (violatorDet && violatorDet.bbox) {
+            const [bx1, by1, bx2, by2] = violatorDet.bbox;
+            const [coordW, coordH] =
+              !customStreamUrl && analyzedVideoUrl && realLogData?.meta?.size
+                ? realLogData.meta.size
+                : liveSessionState?.size && liveSessionState.size.length === 2
+                ? liveSessionState.size
+                : [
+                    streamMetadata.videoWidth || (streamMetadata.isVertical ? 720 : 1280),
+                    streamMetadata.videoHeight || (streamMetadata.isVertical ? 1280 : 720),
+                  ];
+            realViolationBox = {
+              x: Number(((bx1 / coordW) * 100).toFixed(1)),
+              y: Number(((by1 / coordH) * 100).toFixed(1)),
+              width: Number((((bx2 - bx1) / coordW) * 100).toFixed(1)),
+              height: Number((((by2 - by1) / coordH) * 100).toFixed(1)),
+              label: vType,
+              confidence: Number((violatorDet.confidence || 0.96).toFixed(2)),
+            };
           }
         }
 
-        if (!effectiveSiteId || !UUID_REGEX.test(effectiveSiteId)) {
-          effectiveSiteId = "01a1866d-094a-741c-8fe2-d679f1a46780";
-        }
+        // 2. Sử dụng siteId và cameraId thực tế từ camera hiện hành
+        const effectiveCameraId = camera?.id || cameraId;
+        const effectiveSiteId = camera?.siteId || siteId;
 
         // 3. Tạo Incident thực sự vào CSDL qua API
         const newIncident = await incidentService.createIncident({
@@ -777,11 +1134,17 @@ export function CameraIntelligenceContent({
           throw new Error("Không nhận được mã ID sự cố từ máy chủ");
         }
 
-        // 4. Lưu ảnh bằng chứng thực tế & tọa độ Bounding Box vào Client-side Cache
-        if (typeof window !== "undefined" && actualEvidenceUrl) {
+        // 4. Lưu ảnh bằng chứng thực tế, ảnh đối chứng & tọa độ Bounding Box vào Client-side Cache
+        if (typeof window !== "undefined") {
           try {
-            sessionStorage.setItem(`ppe_incident_evidence_${createdId}`, actualEvidenceUrl);
-            sessionStorage.setItem(`ppe_camera_evidence_${effectiveCameraId}`, actualEvidenceUrl);
+            if (actualEvidenceUrl) {
+              sessionStorage.setItem(`ppe_incident_evidence_${createdId}`, actualEvidenceUrl);
+              sessionStorage.setItem(`ppe_camera_evidence_${effectiveCameraId}`, actualEvidenceUrl);
+            }
+            if (actualReferenceUrl) {
+              sessionStorage.setItem(`ppe_incident_ref_evidence_${createdId}`, actualReferenceUrl);
+              sessionStorage.setItem(`ppe_camera_ref_evidence_${effectiveCameraId}`, actualReferenceUrl);
+            }
             if (realViolationBox) {
               sessionStorage.setItem(`ppe_incident_box_${createdId}`, JSON.stringify(realViolationBox));
             }
@@ -790,47 +1153,87 @@ export function CameraIntelligenceContent({
           }
         }
 
-        // 5. Đẩy tệp ảnh bằng chứng thực tế lên Object Storage (MinIO) qua direct-upload
-        if (actualEvidenceUrl) {
+        // 5. Đẩy tệp ảnh bằng chứng (SNAPSHOT) và ảnh đối chứng (REFERENCE_SNAPSHOT) lên Object Storage (MinIO) qua direct-upload
+        if (actualEvidenceUrl || actualReferenceUrl) {
           (async () => {
-            try {
-              let blob: Blob | null = null;
-              const fetchUrl =
-                actualEvidenceUrl.startsWith("/") && typeof window !== "undefined"
-                  ? `${window.location.origin}${actualEvidenceUrl}`
-                  : actualEvidenceUrl;
-              if (
-                fetchUrl.startsWith("data:") ||
-                fetchUrl.startsWith("http://") ||
-                fetchUrl.startsWith("https://")
-              ) {
-                const res = await fetch(fetchUrl);
-                if (res.ok) {
-                  blob = await res.blob();
+            const fetchImageBlob = async (targetUrl?: string | null): Promise<Blob | null> => {
+              if (!targetUrl) return null;
+              try {
+                let fetchUrl = targetUrl;
+                if (targetUrl.startsWith("/api/jobs/") || targetUrl.startsWith("/api/live/")) {
+                  fetchUrl = `http://127.0.0.1:8000${targetUrl}`;
+                } else if (targetUrl.startsWith("/") && typeof window !== "undefined") {
+                  fetchUrl = `${window.location.origin}${targetUrl}`;
                 }
+                if (
+                  fetchUrl.startsWith("data:") ||
+                  fetchUrl.startsWith("http://") ||
+                  fetchUrl.startsWith("https://")
+                ) {
+                  const res = await fetch(fetchUrl);
+                  if (res.ok) {
+                    return await res.blob();
+                  }
+                }
+              } catch {
+                // ignore individual fetch error
               }
-              if (blob) {
-                await incidentService.uploadEvidenceDirect({
-                  incidentId: createdId,
-                  cameraId: effectiveCameraId,
-                  evidenceType: "SNAPSHOT",
-                  file: blob,
-                  fileName: `snapshot_${createdId.slice(0, 8)}.jpg`,
-                  aiDetections: {
-                    violations: [
-                      {
-                        box: realViolationBox || {
-                          x: 10.4,
-                          y: 17.5,
-                          width: 36.4,
-                          height: 67.1,
-                          label: vType,
-                          confidence: 0.96,
-                        },
-                      },
-                    ],
-                  },
-                });
+              return null;
+            };
+
+            try {
+              const [snapBlob, refBlob] = await Promise.all([
+                fetchImageBlob(actualEvidenceUrl),
+                fetchImageBlob(actualReferenceUrl),
+              ]);
+
+              const uploadTasks: Promise<unknown>[] = [];
+
+              const isEvidencePreAnnotated = Boolean(
+                actualEvidenceUrl?.includes("/api/jobs/live/evidence/") ||
+                actualEvidenceUrl?.includes("bbox=1") ||
+                actualEvidenceUrl?.includes("annotated") ||
+                actualEvidenceUrl?.includes("-evidence")
+              );
+              const snapFileName = isEvidencePreAnnotated
+                ? `snapshot_annotated_${createdId.slice(0, 8)}.jpg`
+                : `snapshot_${createdId.slice(0, 8)}.jpg`;
+
+              if (snapBlob) {
+                uploadTasks.push(
+                  incidentService.uploadEvidenceDirect({
+                    incidentId: createdId,
+                    cameraId: effectiveCameraId,
+                    evidenceType: "SNAPSHOT",
+                    file: snapBlob,
+                    fileName: snapFileName,
+                    aiDetections: realViolationBox
+                      ? {
+                          violations: [
+                            {
+                              box: realViolationBox,
+                            },
+                          ],
+                        }
+                      : undefined,
+                  })
+                );
+              }
+
+              if (refBlob) {
+                uploadTasks.push(
+                  incidentService.uploadEvidenceDirect({
+                    incidentId: createdId,
+                    cameraId: effectiveCameraId,
+                    evidenceType: "REFERENCE_SNAPSHOT",
+                    file: refBlob,
+                    fileName: `reference_${createdId.slice(0, 8)}.jpg`,
+                  })
+                );
+              }
+
+              if (uploadTasks.length > 0) {
+                await Promise.allSettled(uploadTasks);
                 queryClient.invalidateQueries({ queryKey: incidentKeys.detail(createdId) });
                 queryClient.invalidateQueries({ queryKey: incidentKeys.all });
               }
@@ -951,9 +1354,12 @@ export function CameraIntelligenceContent({
             cooldown_s: aiConfig.cooldownDuration,
             enable_no_helmet: aiConfig.enableNoHelmet,
             enable_no_vest: aiConfig.enableNoVest,
-            target_fps: aiConfig.processFps || 25,
+            target_fps: camera?.config?.captureFps || aiConfig.processFps || 25,
             model_path: aiConfig.modelVersionId,
             force_restart: forceRestart,
+            roi_polygon: camera?.config?.roiPolygon ?? null,
+            processing_enabled: camera?.config?.processingEnabled ?? true,
+            motion_sensitivity: camera?.config?.motionSensitivity ?? 75,
           }),
         });
 
@@ -970,13 +1376,21 @@ export function CameraIntelligenceContent({
         console.warn("[Live Look-Ahead] AI Server port 8000 chưa sẵn sàng hoặc không kết nối được:", err);
       }
     },
-    [cameraId, effectiveStreamUrl, aiConfig]
+    [
+      cameraId,
+      effectiveStreamUrl,
+      aiConfig,
+      camera?.config?.captureFps,
+      camera?.config?.roiPolygon,
+      camera?.config?.processingEnabled,
+      camera?.config?.motionSensitivity,
+    ]
   );
 
-  // Tự động kết nối Live Look-Ahead AI Stream khi mở camera hoặc thay đổi stream
+  // Tự động kết nối hoặc cập nhật nóng Live AI Stream khi mở camera hoặc thay đổi cấu hình
   useEffect(() => {
     if (!cameraId || !effectiveStreamUrl) return;
-    connectLiveSession(true);
+    connectLiveSession(false);
   }, [cameraId, effectiveStreamUrl, connectLiveSession]);
 
   // Kết nối WebSocket & Fallback polling đồng bộ Telemetry theo thời gian thực
@@ -1011,6 +1425,13 @@ export function CameraIntelligenceContent({
               if (r.ok) {
                 const s = await r.json();
                 setLiveSessionState(s);
+                // Dừng ngay polling khi phiên phân tích hoàn tất hoặc gặp lỗi kết thúc
+                if (s?.status === "completed" || s?.status === "error" || s?.status === "stopped") {
+                  if (pollInterval) {
+                    clearInterval(pollInterval);
+                    pollInterval = null;
+                  }
+                }
               }
             } catch {}
           }, 1500);
@@ -1047,13 +1468,13 @@ export function CameraIntelligenceContent({
   };
 
   const lastSyncTimeRef = useRef<number>(0);
-  const handleSyncTime = (timeSec: number) => {
-    // Chỉ cập nhật state khi thời gian dịch chuyển ít nhất ~25ms (tối ưu hóa 40 FPS mượt mà) hoặc khi video lặp lại
-    if (timeSec < lastSyncTimeRef.current || Math.abs(timeSec - lastSyncTimeRef.current) >= 0.025) {
+  const handleSyncTime = useCallback((timeSec: number) => {
+    // Điều tiết cập nhật state thời gian ở mức ~30Hz (33ms) để đồng bộ khung hình mượt mà
+    if (timeSec < lastSyncTimeRef.current || Math.abs(timeSec - lastSyncTimeRef.current) >= 0.033) {
       lastSyncTimeRef.current = timeSec;
       setLiveElapsedSec(timeSec);
     }
-  };
+  }, []);
 
   const handleSaveAiConfig = async (newConfig: AiInspectionConfig) => {
     setAiConfig(newConfig);
@@ -1102,138 +1523,19 @@ export function CameraIntelligenceContent({
     );
   };
 
-  const captureCurrentVideoFrame = (annotate: boolean = true): string | null => {
-    try {
-      const v = videoRef.current;
-      if (v && v.videoWidth && v.videoHeight) {
-        const canvas = document.createElement("canvas");
-        canvas.width = v.videoWidth;
-        canvas.height = v.videoHeight;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return null;
-
-        // 1. Vẽ frame video gốc
-        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-
-        // 2. Nếu annotate=true (dùng làm ảnh bằng chứng vi phạm): Tô đỏ trực tiếp lên canvas
-        if (annotate) {
-          const streamUrlLower = (effectiveStreamUrl || "").toLowerCase();
-          const camCodeLower = (camera?.code || cameraId || "").toLowerCase();
-
-          // Xác định tọa độ bounding box người vi phạm
-          let box: { x: number; y: number; width: number; height: number; label: string; confidence: number } | null = null;
-          if (streamUrlLower.includes("podsp36oulm") || camCodeLower.includes("cam2") || camCodeLower.includes("test-2")) {
-            box = { x: 10.4, y: 17.5, width: 36.4, height: 67.1, label: "NO_VEST", confidence: 0.96 };
-          } else if (streamUrlLower.includes("ek0fcznqfva") || camCodeLower.includes("cam3") || camCodeLower.includes("cam5")) {
-            box = { x: 43.0, y: 28.6, width: 4.8, height: 22.5, label: "NO_HELMET", confidence: 0.96 };
-          } else if (streamUrlLower.includes("rcvx3zsi4eq") || camCodeLower.includes("01a18735")) {
-            box = { x: 28.0, y: 18.0, width: 44.0, height: 20.0, label: "NO_HELMET", confidence: 0.96 };
-          } else if (streamMetadata.isVertical) {
-            box = { x: 10.4, y: 17.5, width: 36.4, height: 67.1, label: "NO_VEST", confidence: 0.96 };
-          } else {
-            box = { x: 32.0, y: 25.0, width: 36.0, height: 50.0, label: "NO_HELMET", confidence: 0.96 };
-          }
-
-          if (box) {
-            const bx = (box.x / 100) * canvas.width;
-            const by = (box.y / 100) * canvas.height;
-            const bw = (box.width / 100) * canvas.width;
-            const bh = (box.height / 100) * canvas.height;
-
-            // 2.1 Phủ lớp đỏ mờ nhẹ (translucent tint 18%) lên vùng người vi phạm
-            ctx.fillStyle = "rgba(220, 38, 38, 0.18)";
-            ctx.fillRect(bx, by, bw, bh);
-
-            // 2.2 Viền đỏ bounding box
-            ctx.strokeStyle = "#f43f5e";
-            ctx.lineWidth = Math.max(2, Math.round(canvas.width / 450));
-            ctx.strokeRect(bx, by, bw, bh);
-
-            // 2.3 Thước ngắm HUD 4 góc (L-Brackets)
-            const cl = Math.min(bw * 0.25, bh * 0.25, Math.max(14, canvas.width / 40));
-            ctx.lineWidth = Math.max(3, Math.round(canvas.width / 280));
-            ctx.lineCap = "round";
-            ctx.lineJoin = "round";
-            ctx.beginPath();
-            // Góc trên - trái
-            ctx.moveTo(bx, by + cl); ctx.lineTo(bx, by); ctx.lineTo(bx + cl, by);
-            // Góc trên - phải
-            ctx.moveTo(bx + bw - cl, by); ctx.lineTo(bx + bw, by); ctx.lineTo(bx + bw, by + cl);
-            // Góc dưới - trái
-            ctx.moveTo(bx, by + bh - cl); ctx.lineTo(bx, by + bh); ctx.lineTo(bx + cl, by + bh);
-            // Góc dưới - phải
-            ctx.moveTo(bx + bw - cl, by + bh); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw, by + bh - cl);
-            ctx.stroke();
-
-            // 2.4 Tia laser quét ngang đỏ rực
-            const scanY = by + bh * 0.28;
-            ctx.strokeStyle = "rgba(244, 63, 94, 0.95)";
-            ctx.lineWidth = Math.max(1.5, Math.round(canvas.width / 500));
-            ctx.beginPath();
-            ctx.moveTo(bx + 4, scanY); ctx.lineTo(bx + bw - 4, scanY);
-            ctx.stroke();
-
-            // 2.5 Thẻ nhãn HUD kính tối viền đỏ: VI PHẠM: NO_SAFETY_VEST / NO_HELMET
-            const vLabel = box.label === "NO_VEST" ? "VI PHAM: NO_SAFETY_VEST" : "VI PHAM: NO_HELMET";
-            const labelText = `${vLabel} (${Math.round((box.confidence || 0.96) * 100)}%)`;
-            const fontSize = Math.max(13, Math.round(canvas.width / 55));
-            ctx.font = `bold ${fontSize}px "JetBrains Mono", Consolas, monospace`;
-            const textMetrics = ctx.measureText(labelText);
-            const bannerW = textMetrics.width + 20;
-            const bannerH = fontSize + 14;
-            const bannerY = by > bannerH + 8 ? by - bannerH - 4 : by + 4;
-            const bannerX = Math.max(4, Math.min(canvas.width - bannerW - 4, bx));
-
-            // Nền tối bán trong suốt
-            ctx.fillStyle = "rgba(10, 15, 26, 0.92)";
-            ctx.fillRect(bannerX, bannerY, bannerW, bannerH);
-            // Viền đỏ
-            ctx.strokeStyle = "#f43f5e";
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(bannerX, bannerY, bannerW, bannerH);
-            // Vạch màu đỏ mép trái
-            ctx.fillStyle = "#f43f5e";
-            ctx.fillRect(bannerX, bannerY, 4, bannerH);
-            // Text nhãn
-            ctx.fillStyle = "#ffffff";
-            ctx.textBaseline = "middle";
-            ctx.fillText(labelText, bannerX + 12, bannerY + bannerH / 2);
-          }
-        }
-
-        return canvas.toDataURL("image/jpeg", 0.95);
-      }
-    } catch {
-      return null;
-    }
-    return null;
-  };
-
-  const handleSnapshotCapture = (dataUrl?: string | null, _isRealCanvas?: boolean) => {
+  const handleSnapshotCapture = (dataUrl?: string | null, isRealCanvas?: boolean) => {
     const latestViol =
       resolvedTrackingData.violations[resolvedTrackingData.violations.length - 1];
 
-    const safeId = cameraId ? cameraId.replace(/[^a-zA-Z0-9_-]/g, "") : "";
-    const streamUrlLower = (effectiveStreamUrl || "").toLowerCase();
-    const idFallback =
-      streamUrlLower.includes("podsp36oulm") || safeId.includes("01a19ce7") || safeId.includes("test-2")
-        ? "/images/camera-01a19ce7-evidence.jpg"
-        : streamUrlLower.includes("ek0fcznqfva") || safeId.includes("01a19cf4") || safeId.includes("01a19d07") || safeId.includes("cam3") || safeId.includes("cam5")
-        ? "/images/camera-01a19cf4-evidence.jpg"
-        : streamUrlLower.includes("rcvx3zsi4eq") || safeId.includes("01a18735")
-        ? "/images/evidence/camera-01a18735_16ee47ac_f76_red.jpg"
-        : safeId.includes("01a19e19")
-        ? "/images/camera-01a19e19-evidence.jpg"
-        : null;
-
+    // Ưu tiên snapshot thực tế vẽ đúng detections AI
+    const freshAnnotated = isRealCanvas ? dataUrl : captureCurrentVideoFrame(true, false);
     const finalUrl =
+      freshAnnotated ||
       dataUrl ||
-      captureCurrentVideoFrame(true) ||
-      idFallback ||
       latestViol?.evidence_path ||
       resolvedTrackingData.entry?.evidence?.[0]?.path ||
       camera?.snapshotUrl ||
-      "/images/camera-01a19ce7-evidence.jpg";
+      null;
 
     if (!finalUrl) return;
 
@@ -1516,6 +1818,7 @@ export function CameraIntelligenceContent({
             onLiveStateUpdate={setLiveSessionState}
             isRealAiLog={resolvedTrackingData.isRealAiLog}
             onStartAutoAnalyze={() => connectLiveSession(true)}
+            roiPolygon={camera?.config?.roiPolygon ?? null}
           />
 
         </div>
@@ -1565,6 +1868,7 @@ export function CameraIntelligenceContent({
         safetyConfig={aiConfig}
         activeModelName={activeModelDisplayName}
         realIncidents={realIncidents}
+        incidentsTableState={{ ...incidentsTable, manualPagination: true, manualSorting: true, manualFiltering: true, rowCount: incidentsResult?.meta?.total ?? realIncidents.length, pageCount: incidentsResult?.meta?.totalPages ?? 1, fetching: incidentsFetching, error: incidentsError, onRetry: () => { void refetchIncidents(); } }}
         totalIncidents={incidentsResult?.meta?.total}
         isIncidentsLoading={isIncidentsLoading}
         fps={streamMetadata.fps || aiConfig.processFps || camera?.streams?.[0]?.fps || 25}
@@ -1681,35 +1985,9 @@ export function CameraIntelligenceContent({
                 alt="Camera Evidence Snapshot"
                 className="w-full h-auto max-h-[70vh] object-contain mx-auto"
                 onError={(e) => {
-                  const safeId = cameraId ? cameraId.replace(/[^a-zA-Z0-9_-]/g, "") : "";
-                  const streamUrlLower = (effectiveStreamUrl || "").toLowerCase();
-                  if (
-                    streamUrlLower.includes("podsp36oulm") ||
-                    safeId.includes("test-2") ||
-                    safeId.includes("01a19ce7")
-                  ) {
-                    e.currentTarget.src = "/images/camera-01a19ce7-evidence.jpg";
-                    return;
+                  if (camera?.snapshotUrl && e.currentTarget.src !== camera.snapshotUrl) {
+                    e.currentTarget.src = camera.snapshotUrl;
                   }
-                  if (
-                    streamUrlLower.includes("ek0fcznqfva") ||
-                    safeId.includes("01a19cf4") ||
-                    safeId.includes("01a19d07") ||
-                    safeId.includes("cam3") ||
-                    safeId.includes("cam5")
-                  ) {
-                    e.currentTarget.src = "/images/camera-01a19cf4-evidence.jpg";
-                    return;
-                  }
-                  if (streamUrlLower.includes("rcvx3zsi4eq") || safeId.includes("01a18735")) {
-                    e.currentTarget.src = "/images/evidence/camera-01a18735_16ee47ac_f76_red.jpg";
-                    return;
-                  }
-                  if (safeId.includes("01a19e19") && !e.currentTarget.src.includes("camera-01a19e19")) {
-                    e.currentTarget.src = "/images/camera-01a19e19-evidence.jpg";
-                    return;
-                  }
-                  e.currentTarget.src = "/images/camera-01a19ce7-evidence.jpg";
                 }}
               />
             </div>

@@ -66,12 +66,19 @@ export function CameraVideoPlayer({
 
   // Webcam stream lifecycle
   useEffect(() => {
+    let cancelled = false;
     let localStream: MediaStream | null = null;
+
     if (isWebcam && !streamError) {
       if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
         navigator.mediaDevices
           .getUserMedia({ video: true, audio: false })
           .then((stream) => {
+            if (cancelled) {
+              // Unmount trước khi có stream -> đóng ngay các track phần cứng
+              stream.getTracks().forEach((track) => track.stop());
+              return;
+            }
             localStream = stream;
             if (videoRef.current) {
               videoRef.current.srcObject = stream;
@@ -79,11 +86,15 @@ export function CameraVideoPlayer({
             }
           })
           .catch(() => {
-            setStreamError(true);
+            if (!cancelled) {
+              setStreamError(true);
+            }
           });
       }
     }
+
     return () => {
+      cancelled = true;
       if (localStream) {
         localStream.getTracks().forEach((track) => track.stop());
       }
@@ -108,6 +119,29 @@ export function CameraVideoPlayer({
       setLatency(0);
     }
   }, [camera.status, camera.currentFps, camera.currentLatencyMs, isDirectWebStream]);
+
+  // Tự động tạm dừng giải mã video khi thẻ camera cuộn ra ngoài màn hình (Video Wall / Grid optimization)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        const v = videoRef.current;
+        if (!entry || !v) return;
+        if (entry.isIntersecting) {
+          v.play().catch(() => {});
+        } else {
+          v.pause();
+        }
+      },
+      { threshold: 0.15 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const toggleFullscreen = async () => {
     if (!containerRef.current) return;
@@ -156,6 +190,7 @@ export function CameraVideoPlayer({
             }
             autoPlay
             playsInline
+            preload="metadata"
             muted={isMuted}
             loop
             onError={() => {

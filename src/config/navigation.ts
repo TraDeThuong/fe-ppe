@@ -13,6 +13,7 @@ import {
   Settings2,
   KeyRound,
   Wrench,
+  CalendarClock,
 } from "lucide-react";
 
 export type NavGroupKey = "monitoring" | "analytics" | "admin" | "personal";
@@ -131,6 +132,14 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: "MAINTENANCE_MANAGE",
     group: "admin",
   },
+  {
+    key: "scheduledTasks",
+    route: "/scheduled-tasks",
+    icon: CalendarClock,
+    i18nKey: "nav.scheduledTasks",
+    permission: "CRON_JOB_READ",
+    group: "admin",
+  },
   // Nhóm Cá nhân
   {
     key: "notifications",
@@ -169,6 +178,7 @@ export const ROUTE_PERMISSIONS: Record<string, string> = {
   "/audit-logs": "AUDIT_LOG_READ",
   "/system": "SYSTEM_CONFIG_READ",
   "/maintenance": "MAINTENANCE_MANAGE",
+  "/scheduled-tasks": "CRON_JOB_READ",
 };
 
 /** Tìm quyền bắt buộc của route hiện tại — khớp route cha dài nhất (hỗ trợ /incidents/:id) */

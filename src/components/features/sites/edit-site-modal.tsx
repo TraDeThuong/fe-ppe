@@ -347,7 +347,8 @@ export function EditSiteModal({
             >
               <option value="ACTIVE">{t("sites.status.active")}</option>
               <option value="INACTIVE">{t("sites.status.inactive")}</option>
-              <option value="SUSPENDED">{t("sites.status.suspended")}</option>
+              <option value="COMPLETED">{t("sites.status.completed")}</option>
+              <option value="ARCHIVED">{t("sites.status.archived")}</option>
             </select>
           </div>
 

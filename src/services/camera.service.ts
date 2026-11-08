@@ -36,9 +36,11 @@ export const cameraService = {
    */
   async getCameras(
     params?: CameraQueryParams,
+    options?: { signal?: AbortSignal },
   ): Promise<{ items: CameraItem[]; meta?: PaginationMeta }> {
     const res = await apiClient.get<unknown, any>("/cameras", {
       params,
+      signal: options?.signal,
     });
     if (res && typeof res === "object") {
       const items = Array.isArray(res.data)

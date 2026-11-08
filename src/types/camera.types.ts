@@ -36,6 +36,8 @@ export const STREAM_PROTOCOL = {
   RTSP: "RTSP",
   HLS: "HLS",
   WEBRTC: "WEBRTC",
+  HTTP: "HTTP",
+  FILE: "FILE",
 } as const;
 
 export type StreamProtocol =
@@ -198,10 +200,7 @@ export interface UpdateCameraStreamPayload {
   status?: StreamStatus;
 }
 
-export interface ResetCameraConfigResponse {
-  message: string;
-  config: CameraConfigItem;
-}
+export type ResetCameraConfigResponse = CameraConfigItem;
 
 export interface CameraListResponse {
   data: CameraItem[];

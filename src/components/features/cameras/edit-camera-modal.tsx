@@ -204,6 +204,7 @@ export function EditCameraModal({
               <option value="RTSP">RTSP (Real-Time Streaming)</option>
               <option value="HLS">HLS (HTTP Live Streaming)</option>
               <option value="HTTP">HTTP (MJPEG / Web Feed)</option>
+              <option value="FILE">FILE (Video File / Local Clip)</option>
             </select>
           </div>
 
@@ -257,7 +258,7 @@ export function EditCameraModal({
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              {isVietnamese ? "💻 Webcam máy tính" : "💻 Local Webcam"}
+              {isVietnamese ? "Webcam máy tính" : "Local Webcam"}
             </button>
             <button
               type="button"
@@ -267,7 +268,7 @@ export function EditCameraModal({
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              {isVietnamese ? "🎥 Mẫu MP4" : "🎥 Sample MP4"}
+              {isVietnamese ? "Mẫu MP4" : "Sample MP4"}
             </button>
             <button
               type="button"
@@ -277,7 +278,7 @@ export function EditCameraModal({
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              🔴 YouTube Live
+              YouTube Live
             </button>
             <button
               type="button"
@@ -287,7 +288,7 @@ export function EditCameraModal({
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              {isVietnamese ? "📡 Luồng RTSP thực" : "📡 Real RTSP Stream"}
+              {isVietnamese ? "Luồng RTSP thực" : "Real RTSP Stream"}
             </button>
           </div>
         </div>

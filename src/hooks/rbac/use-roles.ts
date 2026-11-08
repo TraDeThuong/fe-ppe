@@ -1,5 +1,6 @@
 "use client";
 
+import { collectCatalog } from "@/lib/table-utils";
 import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import { rbacService } from "@/services/rbac.service";
 import { rbacKeys } from "./rbac.query-keys";
@@ -45,4 +46,9 @@ export function useRoleDetail(id: string, options?: UseRoleDetailOptions) {
     staleTime: 60 * 1000,
     ...options,
   });
+}
+
+/** Complete catalog for local type filtering and role pickers. */
+export function useRolesCatalog() {
+  return useQuery({ queryKey: rbacKeys.rolesList({ limit: 100, page: 0 }), queryFn: () => collectCatalog((page, limit) => rbacService.getRolesPage(page, limit)), staleTime: 60_000 });
 }

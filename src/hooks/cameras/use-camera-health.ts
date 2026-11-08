@@ -23,6 +23,7 @@ export function usePingCamera() {
     onSuccess: (result, cameraId) => {
       queryClient.invalidateQueries({ queryKey: cameraKeys.healthLogs(cameraId) });
       queryClient.invalidateQueries({ queryKey: cameraKeys.detail(cameraId) });
+      queryClient.invalidateQueries({ queryKey: cameraKeys.lists() });
       if (result.success) {
         toast.success(`Ping thành công: độ trễ ${result.latencyMs ?? 0} ms`);
       } else {

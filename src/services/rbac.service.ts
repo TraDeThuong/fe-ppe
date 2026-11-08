@@ -19,6 +19,10 @@ import type {
  * 3. Không chứa side-effects (toast, router navigation) ở tầng service.
  */
 export const rbacService = {
+  async getRolesPage(page: number, limit: number): Promise<{ items: RoleDto[]; meta?: { totalPages?: number; total?: number } }> {
+    const res = await apiClient.get<unknown, { data: RoleDto[]; meta?: { totalPages?: number; total?: number } }>("/rbac/roles", { params: { page, limit } });
+    return { items: Array.isArray(res) ? res : res.data, meta: res.meta };
+  },
   // ── 1. Quản lý Vai trò (Roles) ──────────────────────────────────────────
 
   /**

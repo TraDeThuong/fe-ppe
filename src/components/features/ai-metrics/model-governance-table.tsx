@@ -1,6 +1,7 @@
 "use client";
+import { Table, TableToolbar, TableContent, TablePagination, TableRefresh } from "@/components/ui/table";
 
-import { CheckCircle2, Cpu, FileCode2, Layers, Rocket, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Layers, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
 import type { AiModelDto, AiModelVersionDto } from "@/types";
@@ -22,7 +23,11 @@ export function ModelGovernanceTable({
 
   // Flatten versions from models
   const allVersions = models.flatMap((m) =>
-    (m.versions || []).map((v) => ({ ...v, modelName: m.name, modelCode: m.code }))
+    (m.versions || []).map((v) => ({
+      ...v,
+      modelName: m.name,
+      modelCode: m.code
+    }))
   );
 
   const getStatusBadge = (status: string) => {
@@ -68,72 +73,126 @@ export function ModelGovernanceTable({
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[620px] text-left text-xs">
-          <thead>
-            <tr className="border-b border-border/40 text-muted-foreground">
-              <th className="pb-3 font-semibold">{t("aiMetrics.governance.version")}</th>
-              <th className="pb-3 font-semibold">{t("aiMetrics.governance.framework")}</th>
-              <th className="pb-3 font-semibold">{t("aiMetrics.governance.map")}</th>
-              <th className="pb-3 font-semibold">{t("aiMetrics.governance.latency")}</th>
-              <th className="pb-3 font-semibold">{t("aiMetrics.governance.createdAt")}</th>
-              <th className="pb-3 font-semibold">{t("aiMetrics.governance.status")}</th>
-              <th className="pb-3 text-right font-semibold">
-                {t("aiMetrics.governance.actions")}
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/20">
-            {allVersions.map((v) => {
-              const isActive = v.status === "DEPLOYED" || v.status === "ACTIVE";
+        <Table
+          surface="embedded"
+          data={allVersions}
+          columns={[{
+            id: "version",
+            header: t("aiMetrics.governance.version"),
+            accessorFn: (v) => v.version,
+            enableSorting: true,
+            cell: ({ row }) => {
+              const v = row.original;
+              return <div className={""}>
+                <div className="font-bold text-foreground">{v.version}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  {v.modelName}
+                  {v.modelPath ? ` · ${v.modelPath}` : ""}
+                </div>
+              </div>;
+            }
+          },
+          {
+            id: "framework",
+            header: t("aiMetrics.governance.framework"),
+            accessorFn: (v) => v.framework,
+            enableSorting: true,
+            cell: ({ row }) => {
+              const v = row.original;
+              return <div className={""}>
+                <span className="font-medium text-foreground">{v.framework}</span>
+                <span className="text-muted-foreground text-[11px] block">{v.inputSize}</span>
+              </div>;
+            }
+          },
+          {
+            id: "metrics",
+            header: t("aiMetrics.governance.map"),
+            accessorFn: (v) => v.metrics?.mAP50,
+            enableSorting: true,
+            cell: ({ row }) => {
+              const v = row.original;
               const map50 =
                 typeof v.metrics?.mAP50 === "number"
                   ? `${(v.metrics.mAP50 * 100).toFixed(1)}%`
                   : "--";
+              return <div className={"font-bold text-primary"}>{map50}</div>;
+            }
+          },
+          {
+            id: "latency",
+            header: t("aiMetrics.governance.latency"),
+            accessorFn: (v) => v.metrics?.latencyMs,
+            enableSorting: true,
+            cell: ({ row }) => {
+              const v = row.original;
               const latency =
                 typeof v.metrics?.latencyMs === "number"
                   ? `${v.metrics.latencyMs.toFixed(1)} ms`
                   : "--";
+              return <div className={"font-medium text-foreground"}>{latency}</div>;
+            }
+          },
+          {
+            id: "createdAt",
+            header: t("aiMetrics.governance.createdAt"),
+            accessorFn: (v) => v.createdAt,
+            enableSorting: true,
+            cell: ({ row }) => {
+              const v = row.original;
               const date = new Date(v.createdAt).toLocaleDateString(locale === "vi-VN" ? "vi-VN" : "en-US");
-
-              return (
-                <tr key={v.id} className="hover:bg-surface-elevated/40 transition-colors">
-                  <td className="py-3">
-                    <div className="font-bold text-foreground">{v.version}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {v.modelName}
-                      {v.modelPath ? ` · ${v.modelPath}` : ""}
-                    </div>
-                  </td>
-                  <td className="py-3">
-                    <span className="font-medium text-foreground">{v.framework}</span>
-                    <span className="text-muted-foreground text-[11px] block">{v.inputSize}</span>
-                  </td>
-                  <td className="py-3 font-bold text-primary">{map50}</td>
-                  <td className="py-3 font-medium text-foreground">{latency}</td>
-                  <td className="py-3 text-muted-foreground">{date}</td>
-                  <td className="py-3">{getStatusBadge(v.status)}</td>
-                  <td className="py-3 text-right">
-                    {!isActive && canDeploy && onDeploy ? (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() => onDeploy(v.modelId, v)}
-                        className="gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
-                      >
-                        <Rocket className="h-3.5 w-3.5" />
-                        <span>{t("aiMetrics.governance.deployBtn")}</span>
-                      </Button>
-                    ) : (
-                      <span className="text-muted-foreground text-xs italic">
-                        {isActive ? "Đang chạy" : "Sẵn sàng"}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              return <div className={"text-muted-foreground"}>{date}</div>;
+            }
+          },
+          {
+            id: "status",
+            header: t("aiMetrics.governance.status"),
+            accessorFn: (v) => v.status,
+            enableSorting: true,
+            cell: ({ row }) => {
+              const v = row.original;
+              return <div className={""}>{getStatusBadge(v.status)}</div>;
+            }
+          },
+          {
+            id: "actions",
+            header: t("aiMetrics.governance.actions"),
+            enableSorting: false,
+            cell: ({ row }) => {
+              const v = row.original;
+              const isActive = v.status === "DEPLOYED" || v.status === "ACTIVE";
+              return <div className={"text-right"}>
+                {!isActive && canDeploy && onDeploy ? (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => onDeploy(v.modelId, v)}
+                    className="gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    <Rocket className="h-3.5 w-3.5" />
+                    <span>{t("aiMetrics.governance.deployBtn")}</span>
+                  </Button>
+                ) : (
+                  <span className="text-muted-foreground text-xs italic">
+                    {isActive ? "Đang chạy" : "Sẵn sàng"}
+                  </span>
+                )}
+              </div>;
+            }
+          }]}
+          loading={loading}
+          getRowId={row => row.id}
+          features={{
+            globalFilter: true,
+            sorting: true,
+            rowSelection: false,
+            pagination: true
+          }}
+        >
+          <TableToolbar showSearch={true} actions={<TableRefresh />} />
+          <TableContent />
+          <TablePagination />
+        </Table>
       </div>
     </div>
   );

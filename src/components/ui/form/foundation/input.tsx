@@ -1,9 +1,9 @@
 
 import {
-  forwardRef,
   type InputHTMLAttributes,
   type ReactNode,
 } from "react";
+import { useFormField } from "./form-field";
 
 export type InputSize = "sm" | "md" | "lg";
 export type InputVariant = "inset" | "flat";
@@ -11,6 +11,7 @@ export type InputIconStyle = "raised" | "flat" | "none";
 
 export interface InputProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, "size" | "prefix"> {
+  ref?: React.Ref<HTMLInputElement>;
   size?: InputSize;
   variant?: InputVariant;
   error?: boolean | string;
@@ -54,26 +55,44 @@ const iconStyles: Record<InputIconStyle, string> = {
   none: "bg-transparent border-transparent shadow-none",
 };
 
-const Input = forwardRef<HTMLInputElement, InputProps>(
-  (
-    {
-      className = "",
-      containerClassName = "",
-      iconClassName = "",
-      type = "text",
-      size = "md",
-      variant = "inset",
-      iconStyle = "raised",
-      error = false,
-      prefix,
-      suffix,
-      disabled,
-      "aria-invalid": ariaInvalid,
-      ...props
-    },
-    ref,
-  ) => {
-    const hasError = Boolean(error);
+function Input({
+  ref,
+  className = "",
+  containerClassName = "",
+  iconClassName = "",
+  type = "text",
+  size = "md",
+  variant = "inset",
+  iconStyle = "raised",
+  error = false,
+  prefix,
+  suffix,
+  disabled,
+  "aria-invalid": ariaInvalid,
+  ...props
+}: InputProps) {
+    const formField = useFormField();
+    const resolvedId = props.id ?? formField?.id;
+    const resolvedRequired = props.required ?? formField?.required;
+    const hasError = Boolean(error || formField?.hasError);
+    const standaloneErrorMessage = typeof error === "string" && Boolean(error.trim()) && !formField?.error ? error : null;
+    const errorId = standaloneErrorMessage ? `${resolvedId ?? "input"}-error` : formField?.errorId;
+
+    const resolvedDescribedBy = [
+      props["aria-describedby"],
+      formField?.describedBy,
+      standaloneErrorMessage ? errorId : undefined,
+    ]
+      .filter(Boolean)
+      .join(" ") || undefined;
+
+    const resolvedInvalid = ariaInvalid ?? (hasError ? true : undefined);
+    const effectiveContainerClassName = [
+      containerClassName,
+      formField?.controlClassName,
+    ]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
     const renderIcon = (content: ReactNode) => (
       <span
@@ -94,50 +113,59 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     );
 
     return (
-      <div
-        className={[
-          "group flex w-full min-w-0 items-center gap-2",
-          "border bg-background text-foreground",
-          "transition-[box-shadow,border-color] duration-200",
-          sizeClasses[size],
-          variantClasses[variant],
-          hasError
-            ? "border-danger/70 focus-within:border-danger focus-within:ring-2 focus-within:ring-danger/15"
-            : "border-border/70 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10",
-          disabled && "cursor-not-allowed opacity-50",
-          containerClassName,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        {prefix != null && renderIcon(prefix)}
-
-        <input
-          ref={ref}
-          type={type}
-          disabled={disabled}
-          aria-invalid={hasError || ariaInvalid || undefined}
+      <div className="w-full">
+        <div
           className={[
-            "h-full w-full min-w-0 flex-1",
-            "border-0 bg-transparent p-0",
-            "text-inherit outline-none ring-0",
-            "placeholder:text-muted-foreground/70",
-            "focus:outline-none focus:ring-0",
-            "disabled:cursor-not-allowed",
-            "file:border-0 file:bg-transparent file:text-sm",
-            className,
+            "group flex w-full min-w-0 items-center gap-2",
+            "border bg-background text-foreground",
+            "transition-[box-shadow,border-color] duration-200",
+            sizeClasses[size],
+            variantClasses[variant],
+            hasError
+              ? "border-danger/70 focus-within:border-danger focus-within:ring-2 focus-within:ring-danger/15"
+              : "border-border/70 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10",
+            disabled && "cursor-not-allowed opacity-50",
+            effectiveContainerClassName,
           ]
             .filter(Boolean)
             .join(" ")}
-          {...props}
-        />
+        >
+          {prefix != null && renderIcon(prefix)}
 
-        {suffix != null && renderIcon(suffix)}
+          <input
+            ref={ref}
+            id={resolvedId}
+            type={type}
+            required={resolvedRequired}
+            disabled={disabled}
+            aria-describedby={resolvedDescribedBy}
+            aria-errormessage={hasError && errorId ? errorId : undefined}
+            aria-invalid={resolvedInvalid}
+            className={[
+              "h-full w-full min-w-0 flex-1",
+              "border-0 bg-transparent p-0",
+              "text-inherit outline-none ring-0",
+              "placeholder:text-muted-foreground/70",
+              "focus:outline-none focus:ring-0",
+              "disabled:cursor-not-allowed",
+              "file:border-0 file:bg-transparent file:text-sm",
+              className,
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            {...props}
+          />
+
+          {suffix != null && renderIcon(suffix)}
+        </div>
+
+        {standaloneErrorMessage && (
+          <p id={errorId} role="alert" className="mt-1.5 text-xs font-medium text-danger">
+            {standaloneErrorMessage}
+          </p>
+        )}
       </div>
     );
-  },
-);
-
-Input.displayName = "Input";
+}
 
 export { Input };

@@ -206,11 +206,7 @@ function getTrendColor(trend: NonNullable<StatsCardProps["trend"]>) {
 
 // ============================================================
 function useIsVietnamese() {
-  try {
-    return useLocale().locale === "vi-VN";
-  } catch {
-    return true;
-  }
+  return useLocale().locale === "vi-VN";
 }
 
 // 1. CLASSIC CARD (DÒNG 1)

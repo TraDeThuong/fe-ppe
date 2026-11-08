@@ -286,6 +286,7 @@ export function LoginForm() {
         <Input
           type="email"
           autoComplete="email"
+          spellCheck={false}
           placeholder={t("login.emailPlaceholder")}
           prefix={<Mail aria-hidden="true" />}
           disabled={login.isPending}
@@ -337,11 +338,10 @@ export function LoginForm() {
 
       {lockoutActive && (
         <div
-          role="alert"
-          className="rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-2.5 text-sm text-warning"
+          className="rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-2.5 text-sm text-amber-800 dark:text-amber-300"
         >
-          <p>{lockout.message}</p>
-          <p className="mt-1 font-semibold tabular-nums">
+          <p role="alert">{lockout.message}</p>
+          <p className="mt-1 font-semibold tabular-nums" aria-live="off">
             {t("login.tryAgainIn")}: {formatCountdown(lockout.seconds)}
           </p>
         </div>
@@ -350,7 +350,7 @@ export function LoginForm() {
       {failure.kind === "inactive" && (
         <div
           role="alert"
-          className="rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-3 text-sm text-warning"
+          className="rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-3 text-sm text-amber-800 dark:text-amber-300"
         >
           <p>{failure.message}</p>
           <TurnstileField

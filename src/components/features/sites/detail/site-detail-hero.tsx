@@ -246,7 +246,13 @@ return (
                       }`}
                     />
                   </span>
-                  {isActive ? t("sites.status.active") : t("sites.status.inactive")}
+                  {isActive
+                    ? t("sites.status.active")
+                    : site.status === "COMPLETED"
+                      ? t("sites.status.completed")
+                      : site.status === "ARCHIVED"
+                        ? t("sites.status.archived")
+                        : t("sites.status.inactive")}
                 </span>
               </div>
             </div>

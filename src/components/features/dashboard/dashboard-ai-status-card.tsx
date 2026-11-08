@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Cpu, Gauge, Layers, Sparkles, Zap } from "lucide-react";
+import { ArrowUpRight, Cpu, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/providers/locale-provider";
 import type { AiModelVersionDto } from "@/types";
@@ -9,32 +9,36 @@ import type { AiModelVersionDto } from "@/types";
 export interface DashboardAiStatusCardProps {
   activeVersion?: AiModelVersionDto | null;
   loading?: boolean;
+  error?: boolean;
 }
 
 export function DashboardAiStatusCard({
   activeVersion,
   loading = false,
+  error = false,
 }: DashboardAiStatusCardProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  const isModelActive = Boolean(activeVersion && activeVersion.version);
+  const isModelActive = Boolean(activeVersion && activeVersion.version && ["ACTIVE", "DEPLOYED"].includes(activeVersion.status));
 
   const modelName = isModelActive
-    ? activeVersion?.metrics?.modelName || `YOLO11m-PPE ${activeVersion?.version}`
+    ? activeVersion?.metrics?.modelName || "—"
     : (isVietnamese ? "Chưa kích hoạt mô hình" : "No active model deployed");
 
   const versionTag = isModelActive ? activeVersion?.version : "--";
-  const mapValue = activeVersion?.metrics?.mAP50
+  const mapValue = typeof activeVersion?.metrics?.mAP50 === "number" && Number.isFinite(activeVersion.metrics.mAP50)
     ? `${(activeVersion.metrics.mAP50 * 100).toFixed(1)}%`
     : "--";
-  const latencyValue = activeVersion?.metrics?.latencyMs
+  const latencyValue = typeof activeVersion?.metrics?.latencyMs === "number" && Number.isFinite(activeVersion.metrics.latencyMs)
     ? `${activeVersion.metrics.latencyMs}ms`
     : "--";
-  const fpsValue = activeVersion?.metrics?.fps
+  const fpsValue = typeof activeVersion?.metrics?.fps === "number" && Number.isFinite(activeVersion.metrics.fps)
     ? `${activeVersion.metrics.fps} FPS`
     : "--";
-  const frameworkValue = isModelActive ? (activeVersion?.framework || "TensorRT / FP16") : "--";
+  const frameworkValue = isModelActive ? (activeVersion?.framework || "—") : "—";
+
+  if (error) return <div className="rounded-2xl border border-border/30 bg-surface p-5"><h4 className="font-bold">{t("dashboard.aiStatus.title")}</h4><p className="mt-3 text-sm text-muted-foreground">{t("dashboard.data.error")}</p></div>;
 
   return (
     <div className="relative flex w-full flex-col overflow-hidden rounded-2xl bg-surface p-4 sm:p-5 shadow-[7px_7px_18px_var(--shadow-dark),-7px_-7px_18px_var(--shadow-light)] border border-border/20">
@@ -56,7 +60,7 @@ export function DashboardAiStatusCard({
               <Sparkles className="h-3 w-3 text-primary animate-pulse" />
             </h4>
             <p className="text-[10px] text-muted-foreground">
-              Edge Computer Vision Pipeline
+              {t("dashboard.ai.declared")}
             </p>
           </div>
         </div>
@@ -127,7 +131,7 @@ export function DashboardAiStatusCard({
             {t("dashboard.aiStatus.throughput")}
           </span>
           <p className="mt-0.5 font-mono text-xs sm:text-sm font-black text-primary">
-            {fpsValue}
+            {loading ? "..." : fpsValue}
           </p>
         </div>
       </div>

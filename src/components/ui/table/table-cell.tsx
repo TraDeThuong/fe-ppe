@@ -17,6 +17,7 @@ export function TableCell({
   return (
     <td
       className={[
+        cell.column.id === "select" || cell.column.id === "actions" ? "w-px whitespace-nowrap" : "min-w-[120px]",
         "px-4 sm:px-5 py-3.5 sm:py-4 align-middle",
         "text-xs sm:text-sm text-foreground",
         "bg-transparent transition-colors duration-200",

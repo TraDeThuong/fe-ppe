@@ -2,28 +2,13 @@
 
 import { useMemo, useState } from "react";
 import {
-  Activity,
-  AlertTriangle,
-  ArrowRight,
   CheckCircle2,
   Cpu,
-  Eye,
-  Film,
-  HardHat,
-  HelpCircle,
   Layers,
-  Link2,
   Radio,
-  RotateCcw,
-  Scan,
-  Shield,
-  ShieldAlert,
   ShieldCheck,
-  Sparkles,
   User,
   Users,
-  Video,
-  XCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -194,11 +179,11 @@ export function CameraAiInspectorCard({
                 className="h-8 rounded-xl border border-border/50 bg-background/80 px-2.5 text-[11px] font-medium text-foreground outline-none transition focus:border-primary shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-2px_-2px_4px_color-mix(in_srgb,var(--shadow-light)_25%,transparent)] max-w-[210px] truncate"
               >
                 <option value="">
-                  {isVietnamese ? "🎥 Luồng Camera Trực Tiếp" : "🎥 Live Camera Feed"}
+                  {isVietnamese ? "Luồng Camera Trực Tiếp" : "Live Camera Feed"}
                 </option>
                 {availableJobs.map((j) => (
                   <option key={j.job_id} value={j.job_id}>
-                    📦 {j.source} ({j.total_frames} frames)
+                    {j.source} ({j.total_frames} frames)
                   </option>
                 ))}
               </select>
@@ -353,7 +338,7 @@ export function CameraAiInspectorCard({
                                 className="inline-flex items-center gap-1 font-mono font-semibold text-rose-500 hover:underline text-left"
                                 title={isVietnamese ? `Nhảy tới frame thiếu mũ (${missH[0]})` : `Seek to missing helmet frame (${missH[0]})`}
                               >
-                                <span>❌ thiếu {helmetRangesStr}</span>
+                                <span>thiếu {helmetRangesStr}</span>
                               </button>
                             ) : p.okFrames?.length ? (
                               <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
@@ -372,7 +357,7 @@ export function CameraAiInspectorCard({
                                 className="inline-flex items-center gap-1 font-mono font-semibold text-rose-500 hover:underline text-left"
                                 title={isVietnamese ? `Nhảy tới frame thiếu áo (${missV[0]})` : `Seek to missing vest frame (${missV[0]})`}
                               >
-                                <span>❌ thiếu {vestRangesStr}</span>
+                                <span>thiếu {vestRangesStr}</span>
                               </button>
                             ) : p.okFrames?.length ? (
                               <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
@@ -464,7 +449,7 @@ export function CameraAiInspectorCard({
                   <div className="space-y-1">
                     {events.map((ev, idx) => {
                       const isLost = ev.includes("biến mất") || ev.includes("lost");
-                      const isViolation = ev.includes("🚨") || ev.includes("vi phạm");
+                      const isViolation = ev.includes("vi phạm") || ev.toLowerCase().includes("violation");
                       return (
                         <div
                           key={idx}
@@ -476,7 +461,7 @@ export function CameraAiInspectorCard({
                                 : "text-emerald-500"
                           }`}
                         >
-                          <span>{isViolation ? "🚨" : isLost ? "-" : "+"}</span>
+                          <span>{isViolation ? "!" : isLost ? "-" : "+"}</span>
                           <span>{ev}</span>
                         </div>
                       );
@@ -612,11 +597,11 @@ export function CameraAiInspectorCard({
                           {/* Mũ */}
                           {a.helmet != null ? (
                             <span className="inline-flex items-center gap-1 text-emerald-500 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                              ⛑️ mũ #{a.helmet}
+                              mũ #{a.helmet}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-rose-500 font-bold bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/25">
-                              ❌ KHÔNG mũ
+                              KHÔNG mũ
                             </span>
                           )}
 
@@ -625,11 +610,11 @@ export function CameraAiInspectorCard({
                           {/* Áo */}
                           {a.vest != null ? (
                             <span className="inline-flex items-center gap-1 text-sky-500 font-semibold bg-sky-500/10 px-2 py-0.5 rounded-md border border-sky-500/20">
-                              🦺 áo #{a.vest}
+                              áo #{a.vest}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 text-rose-500 font-bold bg-rose-500/10 px-2 py-0.5 rounded-md border border-rose-500/25">
-                              ❌ KHÔNG áo
+                              KHÔNG áo
                             </span>
                           )}
                         </div>
@@ -792,11 +777,11 @@ export function CameraAiInspectorCard({
 
                         <div className="flex items-center gap-2 text-[11px]">
                           <span className={assoc?.helmet != null ? "text-emerald-500 font-semibold" : "text-rose-500 font-bold"}>
-                            {assoc?.helmet != null ? "⛑️ Có mũ" : "❌ Thiếu mũ"}
+                            {assoc?.helmet != null ? "Có mũ" : "Thiếu mũ"}
                           </span>
                           <span className="text-border">•</span>
                           <span className={assoc?.vest != null ? "text-sky-500 font-semibold" : "text-rose-500 font-bold"}>
-                            {assoc?.vest != null ? "🦺 Có áo" : "❌ Thiếu áo"}
+                            {assoc?.vest != null ? "Có áo" : "Thiếu áo"}
                           </span>
                         </div>
 

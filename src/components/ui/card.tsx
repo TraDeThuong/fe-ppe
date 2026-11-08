@@ -1,5 +1,4 @@
 
-import { forwardRef } from "react";
 
 
 
@@ -62,49 +61,44 @@ const paddingClasses = {
 
 export interface CardProps
   extends React.HTMLAttributes<HTMLDivElement> {
+  ref?: React.Ref<HTMLDivElement>;
   variant?: keyof typeof variantClasses;
   padding?: keyof typeof paddingClasses;
+  /** @deprecated Sử dụng `variant="interactive"` thay vì cờ `interactive` */
   interactive?: boolean;
 }
 
-export const Card = forwardRef<HTMLDivElement, CardProps>(
-  function Card(
-    {
-      variant = "default",
-      padding = "md",
-      interactive = false,
-      className,
-      ...props
-    },
-    ref,
-  ) {
-    const selectedVariant = interactive
-      ? "interactive"
-      : variant;
+export function Card({
+  ref,
+  variant = "default",
+  padding = "md",
+  interactive,
+  className,
+  ...props
+}: CardProps) {
+  const selectedVariant = interactive ? "interactive" : variant;
 
-    return (
-      <div
-        ref={ref}
-        className={[
-          "rounded-2xl",
-          variantClasses[selectedVariant],
-          paddingClasses[padding],
-          className,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        {...props}
-      />
-    );
-  },
-);
+  return (
+    <div
+      ref={ref}
+      className={[
+        "rounded-2xl",
+        variantClasses[selectedVariant],
+        paddingClasses[padding],
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      {...props}
+    />
+  );
+}
 
-Card.displayName = "Card";
+export interface CardHeaderProps extends React.HTMLAttributes<HTMLDivElement> {
+  ref?: React.Ref<HTMLDivElement>;
+}
 
-export const CardHeader = forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(function CardHeader({ className, ...props }, ref) {
+export function CardHeader({ ref, className, ...props }: CardHeaderProps) {
   return (
     <div
       ref={ref}
@@ -118,14 +112,13 @@ export const CardHeader = forwardRef<
       {...props}
     />
   );
-});
+}
 
-CardHeader.displayName = "CardHeader";
+export interface CardTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
+  ref?: React.Ref<HTMLHeadingElement>;
+}
 
-export const CardTitle = forwardRef<
-  HTMLHeadingElement,
-  React.HTMLAttributes<HTMLHeadingElement>
->(function CardTitle({ className, ...props }, ref) {
+export function CardTitle({ ref, className, ...props }: CardTitleProps) {
   return (
     <h3
       ref={ref}
@@ -138,14 +131,13 @@ export const CardTitle = forwardRef<
       {...props}
     />
   );
-});
+}
 
-CardTitle.displayName = "CardTitle";
+export interface CardDescriptionProps extends React.HTMLAttributes<HTMLParagraphElement> {
+  ref?: React.Ref<HTMLParagraphElement>;
+}
 
-export const CardDescription = forwardRef<
-  HTMLParagraphElement,
-  React.HTMLAttributes<HTMLParagraphElement>
->(function CardDescription({ className, ...props }, ref) {
+export function CardDescription({ ref, className, ...props }: CardDescriptionProps) {
   return (
     <p
       ref={ref}
@@ -158,14 +150,13 @@ export const CardDescription = forwardRef<
       {...props}
     />
   );
-});
+}
 
-CardDescription.displayName = "CardDescription";
+export interface CardContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  ref?: React.Ref<HTMLDivElement>;
+}
 
-export const CardContent = forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(function CardContent({ className, ...props }, ref) {
+export function CardContent({ ref, className, ...props }: CardContentProps) {
   return (
     <div
       ref={ref}
@@ -175,14 +166,13 @@ export const CardContent = forwardRef<
       {...props}
     />
   );
-});
+}
 
-CardContent.displayName = "CardContent";
+export interface CardFooterProps extends React.HTMLAttributes<HTMLDivElement> {
+  ref?: React.Ref<HTMLDivElement>;
+}
 
-export const CardFooter = forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(function CardFooter({ className, ...props }, ref) {
+export function CardFooter({ ref, className, ...props }: CardFooterProps) {
   return (
     <div
       ref={ref}
@@ -195,6 +185,4 @@ export const CardFooter = forwardRef<
       {...props}
     />
   );
-});
-
-CardFooter.displayName = "CardFooter";
+}

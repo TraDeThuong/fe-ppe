@@ -64,7 +64,7 @@ export const PREDEFINED_SYSTEM_TEMPLATES: PredefinedTemplateItem[] = [
     channel: "IN_APP",
     severity: "CRITICAL",
     soundPreset: "critical",
-    subjectTemplate: "🚨 CẢNH BÁO: Vi phạm trang bị bảo hộ PPE tại {{siteName}}",
+    subjectTemplate: "CẢNH BÁO: Vi phạm trang bị bảo hộ PPE tại {{siteName}}",
     contentTemplate:
       "Phát hiện trường hợp vi phạm trang bị an toàn [{{violationType}}] tại khu vực {{zoneName}}, camera {{cameraCode}}. Đề nghị Cán bộ An toàn khẩn trương kiểm tra hiện trường và nhắc nhở công nhân.",
     placeholders: [
@@ -86,7 +86,7 @@ export const PREDEFINED_SYSTEM_TEMPLATES: PredefinedTemplateItem[] = [
     channel: "EMAIL",
     severity: "HIGH",
     soundPreset: "warning",
-    subjectTemplate: "📋 [Phân công] Bạn được chỉ định xử lý sự cố an toàn #{{incidentId}}",
+    subjectTemplate: "[Phân công] Bạn được chỉ định xử lý sự cố an toàn #{{incidentId}}",
     contentTemplate:
       "Xin chào {{assigneeName}}, bạn vừa được điều phối xử lý sự cố an toàn [{{incidentTitle}}] ghi nhận tại {{siteName}}. Vui lòng truy cập hệ thống để cập nhật tiến độ giải quyết.",
     placeholders: [
@@ -108,7 +108,7 @@ export const PREDEFINED_SYSTEM_TEMPLATES: PredefinedTemplateItem[] = [
     channel: "IN_APP",
     severity: "NORMAL",
     soundPreset: "success",
-    subjectTemplate: "✅ Hồ sơ sự cố an toàn #{{incidentId}} đã hoàn tất xử lý",
+    subjectTemplate: "Hồ sơ sự cố an toàn #{{incidentId}} đã hoàn tất xử lý",
     contentTemplate:
       "Sự cố an toàn [{{incidentTitle}}] tại {{siteName}} đã được cán bộ {{resolverName}} xác minh và khắc phục xong. Biên bản đã lưu vào hồ sơ kiểm toán.",
     placeholders: [
@@ -129,7 +129,7 @@ export const PREDEFINED_SYSTEM_TEMPLATES: PredefinedTemplateItem[] = [
     channel: "IN_APP",
     severity: "CRITICAL",
     soundPreset: "critical",
-    subjectTemplate: "⚠️ BÁO ĐỘNG: Chỉ số rủi ro an toàn tại {{siteName}} vượt ngưỡng {{riskLevel}}",
+    subjectTemplate: "BÁO ĐỘNG: Chỉ số rủi ro an toàn tại {{siteName}} vượt ngưỡng {{riskLevel}}",
     contentTemplate:
       "Hệ thống ghi nhận tỷ lệ vi phạm an toàn tăng đột biến ({{violationCount}} sự cố trong 60 phút qua) tại {{siteName}}. Đề nghị Trưởng ban chỉ huy an toàn kích hoạt quy trình thanh tra đột xuất.",
     placeholders: [
@@ -152,7 +152,7 @@ export const PREDEFINED_SYSTEM_TEMPLATES: PredefinedTemplateItem[] = [
     channel: "IN_APP",
     severity: "HIGH",
     soundPreset: "warning",
-    subjectTemplate: "📹 Mất tín hiệu luồng RTSP: Camera {{cameraCode}} ngoại tuyến",
+    subjectTemplate: "Mất tín hiệu luồng RTSP: Camera {{cameraCode}} ngoại tuyến",
     contentTemplate:
       "Camera giám sát [{{cameraCode}} - {{cameraName}}] tại vị trí {{zoneName}} đã mất kết nối lúc {{timestamp}}. Quá trình phân tích AI tại khu vực này tạm thời bị gián đoạn.",
     placeholders: [
@@ -173,7 +173,7 @@ export const PREDEFINED_SYSTEM_TEMPLATES: PredefinedTemplateItem[] = [
     channel: "IN_APP",
     severity: "HIGH",
     soundPreset: "warning",
-    subjectTemplate: "⚠️ Phát hiện camera {{cameraCode}} bị che khuất tầm nhìn",
+    subjectTemplate: "Phát hiện camera {{cameraCode}} bị che khuất tầm nhìn",
     contentTemplate:
       "Ống kính camera [{{cameraCode}}] tại {{siteName}} bị phát hiện che tối hoặc dịch chuyển góc quan sát ngoài thông số cho phép lúc {{timestamp}}. Vui lòng kiểm tra hiện trường.",
     placeholders: [
@@ -193,7 +193,7 @@ export const PREDEFINED_SYSTEM_TEMPLATES: PredefinedTemplateItem[] = [
     channel: "IN_APP",
     severity: "NORMAL",
     soundPreset: "info",
-    subjectTemplate: "🧠 Hiệu năng AI Service: Độ trễ khung hình {{latencyMs}}ms",
+    subjectTemplate: "Hiệu năng AI Service: Độ trễ khung hình {{latencyMs}}ms",
     contentTemplate:
       "Pipeline phân tích YOLO phát hiện độ trễ xử lý đạt {{latencyMs}}ms (vượt ngưỡng 150ms). Hệ thống tự động chuyển sang chế độ giảm tải (Frame Drop Guard) để đảm bảo độ ổn định.",
     placeholders: [
@@ -255,7 +255,7 @@ export const PREDEFINED_SYSTEM_TEMPLATES: PredefinedTemplateItem[] = [
     channel: "EMAIL",
     severity: "HIGH",
     soundPreset: "warning",
-    subjectTemplate: "🛡️ Cảnh báo bảo mật: Phát hiện đăng nhập từ thiết bị mới",
+    subjectTemplate: "Cảnh báo bảo mật: Phát hiện đăng nhập từ thiết bị mới",
     contentTemplate:
       "Tài khoản Smart PPE của bạn vừa đăng nhập từ thiết bị [{{deviceName}}], IP [{{ipAddress}}] tại [{{location}}] vào lúc {{timestamp}}. Nếu đây không phải là bạn, hãy đổi mật khẩu ngay lập tức.",
     placeholders: [
@@ -276,7 +276,7 @@ export const PREDEFINED_SYSTEM_TEMPLATES: PredefinedTemplateItem[] = [
     channel: "IN_APP",
     severity: "NORMAL",
     soundPreset: "info",
-    subjectTemplate: "🎖️ Vai trò của bạn đã được cập nhật thành: {{roleName}}",
+    subjectTemplate: "Vai trò của bạn đã được cập nhật thành: {{roleName}}",
     contentTemplate:
       "Tài khoản của bạn đã được Quản trị viên phân quyền vào vai trò [{{roleName}}] với {{permissionsCount}} quyền hạn. Vui lòng đăng nhập lại nếu quyền mới chưa có hiệu lực tức thời.",
     placeholders: [
@@ -298,7 +298,7 @@ export const PREDEFINED_SYSTEM_TEMPLATES: PredefinedTemplateItem[] = [
     channel: "IN_APP",
     severity: "NORMAL",
     soundPreset: "success",
-    subjectTemplate: "📊 Báo cáo an toàn [{{reportType}}] đã được kết xuất thành công",
+    subjectTemplate: "Báo cáo an toàn [{{reportType}}] đã được kết xuất thành công",
     contentTemplate:
       "File báo cáo định kỳ [{{reportFileName}}] cho giai đoạn {{dateRange}} tại {{siteName}} đã tạo xong. Bấm vào liên kết đính kèm để tải về máy tính.",
     placeholders: [
@@ -320,7 +320,7 @@ export const PREDEFINED_SYSTEM_TEMPLATES: PredefinedTemplateItem[] = [
     channel: "IN_APP",
     severity: "CRITICAL",
     soundPreset: "radio",
-    subjectTemplate: "📢 THÔNG BÁO KHẨN: {{broadcastTitle}}",
+    subjectTemplate: "THÔNG BÁO KHẨN: {{broadcastTitle}}",
     contentTemplate:
       "Ban Chỉ huy An toàn Lao động phát thông báo khẩn cấp tới toàn thể cán bộ công nhân viên tại {{siteName}}:\n\n{{broadcastContent}}\n\nYêu cầu toàn bộ các đội thi công thực hiện nghiêm túc.",
     placeholders: [

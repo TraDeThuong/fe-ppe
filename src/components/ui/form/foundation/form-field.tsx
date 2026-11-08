@@ -1,17 +1,33 @@
 
 import {
-  cloneElement,
-  isValidElement,
+  createContext,
+  useContext,
   useId,
-  type ReactElement,
   type ReactNode,
 } from "react";
 
 import { Label, type LabelProps } from "./label";
 import { FormMessage } from "./form-message";
 
+export interface FormFieldContextValue {
+  id: string;
+  required?: boolean;
+  hasError?: boolean;
+  error?: ReactNode;
+  describedBy?: string;
+  errorId: string;
+  helperId: string;
+  controlClassName?: string;
+}
+
+export const FormFieldContext = createContext<FormFieldContextValue | null>(null);
+
+export function useFormField(): FormFieldContextValue | null {
+  return useContext(FormFieldContext);
+}
+
 export interface FormFieldProps {
-  children: ReactElement<any>;
+  children: ReactNode;
   label?: ReactNode;
   required?: boolean;
   helperText?: ReactNode;
@@ -44,12 +60,7 @@ function FormField({
   showHelperWithError = true,
 }: FormFieldProps) {
   const generatedId = useId();
-
-  if (!isValidElement(children)) return null;
-
-  const child = children as ReactElement<Record<string, any>>;
-  const childProps = (child.props || {}) as Record<string, any>;
-  const controlId = id ?? childProps.id ?? `field-${generatedId}`;
+  const controlId = id ?? `field-${generatedId}`;
 
   const helperId = `${controlId}-helper`;
   const errorId = `${controlId}-error`;
@@ -58,7 +69,6 @@ function FormField({
   const hasError = error != null && error !== "";
 
   const describedBy = [
-    childProps["aria-describedby"],
     hasHelper && (showHelperWithError || !hasError)
       ? helperId
       : undefined,
@@ -67,71 +77,66 @@ function FormField({
     .filter(Boolean)
     .join(" ") || undefined;
 
-  const control = cloneElement(child, {
+  const contextValue: FormFieldContextValue = {
     id: controlId,
-    required: required ?? childProps.required,
-    ...(typeof child.type === "string"
-      ? {}
-      : { error: hasError ? true : childProps.error }),
-    "aria-describedby": describedBy,
-    "aria-invalid": hasError
-      ? true
-      : childProps["aria-invalid"],
-    className: [
-      childProps.className,
-      controlClassName,
-    ]
-      .filter(Boolean)
-      .join(" ") || undefined,
-  } as Record<string, any>);
+    required,
+    hasError,
+    error,
+    describedBy,
+    errorId,
+    helperId,
+    controlClassName,
+  };
 
   return (
-    <div
-      className={[
-        "flex w-full flex-col gap-2",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    >
-      {label != null && (
-        <Label
-          {...labelProps}
-          htmlFor={controlId}
-          required={required ?? childProps.required}
-          className={[
-            labelProps?.className,
-            labelClassName,
-          ]
-            .filter(Boolean)
-            .join(" ") || undefined}
-        >
-          {label}
-        </Label>
-      )}
+    <FormFieldContext.Provider value={contextValue}>
+      <div
+        className={[
+          "flex w-full flex-col gap-2",
+          className,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {label != null && (
+          <Label
+            {...labelProps}
+            htmlFor={controlId}
+            required={required}
+            className={[
+              labelProps?.className,
+              labelClassName,
+            ]
+              .filter(Boolean)
+              .join(" ") || undefined}
+          >
+            {label}
+          </Label>
+        )}
 
-      {control}
+        {children}
 
-      {hasHelper && (showHelperWithError || !hasError) && (
-        <FormMessage
-          id={helperId}
-          variant="helper"
-          className={helperClassName}
-        >
-          {helperText}
-        </FormMessage>
-      )}
+        {hasHelper && (showHelperWithError || !hasError) && (
+          <FormMessage
+            id={helperId}
+            variant="helper"
+            className={helperClassName}
+          >
+            {helperText}
+          </FormMessage>
+        )}
 
-      {hasError && (
-        <FormMessage
-          id={errorId}
-          variant="error"
-          className={errorClassName}
-        >
-          {error}
-        </FormMessage>
-      )}
-    </div>
+        {hasError && (
+          <FormMessage
+            id={errorId}
+            variant="error"
+            className={errorClassName}
+          >
+            {error}
+          </FormMessage>
+        )}
+      </div>
+    </FormFieldContext.Provider>
   );
 }
 

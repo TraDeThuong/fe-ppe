@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileEdit, Volume2, X, Check, ShieldAlert } from "lucide-react";
+import { FileEdit, Volume2, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/providers/locale-provider";
@@ -209,11 +209,11 @@ export function EditNotificationTemplateModal({
                 }}
                 className="w-full rounded-xl border border-border/40 bg-background px-3 py-2 text-xs font-semibold text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark)] outline-none focus:border-primary/60"
               >
-                <option value="critical">{isVietnamese ? "🚨 Còi khẩn cấp (Siren)" : "🚨 Emergency Siren"}</option>
-                <option value="warning">{isVietnamese ? "🔔 Chuông tam âm (Warning)" : "🔔 Tri-tone Chime"}</option>
-                <option value="info">{isVietnamese ? "💧 Giọt nước (Glass Pop)" : "💧 Glass Pop"}</option>
-                <option value="success">{isVietnamese ? "✨ Hợp âm (Success Chord)" : "✨ Success Chord"}</option>
-                <option value="radio">{isVietnamese ? "📻 Bộ đàm (Radio Chirp)" : "📻 Dispatch Radio"}</option>
+                <option value="critical">{isVietnamese ? "Còi khẩn cấp (Siren)" : "Emergency Siren"}</option>
+                <option value="warning">{isVietnamese ? "Chuông tam âm (Warning)" : "Tri-tone Chime"}</option>
+                <option value="info">{isVietnamese ? "Giọt nước (Glass Pop)" : "Glass Pop"}</option>
+                <option value="success">{isVietnamese ? "Hợp âm (Success Chord)" : "Success Chord"}</option>
+                <option value="radio">{isVietnamese ? "Bộ đàm (Radio Chirp)" : "Dispatch Radio"}</option>
               </select>
             </div>
           </div>

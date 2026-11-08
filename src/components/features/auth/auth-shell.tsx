@@ -266,7 +266,7 @@ function AuthImageSlideshow() {
 ======================================== */
 
 const controlClassName = [
-  "inline-flex h-9 sm:h-10 items-center justify-center gap-2 rounded-xl",
+  "inline-flex min-h-[44px] min-w-[44px] sm:min-h-10 sm:h-10 items-center justify-center gap-2 rounded-xl",
   "border border-border/50 bg-background text-foreground",
   "shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)]",
   "transition-all duration-300",
@@ -298,7 +298,7 @@ export function AuthShell({
   }
 
   return (
-    <main className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-x-hidden bg-background px-4 py-8 sm:px-6 sm:py-10">
+    <main className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-x-hidden bg-background px-4 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-10">
       {/* Ambient background */}
       <div
         aria-hidden="true"
@@ -349,7 +349,10 @@ export function AuthShell({
               </span>
             </button>
 
-            <ThemeToggle id="auth-theme-toggle-btn" />
+            <ThemeToggle
+              id="auth-theme-toggle-btn"
+              buttonClassName="min-h-[44px] min-w-[44px] sm:min-h-10 sm:min-w-10"
+            />
           </div>
         </header>
 
@@ -432,7 +435,7 @@ export function AuthShell({
               <CardHeader className="space-y-2 px-0 pb-6 pt-0">
                 <Typography
                   variant="embossed"
-                  className="!text-card text-2xl font-black sm:text-3xl lg:text-4xl"
+                  className="text-2xl font-black sm:text-3xl lg:text-4xl"
                 >
                   {title}
                 </Typography>

@@ -6,6 +6,7 @@ import {
   useRef,
   type TextareaHTMLAttributes,
 } from "react";
+import { useFormField } from "./form-field";
 
 export type TextareaVariant = "inset" | "flat";
 export type TextareaResize = "none" | "vertical" | "both";
@@ -48,7 +49,17 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     forwardedRef,
   ) => {
     const internalRef = useRef<HTMLTextAreaElement>(null);
-    const hasError = Boolean(error);
+    const formField = useFormField();
+    const resolvedId = props.id ?? formField?.id;
+    const resolvedRequired = props.required ?? formField?.required;
+    const hasError = Boolean(error || formField?.hasError);
+    const resolvedDescribedBy = [
+      props["aria-describedby"],
+      formField?.describedBy,
+    ]
+      .filter(Boolean)
+      .join(" ") || undefined;
+    const resolvedInvalid = ariaInvalid ?? (hasError ? true : undefined);
 
     const setRefs = useCallback(
       (node: HTMLTextAreaElement | null) => {
@@ -91,10 +102,11 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
 
     return (
       <textarea
-        {...props}
         ref={setRefs}
+        id={resolvedId}
         rows={rows}
         disabled={disabled}
+        required={resolvedRequired}
         value={value}
         defaultValue={defaultValue}
         onChange={(event) => {
@@ -105,7 +117,8 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           onInput?.(event);
           adjustHeight();
         }}
-        aria-invalid={hasError || ariaInvalid || undefined}
+        aria-describedby={resolvedDescribedBy}
+        aria-invalid={resolvedInvalid}
         className={[
           "block w-full min-w-0",
           "rounded-2xl border bg-background",
@@ -137,6 +150,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
               }
             : {}),
         }}
+        {...props}
       />
     );
   },

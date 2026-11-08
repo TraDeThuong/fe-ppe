@@ -14,26 +14,19 @@ export interface ThemeToggleProps {
    */
   variant?: "dropdown" | "segmented" | "cycle";
   className?: string;
+  buttonClassName?: string;
   id?: string;
 }
 
 export function ThemeToggle({
   variant = "dropdown",
   className = "",
+  buttonClassName = "",
   id = "theme-toggle-btn",
 }: ThemeToggleProps) {
   const { theme, resolvedTheme, setTheme, isDayTime } = useTheme();
-
-  // useLocale an toàn (có fallback nếu dùng độc lập)
-  let t = (key: string) => key;
-  let isVietnamese = true;
-  try {
-    const localeCtx = useLocale();
-    t = localeCtx.t;
-    isVietnamese = localeCtx.locale === "vi-VN";
-  } catch {
-    // Fallback nếu render ngoài LocaleProvider
-  }
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -219,6 +212,7 @@ export function ThemeToggle({
           bg-background text-foreground shadow-nm transition-all duration-200
           hover:shadow-nm-sm active:shadow-nm-pressed active:translate-y-px
           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
+          ${buttonClassName}
           ${className}
         `}
       >
@@ -261,7 +255,7 @@ export function ThemeToggle({
         aria-controls={isOpen ? listboxId : undefined}
         title={currentTitle}
         onClick={() => setIsOpen((previous) => !previous)}
-        className="
+        className={`
           group relative flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl
           border border-[color-mix(in_srgb,var(--shadow-light)_30%,transparent)]
           bg-background text-foreground
@@ -270,7 +264,8 @@ export function ThemeToggle({
           hover:text-primary
           active:shadow-nm-pressed active:translate-y-px
           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
-        "
+          ${buttonClassName}
+        `}
       >
         {/* Biểu tượng hiển thị theo trạng thái thực tế */}
         {theme === "system" ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { reportingService } from "@/services/reporting.service";
 import { reportingKeys } from "./reporting.query-keys";
 import type { PaginationMeta, ReportGenerationDto, ReportHistoryQueryDto } from "@/types";
@@ -14,6 +14,7 @@ export function useReportHistory(params?: ReportHistoryQueryDto) {
   return useQuery<UseReportHistoryResult>({
     queryKey: reportingKeys.history(params),
     queryFn: () => reportingService.getReportHistory(params),
+    placeholderData: keepPreviousData,
     staleTime: 15 * 1000,
   });
 }

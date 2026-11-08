@@ -2,22 +2,9 @@
 
 import { useMemo, useState } from "react";
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
-import {
-  Check,
-  Copy,
-  Edit2,
-  Globe,
-  Lock,
-  Sliders,
-  Trash2,
-} from "lucide-react";
-import {
-  Table,
-  TableContent,
-  TablePagination,
-  type TableFeatureSet,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { Check, Copy, Edit2, Globe, Lock, Trash2 } from "lucide-react";
+import { Table, TableContent, TableToolbar, TableRefresh, type TableProps, TablePagination, type TableFeatureSet } from "@/components/ui/table";
+
 import { useLocale } from "@/providers/locale-provider";
 import { toast } from "@/lib/toast";
 import type { SystemConfigItem } from "@/types";
@@ -27,6 +14,7 @@ export interface SystemConfigTableProps {
   onEdit: (config: SystemConfigItem) => void;
   onDelete: (config: SystemConfigItem) => void;
   loading?: boolean;
+  tableState?: Partial<TableProps<SystemConfigItem>>;
   page?: number;
   pageSize?: number;
   totalItems?: number;
@@ -41,6 +29,7 @@ export function SystemConfigTable({
   onEdit,
   onDelete,
   loading = false,
+  tableState,
   page = 1,
   pageSize = 10,
   totalItems = 0,
@@ -134,6 +123,7 @@ export function SystemConfigTable({
             </div>
           );
         },
+
       },
       {
         id: "value",
@@ -144,9 +134,8 @@ export function SystemConfigTable({
           if (typeof val === "boolean") {
             return (
               <span
-                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                  val ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
-                }`}
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${val ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
+                  }`}
               >
                 {val ? <Check className="h-3 w-3" /> : null}
                 {String(val)}
@@ -166,6 +155,7 @@ export function SystemConfigTable({
             </span>
           );
         },
+
       },
       {
         id: "category",
@@ -183,6 +173,7 @@ export function SystemConfigTable({
             </span>
           );
         },
+
       },
       {
         id: "isPublic",
@@ -192,54 +183,55 @@ export function SystemConfigTable({
           const isPub = Boolean(row.original.isPublic);
           return (
             <span
-              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-                isPub
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${isPub
                   ? "border-success/30 bg-success/10 text-success"
                   : "border-border/40 bg-muted/40 text-muted-foreground dark:border-black/50"
-              }`}
+                }`}
             >
               {isPub ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
               {isPub ? t("system.configs.public") : t("system.configs.private")}
             </span>
           );
         },
+
       },
       ...(canManage
         ? [
-            {
-              id: "actions",
-              header: () => (
-                <div className="text-right">{t("system.configs.tableActions")}</div>
-              ),
-              cell: ({ row }: { row: { original: SystemConfigItem } }) => {
-                const item = row.original;
-                return (
-                  <div className="flex items-center justify-end gap-1">
-                    <button
-                      type="button"
-                      onClick={() => onEdit(item)}
-                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-primary transition"
-                      title={t("system.configs.edit")}
-                      aria-label={t("system.configs.edit")}
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </button>
+          {
+            id: "actions",
+            header: () => (
+              <div className="text-right">{t("system.configs.tableActions")}</div>
+            ),
+            cell: ({ row }: { row: { original: SystemConfigItem } }) => {
+              const item = row.original;
+              return (
+                <div className="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onEdit(item)}
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-primary transition"
+                    title={t("system.configs.edit")}
+                    aria-label={t("system.configs.edit")}
+                  >
+                    <Edit2 className="h-3.5 w-3.5" />
+                  </button>
 
-                    <button
-                      type="button"
-                      onClick={() => onDelete(item)}
-                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-danger/10 hover:text-danger transition"
-                      title={t("system.configs.delete")}
-                      aria-label={t("system.configs.delete")}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                );
-              },
-              size: 80,
+                  <button
+                    type="button"
+                    onClick={() => onDelete(item)}
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-danger/10 hover:text-danger transition"
+                    title={t("system.configs.delete")}
+                    aria-label={t("system.configs.delete")}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
             },
-          ]
+            size: 80,
+
+          },
+        ]
         : []),
     ];
   }, [t, copiedKey, canManage]);
@@ -252,13 +244,22 @@ export function SystemConfigTable({
         variant={variant}
         loading={loading}
         emptyMessage={t("system.configs.empty")}
+        features={{
+          sorting: false,
+          globalFilter: false,
+          rowSelection: false
+        }}
+        manualSorting
+        manualFiltering
         manualPagination={true}
         pageCount={totalPages}
         rowCount={totalItems}
         pagination={paginationState}
         onPaginationChange={handlePaginationChange}
         getRowId={(row) => row.id || row.key}
+        {...tableState}
       >
+        <TableToolbar showSearch={false} actions={<TableRefresh />} />
         <TableContent />
         <TablePagination />
       </Table>

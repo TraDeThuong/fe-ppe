@@ -8,6 +8,8 @@ import type { ApiError } from "@/lib/axios";
 import {
   RESOURCE_CATEGORIES,
   RESOURCE_CATEGORY_MAP,
+  RESOURCE_CATEGORY_ORDER,
+  getPermissionCategory,
   type PermissionDto,
   type PermissionQueryParams,
   type PermissionResource,
@@ -53,7 +55,7 @@ export function useRolePermissions(roleId: string, options?: UsePermissionsOptio
 }
 
 /**
- * Gom nhóm danh sách quyền theo 21 nhóm Resource và 4 danh mục lớn.
+ * Gom nhóm danh sách quyền theo 22 nhóm Resource và 8 danh mục nghiệp vụ.
  */
 export function groupPermissionsByResource(
   permissions: PermissionDto[] = [],
@@ -70,7 +72,8 @@ export function groupPermissionsByResource(
 
   for (const [resource, perms] of map.entries()) {
     const category: ResourceCategory =
-      RESOURCE_CATEGORY_MAP[resource as PermissionResource] ?? RESOURCE_CATEGORIES.SYSTEM;
+      RESOURCE_CATEGORY_MAP[resource as PermissionResource] ??
+      RESOURCE_CATEGORIES.SYSTEM_OPS;
 
     groups.push({
       resource,
@@ -95,15 +98,15 @@ export function useGroupedPermissions(params?: PermissionQueryParams) {
   }, [query.data]);
 
   const groupedByCategory = useMemo(() => {
-    const categories: Record<ResourceCategory, ResourcePermissionGroup[]> = {
-      MONITORING: [],
-      ANALYTICS: [],
-      IDENTITY: [],
-      SYSTEM: [],
-    };
+    const categories = Object.fromEntries(
+      RESOURCE_CATEGORY_ORDER.map((cat) => [cat, [] as ResourcePermissionGroup[]]),
+    ) as Record<ResourceCategory, ResourcePermissionGroup[]>;
 
     for (const group of grouped) {
-      categories[group.category]?.push(group);
+      const cat = categories[group.category]
+        ? group.category
+        : getPermissionCategory({ resource: group.resource });
+      categories[cat]?.push(group);
     }
 
     return categories;

@@ -31,15 +31,11 @@ export function TableFilter({
   className = "",
   title,
 }: TableFilterProps) {
-  const { table, variant } = useTableContext();
+  const { table, variant, features } = useTableContext();
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
-  let isVietnamese = true;
-  try {
-    const localeCtx = useLocale();
-    isVietnamese = localeCtx.locale === "vi-VN";
-  } catch {
-    // fallback if outside LocaleProvider
-  }
+  if (features.columnFilters === false) return null;
 
   const effectiveTitle = title ?? (isVietnamese ? "Bộ lọc dữ liệu" : "Data Filter");
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { Edit2, Key, Lock, Shield, Trash2, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowUpRight, Edit2, Key, Lock, Shield, Trash2, Users } from "lucide-react";
 import type { RoleDto } from "@/types";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
@@ -20,7 +21,9 @@ export function RoleCardGrid({
   onDelete,
   loading = false,
 }: RoleCardGridProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const router = useRouter();
+  const isVietnamese = locale === "vi-VN";
 
   if (loading) {
     return (
@@ -49,18 +52,30 @@ export function RoleCardGrid({
         return (
           <div
             key={role.id}
-            className="group flex flex-col justify-between rounded-xl sm:rounded-2xl border border-border/40 bg-surface p-3.5 sm:p-5 shadow-[4px_4px_10px_rgba(0,0,0,0.06),-4px_-4px_10px_rgba(255,255,255,0.7)] transition-all duration-300 hover:-translate-y-1 sm:hover:-translate-y-1.5 hover:shadow-[8px_14px_24px_rgba(0,0,0,0.1),-6px_-6px_14px_rgba(255,255,255,0.9)] dark:border-black/60 dark:bg-card/90 dark:shadow-[5px_5px_14px_rgba(0,0,0,0.55)] dark:hover:border-black dark:hover:bg-card dark:hover:shadow-[0_20px_36px_rgba(0,0,0,0.9),8px_12px_24px_rgba(0,0,0,0.85)]"
+            role="button"
+            tabIndex={0}
+            onClick={() => router.push(`/roles/${role.id}`)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                router.push(`/roles/${role.id}`);
+              }
+            }}
+            className="group cursor-pointer flex flex-col justify-between rounded-xl sm:rounded-2xl border border-border/40 bg-surface p-3.5 sm:p-5 shadow-[4px_4px_10px_rgba(0,0,0,0.06),-4px_-4px_10px_rgba(255,255,255,0.7)] transition-all duration-300 hover:-translate-y-1 sm:hover:-translate-y-1.5 hover:border-primary/40 hover:shadow-[8px_14px_24px_rgba(0,0,0,0.1),-6px_-6px_14px_rgba(255,255,255,0.9)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 dark:border-black/60 dark:bg-card/90 dark:shadow-[5px_5px_14px_rgba(0,0,0,0.55)] dark:hover:border-primary/40 dark:hover:bg-card dark:hover:shadow-[0_20px_36px_rgba(0,0,0,0.9),8px_12px_24px_rgba(0,0,0,0.85)]"
           >
             <div className="space-y-2.5 sm:space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 sm:gap-2.5">
-                  <span className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center rounded-lg sm:rounded-xl bg-primary/10 text-primary shadow-[inset_1px_1px_2px_rgba(0,0,0,0.1)] dark:bg-primary/15 dark:shadow-[inset_1px_1px_2px_rgba(0,0,0,0.4)]">
+                <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                  <span className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg sm:rounded-xl bg-primary/10 text-primary shadow-[inset_1px_1px_2px_rgba(0,0,0,0.1)] transition-transform duration-200 group-hover:scale-105 dark:bg-primary/15 dark:shadow-[inset_1px_1px_2px_rgba(0,0,0,0.4)]">
                     <Shield className="h-4 w-4" />
                   </span>
-                  <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-foreground line-clamp-1">
-                      {role.name}
-                    </h4>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1">
+                      <h4 className="text-xs sm:text-sm font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                        {role.name}
+                      </h4>
+                      <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-primary opacity-0 -translate-y-0.5 translate-x-0.5 transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0 group-hover:translate-x-0" />
+                    </div>
                     <span className="font-mono text-[11px] sm:text-xs font-semibold text-primary">
                       {role.name.toUpperCase()}
                     </span>
@@ -86,30 +101,42 @@ export function RoleCardGrid({
               </p>
 
               {/* Stats Bar */}
-              <div className="flex items-center gap-3 sm:gap-4 rounded-xl border border-border/30 bg-surface-elevated/40 p-2 sm:p-2.5 text-[11px] sm:text-xs dark:border-black/50 dark:bg-background/50">
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <Key className="h-3.5 w-3.5 text-primary" />
-                  <span>
-                    <strong className="text-foreground">{permCount}</strong>{" "}
-                    {t("roles.table.permsCount").toLowerCase()}
-                  </span>
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-border/30 bg-surface-elevated/40 p-2 sm:p-2.5 text-[11px] sm:text-xs dark:border-black/50 dark:bg-background/50">
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Key className="h-3.5 w-3.5 text-primary" />
+                    <span>
+                      <strong className="text-foreground">{permCount}</strong>{" "}
+                      {t("roles.table.permsCount").toLowerCase()}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Users className="h-3.5 w-3.5 text-primary" />
+                    <span>
+                      <strong className="text-foreground">{userCount}</strong>{" "}
+                      {t("roles.table.personnel").toLowerCase()}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <Users className="h-3.5 w-3.5 text-primary" />
-                  <span>
-                    <strong className="text-foreground">{userCount}</strong>{" "}
-                    {t("roles.table.personnel").toLowerCase()}
-                  </span>
-                </div>
+
+                <span className="text-[10px] font-semibold text-primary/80 group-hover:text-primary group-hover:underline">
+                  {isVietnamese ? "Chi tiết →" : "Details →"}
+                </span>
               </div>
             </div>
 
             {/* Actions Footer */}
-            <div className="flex items-center justify-between border-t border-border/30 dark:border-black/40 pt-2.5 sm:pt-3.5 mt-2.5 sm:mt-4">
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center justify-between border-t border-border/30 dark:border-black/40 pt-2.5 sm:pt-3.5 mt-2.5 sm:mt-4"
+            >
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => onConfigurePermissions(role)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onConfigurePermissions(role);
+                }}
                 className="flex items-center gap-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs h-7 sm:h-8 px-2.5 sm:px-3 dark:border-black/60 dark:hover:border-black"
               >
                 <Key className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-primary" />
@@ -119,7 +146,10 @@ export function RoleCardGrid({
               <div className="flex items-center gap-1 sm:gap-1.5">
                 <button
                   type="button"
-                  onClick={() => onEdit(role)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(role);
+                  }}
                   className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary dark:border-black/50 dark:hover:border-black dark:bg-background/40"
                   aria-label={`${t("roles.actions.edit")} ${role.name}`}
                   title={`${t("roles.actions.edit")} ${role.name}`}
@@ -130,7 +160,10 @@ export function RoleCardGrid({
                 {!role.isSystem && (
                   <button
                     type="button"
-                    onClick={() => onDelete(role)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(role);
+                    }}
                     className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-danger hover:text-danger dark:border-black/50 dark:hover:border-black dark:bg-background/40"
                     aria-label={`${t("roles.actions.delete")} ${role.name}`}
                     title={`${t("roles.actions.delete")} ${role.name}`}

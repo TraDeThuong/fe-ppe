@@ -9,6 +9,7 @@ import { Input, type InputProps } from "../foundation/input";
 
 export interface PasswordInputProps
   extends Omit<InputProps, "type" | "suffix"> {
+  ref?: React.Ref<HTMLInputElement>;
   showPasswordToggle?: boolean;
   toggleLabel?: {
     show: string;
@@ -17,18 +18,14 @@ export interface PasswordInputProps
 }
 
 function PasswordInput({
+  ref,
   showPasswordToggle = true,
   toggleLabel,
   disabled,
   ...props
 }: PasswordInputProps) {
-  let isVietnamese = true;
-  try {
-    const localeCtx = useLocale();
-    isVietnamese = localeCtx.locale === "vi-VN";
-  } catch {
-    // fallback if outside LocaleProvider
-  }
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const effectiveToggleLabel = toggleLabel ?? {
     show: isVietnamese ? "Hiện mật khẩu" : "Show password",
@@ -39,6 +36,7 @@ function PasswordInput({
 
   return (
     <Input
+      ref={ref}
       {...props}
       type={visible ? "text" : "password"}
       disabled={disabled}
@@ -55,7 +53,7 @@ function PasswordInput({
             className={[
               "inline-flex size-8 items-center justify-center",
               "rounded-lg text-muted-foreground",
-              "transition-all duration-200",
+              "transition-[color,box-shadow] duration-200",
               "hover:text-foreground",
               "hover:shadow-[var(--nm-raised-sm)]",
               "active:shadow-[var(--nm-pressed)]",

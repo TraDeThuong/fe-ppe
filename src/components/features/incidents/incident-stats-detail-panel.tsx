@@ -5,22 +5,15 @@ import Link from "next/link";
 import {
   AlertOctagon,
   AlertTriangle,
-  Building2,
-  Camera,
   CheckCircle2,
   CheckSquare,
-  ChevronRight,
   Clock,
-  ExternalLink,
   Eye,
   Filter,
   HardHat,
-  Shield,
-  ShieldAlert,
   ShieldCheck,
   Shirt,
   UserCheck,
-  Video,
   X,
   Zap,
 } from "lucide-react";
@@ -480,18 +473,15 @@ export function IncidentStatsDetailPanel({
                             className="flex items-center gap-1 truncate hover:text-primary transition hover:underline"
                             title={isVietnamese ? `Lọc theo công trường ${incident.siteName || getSiteName(incident.siteId)}` : "Filter by this site"}
                           >
-                            <Building2 className="h-3 w-3 shrink-0" />
                             <span className="truncate">{incident.siteName || getSiteName(incident.siteId)}</span>
                           </button>
                         ) : (
                           <span className="flex items-center gap-1 truncate">
-                            <Building2 className="h-3 w-3 shrink-0" />
                             {incident.siteName || getSiteName(incident.siteId)}
                           </span>
                         )}
                         <span>•</span>
                         <span className="flex items-center gap-1 font-mono">
-                          <Camera className="h-3 w-3 shrink-0" />
                           {incident.cameraCode || getCameraCode(incident.cameraId)}
                         </span>
                         <span>•</span>
@@ -588,18 +578,15 @@ export function IncidentStatsDetailPanel({
                             className="flex items-center gap-1 truncate hover:text-primary transition hover:underline"
                             title={isVietnamese ? `Lọc theo công trường ${incident.siteName || getSiteName(incident.siteId)}` : "Filter by this site"}
                           >
-                            <Building2 className="h-3 w-3 shrink-0" />
                             <span className="truncate">{incident.siteName || getSiteName(incident.siteId)}</span>
                           </button>
                         ) : (
                           <span className="flex items-center gap-1 truncate">
-                            <Building2 className="h-3 w-3 shrink-0" />
                             {incident.siteName || getSiteName(incident.siteId)}
                           </span>
                         )}
                         <span>•</span>
                         <span className="flex items-center gap-1 font-mono">
-                          <Camera className="h-3 w-3 shrink-0" />
                           {incident.cameraCode || getCameraCode(incident.cameraId)}
                         </span>
                         <span>•</span>
@@ -744,18 +731,15 @@ export function IncidentStatsDetailPanel({
                               className="flex items-center gap-1 truncate hover:text-primary transition hover:underline"
                               title={isVietnamese ? `Lọc theo công trường ${incident.siteName || getSiteName(incident.siteId)}` : "Filter by this site"}
                             >
-                              <Building2 className="h-3 w-3 shrink-0" />
                               <span className="truncate">{incident.siteName || getSiteName(incident.siteId)}</span>
                             </button>
                           ) : (
                             <span className="flex items-center gap-1 truncate">
-                              <Building2 className="h-3 w-3 shrink-0" />
                               {incident.siteName || getSiteName(incident.siteId)}
                             </span>
                           )}
                           <span>•</span>
                           <span className="flex items-center gap-1 font-mono">
-                            <Camera className="h-3 w-3 shrink-0" />
                             {incident.cameraCode || getCameraCode(incident.cameraId)}
                           </span>
                           <span>•</span>
@@ -904,18 +888,15 @@ export function IncidentStatsDetailPanel({
                               className="flex items-center gap-1 truncate hover:text-primary transition hover:underline"
                               title={isVietnamese ? `Lọc theo công trường ${incident.siteName || getSiteName(incident.siteId)}` : "Filter by this site"}
                             >
-                              <Building2 className="h-3 w-3 shrink-0" />
                               <span className="truncate">{incident.siteName || getSiteName(incident.siteId)}</span>
                             </button>
                           ) : (
                             <span className="flex items-center gap-1 truncate">
-                              <Building2 className="h-3 w-3 shrink-0" />
                               {incident.siteName || getSiteName(incident.siteId)}
                             </span>
                           )}
                           <span>•</span>
                           <span className="flex items-center gap-1 font-mono">
-                            <Camera className="h-3 w-3 shrink-0" />
                             {incident.cameraCode || getCameraCode(incident.cameraId)}
                           </span>
                           <span>•</span>

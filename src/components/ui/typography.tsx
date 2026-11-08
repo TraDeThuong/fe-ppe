@@ -1,5 +1,5 @@
 
-import { forwardRef, type HTMLAttributes } from "react";
+import type { HTMLAttributes } from "react";
 
 export type TypographyVariant =
   | "default"
@@ -19,6 +19,7 @@ export type TypographyElement =
   | "label";
 
 export type TypographyProps = HTMLAttributes<HTMLElement> & {
+  ref?: React.Ref<HTMLElement>;
   variant?: TypographyVariant;
   as?: TypographyElement;
   children: React.ReactNode;
@@ -55,35 +56,29 @@ debossed: [
   ].join(" "),
 };
 
-export const Typography = forwardRef<HTMLElement, TypographyProps>(
-  (
-    {
-      variant = "default",
-      as: Component = "p",
-      className = "",
-      children,
-      ...props
-    },
-    ref,
-  ) => {
-    const classes = [
-      "transition-[color,text-shadow] duration-200",
-      variantClasses[variant],
-      className,
-    ]
-      .filter(Boolean)
-      .join(" ");
+export function Typography({
+  ref,
+  variant = "default",
+  as: Component = "p",
+  className = "",
+  children,
+  ...props
+}: TypographyProps) {
+  const classes = [
+    "transition-[color,text-shadow] duration-200",
+    variantClasses[variant],
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
-    return (
-      <Component
-        ref={ref as never}
-        className={classes}
-        {...props}
-      >
-        {children}
-      </Component>
-    );
-  },
-);
-
-Typography.displayName = "Typography";
+  return (
+    <Component
+      ref={ref as never}
+      className={classes}
+      {...props}
+    >
+      {children}
+    </Component>
+  );
+}

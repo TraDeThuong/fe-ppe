@@ -1,27 +1,21 @@
 "use client";
 
 import React from "react";
-import {
-  ArrowUpRight,
-  Camera,
-  CheckCircle2,
-  Clock,
-  FileCheck2,
-  ListTodo,
-  ShieldAlert,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowUpRight, Camera, Clock, ShieldAlert } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
-import type { StatisticsSummaryDto } from "@/types";
 
 export interface DashboardKpiRibbonProps {
-  summary?: StatisticsSummaryDto | null;
-  pendingCount?: number;
-  totalCamerasCount?: number;
-  onlineCamerasCount?: number;
-  loading?: boolean;
-  canViewReports?: boolean;
-  userAssignedCount?: number;
+  total: number | null;
+  pendingCount: number | null;
+  totalCamerasCount: number | null;
+  onlineCamerasCount: number | null;
+  analytics: import("@/types/dashboard.types").DashboardAnalytics | null;
+  canViewReports: boolean;
+  canViewIncidents: boolean;
+  canViewCameras: boolean;
+  periodState?: React.ReactNode;
+  pendingState?: React.ReactNode;
+  cameraState?: React.ReactNode;
   className?: string;
   onFilterPending?: () => void;
   onNavigateCameras?: () => void;
@@ -157,347 +151,122 @@ function KpiTile({
 }
 
 export function DashboardKpiRibbon({
-  summary,
-  pendingCount = 0,
-  totalCamerasCount = 0,
-  onlineCamerasCount = 0,
-  loading = false,
-  canViewReports = true,
-  userAssignedCount = 0,
+  total,
+  pendingCount,
+  totalCamerasCount,
+  onlineCamerasCount,
+  analytics,
+  canViewReports,
+  canViewIncidents,
+  canViewCameras,
+  periodState,
+  pendingState,
+  cameraState,
   className = "",
   onFilterPending,
   onNavigateCameras,
   onNavigateReports,
   onNavigateIncidents,
 }: DashboardKpiRibbonProps) {
-  const { t, locale } = useLocale();
-  const isVietnamese = locale === "vi-VN";
-
-  // When user has PPE_REPORTING_READ permissions: Display executive safety metrics
-  if (canViewReports) {
-    const rawCompliance = summary?.complianceRate ?? 0;
-    const complianceRate = Math.min(100, Math.max(0, Math.round(rawCompliance * 10) / 10));
-
-    const rawFalseAlarm = summary?.falseAlarmRate ?? 0;
-    const falseAlarmRate = Math.min(100, Math.max(0, Math.round(rawFalseAlarm * 10) / 10));
-
-    const cameraRatio = `${onlineCamerasCount}/${totalCamerasCount}`;
-    const cameraPercent =
-      totalCamerasCount > 0
-        ? Math.round((onlineCamerasCount / totalCamerasCount) * 100)
-        : 100;
-
-    return (
-      <section
-        className={[
-          "relative isolate w-full overflow-hidden rounded-[30px]",
-          "border border-border/40 bg-surface p-3 sm:p-4",
-          "shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)]",
-          "flex flex-col justify-between",
-          className,
-        ].join(" ")}
-      >
-        {/* Outer highlight */}
-        <div className="pointer-events-none absolute inset-px rounded-[29px] border border-white/50 dark:border-white/[0.06]" />
-
-        {/* Main showcase container */}
-        <div
-          className={[
-            "relative min-h-[410px] flex-1 flex flex-col justify-between overflow-hidden rounded-[23px]",
-            "border border-border/30 bg-background/60 p-4 sm:p-5",
-            "shadow-[inset_4px_4px_12px_var(--shadow-dark),inset_-4px_-4px_12px_var(--shadow-light)]",
-          ].join(" ")}
-        >
-          {/* Ambient subtle glow matching 3D showcase */}
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_15%_15%,var(--primary)/10%,transparent_50%),radial-gradient(ellipse_at_85%_85%,var(--accent)/8%,transparent_50%)]" />
-
-          {/* Header */}
-          <div className="relative z-10 flex flex-wrap items-start justify-between gap-3 mb-2">
-            <div>
-              <div className="mb-1.5 flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
-                  <span className="relative h-2 w-2 rounded-full bg-emerald-500" />
-                </span>
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                  {isVietnamese ? "CHỈ SỐ AN TOÀN VẬN HÀNH" : "OPERATIONAL KPI"}
-                </span>
-              </div>
-
-              <h3 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-                {isVietnamese ? "Tổng Quan Tuân Thủ An Toàn" : "Safety Compliance Overview"}
-              </h3>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {isVietnamese
-                  ? "Giám sát thời gian thực từ mạng lưới camera AI"
-                  : "Real-time safety surveillance across active AI camera network"}
-              </p>
-            </div>
-
-            {/* Status Pill */}
-            <div className="flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 backdrop-blur-md">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                {complianceRate >= 90
-                  ? isVietnamese
-                    ? "Đạt chuẩn an toàn"
-                    : "Safe Standards"
-                  : isVietnamese
-                    ? "Cần lưu ý"
-                    : "Needs Attention"}
-              </span>
-            </div>
-          </div>
-
-          {/* 4 Stats Grid (Combined into 1 card) */}
-          <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 my-auto py-1">
-            {/* 1. Tỷ lệ tuân thủ an toàn */}
-            <KpiTile
-              title={t("dashboard.kpi.compliance")}
-              value={loading ? "..." : `${complianceRate}%`}
-              icon={ShieldCheck}
-              tone={complianceRate >= 90 ? "success" : "warning"}
-              progress={complianceRate}
-              progressLabel={isVietnamese ? "Mục tiêu ≥ 90%" : "Target ≥ 90%"}
-              onClick={onNavigateReports}
-              loading={loading}
-            />
-
-            {/* 2. Sự cố chờ thẩm duyệt */}
-            <KpiTile
-              title={t("dashboard.kpi.pending")}
-              value={loading ? "..." : pendingCount}
-              icon={Clock}
-              tone={pendingCount > 0 ? "warning" : "success"}
-              footer={
-                <div className="flex items-center justify-between text-[10px]">
-                  <span
-                    className={`font-semibold ${
-                      pendingCount > 0 ? "text-amber-500" : "text-emerald-500"
-                    }`}
-                  >
-                    {pendingCount > 0
-                      ? isVietnamese
-                        ? "Cần xử lý ngay →"
-                        : "Needs action →"
-                      : isVietnamese
-                        ? "Đã duyệt hết ✓"
-                        : "All reviewed ✓"}
-                  </span>
-                  <span className="text-muted-foreground text-[10px]">
-                    {isVietnamese ? "Cần cán bộ duyệt" : "Review needed"}
-                  </span>
-                </div>
-              }
-              onClick={onFilterPending}
-              loading={loading}
-            />
-
-            {/* 3. Camera AI đang giám sát */}
-            <KpiTile
-              title={t("dashboard.kpi.cameras")}
-              value={loading ? "..." : cameraRatio}
-              icon={Camera}
-              tone={onlineCamerasCount === totalCamerasCount ? "primary" : "warning"}
-              progress={cameraPercent}
-              progressLabel={isVietnamese ? "Tỷ lệ hoạt động" : "Availability"}
-              onClick={onNavigateCameras}
-              loading={loading}
-            />
-
-            {/* 4. Tỷ lệ cảnh báo sai AI */}
-            <KpiTile
-              title={t("dashboard.kpi.falseAlarm")}
-              value={loading ? "..." : `${falseAlarmRate}%`}
-              icon={ShieldAlert}
-              tone={falseAlarmRate <= 5 ? "success" : "danger"}
-              footer={
-                <div className="flex items-center justify-between text-[10px]">
-                  <span
-                    className={`font-semibold ${
-                      falseAlarmRate <= 5 ? "text-emerald-500" : "text-rose-500"
-                    }`}
-                  >
-                    {falseAlarmRate <= 5
-                      ? isVietnamese
-                        ? "Đạt chuẩn an toàn AI (<5%)"
-                        : "Within AI safety limits (<5%)"
-                      : isVietnamese
-                        ? "Cần hiệu chuẩn lại mô hình"
-                        : "Model re-calibration needed"}
-                  </span>
-                </div>
-              }
-              onClick={onNavigateReports}
-              loading={loading}
-            />
-          </div>
-
-          {/* Footer Bar */}
-          <div className="relative z-10 mt-2.5 pt-2 border-t border-border/30 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-50" />
-                <span className="relative h-2 w-2 rounded-full bg-primary" />
-              </span>
-              <span className="text-[11px] font-medium text-muted-foreground">
-                {isVietnamese
-                  ? "Dữ liệu cập nhật tự động qua SSE"
-                  : "Live data synchronized via SSE"}
-              </span>
-            </div>
-
-            {onNavigateReports && (
-              <button
-                type="button"
-                onClick={onNavigateReports}
-                className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline hover:text-primary/80 transition-colors"
-              >
-                <span>{isVietnamese ? "Xem phân tích chi tiết" : "View analytics report"}</span>
-                <span aria-hidden="true">→</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  // Fallback for Users without PPE_REPORTING_READ (Personalized Operator / Worker view)
+  const { t, number } = useLocale();
+  const cameraRatio =
+    onlineCamerasCount !== null &&
+    totalCamerasCount !== null &&
+    onlineCamerasCount <= totalCamerasCount
+      ? `${number.format(onlineCamerasCount)}/${number.format(totalCamerasCount)}`
+      : "—";
   return (
     <section
-      className={[
-        "relative isolate w-full overflow-hidden rounded-[30px]",
-        "border border-border/40 bg-surface p-3 sm:p-4",
-        "shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)]",
-        "flex flex-col justify-between",
-        className,
-      ].join(" ")}
+      className={`relative rounded-[30px] border border-border/40 bg-surface p-3 sm:p-4 shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)] ${className}`}
     >
-      <div className="pointer-events-none absolute inset-px rounded-[29px] border border-white/50 dark:border-white/[0.06]" />
-
-      <div
-        className={[
-          "relative min-h-[410px] flex-1 flex flex-col justify-between overflow-hidden rounded-[23px]",
-          "border border-border/30 bg-background/60 p-4 sm:p-5",
-          "shadow-[inset_4px_4px_12px_var(--shadow-dark),inset_-4px_-4px_12px_var(--shadow-light)]",
-        ].join(" ")}
-      >
-        {/* Header */}
-        <div className="relative z-10 flex flex-wrap items-start justify-between gap-3 mb-2">
-          <div>
-            <div className="mb-1.5 flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-                <span className="relative h-2 w-2 rounded-full bg-primary" />
-              </span>
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                {isVietnamese ? "NHIỆM VỤ AN TOÀN HIỆN TRƯỜNG" : "FIELD OPERATIONS"}
-              </span>
+      <div className="flex h-full min-h-[410px] flex-col rounded-[23px] border border-border/30 bg-background/60 p-4 sm:p-5 shadow-[inset_4px_4px_12px_var(--shadow-dark),inset_-4px_-4px_12px_var(--shadow-light)]">
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+          {t("dashboard.kpi.operational")}
+        </p>
+        <h3 className="mt-2 text-xl font-bold sm:text-2xl">
+          {t("dashboard.kpi.overview")}
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t("dashboard.kpi.scope")}
+        </p>
+        <div className="my-4 grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2">
+          {canViewReports && (
+            <div className="space-y-2">
+              <KpiTile
+                title={t("dashboard.kpi.periodTotal")}
+                value={total === null ? "—" : number.format(total)}
+                icon={ShieldAlert}
+                footer={t("dashboard.kpi.allStatuses")}
+                onClick={canViewIncidents ? onNavigateIncidents : undefined}
+              />
+              {periodState}
             </div>
-
-            <h3 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-              {isVietnamese ? "Trạng Thái Giám Sát Của Bạn" : "Your Operational Status"}
-            </h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {isVietnamese
-                ? "Theo dõi nhiệm vụ xử lý vi phạm & camera phụ trách"
-                : "Assigned tasks & camera stream surveillance"}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 backdrop-blur-md">
-            <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-            <span className="text-[11px] font-semibold text-primary">
-              {isVietnamese ? "Ca trực hoạt động" : "Shift Active"}
-            </span>
-          </div>
-        </div>
-
-        {/* 4 Stats Grid */}
-        <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 my-auto py-1">
-          {/* 1. Assigned Tasks */}
-          <KpiTile
-            title={t("dashboard.kpi.myTasks")}
-            value={loading ? "..." : userAssignedCount}
-            icon={ListTodo}
-            tone={userAssignedCount > 0 ? "primary" : "success"}
-            footer={
-              <span className="text-[10px] text-muted-foreground">
-                {isVietnamese ? "Vi phạm được phân công" : "Assigned incidents"}
-              </span>
-            }
-            onClick={onNavigateIncidents}
-            loading={loading}
-          />
-
-          {/* 2. Pending Violations */}
-          <KpiTile
-            title={t("dashboard.kpi.pending")}
-            value={loading ? "..." : pendingCount}
-            icon={Clock}
-            tone="warning"
-            footer={
-              <span className="text-[10px] text-amber-500 font-semibold">
-                {isVietnamese ? "Sự cố đang chờ duyệt" : "Awaiting review"}
-              </span>
-            }
-            onClick={onFilterPending}
-            loading={loading}
-          />
-
-          {/* 3. Active Cameras */}
-          <KpiTile
-            title={t("dashboard.kpi.cameras")}
-            value={loading ? "..." : `${onlineCamerasCount}/${totalCamerasCount}`}
-            icon={Camera}
-            tone="primary"
-            footer={
-              <span className="text-[10px] text-muted-foreground">
-                {isVietnamese ? "Luồng RTSP trực tuyến" : "Active live streams"}
-              </span>
-            }
-            onClick={onNavigateCameras}
-            loading={loading}
-          />
-
-          {/* 4. Safety Regulations */}
-          <KpiTile
-            title={isVietnamese ? "Tiêu chuẩn bảo hộ" : "PPE Standards"}
-            value="100%"
-            icon={FileCheck2}
-            tone="success"
-            footer={
-              <span className="text-[10px] text-emerald-500 font-semibold">
-                {isVietnamese ? "Tuân thủ OSHA & TCVN" : "OSHA Compliant"}
-              </span>
-            }
-          />
-        </div>
-
-        {/* Footer Bar */}
-        <div className="relative z-10 mt-2.5 pt-2 border-t border-border/30 flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-50" />
-              <span className="relative h-2 w-2 rounded-full bg-emerald-500" />
-            </span>
-            <span className="text-[11px] font-medium text-muted-foreground">
-              {isVietnamese ? "Tuân thủ an toàn lao động" : "Labor safety compliance active"}
-            </span>
-          </div>
-
-          {onNavigateIncidents && (
-            <button
-              type="button"
-              onClick={onNavigateIncidents}
-              className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline hover:text-primary/80 transition-colors"
-            >
-              <span>{isVietnamese ? "Xem danh sách việc" : "View task list"}</span>
-              <span aria-hidden="true">→</span>
-            </button>
+          )}
+          {canViewIncidents && (
+            <div className="space-y-2">
+              <KpiTile
+                title={t("dashboard.kpi.pending")}
+                value={
+                  pendingCount === null ? "—" : number.format(pendingCount)
+                }
+                icon={Clock}
+                tone={pendingCount ? "warning" : "primary"}
+                footer={t("dashboard.kpi.currentAllDays")}
+                onClick={onFilterPending}
+              />
+              {pendingState}
+            </div>
+          )}
+          {canViewCameras && (
+            <div className="space-y-2">
+              <KpiTile
+                title={t("dashboard.kpi.onlineCameras")}
+                value={cameraRatio}
+                icon={Camera}
+                footer={t("dashboard.kpi.cameraScope")}
+                onClick={onNavigateCameras}
+              />
+              {cameraState}
+            </div>
+          )}
+          {canViewReports && (
+            <div className="space-y-2">
+              <KpiTile
+                title={t("dashboard.kpi.dismissedRate")}
+                value={
+                  analytics?.dismissedRate == null
+                    ? "—"
+                    : `${number.format(Math.round(analytics.dismissedRate * 10) / 10)}%`
+                }
+                icon={ShieldAlert}
+                footer={
+                  analytics && analytics.reviewed > 0
+                    ? `${number.format(analytics.dismissed)} / ${number.format(analytics.reviewed)} · ${t("dashboard.kpi.reviewedInPeriod")}`
+                    : t(
+                        analytics
+                          ? "dashboard.kpi.noReviews"
+                          : "dashboard.kpi.noData",
+                      )
+                }
+              />
+              {periodState}
+            </div>
           )}
         </div>
+        {!canViewReports && !canViewIncidents && !canViewCameras && (
+          <p className="my-8 text-sm text-muted-foreground">
+            {t("dashboard.data.noAccess")}
+          </p>
+        )}
+        {onNavigateReports && canViewReports && (
+          <button
+            type="button"
+            onClick={onNavigateReports}
+            className="border-t border-border/30 pt-3 text-left text-xs font-semibold text-primary"
+          >
+            {t("dashboard.kpi.reportsSeparate")} →
+          </button>
+        )}
       </div>
     </section>
   );

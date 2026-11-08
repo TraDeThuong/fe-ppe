@@ -212,14 +212,15 @@ export const aiMetricsService = {
    * GET /api/v1/ai-models/active-version
    * Lấy thông tin phiên bản mô hình AI đang chạy thực tế trong production
    */
-  async getActiveModelVersion(): Promise<AiModelVersionDto | null> {
+  async getActiveModelVersion(options?: { signal?: AbortSignal; strict?: boolean }): Promise<AiModelVersionDto | null> {
     try {
       const res = await apiClient.get<unknown>(
-        "/ai-models/active-version"
+        "/ai-models/active-version", { signal: options?.signal }
       );
       const data = unwrapData<AiModelVersionDto>(res);
       return data || null;
-    } catch {
+    } catch (error) {
+      if (options?.strict) throw error;
       return null;
     }
   },

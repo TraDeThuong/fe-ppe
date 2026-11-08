@@ -11,6 +11,7 @@ import {
 } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import { useFormField } from "../foundation/form-field";
 
 export interface SelectOption {
   value: string;
@@ -20,6 +21,7 @@ export interface SelectOption {
 }
 
 export interface SelectProps {
+  ref?: React.Ref<HTMLButtonElement>;
   options: SelectOption[];
   value?: string;
   defaultValue?: string;
@@ -46,6 +48,7 @@ const triggerSizes = {
 };
 
 function Select({
+  ref,
   options,
   value,
   defaultValue,
@@ -64,13 +67,8 @@ function Select({
   emptyMessage,
   ariaLabel,
 }: SelectProps) {
-  let isVietnamese = true;
-  try {
-    const localeCtx = useLocale();
-    isVietnamese = localeCtx.locale === "vi-VN";
-  } catch {
-    // fallback if outside LocaleProvider
-  }
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const effectivePlaceholder =
     placeholder ?? (isVietnamese ? "Chọn một giá trị" : "Select an option");
@@ -78,9 +76,11 @@ function Select({
     emptyMessage ?? (isVietnamese ? "Không có lựa chọn" : "No options available");
 
   const generatedId = useId();
-  const triggerId = id ?? `select-${generatedId}`;
+  const formField = useFormField();
+  const triggerId = id ?? formField?.id ?? `select-${generatedId}`;
   const listboxId = `${triggerId}-listbox`;
-  const hasError = Boolean(error);
+  const isRequired = required || Boolean(formField?.required);
+  const hasError = Boolean(error || formField?.hasError);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -258,7 +258,14 @@ function Select({
       )}
 
       <button
-        ref={triggerRef}
+        ref={(node) => {
+          triggerRef.current = node;
+          if (typeof ref === "function") {
+            ref(node);
+          } else if (ref && typeof ref === "object") {
+            (ref as React.MutableRefObject<HTMLButtonElement | null>).current = node;
+          }
+        }}
         id={triggerId}
         type="button"
         role="combobox"
@@ -271,7 +278,8 @@ function Select({
             ? `${listboxId}-option-${options.indexOf(activeOption)}`
             : undefined
         }
-        aria-required={required || undefined}
+        aria-required={isRequired || undefined}
+        aria-describedby={formField?.describedBy}
         aria-invalid={hasError || undefined}
         disabled={disabled}
         onClick={() => {

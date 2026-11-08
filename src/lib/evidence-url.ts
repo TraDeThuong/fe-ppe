@@ -25,7 +25,12 @@ export function resolveEvidenceUrl(keyOrUrl?: string | null): string {
     return trimmed;
   }
 
-  // 2. Đường dẫn API qua Gateway (VD: /api/v1/incidents/evidences/:id/download)
+  // 2. Đường dẫn ảnh bằng chứng từ AI Live Server (Port 8000)
+  if (trimmed.startsWith("/api/jobs/") || trimmed.startsWith("/api/live/")) {
+    return `http://127.0.0.1:8000${trimmed}`;
+  }
+
+  // 3. Đường dẫn API qua Gateway (VD: /api/v1/incidents/evidences/:id/download)
   if (trimmed.startsWith("/api/")) {
     const gatewayOrigin = env.apiBaseUrl ? env.apiBaseUrl.replace(/\/api\/v1\/?$/, "") : "";
     return `${gatewayOrigin}${trimmed}`;

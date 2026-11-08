@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense } from "react";
+import { BackToTop } from "@ui/back-to-top";
 import { ThemeProvider } from "./theme-provider";
 import { ReactQueryProvider } from "./react-query-provider";
 import { LocaleProvider } from "./locale-provider";
@@ -22,6 +24,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
         <LocaleProvider>
           <AuthProvider>
             {children}
+            <Suspense fallback={null}>
+              <BackToTop />
+            </Suspense>
             <ToastProvider />
           </AuthProvider>
         </LocaleProvider>

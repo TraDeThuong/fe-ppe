@@ -2,7 +2,6 @@
 "use client";
 
 import {
-  forwardRef,
   useEffect,
   useRef,
   type InputHTMLAttributes,
@@ -14,6 +13,7 @@ export interface CheckboxProps
     InputHTMLAttributes<HTMLInputElement>,
     "type" | "size" | "checked" | "defaultChecked" | "onChange"
   > {
+  ref?: React.Ref<HTMLInputElement>;
   checked?: boolean;
   defaultChecked?: boolean;
   indeterminate?: boolean;
@@ -27,33 +27,30 @@ const boxSizes = {
   lg: "size-6 rounded-md",
 };
 
-const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
-  (
-    {
-      checked,
-      defaultChecked,
-      indeterminate = false,
-      size = "md",
-      disabled,
-      onCheckedChange,
-      className = "",
-      id,
-      ...props
-    },
-    forwardedRef,
-  ) => {
-    const inputRef = useRef<HTMLInputElement>(null);
-    const isControlled = checked !== undefined;
+function Checkbox({
+  ref,
+  checked,
+  defaultChecked,
+  indeterminate = false,
+  size = "md",
+  disabled,
+  onCheckedChange,
+  className = "",
+  id,
+  ...props
+}: CheckboxProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isControlled = checked !== undefined;
 
-    const setRefs = (node: HTMLInputElement | null) => {
-      inputRef.current = node;
+  const setRefs = (node: HTMLInputElement | null) => {
+    inputRef.current = node;
 
-      if (typeof forwardedRef === "function") {
-        forwardedRef(node);
-      } else if (forwardedRef) {
-        forwardedRef.current = node;
-      }
-    };
+    if (typeof ref === "function") {
+      ref(node);
+    } else if (ref && typeof ref === "object") {
+      (ref as React.MutableRefObject<HTMLInputElement | null>).current = node;
+    }
+  };
 
     useEffect(() => {
       if (inputRef.current) {
@@ -124,9 +121,6 @@ const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
         </span>
       </span>
     );
-  },
-);
-
-Checkbox.displayName = "Checkbox";
+}
 
 export { Checkbox };

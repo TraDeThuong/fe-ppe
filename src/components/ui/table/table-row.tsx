@@ -13,7 +13,7 @@ export function TableRow({
   row,
   className = "",
 }: TableRowProps) {
-  const { variant, onRowClick } = useTableContext();
+  const { variant, onRowClick, getRowClassName } = useTableContext();
 
   const isSelected = row.getIsSelected();
   const isClickable = Boolean(onRowClick);
@@ -26,7 +26,7 @@ export function TableRow({
   const handleKeyDown = (
     event: React.KeyboardEvent<HTMLTableRowElement>,
   ) => {
-    if (!onRowClick) return;
+    if (!onRowClick || event.target !== event.currentTarget) return;
 
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -38,7 +38,10 @@ export function TableRow({
     <tr
       data-state={isSelected ? "selected" : undefined}
       data-clickable={isClickable ? "" : undefined}
-      onClick={onRowClick ? () => onRowClick(row) : undefined}
+      onClick={onRowClick ? (event) => {
+        if ((event.target as Element).closest("button,a,input,select,textarea,[role=checkbox],[role=menuitem],[role=button]")) return;
+        onRowClick(row);
+      } : undefined}
       onKeyDown={handleKeyDown}
       tabIndex={isClickable ? 0 : undefined}
       className={[
@@ -52,6 +55,7 @@ export function TableRow({
         isClickable
           ? "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
           : "",
+        getRowClassName?.(row.original),
         className,
       ]
         .filter(Boolean)

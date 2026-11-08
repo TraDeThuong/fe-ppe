@@ -1,10 +1,9 @@
 
-import { forwardRef } from "react";
 
 const variantClasses = {
   primary: "bg-primary text-primary-foreground",
   secondary: "bg-secondary text-secondary-foreground",
-  outline: "bg-background text-foreground",
+  outline: "bg-background text-foreground border border-border/70",
   ghost: "bg-background text-foreground",
   danger: "bg-danger text-danger-foreground",
   hybrid: "bg-background text-foreground",
@@ -21,6 +20,7 @@ const sizeClasses = {
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  ref?: React.Ref<HTMLButtonElement>;
   variant?: keyof typeof variantClasses;
   size?: keyof typeof sizeClasses;
 }
@@ -29,8 +29,9 @@ const baseClasses = [
   "relative isolate inline-flex items-center justify-center gap-2",
   "rounded-xl font-medium",
   "transition-[box-shadow,transform,background-color,filter] duration-300 ease-out",
+  "motion-reduce:transition-none motion-reduce:transform-none",
   "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary",
-  "enabled:active:translate-y-px",
+  "enabled:active:translate-y-px motion-reduce:enabled:active:translate-y-0",
   "disabled:cursor-not-allowed disabled:opacity-60",
 ].join(" ");
 
@@ -58,9 +59,9 @@ const sculptedClasses = [
   "bg-gradient-to-br from-primary via-primary to-primary/80",
   "border border-white/15",
   "shadow-[8px_8px_16px_rgba(0,0,0,0.30),-5px_-5px_12px_rgba(255,255,255,0.18),inset_1px_1px_2px_rgba(255,255,255,0.20),inset_-2px_-2px_4px_rgba(0,0,0,0.12)]",
-  "enabled:hover:-translate-y-1 enabled:hover:scale-[1.03]",
+  "enabled:hover:-translate-y-1 enabled:hover:scale-[1.03] motion-reduce:enabled:hover:translate-y-0 motion-reduce:enabled:hover:scale-100",
   "enabled:hover:shadow-[12px_12px_22px_rgba(0,0,0,0.35),-6px_-6px_14px_rgba(255,255,255,0.22),inset_1px_1px_2px_rgba(255,255,255,0.25)]",
-  "enabled:active:translate-y-0 enabled:active:scale-[0.98]",
+  "enabled:active:translate-y-0 enabled:active:scale-[0.98] motion-reduce:enabled:active:scale-100",
 ].join(" ");
 
 const auroraClasses = [
@@ -69,7 +70,7 @@ const auroraClasses = [
   "bg-gradient-to-br from-[#a7f3d0] via-[#a5b4fc] to-[#f0abfc]",
   "text-slate-900",
   "shadow-[8px_8px_18px_rgba(0,0,0,0.22),-5px_-5px_14px_rgba(255,255,255,0.35),inset_1px_1px_2px_rgba(255,255,255,0.55)]",
-  "enabled:hover:-translate-y-1 enabled:hover:scale-[1.025]",
+  "enabled:hover:-translate-y-1 enabled:hover:scale-[1.025] motion-reduce:enabled:hover:translate-y-0 motion-reduce:enabled:hover:scale-100",
   "enabled:hover:brightness-105",
   "enabled:hover:shadow-[12px_12px_24px_rgba(0,0,0,0.25),-6px_-6px_16px_rgba(255,255,255,0.40),inset_1px_1px_2px_rgba(255,255,255,0.65)]",
   "enabled:active:translate-y-0",
@@ -81,63 +82,57 @@ const metalClasses = [
   "bg-gradient-to-br from-[#f8fafc] via-[#cbd5e1] to-[#94a3b8]",
   "text-slate-800",
   "shadow-[8px_8px_16px_rgba(0,0,0,0.28),-5px_-5px_12px_rgba(255,255,255,0.30),inset_1px_1px_2px_rgba(255,255,255,0.75),inset_-1px_-1px_2px_rgba(0,0,0,0.12)]",
-  "enabled:hover:-translate-y-1 enabled:hover:scale-[1.03]",
+  "enabled:hover:-translate-y-1 enabled:hover:scale-[1.03] motion-reduce:enabled:hover:translate-y-0 motion-reduce:enabled:hover:scale-100",
   "enabled:hover:brightness-105",
-  "enabled:active:translate-y-0 enabled:active:scale-[0.98]",
+  "enabled:active:translate-y-0 enabled:active:scale-[0.98] motion-reduce:enabled:active:scale-100",
 ].join(" ");
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  function Button(
-    {
-      variant = "primary",
-      size = "md",
-      className,
-      disabled = false,
-      type = "button",
-      ...props
-    },
-    ref,
-  ) {
-    const isSolid = variant === "primary" || variant === "danger";
+export function Button({
+  ref,
+  variant = "primary",
+  size = "md",
+  className,
+  disabled = false,
+  type = "button",
+  ...props
+}: ButtonProps) {
+  const isSolid = variant === "primary" || variant === "danger";
 
-    let shadowClasses = neumorphicShadow;
+  let shadowClasses = neumorphicShadow;
 
-    if (isSolid) {
-      shadowClasses = solidShadow;
-    } else if (variant === "hybrid") {
-      shadowClasses = hybridShadow;
-    }
+  if (isSolid) {
+    shadowClasses = solidShadow;
+  } else if (variant === "hybrid") {
+    shadowClasses = hybridShadow;
+  }
 
-    let specialClasses = "";
+  let specialClasses = "";
 
-    if (variant === "sculpted") {
-      specialClasses = sculptedClasses;
-    } else if (variant === "aurora") {
-      specialClasses = auroraClasses;
-    } else if (variant === "metal") {
-      specialClasses = metalClasses;
-    }
+  if (variant === "sculpted") {
+    specialClasses = sculptedClasses;
+  } else if (variant === "aurora") {
+    specialClasses = auroraClasses;
+  } else if (variant === "metal") {
+    specialClasses = metalClasses;
+  }
 
-    return (
-      <button
-        ref={ref}
-        type={type}
-        disabled={disabled}
-        className={[
-          baseClasses,
-          shadowClasses,
-          specialClasses,
-          variantClasses[variant],
-          sizeClasses[size],
-          disabled && "transform-none",
-          className,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        {...props}
-      />
-    );
-  },
-);
-
-Button.displayName = "Button";
+  return (
+    <button
+      ref={ref}
+      type={type}
+      disabled={disabled}
+      className={[
+        baseClasses,
+        shadowClasses,
+        specialClasses,
+        variantClasses[variant],
+        sizeClasses[size],
+        disabled && "transform-none",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      {...props}
+    />
+  );
+}

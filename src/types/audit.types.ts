@@ -54,6 +54,7 @@ export interface AuditLogQueryParams {
   toDate?: string;
   search?: string;
   sortBy?: string;
+  order?: "asc" | "desc";
   sortOrder?: "asc" | "desc";
 }
 

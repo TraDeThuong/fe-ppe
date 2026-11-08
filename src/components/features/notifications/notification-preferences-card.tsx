@@ -9,8 +9,6 @@ import {
   Volume2,
   VolumeX,
   Clock,
-  Music,
-  Check,
   Radio,
 } from "lucide-react";
 import {
@@ -230,10 +228,10 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
                 onChange={(e) => handleSoundMapChange("CRITICAL", e.target.value as SoundPreset)}
                 className="w-full rounded-lg border border-border/40 bg-background px-2 py-1 text-xs font-semibold text-foreground outline-none"
               >
-                <option value="critical">{isVietnamese ? "🚨 Còi khẩn cấp (Siren)" : "🚨 Emergency Siren"}</option>
-                <option value="warning">{isVietnamese ? "🔔 Chuông tam âm" : "🔔 Tri-tone Chime"}</option>
-                <option value="radio">{isVietnamese ? "📻 Bộ đàm điều phối" : "📻 Dispatch Radio"}</option>
-                <option value="info">{isVietnamese ? "💧 Giọt nước thanh thoát" : "💧 Glass Pop"}</option>
+                <option value="critical">{isVietnamese ? "Còi khẩn cấp (Siren)" : "Emergency Siren"}</option>
+                <option value="warning">{isVietnamese ? "Chuông tam âm" : "Tri-tone Chime"}</option>
+                <option value="radio">{isVietnamese ? "Bộ đàm điều phối" : "Dispatch Radio"}</option>
+                <option value="info">{isVietnamese ? "Giọt nước thanh thoát" : "Glass Pop"}</option>
               </select>
             </div>
 
@@ -256,10 +254,10 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
                 onChange={(e) => handleSoundMapChange("HIGH", e.target.value as SoundPreset)}
                 className="w-full rounded-lg border border-border/40 bg-background px-2 py-1 text-xs font-semibold text-foreground outline-none"
               >
-                <option value="warning">{isVietnamese ? "🔔 Chuông tam âm" : "🔔 Tri-tone Chime"}</option>
-                <option value="critical">{isVietnamese ? "🚨 Còi khẩn cấp (Siren)" : "🚨 Emergency Siren"}</option>
-                <option value="radio">{isVietnamese ? "📻 Bộ đàm điều phối" : "📻 Dispatch Radio"}</option>
-                <option value="info">{isVietnamese ? "💧 Giọt nước thanh thoát" : "💧 Glass Pop"}</option>
+                <option value="warning">{isVietnamese ? "Chuông tam âm" : "Tri-tone Chime"}</option>
+                <option value="critical">{isVietnamese ? "Còi khẩn cấp (Siren)" : "Emergency Siren"}</option>
+                <option value="radio">{isVietnamese ? "Bộ đàm điều phối" : "Dispatch Radio"}</option>
+                <option value="info">{isVietnamese ? "Giọt nước thanh thoát" : "Glass Pop"}</option>
               </select>
             </div>
 
@@ -282,9 +280,9 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
                 onChange={(e) => handleSoundMapChange("NORMAL", e.target.value as SoundPreset)}
                 className="w-full rounded-lg border border-border/40 bg-background px-2 py-1 text-xs font-semibold text-foreground outline-none"
               >
-                <option value="info">{isVietnamese ? "💧 Giọt nước thanh thoát" : "💧 Glass Pop"}</option>
-                <option value="success">{isVietnamese ? "✨ Hợp âm thành công" : "✨ Success Chord"}</option>
-                <option value="warning">{isVietnamese ? "🔔 Chuông tam âm" : "🔔 Tri-tone Chime"}</option>
+                <option value="info">{isVietnamese ? "Giọt nước thanh thoát" : "Glass Pop"}</option>
+                <option value="success">{isVietnamese ? "Hợp âm thành công" : "Success Chord"}</option>
+                <option value="warning">{isVietnamese ? "Chuông tam âm" : "Tri-tone Chime"}</option>
               </select>
             </div>
 
@@ -307,8 +305,8 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
                 onChange={(e) => handleSoundMapChange("LOW", e.target.value as SoundPreset)}
                 className="w-full rounded-lg border border-border/40 bg-background px-2 py-1 text-xs font-semibold text-foreground outline-none"
               >
-                <option value="info">{isVietnamese ? "💧 Giọt nước thanh thoát" : "💧 Glass Pop"}</option>
-                <option value="success">{isVietnamese ? "✨ Hợp âm thành công" : "✨ Success Chord"}</option>
+                <option value="info">{isVietnamese ? "Giọt nước thanh thoát" : "Glass Pop"}</option>
+                <option value="success">{isVietnamese ? "Hợp âm thành công" : "Success Chord"}</option>
               </select>
             </div>
           </div>

@@ -87,6 +87,14 @@ export const userService = {
   },
 
   /**
+   * PUT /api/v1/users/:id/sites
+   * Gán danh sách công trường được phép truy cập cho người dùng (chỉ dành cho Admin).
+   */
+  async assignUserSites(id: string, siteIds: string[]): Promise<UserResponseDto> {
+    return (await apiClient.put(`/users/${id}/sites`, { siteIds })) as UserResponseDto;
+  },
+
+  /**
    * DELETE /api/v1/users/:id
    * Xóa mềm (khóa) tài khoản người dùng.
    */

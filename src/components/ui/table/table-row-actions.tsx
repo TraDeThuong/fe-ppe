@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { Row, RowData } from "@tanstack/react-table";
 import { MoreVertical, MoreHorizontal } from "lucide-react";
+import { useTableContext } from "./table-context";
 import type { TableFeatureSet } from "./table-config";
 
 export interface TableRowAction<TData extends RowData = any> {
@@ -93,9 +94,19 @@ export function TableRowActions<TData extends RowData = any>({
     }
   };
 
-  // Click outside, phím Escape, và cuộn trang để đóng menu
+  // Click outside, phím Escape, phím mũi tên và cuộn trang để đóng/điều hướng menu
   useEffect(() => {
     if (!isOpen) return;
+
+    // Tự động focus vào item đầu tiên khi mở menu
+    const focusTimer = requestAnimationFrame(() => {
+      if (menuRef.current) {
+        const firstItem = menuRef.current.querySelector<HTMLButtonElement>(
+          'button[role="menuitem"]:not([disabled])'
+        );
+        firstItem?.focus();
+      }
+    });
 
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
@@ -110,7 +121,36 @@ export function TableRowActions<TData extends RowData = any>({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        event.stopPropagation();
         setIsOpen(false);
+        triggerRef.current?.focus();
+        return;
+      }
+
+      if (!menuRef.current) return;
+      const items = Array.from(
+        menuRef.current.querySelectorAll<HTMLButtonElement>(
+          'button[role="menuitem"]:not([disabled])'
+        )
+      );
+      if (items.length === 0) return;
+
+      const activeIndex = items.indexOf(document.activeElement as HTMLButtonElement);
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        const nextIndex = activeIndex === -1 || activeIndex === items.length - 1 ? 0 : activeIndex + 1;
+        items[nextIndex]?.focus();
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        const prevIndex = activeIndex <= 0 ? items.length - 1 : activeIndex - 1;
+        items[prevIndex]?.focus();
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        items[0]?.focus();
+      } else if (event.key === "End") {
+        event.preventDefault();
+        items[items.length - 1]?.focus();
       }
     };
 
@@ -124,6 +164,7 @@ export function TableRowActions<TData extends RowData = any>({
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
+      cancelAnimationFrame(focusTimer);
       window.removeEventListener("scroll", handleScrollOrResize, true);
       window.removeEventListener("resize", handleScrollOrResize);
       document.removeEventListener("mousedown", handleClickOutside);
@@ -131,7 +172,8 @@ export function TableRowActions<TData extends RowData = any>({
     };
   }, [isOpen]);
 
-  if (visibleActions.length === 0) return null;
+  const { features, loading, fetching } = useTableContext();
+  if (features.rowActions === false || visibleActions.length === 0) return null;
 
   // CHẾ ĐỘ 1: SỔ XUỐNG MENU TỪ 1 ICON DUY NHẤT (DROPDOWN) - MẶC ĐỊNH
   if (mode === "dropdown") {
@@ -142,6 +184,7 @@ export function TableRowActions<TData extends RowData = any>({
         onClick={(event) => event.stopPropagation()}
       >
         <button
+          disabled={loading || fetching}
           ref={triggerRef}
           type="button"
           aria-haspopup="menu"
@@ -213,7 +256,7 @@ export function TableRowActions<TData extends RowData = any>({
                       }
                     }}
                     className={[
-                      "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-left transition-all duration-150",
+                      "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-left transition-all duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:bg-black/5 dark:focus-visible:bg-white/5",
                       isDanger
                         ? "text-danger hover:bg-danger/10 hover:shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)]"
                         : isPrimary

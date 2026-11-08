@@ -42,6 +42,7 @@ export function TwoFactorForm() {
   const [digits, setDigits] = useState<string[]>(Array(OTP_BOX_COUNT).fill(""));
   const [expired, setExpired] = useState(false);
   const boxRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const backupInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const stored = sessionStorage.getItem(TEMP_TOKEN_STORAGE_KEY);
@@ -145,6 +146,15 @@ export function TwoFactorForm() {
     verify.mutate({ tempToken, code: values.code.trim().toUpperCase() });
   }
 
+  function handleFormError() {
+    if (mode === "totp") {
+      const firstEmptyIndex = digits.findIndex((d) => !d);
+      boxRefs.current[firstEmptyIndex !== -1 ? firstEmptyIndex : 0]?.focus();
+    } else {
+      backupInputRef.current?.focus();
+    }
+  }
+
   function handleLoginAgain() {
     sessionStorage.removeItem(TEMP_TOKEN_STORAGE_KEY);
     router.replace("/login");
@@ -219,7 +229,7 @@ export function TwoFactorForm() {
 
   return (
     <form
-      onSubmit={form.handleSubmit(onSubmit)}
+      onSubmit={form.handleSubmit(onSubmit, handleFormError)}
       noValidate
       className="flex flex-col gap-5"
       data-testid="two-factor-form"
@@ -259,7 +269,7 @@ export function TwoFactorForm() {
                 disabled={verify.isPending}
                 onChange={(e) => handleDigitChange(index, e.target.value)}
                 onKeyDown={(e) => handleDigitKeyDown(index, e)}
-                onPaste={index === 0 ? handleDigitPaste : undefined}
+                onPaste={handleDigitPaste}
                 className={[
                   "h-11 sm:h-12 w-full min-w-0 rounded-xl border bg-background text-center text-base sm:text-lg font-semibold",
                   "shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]",
@@ -278,7 +288,9 @@ export function TwoFactorForm() {
           error={codeError}
         >
           <Input
+            ref={backupInputRef}
             autoComplete="one-time-code"
+            spellCheck={false}
             placeholder={t("2fa.backupCodePlaceholder")}
             disabled={verify.isPending}
             onChange={(e) =>
@@ -291,7 +303,7 @@ export function TwoFactorForm() {
       <button
         type="button"
         onClick={() => switchMode(mode === "totp" ? "backup" : "totp")}
-        className="self-start text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+        className="self-start py-2.5 text-xs font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
       >
         {mode === "totp" ? t("2fa.useBackupCode") : t("2fa.useTotp")}
       </button>

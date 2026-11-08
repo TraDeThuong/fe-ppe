@@ -27,8 +27,8 @@ export function useCreateUser(
     mutationFn: (payload: CreateUserPayload) => userService.createUser(payload),
     onSuccess: async (...args) => {
       const [user] = args;
-      await queryClient.invalidateQueries({ queryKey: userKeys.lists() });
-      toast.success(`Đã tạo tài khoản cho "${user.fullName || user.email}" thành công.`);
+      await queryClient.invalidateQueries({ queryKey: userKeys.all });
+      if (!options?.suppressToast) toast.success(`Đã tạo tài khoản cho "${user.fullName || user.email}" thành công.`);
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -59,10 +59,10 @@ export function useUpdateUser(
     onSuccess: async (...args) => {
       const [user, variables] = args;
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: userKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: userKeys.all }),
         queryClient.invalidateQueries({ queryKey: userKeys.detail(variables.id) }),
       ]);
-      toast.success(`Đã cập nhật thông tin cho "${user.fullName || user.email}" thành công.`);
+      if (!options?.suppressToast) toast.success(`Đã cập nhật thông tin cho "${user.fullName || user.email}" thành công.`);
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -74,7 +74,7 @@ export function useUpdateUser(
 }
 
 /**
- * Hook xóa mềm (khóa) người dùng (DELETE /api/v1/users/:id).
+ * Hook xóa mềm người dùng (DELETE /api/v1/users/:id).
  */
 export function useDeleteUser(
   options?: MutationHookOptions<{ message: string }, string>,
@@ -88,10 +88,10 @@ export function useDeleteUser(
     onSuccess: async (...args) => {
       const [, id] = args;
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: userKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: userKeys.all }),
         queryClient.invalidateQueries({ queryKey: userKeys.detail(id) }),
       ]);
-      toast.success("Đã khóa tài khoản người dùng thành công.");
+      if (!options?.suppressToast) toast.success("Đã xóa tài khoản người dùng thành công.");
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -117,10 +117,10 @@ export function useRestoreUser(
     onSuccess: async (...args) => {
       const [, id] = args;
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: userKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: userKeys.all }),
         queryClient.invalidateQueries({ queryKey: userKeys.detail(id) }),
       ]);
-      toast.success("Đã khôi phục tài khoản người dùng thành công.");
+      if (!options?.suppressToast) toast.success("Đã khôi phục tài khoản người dùng thành công.");
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -134,6 +134,41 @@ export function useRestoreUser(
 export interface AdminResetPasswordVariables {
   id: string;
   payload: AdminResetPasswordPayload;
+}
+
+export interface AssignUserSitesVariables {
+  id: string;
+  siteIds: string[];
+}
+
+/**
+ * Hook gán danh sách công trường cho người dùng (PUT /api/v1/users/:id/sites).
+ */
+export function useAssignUserSites(
+  options?: MutationHookOptions<UserResponseDto, AssignUserSitesVariables>,
+) {
+  const queryClient = useQueryClient();
+  const { onSuccess, onError, ...restOptions } = options ?? {};
+
+  return useMutation({
+    ...restOptions,
+    mutationFn: ({ id, siteIds }: AssignUserSitesVariables) =>
+      userService.assignUserSites(id, siteIds),
+    onSuccess: async (...args) => {
+      const [user, variables] = args;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: userKeys.all }),
+        queryClient.invalidateQueries({ queryKey: userKeys.detail(variables.id) }),
+      ]);
+      if (!options?.suppressToast) toast.success(`Đã phân công công trường cho "${user.fullName || user.email}" thành công.`);
+      await onSuccess?.(...args);
+    },
+    onError: async (...args) => {
+      const [error] = args;
+      handleMutationError(error, options?.suppressToast);
+      await onError?.(...args);
+    },
+  });
 }
 
 /**
@@ -152,7 +187,7 @@ export function useAdminResetPassword(
     onSuccess: async (...args) => {
       const [, variables] = args;
       await queryClient.invalidateQueries({ queryKey: userKeys.detail(variables.id) });
-      toast.success("Đã đặt lại mật khẩu thành công.");
+      if (!options?.suppressToast) toast.success("Đã đặt lại mật khẩu thành công.");
       await onSuccess?.(...args);
     },
     onError: async (...args) => {

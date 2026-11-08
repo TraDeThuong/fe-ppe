@@ -1,19 +1,25 @@
 "use client";
+import { Table, TableToolbar, TableContent, TablePagination, TableRefresh } from "@/components/ui/table";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  CheckCircle2,
+  Bell,
+  Cctv,
   ChevronRight,
+  Cpu,
   ExternalLink,
   Eye,
   Key,
   Lock,
   Plus,
+  Settings2,
   Shield,
+  ShieldAlert,
   ShieldCheck,
   User,
   Users,
+  Webhook,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,7 +27,18 @@ import { Badge } from "@/components/ui/badge";
 import { useUsers } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
 import type { PermissionDto, RoleDto, ResourceCategory, UserResponseDto } from "@/types";
-import { RESOURCE_CATEGORY_MAP } from "@/types";
+import { RESOURCE_CATEGORY_ORDER, getPermissionCategory } from "@/types";
+
+const CATEGORY_ICONS: Record<ResourceCategory, typeof Shield> = {
+  INCIDENTS_SAFETY: ShieldAlert,
+  SITES_CAMERAS: Cctv,
+  ANALYTICS_AI: Cpu,
+  USER_MANAGEMENT: Users,
+  RBAC_SECURITY: ShieldCheck,
+  NOTIFICATIONS: Bell,
+  WEBHOOK: Webhook,
+  SYSTEM_OPS: Settings2,
+};
 
 export type RoleStatKey = "totalRoles" | "systemRoles" | "totalPermissions" | "assignedUsers";
 
@@ -52,6 +69,7 @@ function formatDate(dateInput?: string | Date | null, loc: string = "vi-VN"): st
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
+
     });
   } catch {
     return "—";
@@ -126,48 +144,28 @@ export function RoleStatsDetailPanel({
     return sum;
   }, [roleUsersCountMap]);
 
-  // Nhóm quyền hạn theo 4 nhóm danh mục lớn
+  // Nhóm quyền hạn theo 8 nhóm danh mục nghiệp vụ
   const groupedPermissions = useMemo(() => {
-    const groups: Record<
+    const groups = Object.fromEntries(
+      RESOURCE_CATEGORY_ORDER.map((cat) => [
+        cat,
+        {
+          category: cat,
+          title: t(`rbac.category.${cat}`),
+          perms: [] as PermissionDto[],
+          resources: new Set<string>(),
+        },
+      ]),
+    ) as Record<
       ResourceCategory,
       { category: ResourceCategory; title: string; perms: PermissionDto[]; resources: Set<string> }
-    > = {
-      MONITORING: {
-        category: "MONITORING",
-        title: t("rbac.category.MONITORING"),
-        perms: [],
-        resources: new Set(),
-      },
-      ANALYTICS: {
-        category: "ANALYTICS",
-        title: t("rbac.category.ANALYTICS"),
-        perms: [],
-        resources: new Set(),
-      },
-      IDENTITY: {
-        category: "IDENTITY",
-        title: t("rbac.category.IDENTITY"),
-        perms: [],
-        resources: new Set(),
-      },
-      SYSTEM: {
-        category: "SYSTEM",
-        title: t("rbac.category.SYSTEM"),
-        perms: [],
-        resources: new Set(),
-      },
-    };
+    >;
 
     permissions.forEach((p) => {
-      const cat = (RESOURCE_CATEGORY_MAP[p.resource as keyof typeof RESOURCE_CATEGORY_MAP] ||
-        "SYSTEM") as ResourceCategory;
-      if (groups[cat]) {
-        groups[cat].perms.push(p);
-        groups[cat].resources.add(String(p.resource));
-      } else {
-        groups.SYSTEM.perms.push(p);
-        groups.SYSTEM.resources.add(String(p.resource));
-      }
+      const cat = getPermissionCategory(p);
+      const target = groups[cat] ?? groups.SYSTEM_OPS;
+      target.perms.push(p);
+      target.resources.add(String(p.resource));
     });
 
     return groups;
@@ -220,11 +218,17 @@ export function RoleStatsDetailPanel({
         <div className="flex items-center gap-1.5 shrink-0">
           {activeStat === "totalRoles" && onCreateRole && (
             <Button
+
               type="button"
+
               variant="outline"
+
               size="sm"
+
               onClick={onCreateRole}
+
               className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs text-primary hover:text-primary px-2 sm:px-3"
+
             >
               <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span className="hidden sm:inline">{t("roles.detail.createRole")}</span>
@@ -233,11 +237,17 @@ export function RoleStatsDetailPanel({
 
           {activeStat === "totalPermissions" && roles[0] && onConfigurePermissions && (
             <Button
+
               type="button"
+
               variant="outline"
+
               size="sm"
+
               onClick={() => onConfigurePermissions(roles[0])}
+
               className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs text-primary hover:text-primary px-2 sm:px-3"
+
             >
               <ExternalLink className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span className="hidden sm:inline">{t("roles.detail.matrixBtn")}</span>
@@ -247,10 +257,15 @@ export function RoleStatsDetailPanel({
           {activeStat === "assignedUsers" && (
             <Link href="/users">
               <Button
+
                 type="button"
+
                 variant="outline"
+
                 size="sm"
+
                 className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs text-primary hover:text-primary px-2 sm:px-3"
+
               >
                 <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                 <span className="hidden sm:inline">{t("roles.detail.usersManagerBtn")}</span>
@@ -259,10 +274,15 @@ export function RoleStatsDetailPanel({
           )}
 
           <button
+
             type="button"
+
             onClick={onClose}
+
             className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg sm:rounded-xl border border-border/40 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+
             aria-label={t("roles.detail.closeAria")}
+
           >
             <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
@@ -283,124 +303,149 @@ export function RoleStatsDetailPanel({
           </div>
 
           {/* MOBILE VIEW: THẺ GỌN CHO ĐIỆN THOẠI (Không bị tràn bảng) */}
-          <div className="block sm:hidden max-h-[260px] overflow-y-auto space-y-2 pr-0.5">
-            {roles.map((role) => (
-              <div
-                key={role.id}
-                className="rounded-xl border border-border/40 bg-background/60 p-2.5 shadow-[inset_1px_1px_2px_var(--shadow-dark)] space-y-1.5 dark:border-black/50 dark:bg-card/70"
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    {role.isSystem ? (
-                      <Lock className="h-3 w-3 text-primary shrink-0" />
-                    ) : (
-                      <Shield className="h-3 w-3 text-primary shrink-0" />
-                    )}
-                    <span className="font-mono text-xs font-bold text-foreground truncate">{role.name}</span>
-                    <Badge variant={role.isSystem ? "outline" : "secondary"} size="sm" className="text-[9px] px-1 py-0 shrink-0">
-                      {role.isSystem ? t("roles.badge.system") : t("roles.badge.custom")}
-                    </Badge>
-                  </div>
-
-                  {onConfigurePermissions && (
-                    <button
-                      type="button"
-                      onClick={() => onConfigurePermissions(role)}
-                      className="text-[11px] font-semibold text-primary hover:underline shrink-0 flex items-center gap-0.5"
-                    >
-                      <Eye className="h-3 w-3" />
-                      <span>{t("roles.detail.viewPerms")}</span>
-                    </button>
-                  )}
-                </div>
-
-                <p className="text-[11px] text-muted-foreground line-clamp-1">
-                  {t(`roles.desc.${role.name}`) !== `roles.desc.${role.name}`
-                    ? t(`roles.desc.${role.name}`)
-                    : role.description || t("roles.detail.noDescription")}
-                </p>
-
-                <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t border-border/20 pt-1">
-                  <span>{t("roles.detail.permsCount", { count: role.permissions?.length ?? 0 })}</span>
-                  <span>{t("roles.detail.userCount", { count: roleUsersCountMap.get(role.id) ?? role.userCount ?? 0 })}</span>
-                </div>
-              </div>
-            ))}
-          </div>
 
           {/* DESKTOP VIEW: BẢNG TIÊU CHUẨN */}
-          <div className="hidden sm:block max-h-[280px] overflow-y-auto rounded-xl border border-border/30 bg-background/50 shadow-[inset_1px_1px_3px_var(--shadow-dark)]">
-            <table className="w-full text-left text-xs">
-              <thead className="sticky top-0 bg-background/95 backdrop-blur-sm border-b border-border/40 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                <tr>
-                  <th className="py-2.5 px-3.5">{t("roles.table.roleName")}</th>
-                  <th className="py-2.5 px-3">{t("roles.table.type")}</th>
-                  <th className="py-2.5 px-3">{t("roles.table.description")}</th>
-                  <th className="py-2.5 px-3 text-center">{t("roles.table.permsCount")}</th>
-                  <th className="py-2.5 px-3 text-center">{t("roles.table.personnel")}</th>
-                  <th className="py-2.5 px-3 text-right">{t("roles.table.actions")}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/20">
-                {roles.map((role) => (
-                  <tr
-                    key={role.id}
-                    className="transition-colors hover:bg-muted/30 group"
-                  >
-                    <td className="py-2.5 px-3.5 font-bold text-foreground">
-                      <div className="flex items-center gap-2">
-                        {role.isSystem ? (
-                          <Lock className="h-3.5 w-3.5 text-primary shrink-0" />
-                        ) : (
-                          <Shield className="h-3.5 w-3.5 text-primary shrink-0" />
-                        )}
-                        <span className="font-mono">{role.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3">
+          <div className="min-w-0">
+            <Table
+              surface="embedded"
+              data={roles}
+              columns={[{
+                id: "name",
+                header: t("roles.table.roleName"),
+                accessorFn: (role) => role.name,
+                enableSorting: true,
+                cell: ({ row }) => {
+                  const role = row.original;
+                  return <div className={"font-bold text-foreground"}>
+                    <div className="flex items-center gap-2">
                       {role.isSystem ? (
-                        <Badge variant="outline" size="sm" shape="pill" className="text-[10px] text-foreground">
-                          {t("roles.badge.system")}
-                        </Badge>
+                        <Lock className="h-3.5 w-3.5 text-primary shrink-0" />
                       ) : (
-                        <Badge variant="secondary" size="sm" shape="pill" className="text-[10px]">
-                          {t("roles.badge.custom")}
-                        </Badge>
+                        <Shield className="h-3.5 w-3.5 text-primary shrink-0" />
                       )}
-                    </td>
-                    <td className="py-2.5 px-3 max-w-[280px] truncate text-muted-foreground">
-                      {t(`roles.desc.${role.name}`) !== `roles.desc.${role.name}`
-                        ? t(`roles.desc.${role.name}`)
-                        : role.description || t("roles.detail.noDescription")}
-                    </td>
-                    <td className="py-2.5 px-3 text-center">
-                      <span className="font-mono text-xs font-semibold text-foreground">
-                        {role.permissions?.length ?? 0} {t("roles.table.permsCount").toLowerCase()}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-center">
-                      <span className="font-mono text-xs font-semibold text-foreground">
-                        {roleUsersCountMap.get(role.id) ?? role.userCount ?? 0} {t("roles.table.personnel").toLowerCase()}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-right">
-                      {onConfigurePermissions && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onConfigurePermissions(role)}
-                          className="h-7 px-2.5 text-xs text-primary hover:text-primary gap-1"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          {t("roles.detail.viewPerms")}
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <Link
+                        href={`/roles/${role.id}`}
+                        className="font-mono hover:text-primary hover:underline"
+                      >
+                        {role.name}
+                      </Link>
+                    </div>
+                  </div>;
+                }
+              },
+              {
+                id: "isSystem",
+                header: t("roles.table.type"),
+                accessorFn: (role) => role.isSystem,
+                enableSorting: true,
+                cell: ({ row }) => {
+                  const role = row.original;
+                  return <div className={""}>
+                    {role.isSystem ? (
+                      <Badge
+                        variant="outline"
+                        size="sm"
+                        shape="pill"
+                        className="text-[10px] text-foreground"
+                      >
+                        {t("roles.badge.system")}
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant="secondary"
+                        size="sm"
+                        shape="pill"
+                        className="text-[10px]"
+                      >
+                        {t("roles.badge.custom")}
+                      </Badge>
+                    )}
+                  </div>;
+                }
+              },
+              {
+                id: "description",
+                header: t("roles.table.description"),
+                accessorFn: (role) => role.description,
+                enableSorting: true,
+                cell: ({ row }) => {
+                  const role = row.original;
+                  return <div className={"max-w-[280px] truncate text-muted-foreground"}>
+                    {t(`roles.desc.${role.name}`) !== `roles.desc.${role.name}`
+                      ? t(`roles.desc.${role.name}`)
+                      : role.description || t("roles.detail.noDescription")}
+                  </div>;
+                }
+              },
+              {
+                id: "permissions",
+                header: t("roles.table.permsCount"),
+                accessorFn: (role) => role.permissions?.length ?? 0,
+                enableSorting: false,
+                cell: ({ row }) => {
+                  const role = row.original;
+                  return <div className={"text-center"}>
+                    <span className="font-mono text-xs font-semibold text-foreground">
+                      {role.permissions?.length ?? 0} {t("roles.table.permsCount").toLowerCase()}
+                    </span>
+                  </div>;
+                }
+              },
+              {
+                id: "userCount",
+                header: t("roles.table.personnel"),
+                accessorFn: (role) => roleUsersCountMap.get(role.id) ?? role.userCount ?? 0,
+                enableSorting: true,
+                cell: ({ row }) => {
+                  const role = row.original;
+                  return <div className={"text-center"}>
+                    <span className="font-mono text-xs font-semibold text-foreground">
+                      {roleUsersCountMap.get(role.id) ?? role.userCount ?? 0} {t("roles.table.personnel").toLowerCase()}
+                    </span>
+                  </div>;
+                }
+              },
+              {
+                id: "actions",
+                header: t("roles.table.actions"),
+                enableSorting: false,
+                cell: ({ row }) => {
+                  const role = row.original;
+                  return <div className={"text-right"}>
+                    {onConfigurePermissions && (
+                      <Button
+
+                        type="button"
+
+                        variant="ghost"
+
+                        size="sm"
+
+                        onClick={() => onConfigurePermissions(role)}
+
+                        className="h-7 px-2.5 text-xs text-primary hover:text-primary gap-1"
+
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        {t("roles.detail.viewPerms")}
+                      </Button>
+                    )}
+                  </div>;
+                }
+              }]}
+              loading={false}
+              getRowId={row => row.id}
+              features={{
+                globalFilter: false,
+                sorting: true,
+                rowSelection: false,
+                pagination: false
+              }}
+            >
+              <TableToolbar showSearch={false} actions={<TableRefresh />} />
+              <TableContent />
+              <TablePagination />
+            </Table>
           </div>
         </div>
       )}
@@ -416,10 +461,13 @@ export function RoleStatsDetailPanel({
               >
                 <div>
                   <div className="flex items-center justify-between gap-1 mb-1">
-                    <span className="font-mono text-xs font-bold text-foreground flex items-center gap-1.5 truncate">
+                    <Link
+                      href={`/roles/${role.id}`}
+                      className="font-mono text-xs font-bold text-foreground hover:text-primary hover:underline flex items-center gap-1.5 truncate"
+                    >
                       <Lock className="h-3.5 w-3.5 text-primary shrink-0" />
                       {role.name}
-                    </span>
+                    </Link>
                     <Badge variant="outline" size="sm" className="text-[9px] sm:text-[10px] text-primary border-primary/30 shrink-0">
                       {t("roles.detail.immutable")}
                     </Badge>
@@ -450,37 +498,60 @@ export function RoleStatsDetailPanel({
         </div>
       )}
 
-      {/* ── 3. NỘI DUNG: TỔNG SỐ QUYỀN HẠN ────────────────────────────────────── */}
+      {/* ── 3. NỘI DUNG: TỔNG SỐ QUYỀN HẠN (8 NHÓM NGHIỆP VỤ) ──────────────────── */}
       {activeStat === "totalPermissions" && (
         <div className="space-y-2.5">
-          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
-            {(Object.keys(groupedPermissions) as ResourceCategory[]).map((catKey) => {
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-2.5 lg:grid-cols-4">
+            {RESOURCE_CATEGORY_ORDER.map((catKey) => {
               const group = groupedPermissions[catKey];
+              if (!group) return null;
+              const CategoryIcon = CATEGORY_ICONS[catKey] || Shield;
+
               return (
                 <div
                   key={catKey}
-                  className="rounded-xl border border-border/40 bg-background/60 p-2.5 sm:p-3 shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
+                  className="flex flex-col justify-between rounded-xl border border-border/40 bg-background/60 p-2.5 sm:p-3 shadow-[inset_1px_1px_2px_var(--shadow-dark)] transition-colors hover:border-primary/30"
                 >
-                  <div className="flex items-center justify-between mb-1 gap-1">
-                    <span className="text-[11px] sm:text-xs font-bold text-foreground truncate" title={group.title}>
-                      {group.title}
-                    </span>
-                    <Badge variant="outline" size="sm" className="font-mono text-[10px] text-primary border-primary/30 shrink-0 px-1 py-0">
-                      {group.perms.length}
-                    </Badge>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mb-1.5">
-                    {t("roles.detail.resourceGroups", { count: group.resources.size })}
-                  </p>
-                  <div className="flex flex-wrap gap-1 max-h-14 overflow-y-auto">
-                    {Array.from(group.resources).map((res) => (
-                      <span
-                        key={res}
-                        className="rounded bg-muted/60 px-1 py-0.5 text-[9px] font-mono text-muted-foreground truncate max-w-full"
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5 gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary shadow-[inset_1px_1px_2px_rgba(0,0,0,0.06)]">
+                          <CategoryIcon className="h-3.5 w-3.5" />
+                        </span>
+                        <span
+                          className="text-[11px] sm:text-xs font-bold text-foreground truncate"
+                          title={group.title}
+                        >
+                          {group.title}
+                        </span>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        size="sm"
+                        className="font-mono text-[10px] text-primary border-primary/30 shrink-0 px-1.5 py-0"
                       >
-                        {res}
-                      </span>
-                    ))}
+                        {group.perms.length}
+                      </Badge>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mb-1.5">
+                      {t("roles.detail.resourceGroups", { count: group.resources.size })}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1 max-h-14 overflow-y-auto">
+                    {Array.from(group.resources).map((res) => {
+                      const resLabelKey = `rbac.resource.${res}`;
+                      const resLabel = t(resLabelKey) !== resLabelKey ? t(resLabelKey) : res;
+                      return (
+                        <span
+                          key={res}
+                          title={`${res} — ${resLabel}`}
+                          className="rounded bg-muted/60 border border-border/30 px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground truncate max-w-full"
+                        >
+                          {res}
+                        </span>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -492,7 +563,12 @@ export function RoleStatsDetailPanel({
               <span className="font-semibold text-foreground">{t("roles.detail.actions")}</span>
               <div className="flex flex-wrap gap-1">
                 {["READ", "CREATE", "UPDATE", "DELETE", "ASSIGN"].map((act) => (
-                  <Badge key={act} variant="secondary" size="sm" className="text-[9px] py-0 px-1 text-foreground">
+                  <Badge
+                    key={act}
+                    variant="secondary"
+                    size="sm"
+                    className="text-[9px] py-0 px-1 text-foreground"
+                  >
                     {act}
                   </Badge>
                 ))}
@@ -514,14 +590,18 @@ export function RoleStatsDetailPanel({
                 const count = roleUsersCountMap.get(role.id) ?? role.userCount ?? 0;
                 return (
                   <button
+
                     key={role.id}
+
                     type="button"
+
                     onClick={() => setSelectedRoleId(role.id)}
-                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
-                      isSelected
+
+                    className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${isSelected
                         ? "bg-background text-primary border border-primary/40 shadow-[inset_2px_2px_4px_var(--shadow-dark)]"
                         : "border border-border/30 bg-background/50 text-muted-foreground"
-                    }`}
+                      }`}
+
                   >
                     {role.isSystem ? <Lock className="h-3 w-3 shrink-0" /> : <Shield className="h-3 w-3 shrink-0" />}
                     <span className="font-mono">{role.name}</span>
@@ -549,14 +629,18 @@ export function RoleStatsDetailPanel({
 
                   return (
                     <button
+
                       key={role.id}
+
                       type="button"
+
                       onClick={() => setSelectedRoleId(role.id)}
-                      className={`w-full text-left p-2 rounded-xl border transition-all duration-150 flex items-center justify-between gap-1.5 text-xs ${
-                        isSelected
+
+                      className={`w-full text-left p-2 rounded-xl border transition-all duration-150 flex items-center justify-between gap-1.5 text-xs ${isSelected
                           ? "!bg-background/90 !border-primary/50 text-primary font-bold shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)] dark:!border-primary/60 dark:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.7)]"
                           : "border-border/30 bg-background/50 hover:bg-muted/40 text-foreground dark:border-black/40 dark:hover:border-black dark:hover:bg-background/80"
-                      }`}
+                        }`}
+
                     >
                       <div className="flex items-center gap-1.5 truncate">
                         {role.isSystem ? (
@@ -668,10 +752,15 @@ export function RoleStatsDetailPanel({
 
                         <Link href={`/users?search=${encodeURIComponent(user.email || user.fullName || "")}`}>
                           <Button
+
                             type="button"
+
                             variant="ghost"
+
                             size="sm"
+
                             className="h-6 px-2 text-[10px] sm:text-xs text-primary hover:text-primary gap-0.5"
+
                           >
                             <Eye className="h-3 w-3" />
                             <span>{t("roles.detail.detailBtn")}</span>

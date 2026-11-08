@@ -41,7 +41,23 @@ export interface LocaleContextValue {
   dateTime: Intl.DateTimeFormat;
 }
 
-const LocaleContext = createContext<LocaleContextValue | null>(null);
+const defaultLocaleValue: LocaleContextValue = {
+  locale: DEFAULT_LOCALE,
+  setLocale: () => {},
+  t: (key: string, params?: Record<string, string | number>) => {
+    let text = dictionaries[DEFAULT_LOCALE][key] ?? key;
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        text = text.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+      }
+    }
+    return text;
+  },
+  number: new Intl.NumberFormat(DEFAULT_LOCALE),
+  dateTime: new Intl.DateTimeFormat(DEFAULT_LOCALE, { dateStyle: "medium", timeStyle: "short" }),
+};
+
+const LocaleContext = createContext<LocaleContextValue>(defaultLocaleValue);
 
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
@@ -97,11 +113,10 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     };
   }, [locale]);
 
-  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
+  return <LocaleContext value={value}>{children}</LocaleContext>;
 }
 
 export function useLocale(): LocaleContextValue {
   const ctx = useContext(LocaleContext);
-  if (!ctx) throw new Error("useLocale must be used within LocaleProvider");
-  return ctx;
+  return ctx ?? defaultLocaleValue;
 }

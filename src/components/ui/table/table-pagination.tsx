@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  ChevronsLeft,
-  ChevronsRight,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import { ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { useTableContext } from "./table-context";
 import { useLocale } from "@/providers/locale-provider";
@@ -28,7 +23,7 @@ export interface TablePaginationProps {
 
 export function TablePagination({
   className = "",
-  pageSizeOptions = [10, 20, 50, 100],
+  pageSizeOptions = [10, 20, 50],
   showPageSizeSelector = true,
   showRowCount = true,
   pageSizeLabel,
@@ -41,13 +36,8 @@ export function TablePagination({
   nextPageTitle,
   lastPageTitle,
 }: TablePaginationProps) {
-  let isVietnamese = true;
-  try {
-    const localeCtx = useLocale();
-    isVietnamese = localeCtx.locale === "vi-VN";
-  } catch {
-    // fallback if used outside LocaleProvider
-  }
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const effectivePageSizeLabel =
     pageSizeLabel ?? (isVietnamese ? "Số dòng" : "Page size");
@@ -64,7 +54,8 @@ export function TablePagination({
   const effectiveLastPageTitle =
     lastPageTitle ?? (isVietnamese ? "Trang cuối" : "Last page");
 
-  const { table, loading } = useTableContext();
+  const { table, loading, fetching, features } = useTableContext();
+  if (features.pagination === false) return null;
 
   const pagination = table.state.pagination;
   const pageIndex = pagination?.pageIndex ?? 0;
@@ -90,7 +81,7 @@ export function TablePagination({
     "rounded-xl border border-white/60 dark:border-white/10",
     "bg-background text-foreground",
     "shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)]",
-    "transition-all duration-200 hover:-translate-y-0.5 hover:text-primary",
+    "transition-[transform,color,box-shadow] duration-200 hover:-translate-y-0.5 hover:text-primary motion-reduce:transform-none",
     "active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] active:translate-y-0",
     "disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:translate-y-0 disabled:shadow-none",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
@@ -126,11 +117,11 @@ export function TablePagination({
                   <span>
                     {isVietnamese ? (
                       <>
-                        Hiển thị <strong className="text-foreground font-mono font-bold">{startRow}–{endRow}</strong> trong <strong className="text-foreground font-mono font-bold">{totalRows}</strong> dòng
+                        Hiển thị <strong className="text-foreground tabular-nums font-bold">{startRow}–{endRow}</strong> trong <strong className="text-foreground tabular-nums font-bold">{totalRows}</strong> dòng
                       </>
                     ) : (
                       <>
-                        Showing <strong className="text-foreground font-mono font-bold">{startRow}–{endRow}</strong> of <strong className="text-foreground font-mono font-bold">{totalRows}</strong> rows
+                        Showing <strong className="text-foreground tabular-nums font-bold">{startRow}–{endRow}</strong> of <strong className="text-foreground tabular-nums font-bold">{totalRows}</strong> rows
                       </>
                     )}
                   </span>
@@ -144,7 +135,7 @@ export function TablePagination({
 
             <select
               value={pageSize}
-              disabled={loading}
+              disabled={loading || fetching}
               onChange={(event) => {
                 table.setPageSize(Number(event.target.value));
               }}
@@ -167,7 +158,7 @@ export function TablePagination({
       </div>
 
       <div className="flex items-center justify-between sm:justify-end gap-2.5">
-        <span className="whitespace-nowrap font-mono text-[11px] sm:text-xs font-black px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-background border border-border/40 shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] text-primary">
+        <span className="whitespace-nowrap tabular-nums text-[11px] sm:text-xs font-black px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-background border border-border/40 shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] text-primary">
           {pageOfText
             ? pageOfText(currentPage, Math.max(pageCount, 1))
             : isVietnamese
@@ -181,7 +172,7 @@ export function TablePagination({
             className={controlClass}
             onClick={() => table.setPageIndex(0)}
             disabled={
-              loading ||
+              loading || fetching ||
               pageCount <= 1 ||
               !table.getCanPreviousPage()
             }
@@ -195,7 +186,7 @@ export function TablePagination({
             type="button"
             className={controlClass}
             onClick={() => table.previousPage()}
-            disabled={loading || !table.getCanPreviousPage()}
+            disabled={loading || fetching || !table.getCanPreviousPage()}
             aria-label={effectivePrevPageTitle}
             title={effectivePrevPageTitle}
           >
@@ -206,7 +197,7 @@ export function TablePagination({
             type="button"
             className={controlClass}
             onClick={() => table.nextPage()}
-            disabled={loading || !table.getCanNextPage()}
+            disabled={loading || fetching || !table.getCanNextPage()}
             aria-label={effectiveNextPageTitle}
             title={effectiveNextPageTitle}
           >
@@ -220,7 +211,7 @@ export function TablePagination({
               table.setPageIndex(Math.max(pageCount - 1, 0))
             }
             disabled={
-              loading ||
+              loading || fetching ||
               pageCount <= 1 ||
               !table.getCanNextPage()
             }

@@ -29,17 +29,11 @@ export function TableEditableCell({
   className = "",
 }: TableEditableCellProps) {
   const { onCellEdit, loading } = useTableContext();
-
-  let isVietnamese = true;
-  try {
-    const localeCtx = useLocale();
-    isVietnamese = localeCtx.locale === "vi-VN";
-  } catch {
-    // fallback if outside LocaleProvider
-  }
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const effectivePlaceholder =
-    placeholder ?? (isVietnamese ? "Nhập giá trị..." : "Enter value...");
+    placeholder ?? (isVietnamese ? "Nhập giá trị…" : "Enter value…");
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(value ?? ""));
@@ -108,10 +102,11 @@ export function TableEditableCell({
   };
 
   if (!editing) {
+    const isInteractive = !(disabled || loading || !onCellEdit);
     return (
-      <div
-        role="button"
-        tabIndex={disabled || loading || !onCellEdit ? -1 : 0}
+      <button
+        type="button"
+        disabled={!isInteractive}
         title={isVietnamese ? "Nhấp vào ô để chỉnh sửa trực tiếp nội dung" : "Click cell to edit directly"}
         aria-label={isVietnamese ? `Chỉnh sửa ${columnId}: ${String(value ?? "")}` : `Edit ${columnId}: ${String(value ?? "")}`}
         onClick={(event) => {
@@ -130,12 +125,13 @@ export function TableEditableCell({
           }
         }}
         className={[
-          "group/edit flex min-w-0 items-center justify-between gap-2.5",
+          "group/edit flex w-full min-w-0 items-center justify-between gap-2.5 text-left bg-transparent",
           "rounded-xl px-2.5 py-1.5 -mx-2.5 -my-1.5",
-          "cursor-pointer border border-transparent transition-all duration-200",
+          "cursor-pointer border border-transparent transition-[border-color,background-color,box-shadow] duration-200",
           "hover:border-primary/40 hover:bg-primary/[0.04]",
           "hover:shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+          "disabled:cursor-default disabled:opacity-80 disabled:hover:border-transparent disabled:hover:bg-transparent disabled:hover:shadow-none",
           className,
         ].join(" ")}
       >
@@ -148,13 +144,13 @@ export function TableEditableCell({
             "flex size-6 shrink-0 items-center justify-center rounded-lg",
             "border border-border/40 bg-background text-muted-foreground",
             "shadow-[1.5px_1.5px_3px_var(--shadow-dark),-1.5px_-1.5px_3px_var(--shadow-light)]",
-            "transition-all duration-200 group-hover/edit:text-primary group-hover/edit:scale-105",
+            "transition-[transform,color,opacity] duration-200 group-hover/edit:text-primary group-hover/edit:scale-105 motion-reduce:transform-none",
             "opacity-70 group-hover/edit:opacity-100",
           ].join(" ")}
         >
-          <Pencil size={11} />
+          <Pencil size={11} aria-hidden="true" />
         </span>
-      </div>
+      </button>
     );
   }
 

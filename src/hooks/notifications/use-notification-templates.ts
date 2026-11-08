@@ -1,5 +1,6 @@
 "use client";
 
+import { collectCatalog } from "@/lib/table-utils";
 import {
   useMutation,
   useQuery,
@@ -217,4 +218,11 @@ export function useTestSendNotificationTemplate(
       await onError?.(...args);
     },
   });
+}
+
+export function useNotificationTemplatesCatalog() {
+  return useQuery({ queryKey: notificationKeys.templates({ catalog: true }), queryFn: () => collectCatalog(async (page, limit) => {
+    const response = await notificationService.getTemplates({ page, limit });
+    return { items: response.data, meta: response.meta };
+  }), staleTime: 60_000 });
 }

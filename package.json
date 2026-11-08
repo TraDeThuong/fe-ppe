@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start",
     "test": "node --import tsx --test \"src/**/__tests__/*.test.ts*\"",
+    "test:tables": "node --import tsx --test src/lib/__tests__/table-utils.test.ts src/components/ui/__tests__/table.test.tsx",
+    "test:tables:e2e": "python3 scripts/test-tables-e2e.py",
     "test:auth": "node --import tsx --test src/hooks/auth/__tests__/*.test.ts",
     "test:coverage": "node --import tsx --test --experimental-test-coverage \"src/**/__tests__/*.test.ts*\"",
     "test:refresh": "tsx scripts/test-refresh-single-flight.ts",

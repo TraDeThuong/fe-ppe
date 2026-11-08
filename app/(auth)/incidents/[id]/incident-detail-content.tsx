@@ -3,18 +3,15 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  AlertOctagon,
   AlertTriangle,
   Archive,
   ArrowLeft,
   Building2,
   CheckCircle2,
   CheckSquare,
-  Clock,
   Loader2,
   RefreshCw,
   ShieldAlert,
-  Sparkles,
   UserCheck,
   Video,
 } from "lucide-react";
@@ -111,10 +108,9 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
 
   const incidentCamera = incident?.cameraId ? getCamera(incident.cameraId) : undefined;
 
-  // Xác định ảnh bằng chứng AI chuẩn xác theo từng camera (Gọi ở Top-level hook tuân thủ Rules of Hooks)
+  // Xác định ảnh bằng chứng AI chuẩn xác theo từng camera (tuyệt đối không hardcode camera tĩnh)
   const cameraDesignatedEvidence = useMemo(() => {
     const cid = (incident?.cameraId || "").toLowerCase();
-    const cstream = (incidentCamera?.streamUrl || "").toLowerCase();
 
     // 1. Kiểm tra cache phiên làm việc thực tế từ camera nếu có
     if (typeof window !== "undefined" && cid) {
@@ -122,47 +118,7 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
       if (liveCamEvidence) return liveCamEvidence;
     }
 
-    // 2. Định danh các camera demo tĩnh cũ (chỉ khớp đúng UUID cụ thể hoặc video demo)
-    if (
-      cid === "01a19ce7-05b3-7dcd-97d2-35d4b8309e1d" ||
-      cid.includes("test-2") ||
-      incidentCamera?.code?.toLowerCase().includes("test-2") ||
-      cstream.includes("podsp36oulm")
-    ) {
-      return "/images/camera-01a19ce7-evidence.jpg";
-    }
-    if (
-      cid === "01a19cf4-3b78-783c-af36-f52812c9ee3b" ||
-      cid.includes("cam3") ||
-      incidentCamera?.code?.includes("CAM3") ||
-      cstream.includes("ek0fcznqfva")
-    ) {
-      return "/images/camera-01a19cf4-evidence.jpg";
-    }
-    if (
-      cid === "01a19d07-bd01-76f9-a7c3-4e7fbcc02538" ||
-      cid.includes("cam5") ||
-      incidentCamera?.code?.includes("CAM5")
-    ) {
-      return "/images/camera-01a19d07-evidence.jpg";
-    }
-    if (
-      cid === "01a19e19-ed7f-72ae-a832-6c64d2595dcf" ||
-      cid.includes("cammm") ||
-      incidentCamera?.code?.includes("CAMMM")
-    ) {
-      return "/images/camera-01a19e19-evidence.jpg";
-    }
-    if (cid === "01a18735-39f8-7ea2-822d-1e7765c59c73" || cstream.includes("rcvx3zsi4eq")) {
-      return "/images/evidence/camera-01a18735_16ee47ac_f76_red.jpg";
-    }
-    if (cstream.includes("video8")) {
-      return "/images/evidence/video8_ea579346_f91_red.jpg";
-    }
-    if (cstream.includes("cctv") || cstream.includes("ai-cctv")) {
-      return "/images/evidence/ai-cctv_3a05148c_f195_red.jpg";
-    }
-    return incidentCamera?.snapshotUrl || "/images/camera-live-evidence.jpg";
+    return incidentCamera?.snapshotUrl || null;
   }, [incident?.cameraId, incidentCamera]);
 
   // Mutations
@@ -456,11 +412,12 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
           <IncidentEvidenceViewer
             evidence={primaryEvidence}
             evidences={incident.evidences}
-            snapshotUrl={effectiveSnapshotUrl}
+            snapshotUrl={effectiveSnapshotUrl || undefined}
             violationType={incident.violationType}
             confidence={incident.confidence}
             cameraId={incident.cameraId}
             incidentId={incident.id}
+            defaultViewMode={searchParams.get("focus") === "compare" ? "split" : "single"}
           />
 
           <IncidentChecksumVerifier

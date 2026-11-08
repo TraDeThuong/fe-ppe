@@ -36,13 +36,8 @@ export function FormActions({
   submitButtonProps,
   cancelButtonProps,
 }: FormActionsProps) {
-  let isVietnamese = true;
-  try {
-    const localeCtx = useLocale();
-    isVietnamese = localeCtx.locale === "vi-VN";
-  } catch {
-    // fallback if outside LocaleProvider
-  }
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const effectiveSubmitLabel =
     submitLabel ?? (isVietnamese ? "Lưu thay đổi" : "Save changes");

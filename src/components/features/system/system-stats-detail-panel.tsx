@@ -4,12 +4,10 @@ import { useMemo, useState } from "react";
 import {
   Activity,
   ArrowRight,
-  Check,
   CheckCircle2,
   Clock,
   Cpu,
   Database,
-  ExternalLink,
   Globe,
   HardDrive,
   Lock,
@@ -18,9 +16,7 @@ import {
   RefreshCw,
   Server,
   Settings2,
-  Shield,
   ShieldAlert,
-  Sparkles,
   X,
   XCircle,
 } from "lucide-react";

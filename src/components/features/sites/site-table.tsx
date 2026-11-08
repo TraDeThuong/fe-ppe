@@ -1,7 +1,10 @@
 "use client";
+import { Table, TableToolbar, TableContent, TablePagination, TableRefresh, TableRowActions } from "@/components/ui/table";
+import type { TableProps } from "@/components/ui/table";
 
 import { useRouter } from "next/navigation";
-import { Archive, Building2, Edit2, Layers, Shield, Trash2 } from "lucide-react";
+
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import type { SiteItem } from "@/types";
 
@@ -13,6 +16,7 @@ export interface SiteTableProps {
   onDelete: (site: SiteItem) => void;
   onArchive?: (site: SiteItem) => void;
   loading?: boolean;
+  tableState?: Partial<TableProps<SiteItem>>;
 }
 
 export function SiteTable({
@@ -23,172 +27,168 @@ export function SiteTable({
   onDelete,
   onArchive,
   loading = false,
+  tableState,
 }: SiteTableProps) {
   const router = useRouter();
+  const can = useCan();
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  if (loading) {
-    return (
-      <div className="space-y-3">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-16 animate-pulse rounded-xl bg-surface-elevated/40" />
-        ))}
-      </div>
-    );
-  }
-
-  if (sites.length === 0) {
-    return (
-      <div className="rounded-2xl border border-border/30 bg-surface p-12 text-center">
-        <Building2 className="mx-auto h-12 w-12 text-muted-foreground/50 mb-3" />
-        <p className="text-sm text-muted-foreground">{t("sites.table.empty")}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="overflow-x-auto rounded-2xl border border-border/40 bg-surface shadow-[4px_4px_10px_rgba(0,0,0,0.06),-4px_-4px_10px_rgba(255,255,255,0.7)] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.3)]">
-      <table className="w-full text-left text-sm">
-        <thead className="border-b border-border/40 bg-surface-elevated/40 text-xs font-semibold uppercase text-muted-foreground">
-          <tr>
-            <th className="px-5 py-3.5">{t("sites.table.name")}</th>
-            <th className="px-5 py-3.5">{t("sites.table.address")}</th>
-            <th className="px-5 py-3.5">{t("sites.table.zonesCount")}</th>
-            <th className="px-5 py-3.5">{t("sites.table.restrictedCount")}</th>
-            <th className="px-5 py-3.5">{t("sites.table.status")}</th>
-            <th className="px-5 py-3.5 text-right">{t("sites.table.actions")}</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border/30">
-          {sites.map((site) => {
-            const isActive = site.status === "ACTIVE";
-            const zoneCount =
-              site.zoneCount ?? site.zones?.length ?? site._count?.zones ?? 0;
-            const restrictedCount =
-              site.restrictedAreaCount ??
-              site.restrictedAreas?.length ??
-              site._count?.restrictedAreas ??
-              0;
-
-            return (
-              <tr
-                key={site.id}
-                onClick={() => router.push(`/sites/${site.id}`)}
-                className="cursor-pointer transition-colors duration-150 hover:bg-surface-elevated/30"
-              >
-                {/* Site Name & Code */}
-                <td className="px-5 py-4">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-foreground hover:text-primary transition-colors">
-                      {site.name}
-                    </span>
-                    <span className="font-mono text-xs text-primary">{site.code}</span>
-                  </div>
-                </td>
-
-                {/* Address */}
-                <td className="px-5 py-4">
-                  <span className="text-xs text-muted-foreground line-clamp-1 max-w-xs">
-                    {site.address || t("sites.card.noAddress")}
-                  </span>
-                </td>
-
-                {/* Zones Count */}
-                <td className="px-5 py-4">
-                  <span className="font-mono text-xs font-semibold text-foreground">
-                    {zoneCount} {t("sites.units.zones")}
-                  </span>
-                </td>
-
-                {/* Restricted Count */}
-                <td className="px-5 py-4">
-                  <span className="font-mono text-xs font-semibold text-accent">
-                    {restrictedCount} {t("sites.units.restricted")}
-                  </span>
-                </td>
-
-                {/* Status */}
-                <td className="px-5 py-4">
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold border ${
-                      isActive
-                        ? "bg-primary/10 text-primary border-primary/20"
-                        : "bg-muted/40 text-muted-foreground border-border/40"
-                    }`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${
-                        isActive ? "bg-primary animate-pulse" : "bg-muted-foreground/60"
-                      }`}
-                    />
-                    {isActive
-                      ? t("sites.status.active")
-                      : site.status === "INACTIVE"
-                        ? t("sites.status.inactive")
-                        : t("sites.status.suspended")}
-                  </span>
-                </td>
-
-                {/* Actions */}
-                <td className="px-5 py-4 text-right">
-                  <div
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center justify-end gap-1"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onManageZones(site)}
-                      title={t("sites.actions.manageZones")}
-                      className="rounded-lg p-1.5 text-primary hover:bg-primary/10 transition"
-                    >
-                      <Layers className="h-4 w-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => onSafetyConfig(site)}
-                      title={t("sites.actions.safetyConfig")}
-                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-foreground transition"
-                    >
-                      <Shield className="h-4 w-4 text-accent" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => onEdit(site)}
-                      title={t("sites.actions.edit")}
-                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-foreground transition"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-
-                    {onArchive && (
-                      <button
-                        type="button"
-                        onClick={() => onArchive(site)}
-                        title={isVietnamese ? "Lưu trữ công trường" : "Archive site"}
-                        className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-amber-500 transition"
-                      >
-                        <Archive className="h-4 w-4" />
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => onDelete(site)}
-                      title={t("sites.actions.delete")}
-                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-primary transition"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+  return (<Table
+    data={sites}
+    columns={[{
+      id: "name",
+      header: t("sites.table.name"),
+      accessorFn: (site) => site.name,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const site = row.original;
+        return <div className={""}>
+          <div className="flex flex-col">
+            <span className="font-bold text-foreground hover:text-primary transition-colors">
+              {site.name}
+            </span>
+            <span className="font-mono text-xs text-primary">{site.code}</span>
+          </div>
+        </div>;
+      }
+    },
+    {
+      id: "address",
+      header: t("sites.table.address"),
+      accessorFn: (site) => site.address,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const site = row.original;
+        return <div className={""}>
+          <span className="text-xs text-muted-foreground line-clamp-1 max-w-xs">
+            {site.address || t("sites.card.noAddress")}
+          </span>
+        </div>;
+      }
+    },
+    {
+      id: "zoneCount",
+      header: t("sites.table.zonesCount"),
+      accessorFn: (site) => site.zoneCount,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const site = row.original;
+        const zoneCount =
+          site.zoneCount ?? site.zones?.length ?? site._count?.zones ?? 0;
+        return <div className={""}>
+          <span className="font-mono text-xs font-semibold text-foreground">
+            {zoneCount} {t("sites.units.zones")}
+          </span>
+        </div>;
+      }
+    },
+    {
+      id: "restrictedAreaCount",
+      header: t("sites.table.restrictedCount"),
+      accessorFn: (site) => site.restrictedAreaCount,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const site = row.original;
+        const restrictedCount =
+          site.restrictedAreaCount ??
+          site.restrictedAreas?.length ??
+          site._count?.restrictedAreas ??
+          0;
+        return <div className={""}>
+          <span className="font-mono text-xs font-semibold text-accent">
+            {restrictedCount} {t("sites.units.restricted")}
+          </span>
+        </div>;
+      }
+    },
+    {
+      id: "status",
+      header: t("sites.table.status"),
+      accessorFn: (site) => site.status,
+      enableSorting: true,
+      cell: ({ row }) => {
+        const site = row.original;
+        const isActive = site.status === "ACTIVE";
+        return <div className={""}>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold border ${isActive
+                ? "bg-primary/10 text-primary border-primary/20"
+                : "bg-muted/40 text-muted-foreground border-border/40"
+              }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${isActive ? "bg-primary animate-pulse" : "bg-muted-foreground/60"
+                }`}
+            />
+            {isActive
+              ? t("sites.status.active")
+              : site.status === "INACTIVE"
+                ? t("sites.status.inactive")
+                : site.status === "COMPLETED"
+                  ? t("sites.status.completed")
+                  : site.status === "ARCHIVED"
+                    ? t("sites.status.archived")
+                    : t("sites.status.suspended")}
+          </span>
+        </div>;
+      }
+    },
+    {
+      id: "actions",
+      header: t("sites.table.actions"),
+      enableSorting: false,
+      cell: ({ row }) => <TableRowActions row={row} actions={[
+        {
+          id: 'zones',
+          label: t('sites.actions.manageZones'),
+          hidden: !can('PPE_ZONE_READ'),
+          onClick: onManageZones
+        },
+        {
+          id: 'safety',
+          label: t('sites.actions.safetyConfig'),
+          hidden: !can('PPE_SAFETY_CONFIG_MANAGE'),
+          onClick: onSafetyConfig
+        },
+        {
+          id: 'edit',
+          label: t('sites.actions.edit'),
+          hidden: !can('PPE_SITE_MANAGE'),
+          onClick: onEdit
+        },
+        {
+          id: 'archive',
+          label: isVietnamese ? 'Lưu trữ công trường' : 'Archive site',
+          hidden: !onArchive || !can('PPE_SITE_MANAGE'),
+          onClick: site => onArchive?.(site)
+        },
+        {
+          id: 'delete',
+          label: t('sites.actions.delete'),
+          variant: 'danger',
+          hidden: !can('PPE_SITE_MANAGE'),
+          onClick: onDelete
+        }
+      ]} />
+    }]}
+    loading={loading}
+    getRowId={row => row.id}
+    features={{
+      globalFilter: false,
+      sorting: false,
+      rowSelection: false,
+      pagination: true
+    }}
+    manualFiltering
+    manualSorting
+    manualPagination
+    emptyMessage={t("sites.table.empty")}
+    onRowClick={(row) => router.push(`/sites/${row.original.id}`)}
+    {...tableState}
+  >
+    <TableToolbar showSearch={false} actions={<TableRefresh />} />
+    <TableContent />
+    <TablePagination />
+  </Table>);
 }
