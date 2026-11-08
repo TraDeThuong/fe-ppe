@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Loader } from "@/components/ui/loader";
+import { PageSkeleton } from "@/components/features/app-shell/page-skeleton";
 import { CameraIntelligenceContent } from "@/components/features/cameras/detail/camera-intelligence-content";
 
 async function CameraDetailWrapper({
@@ -17,13 +17,7 @@ export default function CameraDetailPage({
   params: Promise<{ id: string }>;
 }) {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-[400px] flex-col items-center justify-center gap-3 text-muted-foreground">
-          <Loader showLabel />
-        </div>
-      }
-    >
+    <Suspense fallback={<PageSkeleton variant="dashboard" />}>
       <CameraDetailWrapper params={params} />
     </Suspense>
   );

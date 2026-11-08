@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/providers/locale-provider";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useRealtime } from "@/contexts/RealtimeContext";
@@ -178,9 +179,58 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
 
   if (isLoading) {
     return (
-      <div className="flex min-h-[400px] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+      <div className="space-y-6">
+        <PageHeader
+          icon={ShieldAlert}
+          title={`${t("incidents.detailTitle")}: #${id.slice(0, 8)}`}
+          description={t("incidents.detailDescription")}
+          breadcrumbs={[
+            { label: t("incidents.title"), href: "/incidents" },
+            { label: `#${id.slice(0, 8)}` },
+          ]}
+          actions={
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-9 w-24 rounded-xl" />
+              <Skeleton className="h-9 w-24 rounded-xl" />
+            </div>
+          }
+        />
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          {/* Left Column Skeleton */}
+          <div className="space-y-6 lg:col-span-7 xl:col-span-8">
+            <div className="rounded-3xl border border-border/40 bg-surface p-5 space-y-4 shadow-nm">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-5 w-36 rounded-md" />
+                <Skeleton className="h-6 w-20 rounded-full" />
+              </div>
+              <Skeleton className="aspect-video w-full rounded-2xl" />
+            </div>
+            <div className="rounded-3xl border border-border/40 bg-surface p-5 space-y-3 shadow-nm">
+              <Skeleton className="h-5 w-40 rounded-md" />
+              <Skeleton className="h-20 w-full rounded-xl" />
+            </div>
+          </div>
+
+          {/* Right Column Skeleton */}
+          <div className="space-y-6 lg:col-span-5 xl:col-span-4">
+            <div className="rounded-3xl border border-border/40 bg-surface p-5 space-y-4 shadow-nm">
+              <Skeleton className="h-6 w-32 rounded-md" />
+              <div className="space-y-3 pt-2">
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="flex justify-between items-center py-1.5 border-b border-border/20 last:border-0">
+                    <Skeleton className="h-3.5 w-24 rounded" />
+                    <Skeleton className="h-4 w-32 rounded" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-3xl border border-border/40 bg-surface p-5 space-y-4 shadow-nm">
+              <Skeleton className="h-5 w-36 rounded-md" />
+              <Skeleton className="h-28 w-full rounded-xl" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

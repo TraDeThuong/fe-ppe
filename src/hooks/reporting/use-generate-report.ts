@@ -14,7 +14,7 @@ export function useGenerateReport() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: reportingKeys.history() });
       toast.success(
-        `Đã kích hoạt tạo báo cáo "${data.fileName || "Tài liệu mới"}". Vui lòng kiểm tra hàng đợi xuất file!`
+        `Đã tạo báo cáo "${data.fileName || "Tài liệu mới"}" thành công và đang tự động tải về máy!`
       );
     },
     onError: (err: unknown) => {

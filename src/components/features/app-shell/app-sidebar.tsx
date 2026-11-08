@@ -8,6 +8,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   HardHat,
+  Loader2,
   ShieldCheck,
 } from "lucide-react";
 
@@ -28,6 +29,11 @@ export function AppSidebar() {
   const pathname = usePathname();
 
   const [collapsed, setCollapsed] = useState(false);
+  const [pendingRoute, setPendingRoute] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPendingRoute(null);
+  }, [pathname]);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(COLLAPSED_KEY);
@@ -215,13 +221,21 @@ export function AppSidebar() {
 
               <ul className="space-y-2">
                 {groupItems.map((item) => {
-                  const active = isActive(item.route);
+                  const isCurrent = isActive(item.route);
+                  const isPending = pendingRoute === item.route && !isCurrent;
+                  const active = isCurrent || isPending;
                   const Icon = item.icon;
 
                   return (
                     <li key={item.key}>
                       <Link
                         href={item.route}
+                        prefetch={true}
+                        onClick={() => {
+                          if (!isCurrent) {
+                            setPendingRoute(item.route);
+                          }
+                        }}
                         title={iconOnly ? t(item.i18nKey) : undefined}
                         aria-label={
                           iconOnly ? t(item.i18nKey) : undefined
@@ -305,7 +319,23 @@ export function AppSidebar() {
                               items-center justify-center rounded-full
                               bg-background text-primary shadow-nm-sm"
                           >
-                            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                            {isPending ? (
+                              <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                            ) : (
+                              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                            )}
+                          </span>
+                        )}
+
+                        {/* Spinner badge for collapsed sidebar when pending */}
+                        {iconOnly && isPending && (
+                          <span
+                            aria-hidden="true"
+                            className="absolute -right-1 -top-1 flex h-4 w-4 items-center
+                              justify-center rounded-full bg-background border border-primary/30
+                              shadow-[0_2px_4px_var(--shadow-dark)]"
+                          >
+                            <Loader2 className="h-2.5 w-2.5 animate-spin text-primary" />
                           </span>
                         )}
 

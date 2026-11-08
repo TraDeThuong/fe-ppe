@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { ColumnDef, PaginationState, RowSelectionState, SortingState } from "@tanstack/react-table";
-import { Shield, ShieldCheck, ShieldAlert, Pencil, Trash2, Eye, EyeOff, RotateCcw, RefreshCw, UserPlus, Lock, Unlock, Building2 } from "lucide-react";
+import { Shield, ShieldCheck, ShieldAlert, Pencil, Trash2, Eye, EyeOff, RotateCcw, RefreshCw, UserPlus, Lock, Unlock, Building2, ExternalLink } from "lucide-react";
 
 import { Table, TableToolbar, TableContent, TablePagination, TableSelectionHeader, TableSelectionRow, TableRowActions, type TableFeatureSet, type TableRowAction, type TableBulkAction, TableBulkActions, TableFilterPanel } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -107,6 +109,7 @@ export function UserTable({
 }: UserTableProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const router = useRouter();
   const { user: currentAdmin } = useAuth();
   const { data: roles = [] } = useRoles();
   const queryClient = useQueryClient();
@@ -217,8 +220,14 @@ export function UserTable({
 
       const actions: TableRowAction<UserResponseDto>[] = [
         {
+          id: "view-profile",
+          label: isVietnamese ? "Xem trang hồ sơ" : "View Profile Page",
+          icon: <ExternalLink size={14} />,
+          onClick: (u) => router.push(`/users/${u.id}`),
+        },
+        {
           id: "view",
-          label: isVietnamese ? "Xem chi tiết & Phiên" : "View Details & Sessions",
+          label: isVietnamese ? "Xem nhanh & Phiên" : "Quick View & Sessions",
           icon: <Eye size={14} />,
           onClick: (u) => setDetailUser(u),
 
@@ -314,7 +323,11 @@ export function UserTable({
 
           return (
             <div className="flex items-center gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background border border-border/40 font-mono text-xs font-bold text-primary shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)]">
+              <Link
+                href={`/users/${u.id}`}
+                className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background border border-border/40 font-mono text-xs font-bold text-primary shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] hover:border-primary/60 hover:scale-105 transition-all cursor-pointer"
+                title={isVietnamese ? "Nhấp để xem hồ sơ chi tiết" : "Click to view full profile"}
+              >
                 {u.avatarUrl ? (
                   <img
                     src={u.avatarUrl}
@@ -324,11 +337,15 @@ export function UserTable({
                 ) : (
                   initials
                 )}
-              </div>
+              </Link>
               <div className="flex flex-col min-w-0">
-                <span className="font-bold text-foreground text-xs sm:text-sm truncate">
+                <Link
+                  href={`/users/${u.id}`}
+                  className="font-bold text-foreground text-xs sm:text-sm truncate hover:text-primary hover:underline transition-colors cursor-pointer"
+                  title={isVietnamese ? "Nhấp để xem hồ sơ chi tiết" : "Click to view full profile"}
+                >
                   {u.fullName || (isVietnamese ? "Chưa đặt tên" : "Unnamed")}
-                </span>
+                </Link>
                 <span className="text-[11px] text-muted-foreground truncate font-mono">
                   {u.email}
                 </span>
@@ -482,11 +499,25 @@ export function UserTable({
         cell: ({ row }) => {
           const actions = getRowActions(row.original);
           return (
-            <TableRowActions
-              row={row}
-              actions={actions}
-              label={isVietnamese ? "Thao tác" : "Actions"}
-            />
+            <div className="flex items-center justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/users/${row.original.id}`);
+                }}
+                className="inline-flex size-7 items-center justify-center rounded-lg border border-border/50 bg-background text-muted-foreground hover:text-primary hover:border-primary/40 shadow-[1.5px_1.5px_3px_var(--shadow-dark),-1.5px_-1.5px_3px_var(--shadow-light)] transition-all cursor-pointer"
+                title={isVietnamese ? "Xem hồ sơ chi tiết" : "View full profile"}
+                aria-label={isVietnamese ? "Xem hồ sơ chi tiết" : "View full profile"}
+              >
+                <ExternalLink size={13} />
+              </button>
+              <TableRowActions
+                row={row}
+                actions={actions}
+                label={isVietnamese ? "Thao tác" : "Actions"}
+              />
+            </div>
           );
         },
         enableSorting: false,
@@ -588,7 +619,7 @@ export function UserTable({
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
         getRowId={(row) => row.id}
-        onRowClick={(row) => setDetailUser(row.original)}
+        onRowClick={(row) => router.push(`/users/${row.original.id}`)}
       >
         {/* Custom Toolbar */}
         <TableToolbar

@@ -86,18 +86,18 @@ export function DashboardQuickActions({
         </h3>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {actions.map((act, index) => {
           const content = (
-            <div className="group relative flex items-start gap-3.5 rounded-2xl border border-white/60 bg-background p-4 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[6px_8px_16px_var(--shadow-dark),-6px_-6px_16px_var(--shadow-light)] dark:border-white/10 cursor-pointer h-full">
+            <div className="group relative flex items-start gap-3 rounded-2xl border border-border/40 bg-surface/90 p-3.5 shadow-[2px_3px_10px_rgba(0,0,0,0.03),-2px_-2px_8px_rgba(255,255,255,0.6)] transition-all duration-300 hover:-translate-y-0.5 dark:border-white/[0.08] dark:bg-card/40 dark:shadow-[0_4px_16px_rgba(0,0,0,0.2)] dark:hover:border-white/20 cursor-pointer h-full">
               {/* Specular highlight rim */}
               <div
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20"
+                className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/[0.05]"
               />
 
               <div
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${act.bgColor} ${act.tone} ${act.borderColor} shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] transition-transform duration-300 group-hover:scale-105`}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${act.bgColor} ${act.tone} ${act.borderColor} shadow-[inset_1px_1px_2px_rgba(0,0,0,0.05)] dark:shadow-none dark:border-white/[0.08] transition-transform duration-300 group-hover:scale-105`}
               >
                 <act.icon className="h-5 w-5" />
               </div>

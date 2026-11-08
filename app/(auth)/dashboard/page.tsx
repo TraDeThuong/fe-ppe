@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Loader } from "@/components/ui/loader";
+import { PageSkeleton } from "@/components/features/app-shell/page-skeleton";
 import DashboardContent from "./dashboard-content";
 
 /**
@@ -9,13 +9,7 @@ import DashboardContent from "./dashboard-content";
  */
 export default function DashboardPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
-          <Loader showLabel />
-        </div>
-      }
-    >
+    <Suspense fallback={<PageSkeleton variant="dashboard" />}>
       <DashboardContent />
     </Suspense>
   );

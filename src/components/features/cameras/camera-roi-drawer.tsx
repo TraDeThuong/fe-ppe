@@ -12,13 +12,25 @@ import type { CameraItem, RoiPoint, UpdateCameraConfigPayload } from "@/types";
 export interface CameraRoiDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  camera: CameraItem | null;
+  camera?: CameraItem | null;
+  initialPoints?: RoiPoint[];
+  onSavePoints?: (points: RoiPoint[]) => void | Promise<void>;
+  customStreamUrl?: string;
+  customCameraName?: string;
+  customCameraCode?: string;
+  customImageUrl?: string;
 }
 
 export function CameraRoiDrawer({
   open,
   onOpenChange,
   camera,
+  initialPoints,
+  onSavePoints,
+  customStreamUrl,
+  customCameraName,
+  customCameraCode,
+  customImageUrl,
 }: CameraRoiDrawerProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -33,9 +45,13 @@ export function CameraRoiDrawer({
   const [processingEnabled, setProcessingEnabled] = useState(true);
   const [captureFps, setCaptureFps] = useState(10);
   const [motionSensitivity, setMotionSensitivity] = useState(75);
+  const [isSavingCustom, setIsSavingCustom] = useState(false);
 
   useEffect(() => {
-    if (config) {
+    if (!open) return;
+    if (initialPoints !== undefined) {
+      setPoints(initialPoints);
+    } else if (config) {
       setPoints(config.roiPolygon || []);
       setProcessingEnabled(config.processingEnabled ?? true);
       setCaptureFps(config.captureFps || 10);
@@ -46,9 +62,20 @@ export function CameraRoiDrawer({
       setCaptureFps(camera.config.captureFps || 10);
       setMotionSensitivity(camera.config.motionSensitivity || 75);
     }
-  }, [config, camera]);
+  }, [open, initialPoints, config, camera]);
 
   const handleSave = async () => {
+    if (onSavePoints) {
+      setIsSavingCustom(true);
+      try {
+        await onSavePoints(points);
+        onOpenChange(false);
+      } finally {
+        setIsSavingCustom(false);
+      }
+      return;
+    }
+
     if (!camera) return;
 
     const payload: UpdateCameraConfigPayload = {
@@ -65,6 +92,8 @@ export function CameraRoiDrawer({
     onOpenChange(false);
   };
 
+  const isSaving = updateConfig.isPending || isSavingCustom;
+
   return (
     <Modal
       open={open}
@@ -79,7 +108,7 @@ export function CameraRoiDrawer({
             type="button"
             variant="ghost"
             onClick={() => onOpenChange(false)}
-            disabled={updateConfig.isPending}
+            disabled={isSaving}
             className="flex-1 sm:flex-initial"
           >
             {t("common.cancel")}
@@ -89,10 +118,10 @@ export function CameraRoiDrawer({
             type="button"
             variant="primary"
             onClick={handleSave}
-            disabled={updateConfig.isPending}
+            disabled={isSaving}
             className="flex-1 sm:flex-initial flex items-center justify-center gap-2"
           >
-            {updateConfig.isPending ? (
+            {isSaving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Save className="h-4 w-4" />
@@ -107,15 +136,15 @@ export function CameraRoiDrawer({
         <div className="flex items-center justify-between rounded-xl border border-border/40 bg-surface/60 p-3">
           <div>
             <span className="font-mono text-xs font-bold text-primary">
-              {camera?.code}
+              {camera?.code || customCameraCode || "AI-SANDBOX"}
             </span>
             <span className="mx-2 text-muted-foreground">•</span>
             <span className="text-xs font-semibold text-foreground">
-              {camera?.name}
+              {camera?.name || customCameraName || "Sandbox Test Stream"}
             </span>
           </div>
           <span className="text-[11px] text-muted-foreground">
-            {camera?.location || "Khu vực chung"}
+            {camera?.location || (isVietnamese ? "Phòng thử nghiệm AI" : "AI Sandbox")}
           </span>
         </div>
 
@@ -123,10 +152,10 @@ export function CameraRoiDrawer({
         <CameraRoiCanvas
           points={points}
           onChange={setPoints}
-          imageUrl={camera?.snapshotUrl}
-          streamUrl={camera?.streamUrl}
-          cameraName={camera?.name}
-          disabled={configLoading || updateConfig.isPending}
+          imageUrl={customImageUrl || camera?.snapshotUrl}
+          streamUrl={customStreamUrl || camera?.streamUrl}
+          cameraName={camera?.name || customCameraName}
+          disabled={configLoading || isSaving}
         />
 
         {/* AI Calibration Parameters */}

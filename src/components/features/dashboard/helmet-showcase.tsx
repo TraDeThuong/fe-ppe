@@ -93,23 +93,24 @@ export function HelmetShowcase({
   return (
     <section
       className={[
-        "relative isolate w-full overflow-hidden rounded-[30px]",
-        "border border-border/40 bg-surface p-3 sm:p-4",
-        "shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)]",
+        "relative isolate w-full overflow-hidden rounded-2xl sm:rounded-[26px]",
+        "border border-border/40 bg-surface/90 p-3 sm:p-4",
+        "shadow-[4px_6px_16px_rgba(0,0,0,0.03),-3px_-3px_10px_rgba(255,255,255,0.6)]",
+        "dark:border-white/[0.08] dark:bg-card/40 dark:shadow-[0_8px_24px_rgba(0,0,0,0.25)]",
         "flex flex-col justify-between",
         className,
       ].join(" ")}
     >
       {/* Outer highlight */}
-      <div className="pointer-events-none absolute inset-px rounded-[29px] border border-white/50 dark:border-white/[0.06]" />
+      <div className="pointer-events-none absolute inset-px rounded-[25px] border border-white/50 dark:border-white/[0.04]" />
 
       {/* Main showcase */}
       <div
         className={[
-          "relative min-h-[410px] flex-1 overflow-hidden rounded-[23px]",
-          "border border-border/30",
-          "bg-background",
-          "shadow-[inset_4px_4px_12px_var(--shadow-dark),inset_-4px_-4px_12px_var(--shadow-light)]",
+          "relative min-h-[410px] flex-1 overflow-hidden rounded-[20px]",
+          "border border-border/30 dark:border-white/[0.05]",
+          "bg-background/80 dark:bg-background/30",
+          "shadow-[inset_2px_2px_6px_rgba(0,0,0,0.03)] dark:shadow-none",
         ].join(" ")}
       >
         {/* =================================================
@@ -138,7 +139,7 @@ export function HelmetShowcase({
             DECORATIVE RINGS
         ================================================= */}
 
-        <div className="pointer-events-none absolute left-1/2 top-[51%] aspect-square w-[min(74%,320px)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/10 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]" />
+        <div className="pointer-events-none absolute left-1/2 top-[51%] aspect-square w-[min(74%,320px)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/10 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] dark:shadow-none" />
 
         <div className="pointer-events-none absolute left-1/2 top-[51%] aspect-square w-[min(57%,245px)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed border-accent/40" />
 
@@ -170,7 +171,7 @@ export function HelmetShowcase({
             </p>
           </div>
 
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border/40 bg-surface text-primary shadow-[5px_5px_10px_var(--shadow-dark),-5px_-5px_10px_var(--shadow-light)]">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border/40 bg-surface text-primary shadow-[4px_4px_10px_rgba(0,0,0,0.04)] dark:border-white/[0.08] dark:bg-card/60 dark:shadow-none">
             <ShieldCheck size={20} strokeWidth={2.2} />
           </div>
         </div>
@@ -276,7 +277,7 @@ export function HelmetShowcase({
         <div className="absolute inset-x-4 bottom-4 z-10 flex items-center justify-between gap-2 sm:inset-x-6 sm:bottom-5">
           {/* Safety standard */}
           <div className="flex min-w-0 items-center gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/40 bg-surface text-primary shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)]">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border/40 bg-surface text-primary shadow-[2px_2px_6px_rgba(0,0,0,0.04)] dark:border-white/[0.08] dark:bg-card/60 dark:shadow-none">
               <Activity size={16} />
             </div>
 
@@ -292,7 +293,7 @@ export function HelmetShowcase({
           </div>
 
           {/* Rotation hint */}
-          <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-border/40 bg-surface px-3 py-2 text-[9px] font-bold text-muted-foreground shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)] sm:text-[10px]">
+          <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-border/40 bg-surface px-3 py-2 text-[9px] font-bold text-muted-foreground shadow-[2px_2px_6px_rgba(0,0,0,0.04)] dark:border-white/[0.08] dark:bg-card/60 dark:shadow-none sm:text-[10px]">
             <Rotate3D size={14} className="text-primary" />
             <span>Drag to rotate</span>
           </div>

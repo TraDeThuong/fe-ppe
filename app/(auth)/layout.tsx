@@ -12,6 +12,24 @@ import { MaintenanceScreen } from "@/components/features/maintenance";
 import { useMaintenanceStatus } from "@/hooks/maintenance";
 import { Button } from "@ui/button";
 
+const PROTECTED_AUTH_PREFIXES = [
+  "/dashboard",
+  "/cameras",
+  "/incidents",
+  "/sites",
+  "/reports",
+  "/roles",
+  "/users",
+  "/scheduled-tasks",
+  "/system",
+  "/audit-logs",
+  "/ai-metrics",
+  "/settings",
+  "/change-password",
+  "/maintenance",
+  "/notifications",
+];
+
 /**
  * Route guard LỚP 2 (client, chính xác): session đã được AuthProvider
  * phục hồi qua /auth/me. Không redirect trong context — guard ở đây.
@@ -41,7 +59,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     const pathname = window.location.pathname;
-    if (status === "unauthenticated") {
+    const isProtected = PROTECTED_AUTH_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    );
+
+    if (status === "unauthenticated" && isProtected) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
       return;
     }

@@ -4,7 +4,7 @@ import { Table, TableToolbar, TableContent, TablePagination, TableRefresh } from
 import type { TableProps } from "@/components/ui/table";
 
 import { useState } from "react";
-import { CheckCircle2, Download, FileSpreadsheet, FileText, Loader2, XCircle, Clock3 } from "lucide-react";
+import { CheckCircle2, Download, Eye, FileSpreadsheet, FileText, Loader2, XCircle, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
@@ -15,12 +15,14 @@ import type { ReportGenerationDto } from "@/types";
 export interface ReportHistoryTableProps {
   history: ReportGenerationDto[];
   loading?: boolean;
+  onPreview?: (report: ReportGenerationDto) => void;
   tableState?: Partial<TableProps<ReportGenerationDto>>;
 }
 
 export function ReportHistoryTable({
   history,
   loading = false,
+  onPreview,
   tableState,
 }: ReportHistoryTableProps) {
   const { t, locale } = useLocale();
@@ -238,44 +240,70 @@ export function ReportHistoryTable({
       enableSorting: false,
       cell: ({ row }) => {
         const item = row.original;
-        const fileType = item.fileType || item.template?.fileType;
         const isCompleted = item.status === "COMPLETED";
         const isDownloading = downloadingId === item.id;
-        return <div className={"text-right"}>
-          {isCompleted ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => handleDownload(item)}
-              disabled={isDownloading}
-              className="
-                              h-8 gap-1.5 rounded-lg px-3
-                              bg-primary/10 text-primary
-                              text-[10px] font-bold
-                              shadow-[2px_2px_5px_rgba(0,0,0,0.07),-2px_-2px_5px_rgba(255,255,255,0.7)]
-                              transition-all duration-200
-                              hover:bg-primary hover:text-primary-foreground
-                              hover:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.12)]
-                              active:scale-[0.97]
-                              disabled:opacity-50
-                              dark:shadow-[2px_2px_5px_rgba(0,0,0,0.3)]
-                            "
-            >
-              {isDownloading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Download className="h-3.5 w-3.5" />
-              )}
-              <span>
-                {t("reports.history.download")}
+        return (
+          <div className="flex items-center justify-end gap-1.5">
+            {isCompleted ? (
+              <>
+                {onPreview && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onPreview(item)}
+                    className="
+                      h-8 gap-1 rounded-lg px-2.5
+                      bg-surface text-foreground
+                      text-[10px] font-bold
+                      border border-border/40
+                      shadow-[2px_2px_5px_rgba(0,0,0,0.06),-2px_-2px_5px_rgba(255,255,255,0.7)]
+                      transition-all duration-200
+                      hover:bg-primary/10 hover:text-primary
+                      active:scale-[0.97]
+                      dark:shadow-[2px_2px_5px_rgba(0,0,0,0.3)]
+                    "
+                    title={t("reports.history.preview")}
+                  >
+                    <Eye className="h-3.5 w-3.5 text-primary" />
+                    <span className="hidden sm:inline">
+                      {t("reports.history.preview")}
+                    </span>
+                  </Button>
+                )}
+
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => handleDownload(item)}
+                  disabled={isDownloading}
+                  className="
+                    h-8 gap-1.5 rounded-lg px-3
+                    bg-primary/10 text-primary
+                    text-[10px] font-bold
+                    shadow-[2px_2px_5px_rgba(0,0,0,0.07),-2px_-2px_5px_rgba(255,255,255,0.7)]
+                    transition-all duration-200
+                    hover:bg-primary hover:text-primary-foreground
+                    hover:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.12)]
+                    active:scale-[0.97]
+                    disabled:opacity-50
+                    dark:shadow-[2px_2px_5px_rgba(0,0,0,0.3)]
+                  "
+                >
+                  {isDownloading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
+                  )}
+                  <span>{t("reports.history.download")}</span>
+                </Button>
+              </>
+            ) : (
+              <span className="text-[10px] font-medium italic text-muted-foreground">
+                {isVietnamese ? "Chờ hoàn tất" : "Awaiting"}
               </span>
-            </Button>
-          ) : (
-            <span className="text-[10px] font-medium italic text-muted-foreground">
-              {isVietnamese ? "Chờ hoàn tất" : "Awaiting"}
-            </span>
-          )}
-        </div>;
+            )}
+          </div>
+        );
       }
     }]}
     loading={loading}

@@ -17,7 +17,7 @@ export function DashboardPanel({
 }) {
   return (
     <section
-      className={`rounded-2xl border border-border/30 bg-surface p-4 sm:p-5 shadow-[7px_7px_18px_var(--shadow-dark),-7px_-7px_18px_var(--shadow-light)] ${className}`}
+      className={`relative overflow-hidden rounded-2xl border border-border/40 bg-surface/90 p-4 sm:p-5 shadow-[4px_6px_16px_rgba(0,0,0,0.03),-3px_-3px_10px_rgba(255,255,255,0.6)] transition-all duration-300 dark:border-white/[0.08] dark:bg-card/40 dark:shadow-[0_8px_24px_rgba(0,0,0,0.25)] ${className}`}
     >
       <h3 className="text-base font-bold text-foreground">{title}</h3>
       {description && (

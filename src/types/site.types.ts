@@ -237,6 +237,7 @@ export interface UpdateRestrictedAreaPayload {
   description?: string | null;
   boundary?: RestrictedAreaPoint[];
   status?: RestrictedAreaStatus;
+  severity?: "CRITICAL" | "HIGH" | "MEDIUM";
 }
 
 export interface InvalidateSafetyRuleCachePayload {

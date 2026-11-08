@@ -8,6 +8,7 @@ import type {
   CreateRestrictedAreaPayload,
   RestrictedAreaItem,
   RestrictedAreaQueryParams,
+  UpdateRestrictedAreaPayload,
 } from "@/types";
 
 export function useRestrictedAreas(siteId: string, enabled = true) {
@@ -86,3 +87,36 @@ export function useDeleteRestrictedArea() {
     },
   });
 }
+
+export function useUpdateRestrictedArea() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      siteId,
+      areaId,
+      payload,
+    }: {
+      siteId: string;
+      areaId: string;
+      payload: UpdateRestrictedAreaPayload;
+    }) => siteService.updateRestrictedArea(areaId, payload),
+    onSuccess: (updatedArea, { siteId }) => {
+      queryClient.invalidateQueries({ queryKey: siteKeys.restrictedAreas(siteId) });
+      queryClient.invalidateQueries({ queryKey: [...siteKeys.all, "all-restricted-areas"] });
+      queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
+      queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: siteKeys.all });
+      toast.success(
+        updatedArea?.name
+          ? `Đã cập nhật vùng cấm "${updatedArea.name}" thành công.`
+          : "Đã cập nhật vùng cấm thành công.",
+      );
+    },
+    onError: (err: unknown) => {
+      const msg = err instanceof Error ? err.message : "Không thể cập nhật vùng cấm.";
+      toast.error(msg);
+    },
+  });
+}
+

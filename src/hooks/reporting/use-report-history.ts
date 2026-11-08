@@ -15,6 +15,14 @@ export function useReportHistory(params?: ReportHistoryQueryDto) {
     queryKey: reportingKeys.history(params),
     queryFn: () => reportingService.getReportHistory(params),
     placeholderData: keepPreviousData,
-    staleTime: 15 * 1000,
+    staleTime: 5 * 1000,
+    refetchInterval: (query) => {
+      const items = query.state.data?.items ?? [];
+      const hasPendingOrProcessing = items.some(
+        (item) => item.status === "PENDING" || item.status === "PROCESSING"
+      );
+      // Auto-poll every 4 seconds if there are reports actively generating
+      return hasPendingOrProcessing ? 4000 : false;
+    },
   });
 }

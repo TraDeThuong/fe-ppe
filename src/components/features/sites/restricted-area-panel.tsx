@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { AlertOctagon, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertOctagon, Edit2, Plus, ShieldAlert, Sliders, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useCreateRestrictedArea, useDeleteRestrictedArea, useRestrictedAreas } from "@/hooks/sites";
+import { RestrictedAreaDrawer } from "./restricted-area-drawer";
+import { useDeleteRestrictedArea, useRestrictedAreas } from "@/hooks/sites";
 import { useLocale } from "@/providers/locale-provider";
 import type { RestrictedAreaItem } from "@/types";
 
@@ -12,38 +13,22 @@ export interface RestrictedAreaPanelProps {
 }
 
 export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const { data: areas = [], isLoading } = useRestrictedAreas(siteId, Boolean(siteId));
-  const createArea = useCreateRestrictedArea();
   const deleteArea = useDeleteRestrictedArea();
 
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [severity, setSeverity] = useState<"CRITICAL" | "HIGH" | "MEDIUM">("CRITICAL");
-  const [isAdding, setIsAdding] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedArea, setSelectedArea] = useState<RestrictedAreaItem | null>(null);
 
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
+  const handleOpenCreate = () => {
+    setSelectedArea(null);
+    setDrawerOpen(true);
+  };
 
-    await createArea.mutateAsync({
-      siteId,
-      payload: {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        severity,
-        boundary: [
-          { x: 0.2, y: 0.2 },
-          { x: 0.8, y: 0.2 },
-          { x: 0.8, y: 0.8 },
-          { x: 0.2, y: 0.8 },
-        ],
-      },
-    });
-
-    setName("");
-    setDescription("");
-    setIsAdding(false);
+  const handleOpenEdit = (area: RestrictedAreaItem) => {
+    setSelectedArea(area);
+    setDrawerOpen(true);
   };
 
   const handleDelete = async (area: RestrictedAreaItem) => {
@@ -56,78 +41,16 @@ export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
 
   return (
     <div className="space-y-4">
-      {/* Add Trigger / Form */}
-      {!isAdding ? (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsAdding(true)}
-          className="flex items-center gap-1.5 text-xs w-full justify-center text-primary hover:text-primary"
-        >
-          <Plus className="h-4 w-4" />
-          <span>{t("sites.restricted.addArea")}</span>
-        </Button>
-      ) : (
-        <form
-          onSubmit={handleAdd}
-          className="space-y-3 rounded-xl border border-primary/20 bg-primary/5 p-3.5"
-        >
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t("sites.restricted.namePlaceholder")}
-              className="rounded-lg border border-border/50 bg-background/80 px-3 py-1.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
-              required
-            />
-
-            <select
-              value={severity}
-              onChange={(e) => setSeverity(e.target.value as "CRITICAL" | "HIGH" | "MEDIUM")}
-              className="rounded-lg border border-border/50 bg-background/80 px-3 py-1.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
-            >
-              <option value="CRITICAL">{t("sites.restricted.severityCritical")}</option>
-              <option value="HIGH">{t("sites.restricted.severityHigh")}</option>
-              <option value="MEDIUM">{t("sites.restricted.severityMedium")}</option>
-            </select>
-          </div>
-
-          <input
-            type="text"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder={t("sites.restricted.descPlaceholder")}
-            className="w-full rounded-lg border border-border/50 bg-background/80 px-3 py-1.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
-          />
-
-          <div className="flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsAdding(false)}
-              disabled={createArea.isPending}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              disabled={createArea.isPending}
-              className="flex items-center gap-1.5"
-            >
-              {createArea.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Plus className="h-3.5 w-3.5" />
-              )}
-              <span>{t("sites.restricted.create")}</span>
-            </Button>
-          </div>
-        </form>
-      )}
+      {/* Add Trigger Button */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleOpenCreate}
+        className="flex items-center gap-1.5 text-xs w-full justify-center text-danger hover:text-danger border-danger/30 hover:bg-danger/10 shadow-sm"
+      >
+        <Plus className="h-4 w-4" />
+        <span>{t("sites.restricted.addArea")}</span>
+      </Button>
 
       {/* Areas List */}
       <div className="space-y-2">
@@ -142,42 +65,78 @@ export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
             {t("sites.restricted.empty")}
           </div>
         ) : (
-          areas.map((area) => (
-            <div
-              key={area.id}
-              className="flex items-center justify-between rounded-xl border border-border/40 bg-surface/60 p-3 shadow-nm-inset transition"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <AlertOctagon className="h-4 w-4 text-accent" />
-                </span>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-bold text-foreground">{area.name}</p>
-                    <span className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-primary uppercase border border-primary/20">
-                      {area.severity || "CRITICAL"}
-                    </span>
+          areas.map((area) => {
+            const pointCount = Array.isArray(area.boundary) ? area.boundary.length : 0;
+            const hasValidBoundary = pointCount >= 3;
+
+            return (
+              <div
+                key={area.id}
+                className="flex items-center justify-between rounded-xl border border-border/40 bg-surface/60 p-3 shadow-nm-inset transition hover:border-danger/30"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-danger/10 text-danger">
+                    <AlertOctagon className="h-4 w-4" />
+                  </span>
+
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="text-xs font-bold text-foreground truncate">{area.name}</p>
+                      <span className="rounded bg-danger/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-danger uppercase border border-danger/20">
+                        {area.severity || "CRITICAL"}
+                      </span>
+                      {hasValidBoundary ? (
+                        <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          {pointCount} {isVietnamese ? "điểm ranh giới" : "pts"}
+                        </span>
+                      ) : (
+                        <span className="rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          {isVietnamese ? "Chưa vẽ ranh giới" : "No boundary"}
+                        </span>
+                      )}
+                    </div>
+
+                    {area.description && (
+                      <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
+                        {area.description}
+                      </p>
+                    )}
                   </div>
-                  {area.description && (
-                    <p className="text-[11px] text-muted-foreground line-clamp-1">
-                      {area.description}
-                    </p>
-                  )}
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0 ml-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEdit(area)}
+                    title={isVietnamese ? "Vẽ lại / Sửa ranh giới vùng cấm" : "Edit danger boundary"}
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-danger transition"
+                  >
+                    <Sliders className="h-4 w-4" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(area)}
+                    disabled={deleteArea.isPending}
+                    title={isVietnamese ? "Xóa vùng cấm" : "Delete area"}
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-danger transition"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
-
-              <button
-                type="button"
-                onClick={() => handleDelete(area)}
-                disabled={deleteArea.isPending}
-                className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-primary transition"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
+
+      {/* Interactive Boundary Canvas Drawer */}
+      <RestrictedAreaDrawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        siteId={siteId}
+        area={selectedArea}
+      />
     </div>
   );
 }

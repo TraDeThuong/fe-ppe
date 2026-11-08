@@ -14,6 +14,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { Typography } from "./typography";
+import { Skeleton } from "./skeleton";
 import { useLocale } from "@/providers/locale-provider";
 
 // ============================================================
@@ -443,9 +444,13 @@ export function SoftExtrudedStatsCard({
           <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-muted-foreground truncate block">
             {title}
           </span>
-          <p className="mt-0.5 sm:mt-1 text-xl sm:text-3xl font-extrabold tracking-tight text-foreground font-mono">
-            {loading ? "..." : value}
-          </p>
+          {loading ? (
+            <Skeleton className="my-1 h-7 sm:h-8 w-16 sm:w-24 rounded-lg" />
+          ) : (
+            <p className="mt-0.5 sm:mt-1 text-xl sm:text-3xl font-extrabold tracking-tight text-foreground font-mono">
+              {value}
+            </p>
+          )}
         </div>
 
         {Icon && (
@@ -564,13 +569,17 @@ export function DeepElevationStatsCard({
 
       {/* Chữ nổi với Typography variant="embossed" */}
       <div className="my-3">
-        <Typography
-          variant="embossed"
-          as="div"
-          className="text-4xl sm:text-5xl font-black tracking-tight !text-foreground font-mono"
-        >
-          {loading ? "..." : value}
-        </Typography>
+        {loading ? (
+          <Skeleton className="my-1.5 h-10 sm:h-12 w-28 sm:w-36 rounded-xl" />
+        ) : (
+          <Typography
+            variant="embossed"
+            as="div"
+            className="text-4xl sm:text-5xl font-black tracking-tight !text-foreground font-mono"
+          >
+            {value}
+          </Typography>
+        )}
       </div>
 
       {/* Deep Inset Bottom Tray */}
@@ -686,13 +695,17 @@ export function BentoConsoleStats({
             </div>
           </div>
           <div className="mt-1">
-            <Typography
-              variant="embossed"
-              as="div"
-              className="text-2xl font-black font-mono tracking-tight text-foreground"
-            >
-              {loading ? "..." : scale.totalValue}
-            </Typography>
+            {loading ? (
+              <Skeleton className="my-1 h-7 w-20 rounded-lg" />
+            ) : (
+              <Typography
+                variant="embossed"
+                as="div"
+                className="text-2xl font-black font-mono tracking-tight text-foreground"
+              >
+                {scale.totalValue}
+              </Typography>
+            )}
             <p className="text-[10px] text-muted-foreground/80 font-medium truncate mt-0.5">
               {scale.totalSub ?? (isVietnamese ? "Toàn hệ thống" : "System-wide")}
             </p>
@@ -721,13 +734,17 @@ export function BentoConsoleStats({
           </div>
           <div className="mt-1">
             <div className="flex items-baseline gap-1.5">
-              <Typography
-                variant="embossed"
-                as="div"
-                className="text-2xl font-black font-mono tracking-tight !text-primary"
-              >
-                {loading ? "..." : scale.activeValue}
-              </Typography>
+              {loading ? (
+                <Skeleton className="my-1 h-7 w-20 rounded-lg" />
+              ) : (
+                <Typography
+                  variant="embossed"
+                  as="div"
+                  className="text-2xl font-black font-mono tracking-tight !text-primary"
+                >
+                  {scale.activeValue}
+                </Typography>
+              )}
               <span className="text-[10px] font-extrabold text-primary">
                 {activePercent}%
               </span>
@@ -771,7 +788,7 @@ export function BentoConsoleStats({
                 {security.percent}%
               </Typography>
               <span className="text-[10px] font-medium text-muted-foreground truncate">
-                {loading ? "..." : `${security.currentValue}/${security.totalValue}`}
+                {loading ? <Skeleton className="h-3 w-12 rounded inline-block" /> : `${security.currentValue}/${security.totalValue}`}
               </span>
             </div>
             <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] flex">
@@ -821,7 +838,7 @@ export function BentoConsoleStats({
                   hasWarning ? "!text-accent" : "!text-foreground"
                 )}
               >
-                {loading ? "..." : sentinel.count}
+                {loading ? <Skeleton className="my-1 h-7 w-16 rounded-lg" /> : sentinel.count}
               </Typography>
               <span
                 className={cn(
@@ -878,7 +895,7 @@ export function BentoConsoleStats({
                 as="div"
                 className="text-4xl lg:text-5xl font-black tracking-tight !text-foreground font-mono"
               >
-                {loading ? "..." : scale.totalValue}
+                {loading ? <Skeleton className="my-1.5 h-10 w-24 rounded-xl" /> : scale.totalValue}
               </Typography>
               <p className="text-[11px] text-muted-foreground/80 font-medium">
                 {scale.totalSub ?? (isVietnamese ? "Tài khoản toàn công ty" : "Company-wide Accounts")}
@@ -897,7 +914,7 @@ export function BentoConsoleStats({
                 as="div"
                 className="text-4xl lg:text-5xl font-black tracking-tight !text-primary font-mono"
               >
-                {loading ? "..." : scale.activeValue}
+                {loading ? <Skeleton className="my-1.5 h-10 w-24 rounded-xl" /> : scale.activeValue}
               </Typography>
               <p className="text-[11px] text-muted-foreground/80 font-medium">
                 {scale.activeSub ?? (isVietnamese ? "Sẵn sàng đăng nhập" : "Ready to log in")}
@@ -999,7 +1016,7 @@ export function BentoConsoleStats({
             <div className="space-y-1.5 min-w-0">
               <div className="flex items-baseline gap-1.5">
                 <span className="text-2xl font-black text-foreground font-mono">
-                  {loading ? "..." : security.currentValue}
+                  {loading ? <Skeleton className="h-6 w-12 rounded inline-block" /> : security.currentValue}
                 </span>
                 <span className="text-xs text-muted-foreground font-bold">
                   {security.totalStaffLabel ?? (isVietnamese ? `/ ${security.totalValue} nhân viên` : `/ ${security.totalValue} staff`)}
@@ -1073,7 +1090,7 @@ export function BentoConsoleStats({
                 hasWarning ? "!text-accent" : "!text-foreground",
               )}
             >
-              {loading ? "..." : sentinel.count}
+              {loading ? <Skeleton className="my-1.5 h-10 w-20 rounded-xl" /> : sentinel.count}
             </Typography>
             <p className="text-xs text-muted-foreground/90 font-medium pt-1">
               {sentinel.description ?? (hasWarning

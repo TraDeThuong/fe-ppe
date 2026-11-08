@@ -316,6 +316,7 @@ export function MobileSidebar({
                           <li key={item.key}>
                             <Link
                               href={item.route}
+                              prefetch={true}
                               onClick={handleClose}
                               aria-current={active ? "page" : undefined}
                               tabIndex={open ? 0 : -1}

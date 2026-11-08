@@ -10,9 +10,11 @@ import {
   Plus,
   ShieldAlert,
   ShieldCheck,
+  Sliders,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RestrictedAreaDrawer } from "@/components/features/sites/restricted-area-drawer";
 import { useCameras } from "@/hooks/cameras";
 import {
   useCreateZone,
@@ -20,12 +22,11 @@ import {
   useSiteZones,
 } from "@/hooks/sites/use-site-zones";
 import {
-  useCreateRestrictedArea,
   useDeleteRestrictedArea,
   useRestrictedAreas,
 } from "@/hooks/sites/use-restricted-areas";
 import { useLocale } from "@/providers/locale-provider";
-import type { SiteItem } from "@/types";
+import type { RestrictedAreaItem, SiteItem } from "@/types";
 
 export interface SiteSpatialZonesTabProps {
   site: SiteItem;
@@ -48,7 +49,6 @@ export function SiteSpatialZonesTab({ site }: SiteSpatialZonesTabProps) {
   const { data: restrictedAreas = [], isLoading: areasLoading } = useRestrictedAreas(
     site.id
   );
-  const createAreaMutation = useCreateRestrictedArea();
   const deleteAreaMutation = useDeleteRestrictedArea();
 
   // Form states for quick add
@@ -56,11 +56,8 @@ export function SiteSpatialZonesTab({ site }: SiteSpatialZonesTabProps) {
   const [zoneName, setZoneName] = useState("");
   const [zoneDescription, setZoneDescription] = useState("");
 
-  const [showAddArea, setShowAddArea] = useState(false);
-  const [areaName, setAreaName] = useState("");
-  const [areaSeverity, setAreaSeverity] = useState<"CRITICAL" | "HIGH">("CRITICAL");
-  const [areaZoneId, setAreaZoneId] = useState("");
-  const [areaDescription, setAreaDescription] = useState("");
+  const [areaDrawerOpen, setAreaDrawerOpen] = useState(false);
+  const [selectedArea, setSelectedArea] = useState<RestrictedAreaItem | null>(null);
 
   const handleAddZone = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,29 +79,7 @@ export function SiteSpatialZonesTab({ site }: SiteSpatialZonesTabProps) {
     setShowAddZone(false);
   };
 
-  const handleAddArea = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!areaName.trim()) return;
-
-    await createAreaMutation.mutateAsync({
-      siteId: site.id,
-      payload: {
-        name: areaName.trim(),
-        severity: areaSeverity,
-        zoneId: areaZoneId || undefined,
-        description: areaDescription.trim() || undefined,
-      },
-    });
-
-    setAreaName("");
-    setAreaDescription("");
-    setAreaZoneId("");
-    setShowAddArea(false);
-  };
-
-  
-
-return (
+  return (
   <div className="space-y-5">
     <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
       {/* =====================================================
@@ -493,8 +468,10 @@ return (
 
           <button
             type="button"
-            onClick={() => setShowAddArea((v) => !v)}
-            aria-expanded={showAddArea}
+            onClick={() => {
+              setSelectedArea(null);
+              setAreaDrawerOpen(true);
+            }}
             className="
               group inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-3
               border border-danger/20 bg-danger/[0.08] text-xs font-bold text-danger
@@ -509,11 +486,7 @@ return (
               dark:hover:shadow-[6px_6px_12px_rgba(0,0,0,0.5),-2px_-2px_5px_rgba(255,255,255,0.02),0_0_12px_rgba(239,68,68,0.08)]
             "
           >
-            <Plus
-              className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                showAddArea ? "rotate-45" : "group-hover:rotate-90"
-              }`}
-            />
+            <Plus className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-90" />
             <span>{isVietnamese ? "Thêm vùng cấm" : "Add area"}</span>
           </button>
         </div>
@@ -556,157 +529,6 @@ return (
           </div>
         </div>
 
-        {/* Add Restricted Area Form */}
-        {showAddArea && (
-          <form
-            onSubmit={handleAddArea}
-            className="
-              mt-4 space-y-3 rounded-[18px] p-3.5 sm:p-4
-              border border-danger/15 bg-background/55
-              shadow-[inset_3px_3px_8px_var(--shadow-dark),inset_-3px_-3px_8px_rgba(255,255,255,0.75)]
-              dark:border-transparent dark:bg-background/40
-              dark:shadow-[inset_4px_4px_9px_rgba(0,0,0,0.4),inset_-2px_-2px_5px_rgba(255,255,255,0.02)]
-            "
-          >
-            <div className="flex items-center gap-2">
-              <span className="h-5 w-1 rounded-full bg-danger" />
-              <h4 className="text-xs font-extrabold text-foreground">
-                {isVietnamese
-                  ? "Thiết lập vùng cấm mới"
-                  : "Configure restricted area"}
-              </h4>
-            </div>
-
-            <input
-              type="text"
-              placeholder={
-                isVietnamese
-                  ? "Tên vùng cấm (VD: Miệng hố thang máy tầng 15)"
-                  : "Area name (e.g.: Level 15 elevator shaft)"
-              }
-              value={areaName}
-              onChange={(e) => setAreaName(e.target.value)}
-              className="
-                h-10 w-full rounded-xl border border-border/15 bg-surface/70 px-3.5
-                text-xs text-foreground
-                shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_rgba(255,255,255,0.7)]
-                placeholder:text-muted-foreground/65
-                focus:border-danger/40 focus:outline-none focus:ring-2 focus:ring-danger/10
-                dark:border-transparent dark:bg-card/70
-                dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.3),inset_-1px_-1px_4px_rgba(255,255,255,0.02)]
-                dark:focus:border-danger/30
-              "
-              required
-            />
-
-            <select
-              value={areaSeverity}
-              onChange={(e) =>
-                setAreaSeverity(e.target.value as "CRITICAL" | "HIGH")
-              }
-              className="
-                h-10 w-full rounded-xl border border-border/15 bg-surface/70 px-3.5
-                text-xs text-foreground
-                shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_rgba(255,255,255,0.7)]
-                focus:border-danger/40 focus:outline-none focus:ring-2 focus:ring-danger/10
-                dark:border-transparent dark:bg-card/70
-                dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.3),inset_-1px_-1px_4px_rgba(255,255,255,0.02)]
-                dark:focus:border-danger/30
-              "
-            >
-              <option value="CRITICAL">
-                {isVietnamese
-                  ? "Mức độ: NGUY CẤP (CRITICAL)"
-                  : "Severity: CRITICAL"}
-              </option>
-              <option value="HIGH">
-                {isVietnamese
-                  ? "Mức độ: NGUY HIỂM CAO (HIGH)"
-                  : "Severity: HIGH"}
-              </option>
-            </select>
-
-            {zones.length > 0 && (
-              <select
-                value={areaZoneId}
-                onChange={(e) => setAreaZoneId(e.target.value)}
-                className="
-                  h-10 w-full rounded-xl border border-border/15 bg-surface/70 px-3.5
-                  text-xs text-foreground
-                  shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_rgba(255,255,255,0.7)]
-                  focus:border-danger/40 focus:outline-none focus:ring-2 focus:ring-danger/10
-                  dark:border-transparent dark:bg-card/70
-                  dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.3),inset_-1px_-1px_4px_rgba(255,255,255,0.02)]
-                  dark:focus:border-danger/30
-                "
-              >
-                <option value="">
-                  {isVietnamese
-                    ? "Thuộc phân khu (Tùy chọn)"
-                    : "Assigned zone (optional)"}
-                </option>
-                {zones.map((z) => (
-                  <option key={z.id} value={z.id}>
-                    {z.name}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            <textarea
-              placeholder={
-                isVietnamese
-                  ? "Mô tả lý do nguy hiểm / quy tắc phản ứng"
-                  : "Hazard description / response rules"
-              }
-              value={areaDescription}
-              onChange={(e) => setAreaDescription(e.target.value)}
-              rows={2}
-              className="
-                w-full resize-y rounded-xl border border-border/15 bg-surface/70 px-3.5 py-3
-                text-xs leading-relaxed text-foreground
-                shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_rgba(255,255,255,0.7)]
-                placeholder:text-muted-foreground/65
-                focus:border-danger/40 focus:outline-none focus:ring-2 focus:ring-danger/10
-                dark:border-transparent dark:bg-card/70
-                dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.3),inset_-1px_-1px_4px_rgba(255,255,255,0.02)]
-                dark:focus:border-danger/30
-              "
-            />
-
-            <div className="flex justify-end gap-2 pt-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowAddArea(false)}
-                className="h-8 rounded-lg px-3 text-xs"
-              >
-                {isVietnamese ? "Hủy" : "Cancel"}
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                size="sm"
-                disabled={createAreaMutation.isPending}
-                className="
-                  h-8 rounded-xl px-4 text-xs
-                  shadow-[3px_3px_6px_var(--shadow-dark),-2px_-2px_5px_rgba(255,255,255,0.65)]
-                  dark:shadow-[3px_3px_6px_rgba(0,0,0,0.35)]
-                "
-              >
-                {createAreaMutation.isPending
-                  ? isVietnamese
-                    ? "Đang lưu..."
-                    : "Saving..."
-                  : isVietnamese
-                    ? "Lưu vùng cấm"
-                    : "Save area"}
-              </Button>
-            </div>
-          </form>
-        )}
-
         {/* Restricted Areas List */}
         <div className="mt-4">
           {areasLoading ? (
@@ -732,6 +554,7 @@ return (
               {restrictedAreas.map((area) => {
                 const parentZone = zones.find((z) => z.id === area.zoneId);
                 const isCritical = (area.severity || "CRITICAL") === "CRITICAL";
+                const pointCount = Array.isArray(area.boundary) ? area.boundary.length : 0;
 
                 return (
                   <div
@@ -809,6 +632,16 @@ return (
                               <span className="break-words">{parentZone.name}</span>
                             </span>
                           )}
+
+                          {pointCount >= 3 ? (
+                            <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 font-mono text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">
+                              {pointCount} {isVietnamese ? "điểm ranh giới" : "pts"}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 font-mono text-[9px] font-semibold text-amber-600 dark:text-amber-400">
+                              {isVietnamese ? "Chưa vẽ ranh giới" : "No boundary"}
+                            </span>
+                          )}
                         </div>
 
                         {area.description && (
@@ -818,35 +651,62 @@ return (
                         )}
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          deleteAreaMutation.mutate({
-                            siteId: site.id,
-                            areaId: area.id,
-                            name: area.name,
-                          })
-                        }
-                        disabled={deleteAreaMutation.isPending}
-                        title={
-                          isVietnamese
-                            ? "Xóa vùng cấm"
-                            : "Delete restricted area"
-                        }
-                        aria-label={`${isVietnamese ? "Xóa vùng cấm" : "Delete restricted area"} ${area.name}`}
-                        className="
-                          flex h-8 w-8 shrink-0 items-center justify-center rounded-xl
-                          border border-transparent text-muted-foreground/65
-                          transition-colors duration-200
-                          hover:border-danger/15 hover:bg-danger/[0.08] hover:text-danger
-                          active:scale-95
-                          disabled:cursor-not-allowed disabled:opacity-40
-                          dark:border-transparent dark:hover:border-transparent
-                          dark:hover:bg-danger/[0.12] dark:hover:text-danger
-                        "
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedArea(area);
+                            setAreaDrawerOpen(true);
+                          }}
+                          title={
+                            isVietnamese
+                              ? "Vẽ lại / Sửa ranh giới vùng cấm"
+                              : "Edit danger boundary"
+                          }
+                          aria-label={`${isVietnamese ? "Sửa ranh giới vùng cấm" : "Edit restricted area boundary"} ${area.name}`}
+                          className="
+                            flex h-8 w-8 shrink-0 items-center justify-center rounded-xl
+                            border border-transparent text-muted-foreground/65
+                            transition-colors duration-200
+                            hover:border-danger/15 hover:bg-danger/[0.08] hover:text-danger
+                            active:scale-95
+                            dark:border-transparent dark:hover:border-transparent
+                            dark:hover:bg-danger/[0.12] dark:hover:text-danger
+                          "
+                        >
+                          <Sliders className="h-3.5 w-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            deleteAreaMutation.mutate({
+                              siteId: site.id,
+                              areaId: area.id,
+                              name: area.name,
+                            })
+                          }
+                          disabled={deleteAreaMutation.isPending}
+                          title={
+                            isVietnamese
+                              ? "Xóa vùng cấm"
+                              : "Delete restricted area"
+                          }
+                          aria-label={`${isVietnamese ? "Xóa vùng cấm" : "Delete restricted area"} ${area.name}`}
+                          className="
+                            flex h-8 w-8 shrink-0 items-center justify-center rounded-xl
+                            border border-transparent text-muted-foreground/65
+                            transition-colors duration-200
+                            hover:border-danger/15 hover:bg-danger/[0.08] hover:text-danger
+                            active:scale-95
+                            disabled:cursor-not-allowed disabled:opacity-40
+                            dark:border-transparent dark:hover:border-transparent
+                            dark:hover:bg-danger/[0.12] dark:hover:text-danger
+                          "
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -856,6 +716,15 @@ return (
         </div>
       </section>
     </div>
+
+    {/* Interactive Danger Boundary Canvas Drawer */}
+    <RestrictedAreaDrawer
+      open={areaDrawerOpen}
+      onOpenChange={setAreaDrawerOpen}
+      siteId={site.id}
+      siteName={site.name}
+      area={selectedArea}
+    />
   </div>
 );
 }

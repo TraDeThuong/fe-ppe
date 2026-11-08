@@ -1,12 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BarChart3, FilePlus2, RefreshCw } from "lucide-react";
+import {
+  BarChart3,
+  Cpu,
+  FilePlus2,
+  RefreshCw,
+  ShieldAlert,
+} from "lucide-react";
 import { useTableState } from "@/hooks/use-table-state";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
+import { reportingService } from "@/services/reporting.service";
 import {
   ReportKpiSummary,
   ReportFilterToolbar,
@@ -16,6 +24,8 @@ import {
   ReportTemplateCards,
   ReportHistoryTable,
   GenerateReportModal,
+  ReportPreviewModal,
+  ReportAiPerformance,
   type ReportStatKey,
 } from "@/components/features/reports";
 import {
@@ -28,9 +38,11 @@ import {
   useGenerateReport,
   useIncidents,
   useEntityLookup,
+  useAiPerformanceStats,
 } from "@/hooks";
 import type {
   CameraStatDto,
+  ReportGenerationDto,
   ReportTemplateDto,
   ReportingFilterParams,
   StatisticsSummaryDto,
@@ -93,18 +105,35 @@ export default function ReportsContent() {
   // Filter States
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [period, setPeriod] = useState("30d");
+  const [customStartDate, setCustomStartDate] = useState(
+    () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+  );
+  const [customEndDate, setCustomEndDate] = useState(
+    () => new Date().toISOString().slice(0, 10)
+  );
+
+  // Tab State: "violations" | "aiPerformance"
+  const [activeTab, setActiveTab] = useState<"violations" | "aiPerformance">("violations");
 
   const [historyType, setHistoryType] = useState("");
   const [historyStatus, setHistoryStatus] = useState("");
   const historyTable = useTableState([], `${selectedSiteId}:${historyType}:${historyStatus}`);
-  const { startDate, endDate } = useMemo(() => computeDateRange(period), [period]);
+
+  const { startDate, endDate } = useMemo(() => {
+    if (period === "custom") {
+      return {
+        startDate: customStartDate || computeDateRange("30d").startDate,
+        endDate: customEndDate || computeDateRange("30d").endDate,
+      };
+    }
+    return computeDateRange(period);
+  }, [period, customStartDate, customEndDate]);
 
   const filterParams: ReportingFilterParams = useMemo(
     () => ({
       siteId: selectedSiteId || undefined,
       startDate,
       endDate,
-
     }),
     [selectedSiteId, startDate, endDate]
   );
@@ -155,8 +184,14 @@ export default function ReportsContent() {
     reportType: historyType || undefined,
     status: historyStatus || undefined,
     siteId: selectedSiteId || undefined,
-
   });
+
+  // AI Performance Telemetry Query
+  const {
+    data: aiStats = [],
+    isLoading: isAiStatsLoading,
+    refetch: refetchAiStats,
+  } = useAiPerformanceStats(filterParams);
 
   // Live Incidents Query (đảm bảo luôn đồng bộ với ppe_incident_db thực tế)
   const {
@@ -251,7 +286,6 @@ export default function ReportsContent() {
       meanTimeToResolveHours,
       periodStart: startDate,
       periodEnd: endDate,
-
     };
   }, [isRollupAuthoritative, rawSummary, filteredIncidents, startDate, endDate]);
 
@@ -270,7 +304,6 @@ export default function ReportsContent() {
         trueViolations: 0,
         falseAlarms: 0,
         resolvedCount: 0,
-
       };
       existing.totalIncidents += 1;
       if (inc.status === "DISMISSED") {
@@ -314,7 +347,7 @@ export default function ReportsContent() {
           NORMAL: 0,
           MEDIUM: 0,
           HIGH: 0,
-          CRITICAL: 0
+          CRITICAL: 0,
         },
       };
       item.count += 1;
@@ -331,7 +364,6 @@ export default function ReportsContent() {
       count: data.count,
       percentage: grandTotal > 0 ? Number(((data.count / grandTotal) * 100).toFixed(2)) : 0,
       severityBreakdown: data.severityBreakdown,
-
     }));
   }, [isRollupAuthoritative, rawDistribution, filteredIncidents]);
 
@@ -351,7 +383,6 @@ export default function ReportsContent() {
                 confirmedCount: 0,
                 falseAlarmCount: 0,
                 resolvedCount: 0,
-
               };
               item.totalViolations += 1;
               if (inc.status === "CONFIRMED" || inc.status === "RESOLVED" || inc.status === "CLOSED") {
@@ -400,9 +431,45 @@ export default function ReportsContent() {
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplateDto | null>(null);
 
+  // Preview Modal state
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewReport, setPreviewReport] = useState<ReportGenerationDto | null>(null);
+
+  // Auto-toast notification when queued report finishes
+  const prevProcessingIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const items = historyResult?.items || [];
+    const currentlyProcessing = new Set(
+      items
+        .filter((item) => item.status === "PENDING" || item.status === "PROCESSING")
+        .map((item) => item.id)
+    );
+
+    for (const id of prevProcessingIdsRef.current) {
+      if (!currentlyProcessing.has(id)) {
+        const finished = items.find((item) => item.id === id);
+        if (finished && finished.status === "COMPLETED") {
+          const toastMsg = t("reports.queue.completedToast").replace(
+            "{fileName}",
+            finished.fileName || "báo cáo mới"
+          );
+          toast.success(toastMsg);
+        }
+      }
+    }
+
+    prevProcessingIdsRef.current = currentlyProcessing;
+  }, [historyResult?.items, t]);
+
   const handleOpenGenerate = (template?: ReportTemplateDto) => {
     setSelectedTemplate(template || null);
     setIsGenerateOpen(true);
+  };
+
+  const handleOpenPreview = (report: ReportGenerationDto) => {
+    setPreviewReport(report);
+    setIsPreviewOpen(true);
   };
 
   const handleRefreshAll = () => {
@@ -413,6 +480,7 @@ export default function ReportsContent() {
     refetchTemplates();
     refetchHistory();
     refetchIncidents();
+    refetchAiStats();
   };
 
   const isRefetching = isSummaryRefetching;
@@ -422,29 +490,18 @@ export default function ReportsContent() {
     <div className="space-y-6">
       {/* Page Header */}
       <PageHeader
-
         icon={BarChart3}
-
         title={t("reports.title")}
-
         description={t("reports.description")}
-
         badge="Analytics & Exports"
-
         badgeIcon={BarChart3}
-
         actions={
           <div className="flex items-center gap-2">
             <Button
-
               variant="ghost"
-
               onClick={handleRefreshAll}
-
               disabled={isRefetching}
-
               className="gap-2"
-
             >
               <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
               <span>{t("common.refresh")}</span>
@@ -460,122 +517,196 @@ export default function ReportsContent() {
             </Button>
           </div>
         }
-
       />
 
       {/* Bento Console KPI Summary with Interactive Detail Panel */}
       <ReportKpiSummary
-
         summary={summary}
-
         reportsCount={historyResult?.meta?.total ?? history.length}
-
         loading={isOverallLoading}
-
         selectedStat={selectedStat}
-
         onSelectStat={handleSelectStat}
-
         distribution={distribution}
-
         trends={trends}
-
         cameraRankings={cameraRankings}
-
         templates={templates}
-
         history={history}
-
         sites={sites}
-
         incidents={filteredIncidents}
-
         onGenerateReport={(tpl) => handleOpenGenerate(tpl)}
-
       />
 
-      {/* Filter Toolbar */}
+      {/* Filter Toolbar with Custom Date Range */}
       <ReportFilterToolbar
-
         sites={sites}
-
         selectedSiteId={selectedSiteId}
-
         onSiteChange={setSelectedSiteId}
-
         period={period}
-
         onPeriodChange={setPeriod}
-
+        startDate={customStartDate}
+        endDate={customEndDate}
+        onStartDateChange={setCustomStartDate}
+        onEndDateChange={setCustomEndDate}
         onGenerateClick={() => handleOpenGenerate()}
-
         onRefresh={handleRefreshAll}
-
         loading={isRefetching}
-
       />
 
-      {/* 2-Column: Trends Line Chart (Left: 8 cols) & Violation Donut (Right: 4 cols) */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
-        <div className="flex flex-col lg:col-span-8">
-          <ReportTrendChart trends={trends} loading={isTrendsLoading && isIncidentsLoading} />
-        </div>
-        <div className="flex flex-col lg:col-span-4">
-          <ReportViolationDonut
-            distribution={distribution}
-            loading={isDistributionLoading && isIncidentsLoading}
-          />
-        </div>
+      {/* Neumorphic Navigation Tabs: Safety Violations vs AI Model Performance */}
+      <div className="flex items-center gap-2 border-b border-border/40 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("violations")}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+            activeTab === "violations"
+              ? "bg-primary text-primary-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.15)]"
+              : "bg-surface text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <ShieldAlert className="h-4 w-4" />
+          <span>{t("reports.tabs.violations")}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("aiPerformance")}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+            activeTab === "aiPerformance"
+              ? "bg-primary text-primary-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.15)]"
+              : "bg-surface text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Cpu className="h-4 w-4" />
+          <span>{t("reports.tabs.aiPerformance")}</span>
+        </button>
       </div>
 
-      {/* Camera Hotspot Risk Rankings */}
-      <ReportCameraRanking
-        rankings={cameraRankings}
-        loading={isRankingsLoading && isIncidentsLoading}
-      />
+      {/* Tab 1: Safety Violations Analytics */}
+      {activeTab === "violations" && (
+        <div className="space-y-6">
+          {/* 2-Column: Trends Line Chart (Left: 8 cols) & Violation Donut (Right: 4 cols) */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
+            <div className="flex flex-col lg:col-span-8">
+              <ReportTrendChart
+                trends={trends}
+                loading={isTrendsLoading && isIncidentsLoading}
+              />
+            </div>
+            <div className="flex flex-col lg:col-span-4">
+              <ReportViolationDonut
+                distribution={distribution}
+                loading={isDistributionLoading && isIncidentsLoading}
+              />
+            </div>
+          </div>
 
-      {/* Standardized Report Templates Cards */}
-      <ReportTemplateCards
-        templates={templates}
-        onSelectTemplate={(tpl) => handleOpenGenerate(tpl)}
-      />
+          {/* Camera Hotspot Risk Rankings */}
+          <ReportCameraRanking
+            rankings={cameraRankings}
+            loading={isRankingsLoading && isIncidentsLoading}
+          />
 
-      {/* Export History & Queue Table */}
+          {/* Standardized Report Templates Cards */}
+          <ReportTemplateCards
+            templates={templates}
+            onSelectTemplate={(tpl) => handleOpenGenerate(tpl)}
+          />
+        </div>
+      )}
+
+      {/* Tab 2: AI Model Performance & Telemetry */}
+      {activeTab === "aiPerformance" && (
+        <ReportAiPerformance stats={aiStats} loading={isAiStatsLoading} />
+      )}
+
+      {/* Export History & Queue Table with Preview Action */}
       <div id="reports-history-section">
-        <ReportHistoryTable history={history} loading={isHistoryLoading} tableState={{
-          ...historyTable,
-          rowCount: historyResult?.meta?.total ?? history.length,
-          pageCount: historyResult?.meta?.totalPages ?? 1,
-          fetching: isHistoryFetching,
-          error: historyError,
-          onRetry: () => {
-            void refetchHistory();
-          },
-          toolbar: <div className="flex flex-wrap gap-3"><label className="text-xs">{t("reports.history.type")}<select value={historyType} onChange={e => setHistoryType(e.target.value)} className="ml-2 rounded-xl border border-border bg-background p-2"><option value="">{t("table.all")}</option>{["DAILY", "WEEKLY", "MONTHLY", "VIOLATION_SUMMARY", "AI_PERFORMANCE"].map(value => <option key={value}>{value}</option>)}</select></label><label className="text-xs">{t("reports.history.status")}<select value={historyStatus} onChange={e => setHistoryStatus(e.target.value)} className="ml-2 rounded-xl border border-border bg-background p-2"><option value="">{t("table.all")}</option>{["PENDING", "PROCESSING", "COMPLETED", "FAILED"].map(value => <option key={value}>{value}</option>)}</select></label></div>
-        }} />
+        <ReportHistoryTable
+          history={history}
+          loading={isHistoryLoading}
+          onPreview={handleOpenPreview}
+          tableState={{
+            ...historyTable,
+            rowCount: historyResult?.meta?.total ?? history.length,
+            pageCount: historyResult?.meta?.totalPages ?? 1,
+            fetching: isHistoryFetching,
+            error: historyError,
+            onRetry: () => {
+              void refetchHistory();
+            },
+            toolbar: (
+              <div className="flex flex-wrap gap-3">
+                <label className="text-xs">
+                  {t("reports.history.type")}
+                  <select
+                    value={historyType}
+                    onChange={(e) => setHistoryType(e.target.value)}
+                    className="ml-2 rounded-xl border border-border bg-background p-2"
+                  >
+                    <option value="">{t("table.all")}</option>
+                    {[
+                      "DAILY",
+                      "WEEKLY",
+                      "MONTHLY",
+                      "VIOLATION_SUMMARY",
+                      "AI_PERFORMANCE",
+                    ].map((value) => (
+                      <option key={value}>{value}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs">
+                  {t("reports.history.status")}
+                  <select
+                    value={historyStatus}
+                    onChange={(e) => setHistoryStatus(e.target.value)}
+                    className="ml-2 rounded-xl border border-border bg-background p-2"
+                  >
+                    <option value="">{t("table.all")}</option>
+                    {["PENDING", "PROCESSING", "COMPLETED", "FAILED"].map(
+                      (value) => (
+                        <option key={value}>{value}</option>
+                      )
+                    )}
+                  </select>
+                </label>
+              </div>
+            ),
+          }}
+        />
       </div>
 
       {/* Generate Report Modal */}
       <GenerateReportModal
-
         open={isGenerateOpen}
-
         onOpenChange={setIsGenerateOpen}
-
         templates={templates}
-
         sites={sites}
-
         selectedTemplate={selectedTemplate}
-
         defaultSiteId={selectedSiteId}
-
+        defaultStartDate={startDate}
+        defaultEndDate={endDate}
         loading={generateMutation.isPending}
-
         onSubmit={async (dto) => {
-          await generateMutation.mutateAsync(dto);
+          const createdReport = await generateMutation.mutateAsync(dto);
+          setIsGenerateOpen(false);
+          if (createdReport) {
+            try {
+              // Tự động tải file về máy tính ngay lập tức
+              await reportingService.downloadReportFile(createdReport);
+            } catch (err: any) {
+              console.error("Auto-download failed:", err);
+            }
+          }
         }}
+      />
 
+      {/* Report Preview Modal */}
+      <ReportPreviewModal
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+        report={previewReport}
+        onDownload={(report) => reportingService.downloadReportFile(report)}
       />
     </div>
   );

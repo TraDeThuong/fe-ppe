@@ -84,6 +84,7 @@ export interface CameraIntelligencePlayerProps {
   loopCached?: boolean;
   onLiveStateUpdate?: (state: any) => void;
   roiPolygon?: Array<{ x: number; y: number }> | null;
+  dangerPolygon?: Array<{ x: number; y: number }> | null;
 }
 
 export function CameraIntelligencePlayer({
@@ -119,6 +120,7 @@ export function CameraIntelligencePlayer({
   loopCached = false,
   onLiveStateUpdate,
   roiPolygon,
+  dangerPolygon,
 }: CameraIntelligencePlayerProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -369,6 +371,36 @@ export function CameraIntelligencePlayer({
             ctx.restore();
           }
 
+          // Vẽ Danger Polygon (Vùng cấm nguy hiểm) nếu có
+          if (Array.isArray(dangerPolygon) && dangerPolygon.length >= 3) {
+            ctx.save();
+            ctx.beginPath();
+            dangerPolygon.forEach((pt, i) => {
+              const px = (pt.x <= 1 && pt.y <= 1 ? pt.x * viewBoxWidth : pt.x) * scaleX;
+              const py = (pt.y <= 1 && pt.y <= 1 ? pt.y * viewBoxHeight : pt.y) * scaleY;
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            });
+            ctx.closePath();
+            ctx.fillStyle = "rgba(239, 68, 68, 0.18)";
+            ctx.fill();
+            ctx.strokeStyle = "#ef4444";
+            ctx.lineWidth = Math.max(2, Math.round(canvas.width / 450));
+            ctx.setLineDash([6, 4]);
+            ctx.stroke();
+
+            // Label
+            const firstPt = dangerPolygon[0];
+            if (firstPt) {
+              const labelX = (firstPt.x <= 1 && firstPt.y <= 1 ? firstPt.x * viewBoxWidth : firstPt.x) * scaleX;
+              const labelY = (firstPt.y <= 1 && firstPt.y <= 1 ? firstPt.y * viewBoxHeight : firstPt.y) * scaleY;
+              ctx.fillStyle = "#ef4444";
+              ctx.font = "bold 11px sans-serif";
+              ctx.fillText("🚨 VÙNG CẤM NGUY HIỂM", labelX + 6, Math.max(16, labelY - 6));
+            }
+            ctx.restore();
+          }
+
           for (const det of currentEntry.detections) {
             if (!Array.isArray(det.bbox) || det.bbox.length !== 4) continue;
             const [x1, y1, x2, y2] = det.bbox;
@@ -535,8 +567,9 @@ export function CameraIntelligencePlayer({
   const renderDetectionsSvg = () => {
     const hasDetections = showBbox && Boolean(currentEntry?.detections?.length);
     const hasRoi = Array.isArray(roiPolygon) && roiPolygon.length >= 3;
+    const hasDanger = Array.isArray(dangerPolygon) && dangerPolygon.length >= 3;
 
-    if (!hasDetections && !hasRoi) {
+    if (!hasDetections && !hasRoi && !hasDanger) {
       return null;
     }
 
@@ -549,6 +582,16 @@ export function CameraIntelligencePlayer({
 
     const roiPointsStr = hasRoi
       ? roiPolygon!
+          .map((pt) => {
+            const px = pt.x <= 1 && pt.y <= 1 ? pt.x * viewBoxWidth : pt.x;
+            const py = pt.x <= 1 && pt.y <= 1 ? pt.y * viewBoxHeight : pt.y;
+            return `${Math.round(px)},${Math.round(py)}`;
+          })
+          .join(" ")
+      : "";
+
+    const dangerPointsStr = hasDanger
+      ? dangerPolygon!
           .map((pt) => {
             const px = pt.x <= 1 && pt.y <= 1 ? pt.x * viewBoxWidth : pt.x;
             const py = pt.x <= 1 && pt.y <= 1 ? pt.y * viewBoxHeight : pt.y;
@@ -612,6 +655,75 @@ export function CameraIntelligencePlayer({
                 />
               );
             })}
+          </g>
+        )}
+
+        {/* Vùng nguy hiểm / Vùng cấm Danger Polygon */}
+        {hasDanger && (
+          <g>
+            <polygon
+              points={dangerPointsStr}
+              fill="rgba(239, 68, 68, 0.20)"
+              stroke="#ef4444"
+              strokeWidth={Math.max(2, 2.4 * scale)}
+              strokeDasharray="6 4"
+            />
+            {dangerPolygon!.map((pt, i) => {
+              const px = pt.x <= 1 && pt.y <= 1 ? pt.x * viewBoxWidth : pt.x;
+              const py = pt.y <= 1 && pt.y <= 1 ? pt.y * viewBoxHeight : pt.y;
+              return (
+                <g key={`danger-pt-${i}`}>
+                  <circle
+                    cx={px}
+                    cy={py}
+                    r={Math.max(4, 4.5 * scale)}
+                    fill="#ef4444"
+                    stroke="#ffffff"
+                    strokeWidth={1.5}
+                  />
+                  <text
+                    x={px + 6}
+                    y={py - 6}
+                    fill="#ef4444"
+                    fontSize={Math.max(10, Math.round(11 * scale))}
+                    fontWeight="bold"
+                    className="select-none"
+                  >
+                    D{i + 1}
+                  </text>
+                </g>
+              );
+            })}
+            {dangerPolygon!.length > 0 && (() => {
+              const firstPt = dangerPolygon![0];
+              const px = firstPt.x <= 1 && firstPt.y <= 1 ? firstPt.x * viewBoxWidth : firstPt.x;
+              const py = firstPt.y <= 1 && firstPt.y <= 1 ? firstPt.y * viewBoxHeight : firstPt.y;
+              return (
+                <g transform={`translate(${px + 10}, ${py + 20})`}>
+                  <rect
+                    x="0"
+                    y="-14"
+                    width={160}
+                    height={22}
+                    rx="4"
+                    fill="rgba(185, 28, 28, 0.85)"
+                    stroke="#ef4444"
+                    strokeWidth="1"
+                  />
+                  <text
+                    x="8"
+                    y="2"
+                    fill="#ffffff"
+                    fontSize={11}
+                    fontWeight="bold"
+                    letterSpacing="0.5"
+                    className="select-none"
+                  >
+                    🚨 VÙNG CẤM NGUY HIỂM
+                  </text>
+                </g>
+              );
+            })()}
           </g>
         )}
 

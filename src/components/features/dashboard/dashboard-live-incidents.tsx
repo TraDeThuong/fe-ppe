@@ -77,18 +77,18 @@ export function DashboardLiveIncidents({
   const isVietnamese = locale === "vi-VN";
 
   return (
-    <div className="relative isolate flex h-full w-full flex-col justify-between overflow-hidden rounded-2xl bg-surface p-4 sm:p-5 shadow-[7px_7px_18px_var(--shadow-dark),-7px_-7px_18px_var(--shadow-light)] border border-border/20">
+    <div className="relative isolate flex h-full w-full flex-col justify-between overflow-hidden rounded-2xl sm:rounded-[26px] bg-surface/90 p-4 sm:p-5 shadow-[4px_6px_16px_rgba(0,0,0,0.03),-3px_-3px_10px_rgba(255,255,255,0.6)] dark:border-white/[0.08] dark:bg-card/40 dark:shadow-[0_8px_24px_rgba(0,0,0,0.25)] border border-border/40">
       {/* Specular highlight rim */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/20"
+        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/[0.06]"
       />
 
       {/* Header */}
       <div>
         <div className="flex items-center justify-between gap-3 border-b border-border/40 pb-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-danger/10 text-danger border border-danger/20 shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)]">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-danger/10 text-danger border border-danger/20 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.05)] dark:border-danger/30 dark:shadow-none">
               <Radio className="h-4 w-4 animate-pulse" />
             </div>
             <div>
@@ -127,7 +127,7 @@ export function DashboardLiveIncidents({
             </div>
           ) : error ? <p className="py-10 text-center text-sm text-muted-foreground">{t("dashboard.data.error")}</p> : incidents.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/10 text-success mb-2 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/10 text-success mb-2 border border-success/20 dark:border-white/[0.08] dark:shadow-none shadow-[inset_2px_2px_4px_rgba(0,0,0,0.04)]">
                 <CheckCircle2 className="h-6 w-6" />
               </div>
               <p className="text-sm font-semibold text-foreground">
@@ -153,13 +153,13 @@ export function DashboardLiveIncidents({
                   className={`group relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border p-3.5 transition-all duration-300 ${
                     isHighlighted
                       ? "border-danger bg-danger/5 shadow-[0_0_15px_rgba(239,68,68,0.25)] animate-pulse"
-                      : "border-border/40 bg-background/60 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] hover:border-border"
+                      : "border-border/30 bg-background/50 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.03)] dark:border-white/[0.06] dark:bg-background/40 dark:shadow-none hover:border-primary/40 dark:hover:border-white/20"
                   }`}
                 >
                   {/* Left: Thumbnail & Details */}
                   <div className="flex items-center gap-3 min-w-0">
                     {/* Snapshot / Camera Icon */}
-                    <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/60 bg-muted/30 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] dark:border-white/10">
+                    <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/40 bg-muted/20 shadow-[2px_2px_5px_rgba(0,0,0,0.04)] dark:border-white/[0.08] dark:bg-muted/10 dark:shadow-none">
                       {inc.snapshotUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img

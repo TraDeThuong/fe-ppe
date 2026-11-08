@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { reportingService } from "@/services/reporting.service";
 import { reportingKeys } from "./reporting.query-keys";
 import type {
+  AiPerformanceStatDto,
   CameraStatDto,
   ReportingFilterParams,
   StatisticsSummaryDto,
@@ -39,6 +40,14 @@ export function useCameraRankings(params?: ReportingFilterParams & { limit?: num
   return useQuery<CameraStatDto[]>({
     queryKey: reportingKeys.rankings(params),
     queryFn: () => reportingService.getCameraRankings(params),
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useAiPerformanceStats(params?: ReportingFilterParams) {
+  return useQuery<AiPerformanceStatDto[]>({
+    queryKey: reportingKeys.aiPerformance(params),
+    queryFn: () => reportingService.getAiPerformance(params),
     staleTime: 30 * 1000,
   });
 }

@@ -17,6 +17,12 @@ import {
   DashboardHourlyRiskChart,
   DashboardSeveritySlaChart,
   DashboardZoneRiskChart,
+  DashboardNavTabs,
+  DashboardExecutiveKpi,
+  DashboardSystemStatusCard,
+  DashboardUsersOverviewCard,
+  DashboardAuditMiniFeed,
+  DashboardCronMiniCard,
 } from "../index";
 import { aggregateDashboard } from "@/lib/dashboard-data";
 import type { AuthUser, IncidentItem } from "@/types";
@@ -322,6 +328,99 @@ describe("Dashboard Components", () => {
       assert.ok(html.includes("Phân tích sự cố trong kỳ"));
       assert.ok(html.includes("Lưới 2x2"));
       assert.ok(html.includes("Radar"));
+    });
+  });
+
+  describe("Dashboard Navigation & Multi-Domain Executive Widgets", () => {
+    it("renders sub-navigation tabs with correct badges", () => {
+      const html = renderWithProviders(
+        <DashboardNavTabs
+          activeTab="overview"
+          onChangeTab={() => {}}
+          pendingCount={7}
+          onlineCameras={4}
+          totalCameras={4}
+          healthyServices={12}
+          totalServices={12}
+        />,
+      );
+
+      assert.ok(html.includes("Tổng quan") || html.includes("Overview"));
+      assert.ok(html.includes("An toàn &amp; Sự cố") || html.includes("Safety &amp; Incidents") || html.includes("An toàn"));
+      assert.ok(html.includes("Thiết bị &amp; AI") || html.includes("Cameras &amp; AI") || html.includes("Thiết bị"));
+      assert.ok(html.includes("Người dùng &amp; Hệ thống") || html.includes("Users &amp; System") || html.includes("Người dùng"));
+      assert.ok(html.includes("7"));
+      assert.ok(html.includes("4/4"));
+      assert.ok(html.includes("12/12"));
+    });
+
+    it("renders 4 executive KPI pillars with real metrics", () => {
+      const html = renderWithProviders(
+        <DashboardExecutiveKpi
+          totalIncidents={25}
+          pendingCount={3}
+          onlineCameras={8}
+          totalCameras={10}
+          aiModelVersion="YOLO11x active"
+          totalUsers={42}
+          activeUsers={38}
+          twoFactorCount={35}
+          healthyServices={12}
+          totalServices={12}
+          avgLatencyMs={18}
+          systemStatus="HEALTHY"
+        />,
+      );
+
+      assert.ok(html.includes("25"));
+      assert.ok(html.includes("sự cố"));
+      assert.ok(html.includes("3"));
+      assert.ok(html.includes("8/10"));
+      assert.ok(html.includes("YOLO11x active"));
+      assert.ok(html.includes("42"));
+      assert.ok(html.includes("12/12"));
+      assert.ok(html.includes("18ms"));
+    });
+
+    it("renders system status card with title and view details link", () => {
+      const html = renderWithProviders(<DashboardSystemStatusCard />);
+      assert.ok(
+        html.includes("Trạng thái Dịch vụ &amp; Hạ tầng") ||
+          html.includes("Services &amp; Infrastructure Status") ||
+          html.includes("Dịch vụ"),
+      );
+      assert.ok(html.includes("/system"));
+    });
+
+    it("renders users overview card with title and management links", () => {
+      const html = renderWithProviders(<DashboardUsersOverviewCard />);
+      assert.ok(
+        html.includes("Người dùng &amp; Phân quyền") ||
+          html.includes("Users &amp; Access") ||
+          html.includes("Người dùng"),
+      );
+      assert.ok(html.includes("/users"));
+      assert.ok(html.includes("/roles"));
+    });
+
+    it("renders audit mini feed with title and view all link", () => {
+      const html = renderWithProviders(<DashboardAuditMiniFeed />);
+      assert.ok(
+        html.includes("Nhật ký Hoạt động Gần nhất") ||
+          html.includes("Recent Audit Activity") ||
+          html.includes("Nhật ký"),
+      );
+      assert.ok(html.includes("/audit-logs"));
+    });
+
+    it("renders cron mini card with title and manage tasks link", () => {
+      const html = renderWithProviders(<DashboardCronMiniCard />);
+      assert.ok(
+        html.includes("Tác vụ Lập lịch (Cron)") ||
+          html.includes("Scheduled Tasks (Cron)") ||
+          html.includes("Cron"),
+      );
+      assert.ok(html.includes("/scheduled-tasks"));
     });
   });
 });

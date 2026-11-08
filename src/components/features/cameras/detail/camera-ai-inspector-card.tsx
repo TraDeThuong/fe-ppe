@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ColumnDef, ColumnFiltersState, PaginationState } from "@tanstack/react-table";
 import {
   CheckCircle2,
   Cpu,
@@ -12,6 +13,14 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableToolbar,
+  TableContent,
+  TablePagination,
+  TableFilterPanel,
+  type TableFeatureSet,
+} from "@/components/ui/table";
 import { SegmentedControl, type SegmentedControlOption } from "@/components/ui/segmented-control";
 import { useLocale } from "@/providers/locale-provider";
 import { formatFrameRanges } from "./live-tracking-engine";
@@ -23,6 +32,24 @@ import type {
   PersonStatus,
   ViolationEvent,
 } from "./types";
+
+export interface PersonSummaryRow {
+  id: number;
+  firstFrame: number;
+  lastFrame: number;
+  frameCount: number;
+  missHelmetFrames: number[];
+  missVestFrames: number[];
+  helmetRangesStr: string;
+  vestRangesStr: string;
+  helmetStatus: "ok" | "missing" | "none";
+  vestStatus: "ok" | "missing" | "none";
+  verdictKey: "COMPLIANT" | "CONFIRMED" | "CANDIDATE" | "UNKNOWN";
+  verdictLabel: string;
+  badgeVariant: "success" | "danger" | "warning";
+  unknownCount: number;
+  confirmedTypes: string;
+}
 
 export interface CameraAiInspectorCardProps {
   currentEntry: FrameLogEntry | null;
@@ -137,6 +164,277 @@ export function CameraAiInspectorCard({
         !usedTracks.has(d.track_id)
     );
   }, [associations, detections]);
+
+  // ── State & Columns cho Table Tóm Tắt Theo Người (Tab person_summary) ──
+  const [personColumnFilters, setPersonColumnFilters] = useState<ColumnFiltersState>([]);
+  const [personPagination, setPersonPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+
+  // Chuyển đổi personTracks thành định dạng hàng hoàn chỉnh cho TanStack Table
+  const personSummaryRows = useMemo<PersonSummaryRow[]>(() => {
+    return personTracks.map((p) => {
+      const f0 = p.frames[0] ?? 1;
+      const f1 = p.frames[p.frames.length - 1] ?? p.frames.length;
+      const missH = Array.from(p.noHelmetFrames || []).sort((a, b) => a - b);
+      const missV = Array.from(p.noVestFrames || []).sort((a, b) => a - b);
+
+      // Vi phạm xác nhận từ server
+      const confs = allViolations.filter(
+        (v) => v.person === p.id || v.canonical_person === p.id
+      );
+
+      let verdictKey: "COMPLIANT" | "CONFIRMED" | "CANDIDATE" | "UNKNOWN" = "COMPLIANT";
+      let verdictLabel = isVietnamese ? "ĐỦ BẢO HỘ" : "COMPLIANT";
+      let badgeVariant: "success" | "danger" | "warning" = "success";
+      let confirmedTypes = "";
+
+      if (confs.length) {
+        const types = Array.from(new Set(confs.map((c) => c.violation_type))).join(", ");
+        confirmedTypes = types;
+        verdictLabel = isVietnamese ? `VI PHẠM XÁC NHẬN (${types})` : `CONFIRMED VIOLATION (${types})`;
+        badgeVariant = "danger";
+        verdictKey = "CONFIRMED";
+      } else if (missH.length || missV.length) {
+        const types: string[] = [];
+        if (missH.length) types.push("no_helmet");
+        if (missV.length) types.push("no_safety_vest");
+        verdictLabel = isVietnamese ? `VI PHẠM DỰ KIẾN (${types.join(", ")})` : `CANDIDATE (${types.join(", ")})`;
+        badgeVariant = "danger";
+        verdictKey = "CANDIDATE";
+      } else if (!p.okFrames?.length) {
+        verdictLabel = "UNKNOWN";
+        badgeVariant = "warning";
+        verdictKey = "UNKNOWN";
+      }
+
+      const helmetRangesStr = formatFrameRanges(missH);
+      const vestRangesStr = formatFrameRanges(missV);
+
+      const helmetStatus: "ok" | "missing" | "none" =
+        missH.length > 0 ? "missing" : p.okFrames?.length ? "ok" : "none";
+      const vestStatus: "ok" | "missing" | "none" =
+        missV.length > 0 ? "missing" : p.okFrames?.length ? "ok" : "none";
+
+      return {
+        id: p.id,
+        firstFrame: f0,
+        lastFrame: f1,
+        frameCount: p.frames.length,
+        missHelmetFrames: missH,
+        missVestFrames: missV,
+        helmetRangesStr,
+        vestRangesStr,
+        helmetStatus,
+        vestStatus,
+        verdictKey,
+        verdictLabel,
+        badgeVariant,
+        unknownCount: p.unknownCount || 0,
+        confirmedTypes,
+      };
+    });
+  }, [personTracks, allViolations, isVietnamese]);
+
+  // Thống kê nhanh cho các nút lọc nhanh trên TableToolbar
+  const summaryStats = useMemo(() => {
+    let compliant = 0;
+    let violation = 0;
+    let unknown = 0;
+    for (const row of personSummaryRows) {
+      if (row.verdictKey === "COMPLIANT") compliant++;
+      else if (row.verdictKey === "CONFIRMED" || row.verdictKey === "CANDIDATE") violation++;
+      else unknown++;
+    }
+    return { compliant, violation, unknown };
+  }, [personSummaryRows]);
+
+  // Bộ lọc hiện tại
+  const currentVerdictFilter =
+    (personColumnFilters.find((f) => f.id === "verdict")?.value as string) || "all";
+  const currentHelmetFilter =
+    (personColumnFilters.find((f) => f.id === "helmet")?.value as string) || "all";
+  const currentVestFilter =
+    (personColumnFilters.find((f) => f.id === "vest")?.value as string) || "all";
+
+  const hasActivePersonFilters = personColumnFilters.length > 0;
+
+  const handleSetPersonFilter = (columnId: string, value: string) => {
+    setPersonColumnFilters((prev) => {
+      const next = prev.filter((f) => f.id !== columnId);
+      if (value && value !== "all") {
+        next.push({ id: columnId, value });
+      }
+      return next;
+    });
+    setPersonPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  };
+
+  const handleResetPersonFilters = () => {
+    setPersonColumnFilters([]);
+    setPersonPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  };
+
+  // Định nghĩa các cột TanStack Table
+  const personSummaryColumns = useMemo<ColumnDef<TableFeatureSet, PersonSummaryRow, any>[]>(() => {
+    return [
+      {
+        id: "id",
+        accessorFn: (row) => `person #${row.id} #${row.id} ${row.id}`,
+        header: isVietnamese ? "Người" : "Person",
+        enableSorting: true,
+        sortingFn: (rowA: any, rowB: any) => rowA.original.id - rowB.original.id,
+        size: 140,
+        cell: ({ row }) => (
+          <div className="flex items-center gap-1.5 font-mono">
+            <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-surface border border-border/40 text-[10px] font-bold text-primary shadow-sm">
+              #{row.original.id}
+            </span>
+            <span className="font-semibold text-foreground">person #{row.original.id}</span>
+          </div>
+        ),
+      },
+      {
+        id: "frames",
+        accessorFn: (row) => `${row.firstFrame} - ${row.lastFrame} (${row.frameCount} frames)`,
+        header: isVietnamese ? "Xuất hiện" : "Frames",
+        enableSorting: true,
+        sortingFn: (rowA: any, rowB: any) => rowA.original.frameCount - rowB.original.frameCount,
+        size: 160,
+        cell: ({ row }) => {
+          const r = row.original;
+          return (
+            <div className="font-mono text-[11px] text-muted-foreground">
+              <span>
+                {r.firstFrame} → {r.lastFrame}
+              </span>{" "}
+              <span className="text-[10px] text-muted-foreground/80">
+                ({r.frameCount} frame)
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        id: "helmet",
+        accessorKey: "helmetStatus",
+        header: isVietnamese ? "Mũ bảo hộ" : "Hard Hat",
+        enableSorting: true,
+        filterFn: (row, _columnId, filterValue) => {
+          if (!filterValue || filterValue === "all") return true;
+          return row.original.helmetStatus === filterValue;
+        },
+        size: 180,
+        cell: ({ row }) => {
+          const r = row.original;
+          if (r.missHelmetFrames.length > 0) {
+            return (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSeekToFrame?.(r.missHelmetFrames[0]);
+                }}
+                className="inline-flex items-center gap-1 font-mono font-semibold text-rose-500 hover:underline text-left cursor-pointer"
+                title={
+                  isVietnamese
+                    ? `Nhảy tới frame thiếu mũ (${r.missHelmetFrames[0]})`
+                    : `Seek to missing helmet frame (${r.missHelmetFrames[0]})`
+                }
+              >
+                <span>{isVietnamese ? "thiếu" : "missing"} {r.helmetRangesStr}</span>
+              </button>
+            );
+          }
+          if (r.helmetStatus === "ok") {
+            return (
+              <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-3 w-3" />
+                <span>{isVietnamese ? "có đủ" : "ok"}</span>
+              </span>
+            );
+          }
+          return <span className="text-muted-foreground">—</span>;
+        },
+      },
+      {
+        id: "vest",
+        accessorKey: "vestStatus",
+        header: isVietnamese ? "Áo phản quang" : "Safety Vest",
+        enableSorting: true,
+        filterFn: (row, _columnId, filterValue) => {
+          if (!filterValue || filterValue === "all") return true;
+          return row.original.vestStatus === filterValue;
+        },
+        size: 180,
+        cell: ({ row }) => {
+          const r = row.original;
+          if (r.missVestFrames.length > 0) {
+            return (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSeekToFrame?.(r.missVestFrames[0]);
+                }}
+                className="inline-flex items-center gap-1 font-mono font-semibold text-rose-500 hover:underline text-left cursor-pointer"
+                title={
+                  isVietnamese
+                    ? `Nhảy tới frame thiếu áo (${r.missVestFrames[0]})`
+                    : `Seek to missing vest frame (${r.missVestFrames[0]})`
+                }
+              >
+                <span>{isVietnamese ? "thiếu" : "missing"} {r.vestRangesStr}</span>
+              </button>
+            );
+          }
+          if (r.vestStatus === "ok") {
+            return (
+              <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-3 w-3" />
+                <span>{isVietnamese ? "có đủ" : "ok"}</span>
+              </span>
+            );
+          }
+          return <span className="text-muted-foreground">—</span>;
+        },
+      },
+      {
+        id: "verdict",
+        accessorFn: (row) => `${row.verdictKey} ${row.verdictLabel} ${row.confirmedTypes}`,
+        header: isVietnamese ? "Đánh giá" : "Verdict",
+        enableSorting: true,
+        sortingFn: (rowA: any, rowB: any) => {
+          const order: Record<string, number> = { CONFIRMED: 0, CANDIDATE: 1, UNKNOWN: 2, COMPLIANT: 3 };
+          return (order[rowA.original.verdictKey] ?? 99) - (order[rowB.original.verdictKey] ?? 99);
+        },
+        filterFn: (row, _columnId, filterValue) => {
+          if (!filterValue || filterValue === "all") return true;
+          if (filterValue === "VIOLATION") {
+            return row.original.verdictKey === "CONFIRMED" || row.original.verdictKey === "CANDIDATE";
+          }
+          return row.original.verdictKey === filterValue;
+        },
+        size: 200,
+        cell: ({ row }) => {
+          const r = row.original;
+          return (
+            <div className="text-right">
+              <Badge variant={r.badgeVariant} size="sm" className="font-semibold text-[10px] whitespace-nowrap">
+                {r.verdictLabel}
+              </Badge>
+              {r.unknownCount > 0 && (
+                <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+                  ({r.unknownCount} frame UNKNOWN)
+                </div>
+              )}
+            </div>
+          );
+        },
+      },
+    ];
+  }, [isVietnamese, onSeekToFrame]);
 
 
   return (
@@ -268,122 +566,148 @@ export function CameraAiInspectorCard({
                 </p>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-border/30 bg-background/40 shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-2px_-2px_5px_color-mix(in_srgb,var(--shadow-light)_25%,transparent)]">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-border/40 bg-muted/20 text-[11px] font-bold text-muted-foreground">
-                      <th className="py-2.5 px-3 w-[15%]">{isVietnamese ? "Người" : "Person"}</th>
-                      <th className="py-2.5 px-3 w-[22%]">{isVietnamese ? "Xuất hiện" : "Frames"}</th>
-                      <th className="py-2.5 px-3 w-[25%]">{isVietnamese ? "Mũ bảo hộ" : "Hard Hat"}</th>
-                      <th className="py-2.5 px-3 w-[25%]">{isVietnamese ? "Áo phản quang" : "Safety Vest"}</th>
-                      <th className="py-2.5 px-3 w-[13%] text-right">{isVietnamese ? "Đánh giá" : "Verdict"}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/25">
-                    {personTracks.map((p) => {
-                      const f0 = p.frames[0] ?? 1;
-                      const f1 = p.frames[p.frames.length - 1] ?? p.frames.length;
-                      const missH = Array.from(p.noHelmetFrames || []).sort((a, b) => a - b);
-                      const missV = Array.from(p.noVestFrames || []).sort((a, b) => a - b);
+              <Table
+                surface="embedded"
+                variant="soft"
+                hideTopHighlight
+                data={personSummaryRows}
+                columns={personSummaryColumns}
+                columnFilters={personColumnFilters}
+                onColumnFiltersChange={setPersonColumnFilters}
+                pagination={personPagination}
+                onPaginationChange={setPersonPagination}
+                features={{
+                  sorting: true,
+                  globalFilter: true,
+                  columnFilters: true,
+                  pagination: true,
+                  columnVisibility: true,
+                  rowSelection: false,
+                }}
+                getRowId={(row) => String(row.id)}
+                onRowClick={(row) => onSeekToFrame?.(row.original.firstFrame)}
+                getRowClassName={() => "cursor-pointer transition-colors hover:bg-background/80"}
+                emptyMessage={
+                  hasActivePersonFilters
+                    ? (isVietnamese
+                        ? "Không có công nhân nào khớp với bộ lọc đã chọn."
+                        : "No workers match the selected filters.")
+                    : (isVietnamese
+                        ? "Chưa tìm thấy người nào trong dữ liệu."
+                        : "No person tracks found.")
+                }
+              >
+                <TableToolbar
+                  searchPlaceholder={
+                    isVietnamese
+                      ? "Tìm theo mã người (#id), frame..."
+                      : "Search person #, frame..."
+                  }
+                  actions={
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleSetPersonFilter("verdict", "all")}
+                        className={`rounded-xl px-2.5 py-1 text-[11px] font-semibold transition ${
+                          currentVerdictFilter === "all"
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "border border-border/40 bg-background/60 text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {isVietnamese ? "Tất cả" : "All"} ({personSummaryRows.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetPersonFilter("verdict", "COMPLIANT")}
+                        className={`rounded-xl px-2.5 py-1 text-[11px] font-semibold transition ${
+                          currentVerdictFilter === "COMPLIANT"
+                            ? "bg-emerald-600 text-white shadow-sm"
+                            : "border border-border/40 bg-background/60 text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400"
+                        }`}
+                      >
+                        {isVietnamese ? "Đủ bảo hộ" : "Compliant"} ({summaryStats.compliant})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetPersonFilter("verdict", "VIOLATION")}
+                        className={`rounded-xl px-2.5 py-1 text-[11px] font-semibold transition ${
+                          currentVerdictFilter === "VIOLATION"
+                            ? "bg-rose-600 text-white shadow-sm"
+                            : "border border-border/40 bg-background/60 text-muted-foreground hover:text-rose-600 dark:hover:text-rose-400"
+                        }`}
+                      >
+                        {isVietnamese ? "Vi phạm" : "Violation"} ({summaryStats.violation})
+                      </button>
+                    </div>
+                  }
+                />
 
-                      // Vi phạm xác nhận từ server
-                      const confs = allViolations.filter(
-                        (v) => v.person === p.id || v.canonical_person === p.id
-                      );
+                <TableFilterPanel
+                  active={hasActivePersonFilters}
+                  onReset={handleResetPersonFilters}
+                  defaultOpen={false}
+                >
+                  {/* Filter 1: Đánh giá tuân thủ */}
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                      {isVietnamese ? "Đánh giá tuân thủ" : "Compliance Verdict"}
+                    </label>
+                    <select
+                      value={currentVerdictFilter}
+                      onChange={(e) => handleSetPersonFilter("verdict", e.target.value)}
+                      aria-label={isVietnamese ? "Đánh giá tuân thủ" : "Compliance Verdict"}
+                      className="h-9 w-full min-w-0 rounded-xl px-3 text-xs font-medium border border-border/40 bg-background text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <option value="all">{isVietnamese ? "Tất cả trạng thái" : "All Statuses"}</option>
+                      <option value="COMPLIANT">{isVietnamese ? "Đủ bảo hộ (Compliant)" : "Compliant"}</option>
+                      <option value="CONFIRMED">{isVietnamese ? "Vi phạm xác nhận (Confirmed)" : "Confirmed Violation"}</option>
+                      <option value="CANDIDATE">{isVietnamese ? "Vi phạm dự kiến (Candidate)" : "Candidate Violation"}</option>
+                      <option value="VIOLATION">{isVietnamese ? "Tất cả vi phạm (Xác nhận & Dự kiến)" : "All Violations"}</option>
+                      <option value="UNKNOWN">{isVietnamese ? "Chưa xác định (Unknown)" : "Unknown"}</option>
+                    </select>
+                  </div>
 
-                      let verdict = isVietnamese ? "ĐỦ BẢO HỘ" : "COMPLIANT";
-                      let badgeVariant: "success" | "danger" | "warning" = "success";
+                  {/* Filter 2: Mũ bảo hộ */}
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                      {isVietnamese ? "Mũ bảo hộ" : "Hard Hat"}
+                    </label>
+                    <select
+                      value={currentHelmetFilter}
+                      onChange={(e) => handleSetPersonFilter("helmet", e.target.value)}
+                      aria-label={isVietnamese ? "Mũ bảo hộ" : "Hard Hat"}
+                      className="h-9 w-full min-w-0 rounded-xl px-3 text-xs font-medium border border-border/40 bg-background text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <option value="all">{isVietnamese ? "Tất cả tình trạng mũ" : "All Helmet States"}</option>
+                      <option value="ok">{isVietnamese ? "Có đủ mũ bảo hộ" : "Has Hard Hat"}</option>
+                      <option value="missing">{isVietnamese ? "Thiếu mũ bảo hộ" : "Missing Hard Hat"}</option>
+                    </select>
+                  </div>
 
-                      if (confs.length) {
-                        const types = Array.from(new Set(confs.map((c) => c.violation_type))).join(", ");
-                        verdict = isVietnamese ? `VI PHẠM XÁC NHẬN (${types})` : `CONFIRMED VIOLATION (${types})`;
-                        badgeVariant = "danger";
-                      } else if (missH.length || missV.length) {
-                        const types: string[] = [];
-                        if (missH.length) types.push("no_helmet");
-                        if (missV.length) types.push("no_safety_vest");
-                        verdict = isVietnamese ? `VI PHẠM DỰ KIẾN (${types.join(", ")})` : `CANDIDATE (${types.join(", ")})`;
-                        badgeVariant = "danger";
-                      } else if (!p.okFrames?.length) {
-                        verdict = "UNKNOWN";
-                        badgeVariant = "warning";
-                      }
+                  {/* Filter 3: Áo phản quang */}
+                  <div>
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                      {isVietnamese ? "Áo phản quang" : "Safety Vest"}
+                    </label>
+                    <select
+                      value={currentVestFilter}
+                      onChange={(e) => handleSetPersonFilter("vest", e.target.value)}
+                      aria-label={isVietnamese ? "Áo phản quang" : "Safety Vest"}
+                      className="h-9 w-full min-w-0 rounded-xl px-3 text-xs font-medium border border-border/40 bg-background text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      <option value="all">{isVietnamese ? "Tất cả tình trạng áo" : "All Vest States"}</option>
+                      <option value="ok">{isVietnamese ? "Có đủ áo phản quang" : "Has Safety Vest"}</option>
+                      <option value="missing">{isVietnamese ? "Thiếu áo phản quang" : "Missing Safety Vest"}</option>
+                    </select>
+                  </div>
+                </TableFilterPanel>
 
-                      const helmetRangesStr = formatFrameRanges(missH);
-                      const vestRangesStr = formatFrameRanges(missV);
+                <TableContent />
 
-                      return (
-                        <tr key={p.id} className="hover:bg-background/80 transition-colors">
-                          <td className="py-2.5 px-3 font-semibold text-foreground">
-                            <div className="flex items-center gap-1.5 font-mono">
-                              <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-surface border border-border/40 text-[10px] font-bold text-primary">
-                                #{p.id}
-                              </span>
-                              <span>person #{p.id}</span>
-                            </div>
-                          </td>
-                          <td className="py-2.5 px-3 font-mono text-[11px] text-muted-foreground">
-                            <span>
-                              {f0} → {f1}
-                            </span>{" "}
-                            <span className="text-[10px] text-muted-foreground/80">
-                              ({p.frames.length} frame)
-                            </span>
-                          </td>
-                          <td className="py-2.5 px-3 text-[11px]">
-                            {missH.length > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() => onSeekToFrame?.(missH[0])}
-                                className="inline-flex items-center gap-1 font-mono font-semibold text-rose-500 hover:underline text-left"
-                                title={isVietnamese ? `Nhảy tới frame thiếu mũ (${missH[0]})` : `Seek to missing helmet frame (${missH[0]})`}
-                              >
-                                <span>thiếu {helmetRangesStr}</span>
-                              </button>
-                            ) : p.okFrames?.length ? (
-                              <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                                <CheckCircle2 className="h-3 w-3" />
-                                <span>{isVietnamese ? "có đủ" : "ok"}</span>
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-3 text-[11px]">
-                            {missV.length > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() => onSeekToFrame?.(missV[0])}
-                                className="inline-flex items-center gap-1 font-mono font-semibold text-rose-500 hover:underline text-left"
-                                title={isVietnamese ? `Nhảy tới frame thiếu áo (${missV[0]})` : `Seek to missing vest frame (${missV[0]})`}
-                              >
-                                <span>thiếu {vestRangesStr}</span>
-                              </button>
-                            ) : p.okFrames?.length ? (
-                              <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                                <CheckCircle2 className="h-3 w-3" />
-                                <span>{isVietnamese ? "có đủ" : "ok"}</span>
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="py-2.5 px-3 text-right">
-                            <Badge variant={badgeVariant} size="sm" className="font-semibold text-[10px] whitespace-nowrap">
-                              {verdict}
-                            </Badge>
-                            {p.unknownCount > 0 && (
-                              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                                ({p.unknownCount} frame UNKNOWN)
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                <TablePagination
+                  pageSizeOptions={[5, 10, 20, 50]}
+                />
+              </Table>
             )}
 
             {/* Ghi chú chuẩn luật VI-05 từ Test UI */}

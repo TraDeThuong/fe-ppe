@@ -4,11 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  AlertOctagon,
   ArrowLeft,
   Cpu,
   FlaskConical,
   Loader2,
   RefreshCw,
+  Scan,
   ShieldCheck,
   Upload,
   Video,
@@ -16,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Modal } from "@/components/ui/modal";
 import { useActiveModelVersion, useAiModels } from "@/hooks";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
@@ -24,6 +27,8 @@ import { CameraAiInspectorCard } from "@/components/features/cameras/detail/came
 import { CameraIntelligencePlayer } from "@/components/features/cameras/detail/camera-intelligence-player";
 import { CameraIntelligenceSidebar } from "@/components/features/cameras/detail/camera-intelligence-sidebar";
 import { CameraTelemetryTables } from "@/components/features/cameras/detail/camera-telemetry-tables";
+import { CameraRoiDrawer } from "@/components/features/cameras/camera-roi-drawer";
+import { RestrictedAreaCanvas } from "@/components/features/sites/restricted-area-canvas";
 import { generateLiveFrameEntry } from "@/components/features/cameras/detail/live-tracking-engine";
 import type {
   AiInspectionConfig,
@@ -32,6 +37,37 @@ import type {
   StreamMetadata,
   ViolationEvent,
 } from "@/components/features/cameras/detail/types";
+
+// Hàm kiểm tra điểm (chân người) nằm trong đa giác (Ray-Casting Algorithm)
+function isPointInPolygon(
+  px: number,
+  py: number,
+  polygon: Array<{ x: number; y: number }>,
+  coordW: number = 1,
+  coordH: number = 1
+): boolean {
+  if (!polygon || polygon.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].x <= 1 ? polygon[i].x : polygon[i].x / coordW;
+    const yi = polygon[i].y <= 1 ? polygon[i].y : polygon[i].y / coordH;
+    const xj = polygon[j].x <= 1 ? polygon[j].x : polygon[j].x / coordW;
+    const yj = polygon[j].y <= 1 ? polygon[j].y : polygon[j].y / coordH;
+    const denom = Math.abs(yj - yi) > 1e-9 ? yj - yi : 1e-9;
+    const intersect =
+      yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / denom + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// Tọa độ mẫu mặc định cho vùng cấm trong Sandbox (Bao trùm lối đi chính)
+const DEFAULT_SANDBOX_DANGER_POLYGON = [
+  { x: 0.15, y: 0.55 },
+  { x: 0.50, y: 0.55 },
+  { x: 0.50, y: 0.95 },
+  { x: 0.15, y: 0.95 },
+];
 
 interface SandboxJobInfo {
   job_id: string;
@@ -173,8 +209,95 @@ export default function AiModelTestContent() {
   const [showBbox, setShowBbox] = useState<boolean>(true);
   const [liveElapsedSec, setLiveElapsedSec] = useState<number>(0);
   const [aiModalOpen, setAiModalOpen] = useState<boolean>(false);
+  const [roiDrawerOpen, setRoiDrawerOpen] = useState<boolean>(false);
+  const [dangerDrawerOpen, setDangerDrawerOpen] = useState<boolean>(false);
   const [capturedSnapshotUrl, setCapturedSnapshotUrl] = useState<string | null>(null);
   const [lightboxEvidenceUrl, setLightboxEvidenceUrl] = useState<string | null>(null);
+
+  // Vùng quét ROI & Vùng cấm nguy hiểm được lưu trữ trong Sandbox Session
+  const [roiPolygon, setRoiPolygon] = useState<Array<{ x: number; y: number }>>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("ppe_sandbox_roi_polygon");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [dangerPolygon, setDangerPolygon] = useState<Array<{ x: number; y: number }>>(() => {
+    if (typeof window === "undefined") return DEFAULT_SANDBOX_DANGER_POLYGON;
+    try {
+      const saved = localStorage.getItem("ppe_sandbox_danger_polygon");
+      return saved ? JSON.parse(saved) : DEFAULT_SANDBOX_DANGER_POLYGON;
+    } catch {
+      return DEFAULT_SANDBOX_DANGER_POLYGON;
+    }
+  });
+
+  // State tạm thời khi mở modal vẽ vùng cấm
+  const [tempDangerPoints, setTempDangerPoints] = useState<Array<{ x: number; y: number }>>([]);
+
+  const captureCurrentVideoFrame = (): string | null => {
+    const v = videoRef.current;
+    if (v && v.videoWidth && v.videoHeight) {
+      const canvas = document.createElement("canvas");
+      canvas.width = v.videoWidth;
+      canvas.height = v.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL("image/jpeg", 0.95);
+      }
+    }
+    return null;
+  };
+
+  const handleOpenRoiDrawer = () => {
+    const snap = captureCurrentVideoFrame();
+    if (snap) {
+      setCapturedSnapshotUrl(snap);
+    }
+    setRoiDrawerOpen(true);
+  };
+
+  const handleOpenDangerModal = () => {
+    const snap = captureCurrentVideoFrame();
+    if (snap) {
+      setCapturedSnapshotUrl(snap);
+    }
+    setTempDangerPoints(dangerPolygon);
+    setDangerDrawerOpen(true);
+  };
+
+  const handleSaveRoi = (points: Array<{ x: number; y: number }>) => {
+    setRoiPolygon(points);
+    try {
+      localStorage.setItem("ppe_sandbox_roi_polygon", JSON.stringify(points));
+    } catch {
+      // ignore
+    }
+    toast.success(
+      isVietnamese
+        ? `Đã lưu vùng quét AI ROI (${points.length} điểm)!`
+        : `Saved AI scan ROI (${points.length} vertices)!`
+    );
+  };
+
+  const handleSaveDanger = () => {
+    setDangerPolygon(tempDangerPoints);
+    try {
+      localStorage.setItem("ppe_sandbox_danger_polygon", JSON.stringify(tempDangerPoints));
+    } catch {
+      // ignore
+    }
+    setDangerDrawerOpen(false);
+    toast.success(
+      isVietnamese
+        ? `Đã lưu vùng cấm nguy hiểm (${tempDangerPoints.length} điểm)!`
+        : `Saved restricted danger zone (${tempDangerPoints.length} vertices)!`
+    );
+  };
 
   // Tải danh sách các job Sandbox đã chạy trước đó
   const fetchSandboxJobs = useCallback(async () => {
@@ -405,6 +528,13 @@ export default function AiModelTestContent() {
     const allViolations: ViolationEvent[] = [];
     const trackMap = new Map<number, ComputedPersonTrack>();
 
+    const coordW = streamMetadata.videoWidth || 1280;
+    const coordH = streamMetadata.videoHeight || 720;
+    const hasDangerZone =
+      Boolean(aiConfig.enableRestrictedArea) &&
+      Array.isArray(dangerPolygon) &&
+      dangerPolygon.length >= 3;
+
     for (const f of realLogData.frames) {
       if (f.violations && f.violations.length > 0) {
         for (const v of f.violations) {
@@ -419,6 +549,48 @@ export default function AiModelTestContent() {
           }
         }
       }
+
+      // Quét vi phạm Vùng Cấm Nguy Hiểm thời gian thực (Ray-Casting Algorithm)
+      if (hasDangerZone) {
+        for (const det of f.detections || []) {
+          if (
+            det.class_name === "person" &&
+            typeof det.track_id === "number" &&
+            Array.isArray(det.bbox)
+          ) {
+            const [x1, y1, x2, y2] = det.bbox;
+            const isNorm = x2 <= 1 && y2 <= 1;
+            const footX = isNorm ? (x1 + x2) * 0.5 : (x1 + x2) * 0.5 / coordW;
+            const footY = isNorm ? y2 : y2 / coordH;
+
+            if (isPointInPolygon(footX, footY, dangerPolygon, coordW, coordH)) {
+              const dangerEvId = `violation_danger_trk${det.track_id}_f${f.frame}`;
+              const alreadyHas = allViolations.some(
+                (x) =>
+                  x.event_id === dangerEvId ||
+                  (x.person === det.track_id &&
+                    (x.violation_type === "RESTRICTED_AREA" || x.violation_type === "restricted_area") &&
+                    Math.abs((x.frame || 0) - f.frame) < 30)
+              );
+              if (!alreadyHas) {
+                const matchedEv = f.evidence?.[0];
+                allViolations.push({
+                  event_id: dangerEvId,
+                  camera_id: "ai-sandbox",
+                  person: det.track_id,
+                  violation_type: "restricted_area",
+                  start_t: f.t || 0,
+                  confirmed_t: f.t || 0,
+                  duration_s: 1.0,
+                  frame: f.frame,
+                  evidence_path: matchedEv?.path,
+                });
+              }
+            }
+          }
+        }
+      }
+
       for (const p of f.persons || []) {
         if (!trackMap.has(p.track_id)) {
           trackMap.set(p.track_id, {
@@ -449,7 +621,14 @@ export default function AiModelTestContent() {
       fullViolations: allViolations,
       fullPersonTracks: Array.from(trackMap.values()).sort((a, b) => a.id - b.id),
     };
-  }, [realLogData]);
+  }, [
+    realLogData,
+    aiConfig.enableRestrictedArea,
+    dangerPolygon,
+    streamMetadata.videoWidth,
+    streamMetadata.videoHeight,
+    isVietnamese,
+  ]);
 
   // Fallback nếu log đang tải
   const fallbackTrackingData = useMemo(() => {
@@ -489,8 +668,51 @@ export default function AiModelTestContent() {
       const frame = frames[bestIdx];
       const currentViolations = fullViolations.filter((v) => (v.frame || 0) <= frame.frame);
 
+      const coordW = streamMetadata.videoWidth || 1280;
+      const coordH = streamMetadata.videoHeight || 720;
+      const hasDangerZone =
+        Boolean(aiConfig.enableRestrictedArea) &&
+        Array.isArray(dangerPolygon) &&
+        dangerPolygon.length >= 3;
+
+      let enrichedFrame = frame;
+      if (hasDangerZone && frame.persons?.length) {
+        const enrichedPersons = frame.persons.map((p) => {
+          const det = (frame.detections || []).find(
+            (d) => d.class_name === "person" && d.track_id === p.track_id && Array.isArray(d.bbox)
+          );
+          if (det) {
+            const [x1, y1, x2, y2] = det.bbox;
+            const isNorm = x2 <= 1 && y2 <= 1;
+            const footX = isNorm ? (x1 + x2) * 0.5 : (x1 + x2) * 0.5 / coordW;
+            const footY = isNorm ? y2 : y2 / coordH;
+
+            if (isPointInPolygon(footX, footY, dangerPolygon, coordW, coordH)) {
+              const currentV = p.violations || [];
+              const updatedV = currentV.includes("restricted_area")
+                ? currentV
+                : [...currentV, "restricted_area"];
+              return {
+                ...p,
+                status: "CONFIRMED_VIOLATION" as const,
+                violations: updatedV,
+                reason: isVietnamese
+                  ? "Xâm nhập vùng cấm nguy hiểm"
+                  : "Restricted area intrusion",
+              };
+            }
+          }
+          return p;
+        });
+
+        enrichedFrame = {
+          ...frame,
+          persons: enrichedPersons,
+        };
+      }
+
       return {
-        entry: frame,
+        entry: enrichedFrame,
         violations: currentViolations.length > 0 ? currentViolations : fullViolations,
         personTracks: fullPersonTracks,
       };
@@ -501,7 +723,18 @@ export default function AiModelTestContent() {
       violations: fallbackTrackingData.violations,
       personTracks: fallbackTrackingData.personTracks,
     };
-  }, [realLogData, liveElapsedSec, fullViolations, fullPersonTracks, fallbackTrackingData]);
+  }, [
+    realLogData,
+    liveElapsedSec,
+    fullViolations,
+    fullPersonTracks,
+    fallbackTrackingData,
+    aiConfig.enableRestrictedArea,
+    dangerPolygon,
+    streamMetadata.videoWidth,
+    streamMetadata.videoHeight,
+    isVietnamese,
+  ]);
 
   const handleSeekToFrame = (targetFrame: number) => {
     const fps = streamMetadata.fps || aiConfig.processFps || 25;
@@ -532,21 +765,6 @@ export default function AiModelTestContent() {
     if (selectedJobId) {
       await startVideoAnalysis(null, selectedJobId);
     }
-  };
-
-  const captureCurrentVideoFrame = (): string | null => {
-    const v = videoRef.current;
-    if (v && v.videoWidth && v.videoHeight) {
-      const canvas = document.createElement("canvas");
-      canvas.width = v.videoWidth;
-      canvas.height = v.videoHeight;
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-        return canvas.toDataURL("image/jpeg", 0.95);
-      }
-    }
-    return null;
   };
 
   const handleSnapshotCapture = (dataUrl?: string | null) => {
@@ -731,6 +949,44 @@ export default function AiModelTestContent() {
             </Button>
           )}
 
+          {/* Nút Vùng ROI */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOpenRoiDrawer}
+            className="gap-1.5 rounded-xl text-xs font-semibold border-cyan-500/40 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/10 transition shadow-sm"
+            title={
+              isVietnamese
+                ? "Vẽ & tùy chỉnh vùng nhận diện AI (ROI)"
+                : "Draw & customize AI scan region (ROI)"
+            }
+          >
+            <Scan className="h-4 w-4" />
+            <span>
+              {isVietnamese ? "Vùng ROI" : "ROI Area"}
+              {roiPolygon.length >= 3 && ` (${roiPolygon.length}p)`}
+            </span>
+          </Button>
+
+          {/* Nút Vùng Cấm Nguy Hiểm */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOpenDangerModal}
+            className="gap-1.5 rounded-xl text-xs font-semibold border-rose-500/40 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition shadow-sm"
+            title={
+              isVietnamese
+                ? "Khoanh vùng cấm nguy hiểm và thử nghiệm cảnh báo xâm nhập"
+                : "Define danger zone and test intrusion violation"
+            }
+          >
+            <AlertOctagon className="h-4 w-4" />
+            <span>
+              {isVietnamese ? "Vùng Cấm" : "Danger Zone"}
+              {dangerPolygon.length >= 3 && ` (${dangerPolygon.length}p)`}
+            </span>
+          </Button>
+
           {/* Nút Cấu hình AI */}
           <Button
             variant="outline"
@@ -789,6 +1045,8 @@ export default function AiModelTestContent() {
             isPlaying={isPlaying}
             showBbox={showBbox}
             videoRef={videoRef}
+            roiPolygon={roiPolygon}
+            dangerPolygon={dangerPolygon}
             onTogglePlay={() => setIsPlaying((prev) => !prev)}
             onToggleBbox={() => setShowBbox((prev) => !prev)}
             onSnapshot={handleSnapshotCapture}
@@ -887,7 +1145,95 @@ export default function AiModelTestContent() {
         onSaveConfig={handleSaveAiConfig}
         cameraCode="AI-SANDBOX"
         streamMetadata={streamMetadata}
+        roiPointsCount={roiPolygon.length}
+        dangerPointsCount={dangerPolygon.length}
+        onOpenRoiDrawer={handleOpenRoiDrawer}
+        onOpenDangerDrawer={handleOpenDangerModal}
       />
+
+      {/* ── DRAWER CẤU HÌNH VÙNG ROI ── */}
+      <CameraRoiDrawer
+        open={roiDrawerOpen}
+        onOpenChange={setRoiDrawerOpen}
+        initialPoints={roiPolygon}
+        onSavePoints={handleSaveRoi}
+        customStreamUrl={effectiveVideoSrc}
+        customImageUrl={capturedSnapshotUrl || undefined}
+        customCameraName={
+          activeJob ? activeJob.source : activePreset.label
+        }
+        customCameraCode="AI-SANDBOX"
+      />
+
+      {/* ── MODAL KHOANH VÙNG CẤM NGUY HIỂM (RESTRICTED AREA CANVAS) ── */}
+      <Modal
+        open={dangerDrawerOpen}
+        onOpenChange={setDangerDrawerOpen}
+        title={
+          isVietnamese
+            ? "Khoanh Vùng Cấm Nguy Hiểm — AI Sandbox"
+            : "Define Restricted Danger Zone — AI Sandbox"
+        }
+        description={
+          isVietnamese
+            ? "Vẽ đa giác vùng cấm trực tiếp trên video để kiểm thử phát hiện xâm nhập thời gian thực (Zero DB Write)"
+            : "Draw danger polygon directly on video to test real-time intrusion violation detection (Zero DB Write)"
+        }
+        icon={<AlertOctagon className="h-5 w-5 text-rose-500" />}
+        size="xl"
+        footer={
+          <div className="flex w-full items-center justify-end gap-2.5 sm:w-auto">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setDangerDrawerOpen(false)}
+            >
+              {isVietnamese ? "Hủy" : "Cancel"}
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleSaveDanger}
+              className="gap-2 bg-rose-600 hover:bg-rose-700 text-white font-bold"
+            >
+              <AlertOctagon className="h-4 w-4" />
+              <span>
+                {isVietnamese
+                  ? `Áp dụng Vùng Cấm (${tempDangerPoints.length} điểm)`
+                  : `Apply Danger Zone (${tempDangerPoints.length} pts)`}
+              </span>
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between rounded-xl border border-rose-500/30 bg-rose-500/10 p-3">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-rose-500" />
+              </span>
+              <span className="text-xs font-semibold text-foreground">
+                {isVietnamese ? "Video thử nghiệm:" : "Sandbox Video Stream:"}
+              </span>
+              <span className="font-mono text-xs font-bold text-rose-500">
+                {activeJob ? activeJob.source : activePreset.label}
+              </span>
+            </div>
+            <span className="font-mono text-[11px] text-muted-foreground bg-surface px-2 py-0.5 rounded-lg border border-border/40">
+              {streamMetadata.aspectRatioLabel}
+            </span>
+          </div>
+
+          <RestrictedAreaCanvas
+            points={tempDangerPoints}
+            onChange={setTempDangerPoints}
+            streamUrl={effectiveVideoSrc}
+            imageUrl={capturedSnapshotUrl || undefined}
+            cameraName={streamMetadata.aspectRatioLabel}
+          />
+        </div>
+      </Modal>
 
       {/* ── LIGHTBOX MODAL PHÓNG TO ẢNH BẰNG CHỨNG ── */}
       {lightboxEvidenceUrl && (

@@ -5,6 +5,8 @@ export * from "./site-card-grid";
 export * from "./site-table";
 export * from "./zone-list-panel";
 export * from "./restricted-area-panel";
+export * from "./restricted-area-canvas";
+export * from "./restricted-area-drawer";
 export * from "./create-site-modal";
 export * from "./edit-site-modal";
 export * from "./site-safety-config-modal";

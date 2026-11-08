@@ -11,6 +11,10 @@ export interface ReportFilterToolbarProps {
   onSiteChange: (siteId: string) => void;
   period: string;
   onPeriodChange: (period: string) => void;
+  startDate?: string;
+  endDate?: string;
+  onStartDateChange?: (date: string) => void;
+  onEndDateChange?: (date: string) => void;
   onGenerateClick: () => void;
   onRefresh: () => void;
   canExport?: boolean;
@@ -23,6 +27,10 @@ export function ReportFilterToolbar({
   onSiteChange,
   period,
   onPeriodChange,
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
   onGenerateClick,
   onRefresh,
   canExport = true,
@@ -57,7 +65,37 @@ export function ReportFilterToolbar({
           <option value="today">{t("reports.toolbar.periodToday")}</option>
           <option value="7d">{t("reports.toolbar.period7d")}</option>
           <option value="30d">{t("reports.toolbar.period30d")}</option>
+          <option value="custom">{t("reports.toolbar.periodCustom")}</option>
         </select>
+
+        {/* Custom Date Range Picker */}
+        {period === "custom" && (
+          <div className="flex flex-wrap items-center gap-1.5 sm:flex-nowrap">
+            <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-surface px-2.5 py-1.5 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]">
+              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                {t("reports.toolbar.from")}
+              </span>
+              <input
+                type="date"
+                value={startDate || ""}
+                onChange={(e) => onStartDateChange?.(e.target.value)}
+                className="bg-transparent text-xs text-foreground focus:outline-none"
+              />
+            </div>
+            <span className="text-muted-foreground text-xs">-</span>
+            <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-surface px-2.5 py-1.5 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]">
+              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                {t("reports.toolbar.to")}
+              </span>
+              <input
+                type="date"
+                value={endDate || ""}
+                onChange={(e) => onEndDateChange?.(e.target.value)}
+                className="bg-transparent text-xs text-foreground focus:outline-none"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Refresh */}
         <Button

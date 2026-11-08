@@ -260,6 +260,9 @@ export function CameraIntelligenceContent({
     return defaults;
   });
 
+  // 5b. Danh sách vùng cấm nguy hiểm có hiệu lực cho camera này
+  const [effectiveRestrictedAreas, setEffectiveRestrictedAreas] = useState<any[]>([]);
+
   // Helper ánh xạ modelVersionId sang đường dẫn file .pt thực tế trong cấu trúc Đa Model
   const resolveModelPath = (modelVersionId?: string): string => {
     if (!modelVersionId) return "models/best.pt";
@@ -288,6 +291,9 @@ export function CameraIntelligenceContent({
         });
 
         if (!cancelled && effective) {
+          if (Array.isArray(effective.restrictedAreas)) {
+            setEffectiveRestrictedAreas(effective.restrictedAreas);
+          }
           setAiConfig((prev) => ({
             ...prev,
             confidenceThreshold:
@@ -866,6 +872,41 @@ export function CameraIntelligenceContent({
             ctx.setLineDash([8, 5]);
             ctx.stroke();
             ctx.restore();
+          }
+
+          // Vẽ các vùng cấm nguy hiểm Restricted Area (nếu bật enableRestrictedArea)
+          if (aiConfig.enableRestrictedArea && Array.isArray(effectiveRestrictedAreas) && effectiveRestrictedAreas.length > 0) {
+            effectiveRestrictedAreas.forEach((area: any) => {
+              const boundary = area?.boundary;
+              if (Array.isArray(boundary) && boundary.length >= 3) {
+                ctx.save();
+                ctx.beginPath();
+                boundary.forEach((pt: any, idx: number) => {
+                  const px = (pt.x <= 1 && pt.y <= 1 ? pt.x * coordW : pt.x) * scaleX;
+                  const py = (pt.y <= 1 && pt.y <= 1 ? pt.y * coordH : pt.y) * scaleY;
+                  if (idx === 0) ctx.moveTo(px, py);
+                  else ctx.lineTo(px, py);
+                });
+                ctx.closePath();
+                ctx.fillStyle = "rgba(239, 68, 68, 0.16)";
+                ctx.fill();
+                ctx.strokeStyle = "#ef4444";
+                ctx.lineWidth = Math.max(2, Math.round(canvas.width / 450));
+                ctx.setLineDash([6, 4]);
+                ctx.stroke();
+
+                // Nhãn cảnh báo vùng nguy hiểm
+                const firstPt = boundary[0];
+                if (firstPt) {
+                  const labelX = (firstPt.x <= 1 && firstPt.y <= 1 ? firstPt.x * coordW : firstPt.x) * scaleX;
+                  const labelY = (firstPt.y <= 1 && firstPt.y <= 1 ? firstPt.y * coordH : firstPt.y) * scaleY;
+                  ctx.fillStyle = "#ef4444";
+                  ctx.font = "bold 11px sans-serif";
+                  ctx.fillText(`🚨 ${area.name || "VÙNG CẤM NGUY HIỂM"}`, labelX + 6, Math.max(16, labelY - 6));
+                }
+                ctx.restore();
+              }
+            });
           }
 
           // Nếu đang chụp ảnh cho Sự cố (forceViolationHighlight) mà frame hiện tại chưa có người ở trạng thái CONFIRMED_VIOLATION,

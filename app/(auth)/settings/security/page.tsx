@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Loader } from "@/components/ui/loader";
+import { PageSkeleton } from "@/components/features/app-shell/page-skeleton";
 
 import { SecuritySettingsContent } from "@/components/features/auth/settings/security-settings-content";
 
@@ -10,13 +10,7 @@ import { SecuritySettingsContent } from "@/components/features/auth/settings/sec
  */
 export default function SecuritySettingsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
-          <Loader showLabel />
-        </div>
-      }
-    >
+    <Suspense fallback={<PageSkeleton variant="simple" />}>
       <SecuritySettingsContent />
     </Suspense>
   );

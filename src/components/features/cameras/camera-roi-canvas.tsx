@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { RotateCcw, Trash2 } from "lucide-react";
+import { Pause, Play, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
 import type { RoiPoint } from "@/types";
@@ -24,6 +24,20 @@ function getYouTubeEmbedUrl(url?: string): string | null {
     : null;
 }
 
+function isVideoSource(url?: string): boolean {
+  if (!url) return false;
+  if (url.includes("youtube.com") || url.includes("youtu.be")) return false;
+  if (/\.(jpg|jpeg|png|webp|avif|gif|svg)($|\?)/i.test(url)) return false;
+  return (
+    url.startsWith("/") ||
+    url.startsWith("http://") ||
+    url.startsWith("https://") ||
+    url.startsWith("blob:") ||
+    url.startsWith("data:video") ||
+    /\.(mp4|webm|ogg|mov|m4v)($|\?)/i.test(url)
+  );
+}
+
 export function CameraRoiCanvas({
   points,
   onChange,
@@ -35,33 +49,51 @@ export function CameraRoiCanvas({
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [dimensions, setDimensions] = useState({ width: 640, height: 360 });
+  const [videoAspect, setVideoAspect] = useState<string>("16 / 9");
+  const [isPaused, setIsPaused] = useState(false);
+  const [videoError, setVideoError] = useState(false);
 
   const youtubeUrl = getYouTubeEmbedUrl(streamUrl);
-  const isWebcam = streamUrl?.toLowerCase().includes("webcam");
-  const isNativeVideo = Boolean(
-    streamUrl &&
-      streamUrl.startsWith("http") &&
-      !streamUrl.includes("youtube.com") &&
-      !streamUrl.includes("youtu.be")
-  );
-  // Crisp realistic construction site reference image if no direct video stream is available
-  const fallbackConstructionImage =
-    "https://images.unsplash.com/photo-1541888946425-d0fbb18f15f7?auto=format&fit=crop&w=1280&q=80";
+  const isNativeVideo = isVideoSource(streamUrl) && !videoError;
+  const fallbackConstructionImage = "/images/camera-live-evidence.jpg";
+
+  const updateSize = () => {
+    if (containerRef.current) {
+      setDimensions({
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight,
+      });
+    }
+  };
 
   useEffect(() => {
-    const updateSize = () => {
-      if (containerRef.current) {
-        setDimensions({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight,
-        });
-      }
-    };
     updateSize();
     window.addEventListener("resize", updateSize);
     return () => window.removeEventListener("resize", updateSize);
   }, []);
+
+  const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const v = e.currentTarget;
+    if (v.videoWidth && v.videoHeight) {
+      setVideoAspect(`${v.videoWidth} / ${v.videoHeight}`);
+      setTimeout(updateSize, 50);
+    }
+  };
+
+  const togglePause = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (videoRef.current) {
+      if (videoRef.current.paused) {
+        videoRef.current.play().catch(() => {});
+        setIsPaused(false);
+      } else {
+        videoRef.current.pause();
+        setIsPaused(true);
+      }
+    }
+  };
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (disabled || !containerRef.current) return;
@@ -99,7 +131,12 @@ export function CameraRoiCanvas({
       <div
         ref={containerRef}
         onClick={handleClick}
-        className="relative aspect-video w-full cursor-crosshair overflow-hidden rounded-2xl border-2 border-dashed border-primary/60 bg-slate-950 shadow-nm-inset select-none"
+        style={{
+          aspectRatio: videoAspect,
+          maxHeight: "56vh",
+          margin: "0 auto",
+        }}
+        className="relative w-full cursor-crosshair overflow-hidden rounded-2xl border-2 border-dashed border-primary/60 bg-neutral-950 shadow-nm-inset select-none flex items-center justify-center"
       >
         {/* Background Visual Layer */}
         {youtubeUrl ? (
@@ -110,18 +147,28 @@ export function CameraRoiCanvas({
           />
         ) : isNativeVideo ? (
           <video
+            ref={videoRef}
             src={streamUrl}
             autoPlay
             playsInline
             muted
             loop
-            className="absolute inset-0 h-full w-full object-cover pointer-events-none"
+            preload="auto"
+            poster={imageUrl}
+            onLoadedMetadata={handleVideoLoadedMetadata}
+            onCanPlay={(e) => {
+              if (!isPaused) {
+                e.currentTarget.play().catch(() => {});
+              }
+            }}
+            onError={() => setVideoError(true)}
+            className="absolute inset-0 h-full w-full object-contain pointer-events-none"
           />
         ) : (
           <img
             src={imageUrl || fallbackConstructionImage}
             alt={cameraName || "Camera Frame"}
-            className="absolute inset-0 h-full w-full object-cover pointer-events-none opacity-90"
+            className="absolute inset-0 h-full w-full object-contain pointer-events-none opacity-90"
           />
         )}
 
@@ -130,12 +177,37 @@ export function CameraRoiCanvas({
           <span className="rounded-lg bg-black/75 backdrop-blur-md px-2.5 py-1 font-mono text-[10px] font-bold text-white border border-white/10 shadow-sm flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             {youtubeUrl || isNativeVideo
-              ? (isVietnamese ? "LUỒNG VIDEO TRỰC TIẾP" : "LIVE CAMERA FEED")
+              ? isVietnamese
+                ? "LUỒNG VIDEO TRỰC TIẾP"
+                : "LIVE CAMERA FEED"
               : imageUrl
-              ? (isVietnamese ? "ẢNH CHỤP CAMERA" : "CAMERA SNAPSHOT")
-              : (isVietnamese ? "ẢNH MẪU CÔNG TRƯỜNG THAM CHIẾU" : "CONSTRUCTION REFERENCE FRAME")}
+              ? isVietnamese
+                ? "ẢNH CHỤP CAMERA"
+                : "CAMERA SNAPSHOT"
+              : isVietnamese
+              ? "ẢNH MẪU CÔNG TRƯỜNG THAM CHIẾU"
+              : "CONSTRUCTION REFERENCE FRAME"}
           </span>
-          <span className="rounded-lg bg-black/60 backdrop-blur-md px-2 py-1 font-mono text-[10px] text-white/80 border border-white/10">
+          {isNativeVideo && (
+            <button
+              type="button"
+              onClick={togglePause}
+              className="pointer-events-auto rounded-lg bg-black/75 hover:bg-black/95 px-2 py-1 font-mono text-[10px] text-white border border-white/20 transition flex items-center gap-1 cursor-pointer"
+            >
+              {isPaused ? (
+                <>
+                  <Play className="h-2.5 w-2.5 text-emerald-400" />
+                  <span>{isVietnamese ? "Tiếp tục phát" : "Play"}</span>
+                </>
+              ) : (
+                <>
+                  <Pause className="h-2.5 w-2.5 text-amber-400" />
+                  <span>{isVietnamese ? "Tạm dừng" : "Pause"}</span>
+                </>
+              )}
+            </button>
+          )}
+          <span className="rounded-lg bg-black/60 backdrop-blur-md px-2 py-1 font-mono text-[10px] text-white/80 border border-white/10 hidden sm:inline-block">
             {isVietnamese ? "Nhấp chuột để chọn điểm" : "Click to plot points"}
           </span>
         </div>

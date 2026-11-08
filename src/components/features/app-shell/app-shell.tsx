@@ -1,10 +1,12 @@
 "use client";
 
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { resolveRoutePermission } from "@/config/navigation";
 import { MaintenanceAdminBanner } from "@/components/features/maintenance";
 import { useMaintenanceStatus } from "@/hooks/maintenance";
+import { NavigationProgressBar } from "@/components/ui/navigation-progress-bar";
 import { AppSidebar } from "./app-sidebar";
 import { AppHeader } from "./app-header";
 import { ForbiddenView } from "./forbidden-view";
@@ -27,6 +29,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      {/* Top navigation progress bar */}
+      <Suspense fallback={null}>
+        <NavigationProgressBar />
+      </Suspense>
+
       {/* Desktop sidebar */}
       <div className="hidden md:flex">
         <AppSidebar />

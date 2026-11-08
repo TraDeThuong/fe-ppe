@@ -14,6 +14,8 @@ export interface GenerateReportModalProps {
   sites: SiteItem[];
   selectedTemplate?: ReportTemplateDto | null;
   defaultSiteId?: string;
+  defaultStartDate?: string;
+  defaultEndDate?: string;
   onSubmit: (dto: GenerateReportDto) => Promise<void>;
   loading?: boolean;
 }
@@ -35,6 +37,8 @@ export function GenerateReportModal({
   sites,
   selectedTemplate,
   defaultSiteId = "",
+  defaultStartDate = "",
+  defaultEndDate = "",
   onSubmit,
   loading = false,
 }: GenerateReportModalProps) {
@@ -71,8 +75,14 @@ export function GenerateReportModal({
       } else if (!siteId && sites[0]?.id) {
         setSiteId(sites[0].id);
       }
+      if (defaultStartDate) {
+        setStartDate(defaultStartDate);
+      }
+      if (defaultEndDate) {
+        setEndDate(defaultEndDate);
+      }
     }
-  }, [open, selectedTemplate, templates, defaultSiteId, sites, siteId]);
+  }, [open, selectedTemplate, templates, defaultSiteId, sites, siteId, defaultStartDate, defaultEndDate]);
 
   const handleTemplateChange = (id: string) => {
     setTemplateId(id);

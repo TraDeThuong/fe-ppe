@@ -46,14 +46,14 @@ export function DashboardOperationalSuite({
             {t("dashboard.charts.periodScope")}
           </p>
         </div>
-        <div className="flex flex-wrap gap-1 rounded-2xl border border-border/30 bg-surface p-1.5">
+        <div className="flex flex-wrap gap-1 rounded-2xl border border-border/40 bg-surface/90 p-1.5 shadow-[2px_3px_8px_rgba(0,0,0,0.03)] dark:border-white/[0.08] dark:bg-card/40">
           {tabs.map((tab) => (
             <button
               key={tab}
               type="button"
               aria-pressed={activeView === tab}
               onClick={() => setView(tab)}
-              className={`rounded-xl px-3 py-2 text-xs font-semibold ${activeView === tab ? "bg-background text-primary shadow-sm" : "text-muted-foreground"}`}
+              className={`rounded-xl px-3 py-2 text-xs font-semibold transition-all ${activeView === tab ? "bg-background text-primary shadow-sm dark:bg-background/80 dark:border dark:border-white/[0.08]" : "text-muted-foreground hover:text-foreground"}`}
             >
               {t(`dashboard.view.${tab}`)}
             </button>
@@ -63,8 +63,8 @@ export function DashboardOperationalSuite({
       <div
         className={
           activeView === "grid"
-            ? "grid grid-cols-1 items-start gap-5 lg:grid-cols-2"
-            : "grid grid-cols-1"
+            ? "grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2"
+            : "grid grid-cols-1 gap-6"
         }
       >
         {(activeView === "grid" || activeView === "radar") && (

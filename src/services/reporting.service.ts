@@ -2,6 +2,7 @@ import { apiClient } from "@/lib/axios";
 import { downloadBlob } from "@/lib/file-download";
 import type {
   AggregateDailyPayload,
+  AiPerformanceStatDto,
   CameraStatDto,
   CreateReportTemplateDto,
   GenerateReportDto,
@@ -140,6 +141,23 @@ export const reportingService = {
         { params }
       );
       return unwrapArray<CameraStatDto>(res);
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * GET /api/v1/statistics/ai-performance
+   */
+  async getAiPerformance(
+    params?: ReportingFilterParams
+  ): Promise<AiPerformanceStatDto[]> {
+    try {
+      const res = await apiClient.get<unknown>(
+        "/statistics/ai-performance",
+        { params }
+      );
+      return unwrapArray<AiPerformanceStatDto>(res);
     } catch {
       return [];
     }

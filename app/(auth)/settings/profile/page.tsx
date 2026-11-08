@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Loader } from "@/components/ui/loader";
+import { PageSkeleton } from "@/components/features/app-shell/page-skeleton";
 
 import { ProfileSettingsContent } from "@/components/features/auth/settings/profile-settings-content";
 
@@ -10,13 +10,7 @@ import { ProfileSettingsContent } from "@/components/features/auth/settings/prof
  */
 export default function ProfileSettingsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-[50vh] items-center justify-center bg-background text-muted-foreground">
-          <Loader showLabel />
-        </div>
-      }
-    >
+    <Suspense fallback={<PageSkeleton variant="simple" />}>
       <ProfileSettingsContent />
     </Suspense>
   );

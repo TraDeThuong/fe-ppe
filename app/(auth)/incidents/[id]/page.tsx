@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { Loader } from "@/components/ui/loader";
+import { PageSkeleton } from "@/components/features/app-shell/page-skeleton";
 import IncidentDetailContent from "./incident-detail-content";
 
 interface PageProps {
@@ -13,13 +13,7 @@ async function IncidentDetailWrapper({ params }: PageProps) {
 
 export default function IncidentDetailPage({ params }: PageProps) {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-[400px] items-center justify-center text-muted-foreground">
-          <Loader showLabel />
-        </div>
-      }
-    >
+    <Suspense fallback={<PageSkeleton variant="table" />}>
       <IncidentDetailWrapper params={params} />
     </Suspense>
   );

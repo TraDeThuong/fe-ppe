@@ -59,6 +59,10 @@ export interface AiInspectionModalProps {
   onSaveConfig: (newConfig: AiInspectionConfig) => void | Promise<void>;
   cameraCode?: string;
   streamMetadata?: StreamMetadata;
+  roiPointsCount?: number;
+  dangerPointsCount?: number;
+  onOpenRoiDrawer?: () => void;
+  onOpenDangerDrawer?: () => void;
 }
 
 export function AiInspectionModal({
@@ -68,6 +72,10 @@ export function AiInspectionModal({
   onSaveConfig,
   cameraCode = "CAM-01",
   streamMetadata,
+  roiPointsCount,
+  dangerPointsCount,
+  onOpenRoiDrawer,
+  onOpenDangerDrawer,
 }: AiInspectionModalProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -413,6 +421,93 @@ export function AiInspectionModal({
             </label>
           </div>
         </div>
+
+        {/* ── KHỐI: RANH GIỚI KHÔNG GIAN GIÁM SÁT (SPATIAL BOUNDARIES) ── */}
+        {(onOpenRoiDrawer || onOpenDangerDrawer) && (
+          <div className="space-y-2 rounded-xl border border-border/40 bg-surface/40 p-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Sliders className="h-3.5 w-3.5 text-primary" />
+                <span>
+                  {isVietnamese
+                    ? "Ranh giới không gian giám sát (Spatial Geometry)"
+                    : "Spatial Geometry Boundaries"}
+                </span>
+              </label>
+              <span className="text-[10px] text-muted-foreground font-mono">
+                {isVietnamese ? "Tọa độ chuẩn hóa [0..1]" : "Normalized [0..1]"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              {/* ROI Polygon */}
+              {onOpenRoiDrawer && (
+                <div className="flex items-center justify-between p-2.5 rounded-lg border border-cyan-500/20 bg-cyan-500/5">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <span className="inline-block w-2 h-2 rounded-full bg-cyan-400" />
+                      {isVietnamese ? "Vùng quét AI (ROI)" : "AI Scan ROI"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {roiPointsCount && roiPointsCount >= 3
+                        ? isVietnamese
+                          ? `Đã cấu hình ${roiPointsCount} điểm đỉnh`
+                          : `${roiPointsCount} vertices configured`
+                        : isVietnamese
+                          ? "Toàn khung hình (chưa giới hạn)"
+                          : "Full frame (unrestricted)"}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      onOpenChange(false);
+                      onOpenRoiDrawer();
+                    }}
+                    className="text-xs h-7 px-2.5 border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                  >
+                    {isVietnamese ? "Vẽ / Sửa ROI" : "Edit ROI"}
+                  </Button>
+                </div>
+              )}
+
+              {/* Danger Zone Polygon */}
+              {onOpenDangerDrawer && (
+                <div className="flex items-center justify-between p-2.5 rounded-lg border border-rose-500/20 bg-rose-500/5">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <span className="inline-block w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                      {isVietnamese ? "Vùng cấm nguy hiểm" : "Restricted Danger Zone"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {dangerPointsCount && dangerPointsCount >= 3
+                        ? isVietnamese
+                          ? `Đã thiết lập ${dangerPointsCount} điểm đỉnh`
+                          : `${dangerPointsCount} vertices defined`
+                        : isVietnamese
+                          ? "Chưa khoanh vùng nguy hiểm"
+                          : "No danger zone"}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      onOpenChange(false);
+                      onOpenDangerDrawer();
+                    }}
+                    className="text-xs h-7 px-2.5 border-rose-500/30 text-rose-400 hover:bg-rose-500/10"
+                  >
+                    {isVietnamese ? "Khoanh vùng cấm" : "Edit Zone"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── KHỐI 4: CHỌN PHIÊN BẢN MÔ HÌNH AI (MODEL SELECTION) ── */}
         <div className="space-y-1.5 rounded-xl border border-border/40 bg-surface/40 p-3">
