@@ -1,6 +1,6 @@
 # BỘ KỊCH BẢN VÀ MA TRẬN PHẠM VI KIỂM THỬ (TEST SCOPE)
 ## DỰ ÁN HỆ THỐNG GIÁM SÁT TRANG BỊ BẢO HỘ THÔNG MINH (SMART PPE MONITORING)
-*Tài liệu kiểm thử QA & Nghiệm thu chức năng* · *Phiên bản:* 1.0.0
+*Tài liệu kiểm thử QA & Nghiệm thu chức năng* · *Phiên bản:* 1.1.0 · *Cập nhật:* 08/11/2026
 
 ---
 
@@ -104,6 +104,8 @@ Bộ kịch bản kiểm thử được thiết kế dựa trên:
 | **INC-008** | Gửi Thảo luận Hiện trường (Timeline Comments) | Đang ở `/incidents/[id]` | 1. Nhập nội dung tại khung thảo luận: "Đội kiểm tra đã có mặt tại phân khu 2"<br>2. Bấm "Gửi" | Bình luận mới xuất hiện ngay lập tức trên dòng thời gian kèm tên người gửi và mốc giờ chính xác. | `POST /incidents/:id/comments` | Medium | Functional | `[VERIFIED]` |
 | **INC-009** | Xóa sự cố vi phạm | Có quyền `PPE_INCIDENT_MANAGE` | 1. Bấm nút "Xóa" tại bảng danh sách<br>2. Xác nhận cảnh báo | Gọi `DELETE /incidents/:id`. Bản ghi biến mất khỏi bảng và dữ liệu thống kê được cập nhật lại. | `DELETE /incidents/:id` | Medium | Functional | `[VERIFIED]` |
 | **INC-010** | Tải ảnh bằng chứng vi phạm độ nét cao | Đang ở `/incidents/[id]` | 1. Rê chuột vào ảnh bằng chứng<br>2. Bấm nút "Tải ảnh gốc" | Tải file ảnh chụp định dạng JPEG/PNG trực tiếp từ MinIO qua liên kết an toàn. | `GET /evidences/:id/download-url` | Medium | Functional | `[VERIFIED]` |
+| **INC-011** | Kiểm tra Bằng chứng Kép (SNAPSHOT vi phạm vs REFERENCE_SNAPSHOT) | Đang ở `/incidents/[id]` | 1. Quan sát khu vực hiển thị bằng chứng<br>2. Chuyển đổi giữa 2 tab: Ảnh Vi Phạm (Giây T) và Ảnh Đối Chứng (T=0) | Hiển thị song song hoặc tab chuyển đổi mượt mà 2 ảnh: Ảnh tại giây vi phạm có Bounding Box chuẩn và Ảnh đối chứng khi công nhân tuân thủ hoặc tại mốc khởi tạo luồng. | `GET /evidences/:id/download-url` | Critical | Functional | `[VERIFIED]` |
+| **INC-012** | Co giãn Khung nhận diện Bounding Box chuẩn Normalized [0..1] | Đang ở `/incidents/[id]` | 1. Thu nhỏ và phóng to kích thước trình duyệt hoặc mở trên màn hình độ phân giải khác nhau | Khung Bounding Box màu đỏ tự động scale chính xác 100% bao quanh cơ thể/mũ/áo người vi phạm, không bị lệch hoặc trôi ra ngoài ảnh. | Dữ liệu `aiDetections` | High | UI / Boundary | `[VERIFIED]` |
 
 ---
 
@@ -119,6 +121,8 @@ Bộ kịch bản kiểm thử được thiết kế dựa trên:
 | **CAM-006** | Cấu hình Vùng Nhận Diện Đa Giác (AI ROI Canvas) | Có quyền `PPE_CAMERA_MANAGE` | 1. Mở Drawer `CameraRoiDrawer`<br>2. Dùng chuột click các điểm trên khung hình để tạo đa giác khép kín<br>3. Bấm "Lưu cấu hình" | Tọa độ đa giác `roiPolygon: Point[]` được gửi lên backend và lưu vào DB. AI worker sẽ chỉ quét PPE trong phạm vi đa giác này. | `PUT /cameras/:id/config` | High | Functional | `[VERIFIED]` |
 | **CAM-007** | Đặt lại Cấu hình AI ROI về mặc định toàn màn hình | Drawer ROI đang mở | 1. Bấm nút "Đặt lại vùng nhận diện" | Tọa độ đa giác bị xóa, camera chuyển sang chế độ quét toàn bộ khung hình camera (Full frame). | `POST /cameras/:id/config/reset` | Medium | Functional | `[VERIFIED]` |
 | **CAM-008** | Lọc Camera theo Trạng thái (Online / Offline) | Đang ở `/cameras` | 1. Bấm vào thẻ KPI "Camera mất tín hiệu" | URL cập nhật `?stat=diagnostics`, Drawer sự cố hạ tầng trượt ra hiển thị riêng các camera đang mất nguồn hoặc lỗi tín hiệu. | `CameraStatsDetailPanel` | Medium | UI / Functional | `[VERIFIED]` |
+| **CAM-009** | Bảng Tóm tắt Theo Người qua Từng Frame & Phân Trang | Mở `/cameras/[id]` | 1. Cuộn xuống bảng `WorkerComplianceSummaryTable`<br>2. Nhập tìm kiếm Track ID: `track_01`<br>3. Lọc vi phạm: "Không mũ"<br>4. Đổi số dòng sang 10/trang và bấm chuyển trang | Bảng dữ liệu lọc chính xác theo Track ID, hiển thị đúng trạng thái có mũ/có áo qua các frame. Phân trang hoạt động mượt mà, không giật trang. | `DataTable` | High | Functional | `[VERIFIED]` |
+| **CAM-010** | Nạp Video YouTube Mới Bất Kỳ & Bám Vết Bounding Box | Có quyền `PPE_CAMERA_MANAGE` | 1. Tạo camera với URL YouTube mới bất kỳ<br>2. Mở `/cameras/[id]` để chạy phân tích AI | Backend trích xuất frame ổn định, không bị lỗi CORS của trình duyệt. AI vẽ đúng khung nhận diện bao quanh người trong video, không bị gán ảnh camera cũ `01a19ce7`. | Backend Ingestion | High | Integration | `[VERIFIED]` |
 
 ---
 
@@ -132,6 +136,8 @@ Bộ kịch bản kiểm thử được thiết kế dựa trên:
 | **SITE-004**| Quản lý Vùng Cấm Nguy Hiểm Cao (Restricted Areas) | Đang ở `/sites` | 1. Thêm Restricted Area mới: "Hố đào sâu - Cấm vào"<br>2. Chọn mức độ nghiêm trọng: `CRITICAL`<br>3. Lưu | Vùng cấm được lưu trữ. Bất kỳ người lao động nào đi vào khu vực này sẽ bị AI bắn sự kiện xâm nhập khẩn cấp. | `POST /sites/:id/restricted-areas` | High | Functional | `[VERIFIED]` |
 | **SITE-005**| Mở Trung tâm Chỉ huy Chi tiết Công trường (`/sites/[id]`)| Bấm vào 1 công trường | 1. Mở `/sites/[id]`<br>2. Duyệt qua 6 tabs chức năng | Hiển thị đầy đủ 6 tabs: Phân khu, Camera trực tiếp, Quy tắc an toàn, Sự cố vi phạm, Cán bộ phụ trách, và Biểu đồ phân tích của riêng công trường. | `GET /sites/:id` | High | Functional | `[VERIFIED]` |
 | **SITE-006**| Lưu trữ Công trường hoàn thành (Archive Site) | Công trường đã thi công xong | 1. Chọn thao tác "Lưu trữ công trường"<br>2. Xác nhận | Công trường chuyển trạng thái sang `ARCHIVED`. Tắt toàn bộ luồng camera của dự án để tiết kiệm tài nguyên. | `POST /sites/:id/archive` | Medium | Functional | `[VERIFIED]` |
+| **SITE-007**| Khoanh Vùng Cấm Đa Giác Bằng Chuột Trên Khung Hình Camera | Quyền `PPE_SITE_MANAGE` | 1. Vào `/sites/[id]` tab Phân khu & Vùng cấm<br>2. Bấm "Thêm Vùng Cấm"<br>3. Chọn Camera nền và dùng chuột click các điểm nối thành đa giác khép kín<br>4. Lưu | Tọa độ đa giác `polygonCoordinates: Point[]` được gửi lên backend và lưu vào DB. Vùng cấm hiển thị rõ ràng trên Canvas. | `POST /sites/:id/restricted-areas` | High | Functional | `[VERIFIED]` |
+| **SITE-008**| Kích hoạt Vi phạm Xâm nhập Vùng Cấm (`RESTRICTED_AREA`)| Có vùng cấm nguy hiểm | 1. Công nhân di chuyển vào tọa độ đa giác vùng cấm đã vẽ | AI phát hiện va chạm chân/tâm người với polygon. Ngay lập tức tạo sự cố loại `RESTRICTED_AREA`, mức `CRITICAL`, kích hoạt còi báo động. | `POST /incidents` / SSE | Critical | Integration | `[VERIFIED]` |
 
 ---
 
@@ -153,6 +159,9 @@ Bộ kịch bản kiểm thử được thiết kế dựa trên:
 | **AIM-001** | Kiểm tra Chỉ số Đánh giá Hiệu năng Mô hình AI | Vào `/ai-metrics` | 1. Quan sát thẻ KPI và Ma trận nhầm lẫn | Hiển thị đầy đủ mAP50, Latency, FPS, và Bản đồ nhiệt Heatmap phân loại đúng/sai giữa các nhãn trang bị bảo hộ. | `GET /statistics/ai-performance` | High | Functional | `[VERIFIED]` |
 | **AIM-002** | Triển khai Phiên bản Mô hình AI Mới (Model Deployment)| Quyền `PPE_MODEL_MANAGE` | 1. Tại bảng danh sách phiên bản, chọn phiên bản v2.5<br>2. Bấm "Triển khai"<br>3. Xác nhận tại Dialog | Phiên bản v2.5 trở thành phiên bản kích hoạt (`ACTIVE`). Dải Banner trên cùng đổi sang phiên bản mới. | `POST /ai-models/:id/deploy` | Critical | Functional | `[VERIFIED]` |
 | **AIM-003** | Chạy Thử nghiệm AI Sandbox với Video/Ảnh tải lên | Vào `/ai-metrics/test` | 1. Tải lên video mẫu `ai-cctv-sample.mp4`<br>2. Bấm "Bắt đầu phân tích" | Trình phát video Sandbox chạy mô phỏng suy luận YOLO, vẽ các hộp Bounding Boxes và danh sách các sự cố vi phạm phát hiện trong video. | `/api/ai-sandbox/analyze` | Medium | Functional | `[CLIENT_FALLBACK]`|
+| **AIM-004** | Hiệu Chuẩn Vùng AI ROI Trên AI Sandbox (Không Màn Hình Đen) | Đang ở `/ai-metrics/test` đã tải video | 1. Bấm nút "Hiệu chuẩn Vùng ROI"<br>2. Quan sát khung Canvas xem trước<br>3. Click chuột vẽ đa giác quanh khu vực cần quét<br>4. Bấm "Lưu hiệu chuẩn ROI" | Frame video thực tế hiển thị rõ ràng làm nền Canvas (không bị màn hình đen). Các đỉnh đa giác nối liền nhau, tọa độ được cập nhật chính xác. | `/api/ai-sandbox/roi` | High | Functional | `[VERIFIED]` |
+| **AIM-005** | Khoanh Vùng Cấm Nguy Hiểm Trên AI Sandbox & Kích Hoạt Cảnh Báo | Đang ở `/ai-metrics/test` | 1. Bấm nút "Khoanh Vùng Cấm"<br>2. Dùng chuột click các điểm vẽ đa giác vùng cấm ảo<br>3. Cho video chạy đến đoạn người bước vào vùng cấm | Hệ thống phát hiện xâm nhập vùng cấm, hiển thị cảnh báo đỏ vi phạm `RESTRICTED_AREA` với tỷ lệ trùng khớp chính xác. | `/api/ai-sandbox/danger-zones` | High | Functional | `[VERIFIED]` |
+| **AIM-006** | Tinh Chỉnh Tham Số Ngưỡng Mô Hình AI (`AiModelTuningModal`) | Đang ở `/ai-metrics/test` | 1. Bấm nút "Tinh chỉnh tham số AI"<br>2. Kéo thanh trượt Confidence mũ lên 0.70, áo 0.65<br>3. Đổi thời gian xác nhận vi phạm sang 4 giây<br>4. Áp dụng | Modal đóng lại, tham số mới được lưu và áp dụng tức thì cho bộ lọc phát hiện vi phạm trên Sandbox. | `/api/ai-sandbox/tune-params` | High | Functional | `[VERIFIED]` |
 
 ---
 
@@ -177,16 +186,26 @@ Bộ kịch bản kiểm thử được thiết kế dựa trên:
 | **EDGE-003**| Nhập Ký tự Đặc biệt & Kiểm tra Chống Tấn công XSS | Bất kỳ biểu mẫu nhập liệu nào | 1. Nhập vào ô Họ tên hoặc Tên camera: `<script>alert(1)</script>` | Ứng dụng mã hóa an toàn các thẻ HTML, hiển thị chuỗi ký tự nguyên bản dưới dạng text thuần, không thực thi mã độc. | React JSX / Zod | High | Boundary | `[VERIFIED]` |
 | **RESP-001**| Kiểm tra Giao diện trên Màn hình Thiết bị Di động (Mobile / Tablet)| Mở trình duyệt giả lập màn hình iPhone/iPad (Width 375px - 768px) | 1. Mở các màn hình chính | Thanh Sidebar tự động ẩn và chuyển thành Mobile Drawer trượt ra khi bấm menu burger. Bảng dữ liệu hỗ trợ cuộn ngang mượt mà. | Tailwind CSS Responsive | High | UI / Responsive | `[VERIFIED]` |
 | **RESP-002**| Chuyển đổi Giao diện Tối / Sáng (Dark / Light Neumorphism)| Đang ở bất kỳ màn hình nào | 1. Bấm nút chuyển Theme trên Header | Toàn bộ các bóng đổ Neumorphic (`--shadow-dark`, `--shadow-light`) và màu nền chuyển đổi tức thời không bị nhấp nháy giao diện. | `ThemeProvider` | Medium | UI | `[VERIFIED]` |
+| **NAV-001** | Chuyển Trang Tức Thì & Skeleton Loading Giữ Bố Cục | Đang ở bất kỳ trang nào | 1. Click lần lượt các mục trên Sidebar (VD: từ Dashboard sang Camera, Incidents, Sites)<br>2. Quan sát hiệu ứng nạp dữ liệu | Giao diện chuyển hướng tức thì (<50ms), không bị đơ giật. Các khối dữ liệu hiển thị Shimmer Skeleton đúng kích thước, sau đó hiện dữ liệu mượt mà. | `AppShell` / Suspense | High | UI / Usability | `[VERIFIED]` |
+| **NAV-002** | Xử Lý Đường Dẫn Không Tồn Tại (Màn hình Lỗi 404 Not Found)| Đang đăng nhập hoặc chưa đăng nhập | 1. Nhập URL ngẫu nhiên không tồn tại: `http://localhost:3000/duong-dan-la`<br>2. Bấm nút "Quay lại Bảng điều khiển" | Hiển thị màn hình `NotFoundView` chuẩn phong cách Neumorphic. Bấm nút điều hướng quay về `/dashboard` thành công. | `not-found.tsx` | High | Functional | `[VERIFIED]` |
 
 ---
 
-## 3. DANH MỤC CÁC TÍNH NĂNG CÒN SÓT & GHI CHÚ TODO CẦN LƯU Ý
+## 3. DANH MỤC CÁC TÍNH NĂNG ĐÃ NÂNG CẤP & LƯU Ý KIỂM THỬ
 
-Để kiểm thử viên không bị nhầm lẫn giữa lỗi phần mềm và tính năng chưa hoàn thiện, dưới đây là danh sách các hạng mục đã được rà soát:
+Dưới đây là các nâng cấp đột phá và lưu ý kỹ thuật mới nhất dành cho Tester (cập nhật ngày 08/11/2026):
 
-1. **Luồng Live Video Stream từ Camera thật**:
-   - Hiện tại, luồng trực tiếp đang sử dụng file video mẫu tĩnh (`public/videos/ai-cctv-sample.mp4`) để kiểm thử thuật toán và bám vết Bounding Boxes. Cơ chế kết nối tới luồng RTSP/WebRTC thực địa yêu cầu Media Gateway / Nginx-RTMP đang được hoàn thiện ở tầng Backend Camera Service.
-2. **AI Sandbox Mode (`/ai-metrics/test`)**:
-   - Chức năng phân tích video tải lên đang sử dụng API cục bộ của Next.js route handler (`app/api/ai-sandbox/analyze/route.ts`) đóng vai trò proxy chuyển tiếp tới AI Worker.
-3. **Mã băm SHA-256 đối với ảnh bằng chứng mới**:
-   - Tính năng kiểm tra mã băm toàn vẹn SHA-256 yêu cầu file ảnh phải tồn tại trên Object Storage MinIO. Với các bản ghi mẫu thử nghiệm ban đầu (Mock Data), tính năng kiểm tra mã băm có thể trả về cảnh báo không tìm thấy file gốc trên storage.
+1. **Chuẩn Hóa Bộ Bằng Chứng Thị Giác AI (Visual Evidence Pipeline)**:
+   - Đã xóa bỏ 100% cơ chế mock ảnh tĩnh `01a19ce7` và tọa độ phần trăm gán cứng cũ.
+   - Hỗ trợ lưu trữ và hiển thị 2 ảnh độc lập: `SNAPSHOT` tại giây T vi phạm và `REFERENCE_SNAPSHOT` tại T=0 hoặc khi hợp lệ.
+   - Bounding Box sử dụng hệ tọa độ chuẩn hóa Normalized Coordinates `[0..1]`, scale chính xác tuyệt đối trên mọi độ phân giải.
+2. **Hỗ Trợ Video YouTube & Đa Nguồn Ingestion**:
+   - Khắc phục triệt để rào cản CORS iframe: Frontend không chụp canvas trực tiếp từ iframe YouTube mà nhận frame trích xuất an toàn từ backend worker.
+3. **Bảng Tóm Tắt Theo Người Qua Từng Frame (`/cameras/[id]`)**:
+   - Tích hợp thành phần bảng dùng chung `DataTable` Neumorphic, có đầy đủ bộ lọc vi phạm, tìm kiếm theo Track ID và phân trang.
+4. **Hiệu Chuẩn Vùng AI ROI & Khoanh Vùng Cấm Nguy Hiểm Bằng Chuột**:
+   - Trên AI Sandbox (`/ai-metrics/test`): Khắc phục hoàn toàn lỗi màn hình đen bằng cách nạp snapshot frame video làm nền Canvas khi vẽ.
+   - Trên Công trường (`/sites/[id]`): Cho phép chọn camera và dùng chuột vẽ đa giác khoanh vùng cấm nguy hiểm (`RESTRICTED_AREA`) lưu trực tiếp vào CSDL.
+5. **Trải Nghiệm Điều Hướng & Skeleton Shimmer**:
+   - Chuyển trang tức thì không đóng băng giao diện; từng component có hiệu ứng loading skeleton riêng biệt giữ nguyên khung layout.
+   - Bổ sung màn hình 404 Not Found Neumorphic chuẩn hệ thống.

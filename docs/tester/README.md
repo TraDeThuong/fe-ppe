@@ -1,6 +1,6 @@
 # BỘ TÀI LIỆU HƯỚNG DẪN KIỂM THỬ VÀ BÀN GIAO FRONTEND
 ## DỰ ÁN HỆ THỐNG GIÁM SÁT TRANG BỊ BẢO HỘ LAO ĐỘNG THÔNG MINH (SMART PPE MONITORING)
-*Phiên bản tài liệu:* 1.0.0 · *Ngày hoàn thành:* 06/11/2026  
+*Phiên bản tài liệu:* 1.1.0 · *Cập nhật mới nhất:* 08/11/2026  
 *Phạm vi dự án:* Ứng dụng Frontend `fe-ppe` (Next.js 16.4.2 / React 19.3.0 / Turbopack / TanStack Query v5 / Neumorphic Design System)  
 *Đối tượng sử dụng:* Đội ngũ Đảm bảo Chất lượng (QA/QC), Kỹ sư Kiểm thử Phần mềm (Manual & Automation Testers), Kỹ sư Phát triển (Frontend/Backend Developers) và Cán bộ Quản lý Dự án (Project Managers).
 
@@ -86,11 +86,13 @@ Dưới đây là bảng thống kê tổng thể trạng thái kỹ thuật và
 | **Công nghệ nền tảng Frontend** | Next.js 16.4.2 · React 19.3.0 | Kiến trúc App Router, React Server Components (RSC) kết hợp Client-only Boundary |
 | **Số lượng Màn hình / Route khả dụng** | **31 Routes** | Gồm 8 public auth routes, 21 authenticated business routes, 1 catch-all 404, 1 landing redirect |
 | **Số lượng Backend Microservices tích hợp** | **10 Services** | Đi qua Traefik v3 Reverse Proxy Gateway tại cổng 80 (`http://localhost:80/api/v1`) |
-| **Tổng số Backend API Endpoints** | **87 Endpoints** | Đã đối chiếu và tích hợp đầy đủ trong các file Service tầng FE |
+| **Tổng số Backend API Endpoints** | **87+ Endpoints** | Đã đối chiếu và tích hợp đầy đủ trong các file Service tầng FE |
 | **Số file Frontend Services (`src/services`)** | **13 Services** | `auth`, `camera`, `site`, `incident`, `reporting`, `ai-metrics`, `notification`, `user`, `rbac`, `audit`, `system`, `maintenance`, `media` |
 | **Số module React Query Hooks (`src/hooks`)** | **32 Hook Groups** | Quản lý cache tập trung, phân loại Query Keys theo domain, hỗ trợ prefetch và optimistic update |
 | **Số vai trò người dùng trong hệ thống (RBAC)** | **5 Roles** | `ADMIN`, `SAFETY_MANAGER`, `SAFETY_OFFICER`, `MANAGER`, `USER` |
 | **Số quyền hạn chi tiết (`PermissionResource`)** | **21 Resources** | 4 nhóm phân loại lớn: `MONITORING`, `ANALYTICS`, `IDENTITY`, `SYSTEM` |
+| **Bộ Bằng Chứng Thị Giác AI Chuẩn Hóa** | **Dual Snapshot [0..1]** | Loại bỏ 100% mock box; lưu 2 ảnh SNAPSHOT vi phạm & REFERENCE đối chứng |
+| **Công Cụ Khoanh Vùng & Hiệu Chuẩn** | **Vùng Cấm & AI ROI** | Hỗ trợ vẽ đa giác chuột trên khung hình camera tại `/sites/[id]` & `/ai-metrics/test` |
 | **Tỷ lệ kiểm thử tự động nội bộ (`npm test`)** | **110 / 110 Passed** | 100% test suites kiểm thử Auth Hooks, Token Store, Session Manager và Query Keys thành công |
 | **Trạng thái Build Production (`next build`)** | **Pass (0 Error)** | 41/41 routes sinh thành công dưới dạng Static / Dynamic Server Rendering với Turbopack |
 

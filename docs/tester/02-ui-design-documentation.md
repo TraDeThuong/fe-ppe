@@ -337,20 +337,25 @@ sequenceDiagram
 
 ### A. Screen Overview
 - **Tên màn hình & Route**: Chi tiết Sự cố & Giám định Bằng chứng (`/incidents/[id]`).
-- **Mục đích**: Hồ sơ pháp lý hoàn chỉnh của một vụ vi phạm an toàn. Cung cấp ảnh chụp bounding box từ AI, quy trình xử lý 6 bước, thông tin cán bộ phụ trách, dòng thảo luận hiện trường và tính năng kiểm tra tính toàn vẹn bằng chứng bằng mã băm SHA-256.
+- **Mục đích**: Hồ sơ pháp lý hoàn chỉnh của một vụ vi phạm an toàn lao động. Cung cấp bộ bằng chứng thị giác kép (Dual-Snapshot), khung nhận diện Bounding Box chuẩn hóa dạng toán học `[0..1]` co giãn đa độ phân giải, quy trình xử lý 6 bước, thông tin cán bộ phụ trách, dòng thảo luận hiện trường và tính năng kiểm tra tính toàn vẹn bằng chứng bằng mã băm SHA-256.
 
 ### B. Layout & Components
-- `IncidentLifecycleStepper`: Trục 6 bước trực quan hóa tiến trình vòng đời vi phạm.
-- `IncidentEvidenceViewer`: Trình chiếu ảnh bằng chứng độ phân giải cao kèm các hộp định vị (Bounding Boxes) xung quanh vùng cơ thể thiếu bảo hộ.
+- `IncidentLifecycleStepper`: Trục 6 bước trực quan hóa tiến trình vòng đời vi phạm (`DETECTED` $\rightarrow$ `UNDER_REVIEW` $\rightarrow$ `CONFIRMED` $\rightarrow$ `ASSIGNED` $\rightarrow$ `RESOLVING` $\rightarrow$ `RESOLVED` $\rightarrow$ `CLOSED`).
+- `IncidentEvidenceViewer`: Trình chiếu bộ bằng chứng thị giác kép chuẩn hóa:
+  - **Ảnh vi phạm (`SNAPSHOT`)**: Khung hình bắt giữ tại giây T phát hiện vi phạm thực tế, vẽ khung Bounding Box màu đỏ xung quanh vùng cơ thể thiếu bảo hộ (Mũ, Áo...) hoặc vị trí bước chân vào vùng cấm.
+  - **Ảnh đối chứng (`REFERENCE_SNAPSHOT`)**: Khung hình tại thời điểm T=0 (khởi tạo luồng) hoặc khung hình khi công nhân tuân thủ đầy đủ trang bị, dùng để đối chiếu chứng minh hành vi vi phạm.
+  - **Chuẩn hóa Tọa độ Normalized Bounding Box `[0..1]`**: Khắc phục triệt để lỗi lệch box do khác biệt độ phân giải màn hình hoặc tỷ lệ khung hình. Tọa độ lưu dạng `[ymin, xmin, ymax, xmax]` tương đối, tự động scale khớp 100% trên mọi kích thước ảnh.
+  - **Loại bỏ hoàn toàn cơ chế Hardcode**: Không còn fallback ảnh camera cũ `01a19ce7` hay tọa độ phần trăm tĩnh. Mọi dữ liệu trích xuất trực tiếp từ trường `metadata.aiDetections` trong CSDL backend.
 - `IncidentChecksumVerifier`: Công cụ kiểm tra mã băm SHA-256 đối chiếu trực tiếp giữa file trên Object Storage và bản ghi trong Database nhằm đảm bảo bằng chứng không bị chỉnh sửa giả mạo.
-- `IncidentMetaCard` & `IncidentAssignmentCard`: Thông tin vị trí, thời điểm phát hiện, thiết bị ghi hình và cán bộ xử lý.
+- `IncidentMetaCard` & `IncidentAssignmentCard`: Thông tin vị trí công trường, phân khu, loại vi phạm (`ViolationType`), mức độ nghiêm trọng (`SeverityLevel`), mốc thời gian và cán bộ được giao nhiệm vụ.
 - `IncidentCommentsTimeline`: Khung trao đổi thảo luận hiện trường kèm chức năng gửi bình luận và mốc thời gian chi tiết.
 
 ### D. UI–Service–API Mapping
 | UI Component | User Action | FE Hook/Function | Backend Service | Method | Endpoint | Request Data | Response Data | UI Behavior |
 | :--- | :--- | :--- | :--- | :---: | :--- | :--- | :--- | :--- |
-| Trình tải trang | Render chi tiết | `useIncidentDetail` | Incident Service | `GET` | `/api/v1/incidents/:id` | None | `IncidentItem` | Điền thông tin toàn diện vào stepper, thẻ meta và trình xem ảnh. |
-| `EvidenceViewer` | Lấy link tải ảnh | `incidentService.getEvidenceDownloadUrl`| Incident Service | `GET` | `/api/v1/evidences/:id/download-url` | None | `{ downloadUrl: string }` | Render ảnh từ MinIO/S3 an toàn qua Signed URL. |
+| Trình tải trang | Render chi tiết | `useIncidentDetail` | Incident Service | `GET` | `/api/v1/incidents/:id` | None | `IncidentItem` | Điền thông tin toàn diện vào stepper, thẻ meta, danh sách evidence và metadata AI. |
+| `EvidenceViewer` | Lấy link tải ảnh SNAPSHOT | `incidentService.getEvidenceDownloadUrl`| Incident Service | `GET` | `/api/v1/evidences/:id/download-url` | None | `{ downloadUrl: string }` | Render ảnh vi phạm từ MinIO qua Pre-signed URL an toàn. |
+| `EvidenceViewer` | Lấy link ảnh REFERENCE | `incidentService.getEvidenceDownloadUrl`| Incident Service | `GET` | `/api/v1/evidences/:refId/download-url` | None | `{ downloadUrl: string }` | Render ảnh đối chứng T=0 để so sánh song song. |
 | `ChecksumVerifier` | Bấm kiểm tra băm | `useEvidenceIntegrity` | Incident Service | `GET` | `/api/v1/evidences/:id/verify-checksum` | None | `{ valid: boolean, calculatedChecksum, storedChecksum }` | Hiển thị huy hiệu xanh "Bằng chứng toàn vẹn 100%" hoặc đỏ "Cảnh báo sai lệch mã băm". |
 | `CommentsTimeline` | Gửi bình luận mới | `useAddIncidentComment`| Incident Service | `POST` | `/api/v1/incidents/:id/comments` | `{ comment: string }` | `IncidentCommentItem` | Chèn bình luận vào dòng thời gian tức thì. |
 
@@ -365,7 +370,7 @@ sequenceDiagram
 
 ### B. Layout & 3 Chế độ Xem (View Modes)
 1. **Chế độ Lưới (`grid`)**: Thẻ card Neumorphic cho từng camera, có ảnh xem trước luồng, trạng thái kết nối (`ONLINE`/`OFFLINE`), độ trễ Ping ms và nút mở xem nhanh.
-2. **Chế độ Bảng (`table`)**: Quản lý chi tiết địa chỉ RTSP/HLS, vị trí phân khu, độ phân giải, FPS và các nút sửa/xóa/đo nhịp tim.
+2. **Chế độ Bảng (`table`)**: Quản lý chi tiết địa chỉ RTSP/HLS/YouTube, vị trí phân khu, độ phân giải, FPS và các nút sửa/xóa/đo nhịp tim.
 3. **Chế độ Tường Video (`wall`)**: Trình chiếu đồng thời nhiều camera theo bố cục ma trận linh hoạt (`1x1`, `2x2`, `3x3`), tự động tái kết nối luồng khi mạng chập chờn.
 
 ### C. Các Drawer & Modal chuyên sâu
@@ -389,6 +394,13 @@ sequenceDiagram
 - **Tính năng nổi bật**:
   - `CameraIntelligencePlayer`: Canvas 2D vẽ khung nhận diện màu sắc theo chuẩn an toàn (Xanh lá = Đầy đủ bảo hộ, Đỏ = Đang vi phạm, Vàng = Đang cảnh báo).
   - `CameraTelemetryTables`: Bảng số liệu suy luận trực tiếp (FPS thực tế, thời gian trễ mili-giây, số lượng người trong khung hình, danh sách sự kiện vi phạm vừa phát hiện).
+  - **Bảng "Tóm tắt theo người (có mũ / có áo theo từng frame)" (`WorkerComplianceSummaryTable`)**:
+    - Thống kê toàn bộ quá trình tuân thủ bảo hộ của từng công nhân (`Track ID`) qua toàn bộ các khung hình video.
+    - Chuyển đổi sang thành phần bảng dùng chung `DataTable` Neumorphic.
+    - **Phân trang hoàn chỉnh (Pagination)**: Hỗ trợ chuyển trang, chọn số lượng bản ghi hiển thị (5, 10, 20, 50 dòng/trang).
+    - **Bộ lọc & Tìm kiếm**: Tìm kiếm theo mã nhận diện công nhân (`Track ID`), lọc theo loại trang bị (`Có Mũ / Không Mũ`, `Có Áo / Không Áo`, `Xâm nhập Vùng Cấm`).
+    - **Sắp xếp linh hoạt**: Sắp xếp theo tỷ lệ tuân thủ %, số lần cảnh báo, hoặc thời điểm xuất hiện đầu tiên.
+  - **Hỗ trợ Đa Nguồn Video Bất Kỳ (YouTube & RTSP)**: Cơ chế nạp video YouTube mới trích xuất frame qua Backend AI Ingestion Service, loại bỏ hoàn toàn hạn chế bảo mật cùng nguồn (CORS Iframe) của trình duyệt. Không còn bị lệch khung nhận diện khi nạp bất kỳ URL video mới nào.
 
 ---
 
@@ -402,7 +414,7 @@ sequenceDiagram
 ### B. Layout & Components
 - `SiteKpiSummary`: 4 thẻ đo lường (Tổng số công trường, Tổng số phân khu Zone, Vùng cấm nguy hiểm, Tỷ lệ tuân thủ trung bình).
 - `SiteTable` & `SiteCardGrid`: Hiển thị danh sách công trường kèm badge trạng thái (`ACTIVE`, `INACTIVE`, `COMPLETED`, `ARCHIVED`).
-- `SiteSafetyConfigModal`: Thiết lập các trang bị bảo hộ bắt buộc (`requiredPPE: ["HELMET", "VEST", "BOOTS"...]`), ngưỡng tin cậy AI (`minConfidenceScore`), và phiên bản mô hình AI áp dụng cho riêng công trường này.
+- `SiteSafetyConfigModal`: Thiết lập các trang bị bảo hộ bắt buộc (`requiredPPE: ["HARD_HAT", "SAFETY_VEST", "BOOTS"...]`), ngưỡng tin cậy AI (`minConfidenceScore`), và phiên bản mô hình AI áp dụng cho riêng công trường này.
 - `SiteZonesDrawer`: Quản lý danh sách các phân khu (`Zones`) và khu vực giới hạn nguy cơ sập đổ/nguy hiểm cao (`Restricted Areas`) trực thuộc công trường.
 
 ---
@@ -413,11 +425,15 @@ sequenceDiagram
 - **Route**: `/sites/[id]`.
 - **Mục đích**: Bảng chỉ huy tác chiến riêng biệt cho từng công trường cụ thể.
 - **Bố cục 6 Tabs chức năng**:
-  1. `site-spatial-zones-tab`: Sơ đồ các phân khu và vùng cấm thi công.
+  1. `site-spatial-zones-tab`: Sơ đồ các phân khu và công cụ **Khoanh Vùng Cấm Đa Giác Bằng Chuột (Restricted Area Polygon Canvas)**:
+     - Cho phép chọn camera bất kỳ trong công trường làm nền quan sát.
+     - Click chuột trực tiếp trên khung hình video để đánh dấu các đỉnh đa giác khoanh vùng khu vực nguy hiểm cao (hố đào sâu, khu vực cẩu tháp, trạm biến áp).
+     - Lưu tọa độ đa giác `polygonCoordinates: Point[]` trực tiếp vào CSDL backend, tự động đồng bộ sang AI Service để giám sát vi phạm `RESTRICTED_AREA`.
   2. `site-live-cameras-tab`: Các camera đang hoạt động trong công trường.
   3. `site-safety-rules-tab`: Cấu hình quy tắc an toàn đặc thù áp dụng tại công trường.
   4. `site-incidents-tab`: Lịch sử các vi phạm an toàn xảy ra tại công trường này.
   5. `site-personnel-tab`: Danh sách cán bộ an toàn phụ trách.
+  6. `site-analytics-tab`: Biểu đồ xu hướng vi phạm và tỷ lệ tuân thủ theo thời gian của riêng công trường.
   6. `site-analytics-tab`: Biểu đồ xu hướng vi phạm và tỷ lệ tuân thủ theo thời gian của riêng công trường.
 
 ---
@@ -476,7 +492,49 @@ sequenceDiagram
 
 ### A. Screen Overview
 - **Route**: `/ai-metrics/test`.
-- **Mục đích**: Cung cấp môi trường độc lập cho kỹ sư và kiểm thử viên tải video/ảnh từ máy tính lên để chạy thử nghiệm suy luận mô hình AI YOLO mà không làm ảnh hưởng đến dữ liệu camera thực tế tại công trường.
+- **Mục đích**: Cung cấp môi trường kiểm thử hộp cát (Sandbox) độc lập hoàn toàn cho Kỹ sư và Kiểm thử viên (QA/QC). Cho phép tải video/ảnh từ máy tính cá nhân lên để kiểm thử thuật toán phát hiện vi phạm PPE, thử nghiệm bám vết ByteTrack, hiệu chuẩn vùng quét AI ROI, và khoanh thử vùng cấm nguy hiểm mà không làm ảnh hưởng đến dữ liệu thực địa của công trường.
+- **Quyền truy cập**: `PPE_AI_METRICS_READ` / `ADMIN` / `SAFETY_MANAGER`.
+
+### B. Layout & Components
+1. **Khu vực Tải tệp Đa phương tiện (`MediaUploadZone`)**: Hỗ trợ kéo thả hoặc duyệt chọn file video MP4/MKV hoặc ảnh JPG/PNG mẫu.
+2. **Trình phát Video & Lớp Phủ Khung Nhận Diện (`SandboxVideoPlayer & OverlayCanvas`)**:
+   - Trực tiếp render luồng suy luận của mô hình AI YOLO.
+   - Vẽ các hộp nhận diện Bounding Box màu sắc: Xanh lục (Tuân thủ), Đỏ (Vi phạm).
+   - Hiển thị nhãn nhận diện, độ tin cậy phần trăm và mã định danh theo dõi (`Track ID`).
+3. **Công cụ Hiệu Chuẩn Vùng Nhận Diện AI (AI ROI Calibration Canvas)**:
+   - Cho phép kiểm thử viên click chuột trực tiếp để vẽ các điểm nút tạo thành đa giác vùng quan tâm (ROI).
+   - **Khắc phục triệt để lỗi màn hình đen**: Tự động trích xuất snapshot frame đầu tiên của video làm ảnh nền trực quan trên Canvas, giúp tester dễ dàng định vị các góc và ranh giới khi click chọn điểm.
+   - Hỗ trợ nút "Đặt lại vùng ROI" (Reset ROI) và "Lưu hiệu chuẩn ROI".
+4. **Công cụ Khoanh Vùng Cấm Nguy Hiểm Sandbox (Danger Zones Interactive Canvas)**:
+   - Cho phép vẽ đa giác vùng cấm ảo ngay trên khung hình video thử nghiệm.
+   - Mô phỏng kịch bản công nhân bước chân vào vùng nguy hiểm và kích hoạt cảnh báo tức thì `RESTRICTED_AREA`.
+5. **Modal Cấu Hình & Tinh Chỉnh Tham Số AI (`AiModelTuningModal`)**:
+   - Mở qua nút "Tinh chỉnh tham số AI" trên thanh công cụ Sandbox.
+   - **Ngưỡng tin cậy (Confidence Threshold: 0.10 - 0.95)**: Điều chỉnh thanh trượt độc lập cho từng loại trang bị bảo hộ:
+     - Mũ bảo hộ (`HARD_HAT`): Mặc định `0.45`
+     - Áo phản quang (`SAFETY_VEST`): Mặc định `0.50`
+     - Giày/Ủng bảo hộ (`BOOTS`): Mặc định `0.40`
+     - Găng tay bảo hộ (`GLOVES`): Mặc định `0.35`
+     - Kính bảo hộ (`GOGGLES`): Mặc định `0.35`
+   - **Ngưỡng chồng lấn IOU (Intersection over Union: 0.10 - 0.90)**: Điều chỉnh bộ lọc Non-Maximum Suppression (NMS), mặc định `0.45`.
+   - **Bộ đệm ByteTrack (Track Buffer Frames: 10 - 60)**: Số khung hình duy trì `track_id` khi công nhân bị che khuất tạm thời.
+   - **Thời gian xác nhận vi phạm (Temporal Confirmation Seconds)**: Mặc định `3.0s` (hoặc 15-30 frames) để xác nhận vi phạm chính thức, loại trừ rung lắc.
+   - Nút "Đặt lại mặc định" và "Áp dụng tham số".
+6. **Thẻ Chỉ Số Telemetry Trực Tiếp (`SandboxTelemetryCards`)**: Đo lường tức thì FPS thực tế, thời gian trễ suy luận (ms), tổng số người trong khung hình và bảng tổng hợp các vi phạm phát hiện được.
+
+### C. UI States
+- **State 1 - Chưa có dữ liệu (Empty State)**: Khung viền nét đứt Neumorphic mời người dùng tải lên video/ảnh thử nghiệm.
+- **State 2 - Đang nạp & Trích xuất (Loading / Ingesting State)**: Hiệu ứng Skeleton Shimmer cùng thanh tiến trình % giải mã video.
+- **State 3 - Đang phát & Phân tích (Inference State)**: Video chạy mượt mà, Canvas cập nhật bounding boxes theo từng mili-giây.
+- **State 4 - Lỗi giải mã (Error State)**: Thông báo lỗi định dạng video hoặc codec không được hỗ trợ kèm nút tải file khác.
+
+### D. UI–Service–API Mapping
+| UI Component | User Action | FE Hook/Function | Backend Service | Method | Endpoint | Request Data | Response Data | UI Behavior |
+| :--- | :--- | :--- | :--- | :---: | :--- | :--- | :--- | :--- |
+| `MediaUploadZone` | Tải video lên | `aiMetricsService.uploadTestMedia` | AI Service / Proxy | `POST` | `/api/ai-sandbox/upload` | `FormData (file)` | `{ fileUrl, duration, width, height }` | Tải xong, tự nạp video vào trình phát và trích frame nền. |
+| `RoiCanvas` | Lưu vùng ROI Sandbox | `aiMetricsService.saveRoiConfig` | AI Service | `POST` | `/api/ai-sandbox/roi` | `{ roiPolygon: Point[] }` | `{ success: true }` | Cập nhật mặt phẳng cắt quét AI trên khung hình. |
+| `DangerZoneCanvas` | Lưu Vùng Cấm Ảo | `aiMetricsService.saveDangerZones`| AI Service | `POST` | `/api/ai-sandbox/danger-zones` | `{ zones: DangerZone[] }` | `{ success: true }` | Kích hoạt cảnh báo vi phạm khi có đối tượng bước vào. |
+| `AiModelTuningModal`| Áp dụng tham số mới | `aiMetricsService.updateModelParams` | AI Service | `POST` | `/api/ai-sandbox/tune-params` | `AiTuningParamsPayload` | `{ applied: true }` | Đóng modal, áp dụng ngưỡng phát hiện mới ngay lập tức. |
 
 ---
 
@@ -634,6 +692,10 @@ Khung ứng dụng bao bọc toàn bộ các màn hình đã xác thực, bao g�
    - `UserMenu`: Menu tài khoản người dùng hiển thị ảnh đại diện, tên, badge vai trò, liên kết Cài đặt và nút Đăng xuất.
 3. `IncidentAlertToast`: Khung thông báo vi phạm an toàn nổi bật xuất hiện tức thì khi có sự kiện vi phạm PPE từ kênh SSE thời gian thực.
 4. `soundService`: Bộ phát âm thanh cảnh báo còi hú bằng Web Audio API khi nhận tín hiệu vi phạm mức độ `CRITICAL` hoặc `HIGH`.
+5. **Cơ chế Chuyển Trang Tức Thì & Progressive Skeleton Loading**:
+   - Khi click vào bất kỳ mục nào trên Sidebar, giao diện chuyển trang **ngay lập tức** (<50ms) thay vì bị khựng hoặc đóng băng giao diện.
+   - Các thành phần dữ liệu nặng (Biểu đồ phân bổ vi phạm, Bảng điểm nóng camera, Thẻ chỉ số AI Telemetry, Bảng dữ liệu sự cố) hiển thị trạng thái `Skeleton Shimmer` riêng biệt, giữ nguyên đúng kích thước và cấu trúc lưới của màn hình.
+   - Khi API trả về, các khối dữ liệu tự động thay thế skeleton một cách mượt mà, mang lại trải nghiệm liền mạch cho người dùng và kiểm thử viên.
 
 ---
 
@@ -645,8 +707,20 @@ Khung ứng dụng bao bọc toàn bộ các màn hình đã xác thực, bao g�
 ---
 
 ## 30. Màn hình Trang Không Tồn tại (`404 Not Found`)
-- **Route**: `app/(auth)/[...catchAll]/page.tsx` và `not-found.tsx`.
-- **Giao diện**: Hiển thị icon kính lúp tìm kiếm `SearchX`, thông điệp "Không tìm thấy trang yêu cầu", và nút bấm điều hướng quay trở lại trang chủ `/dashboard`.
+- **Components & Routes**:
+  - `app/not-found.tsx` (Bắt lỗi 404 cấp Root toàn cục)
+  - `app/(auth)/not-found.tsx` (Bắt lỗi 404 bên trong AppShell)
+  - `src/components/features/not-found/not-found-view.tsx`
+- **Kích hoạt**: Khi người dùng nhập sai URL bất kỳ (VD: `/duong-dan-khong-ton-tai`), hoặc truy cập vào một tài nguyên đã bị xóa.
+- **Thiết kế & Bố cục Neumorphic**:
+  - Khối Card Neumorphic dập nổi trung tâm với viền phát sáng nhẹ.
+  - Số hiệu `404` kích thước lớn cách điệu biểu tượng cảnh báo an toàn.
+  - Tiêu đề: "Không tìm thấy trang yêu cầu".
+  - Mô tả hướng dẫn: "Đường dẫn bạn đang cố gắng truy cập có thể đã bị thay đổi, xóa bỏ hoặc tạm thời không khả dụng."
+  - **Hệ thống 3 nút điều hướng phục hồi**:
+    - Nút chính: "Về Bảng điều khiển" (Chuyển hướng về `/dashboard`).
+    - Nút phụ 1: "Quay lại trang trước" (Gọi `router.back()`).
+    - Nút phụ 2: "Báo cáo sự cố / Hỗ trợ kỹ thuật".
 
 ---
 

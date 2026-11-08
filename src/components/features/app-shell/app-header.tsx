@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRealtime } from "@/contexts/RealtimeContext";
 import { useLocale } from "@/providers/locale-provider";
 import { ThemeToggle } from "@ui/theme-toggle";
 import { EnglishFlag, VietnamFlag } from "@ui/flag-icons";
-import { Activity, Menu, Radio } from "lucide-react";
+import { Menu } from "lucide-react";
 
 import { NotificationBell } from "./notification-bell";
 import { SiteSelector } from "./site-selector";
@@ -21,16 +20,11 @@ const headerActionClass =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50";
 
 export function AppHeader() {
-  const { isConnected } = useRealtime();
   const { t, locale, setLocale } = useLocale();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isVietnamese = locale === "vi-VN";
-
-  const realtimeTitle = t(
-    isConnected ? "header.realtime.on" : "header.realtime.off",
-  );
 
   return (
     <header className="sticky top-0 z-30 shrink-0 isolate">
@@ -145,52 +139,6 @@ export function AppHeader() {
             </div>
 
             <div className="min-w-0 flex-1" />
-
-            {/* Realtime status */}
-            <div
-              role="status"
-              title={realtimeTitle}
-              aria-label={realtimeTitle}
-              className={`
-                relative z-10 flex h-8 shrink-0 items-center gap-1.5
-                rounded-lg px-1.5 transition-colors duration-200
-                sm:h-9 sm:gap-2 sm:rounded-xl sm:border sm:px-2.5
-                ${
-                  isConnected
-                    ? "text-emerald-600 dark:text-emerald-400 sm:border-emerald-500/15 sm:bg-emerald-500/5 sm:shadow-[inset_2px_2px_4px_rgba(16,185,129,0.07),inset_-2px_-2px_4px_rgba(255,255,255,0.25)]"
-                    : "text-rose-500 dark:text-rose-400 sm:border-rose-500/15 sm:bg-rose-500/5 sm:shadow-[inset_2px_2px_4px_rgba(239,68,68,0.07),inset_-2px_-2px_4px_rgba(255,255,255,0.2)]"
-                }
-              `}
-            >
-              <span className="relative flex h-5 w-5 items-center justify-center sm:h-6 sm:w-6 sm:rounded-lg sm:shadow-[2px_2px_4px_color-mix(in_srgb,var(--shadow-dark)_20%,transparent),-2px_-2px_4px_color-mix(in_srgb,var(--shadow-light)_75%,transparent)]">
-                {isConnected ? (
-                  <Activity className="relative z-10 h-4 w-4 sm:h-3.5 sm:w-3.5" />
-                ) : (
-                  <Radio className="relative z-10 h-4 w-4 sm:h-3.5 sm:w-3.5" />
-                )}
-
-                {isConnected && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-0 animate-ping rounded-lg
-                      bg-emerald-400/20 [animation-duration:2.5s]
-                      motion-reduce:animate-none"
-                  />
-                )}
-              </span>
-
-              <span
-                aria-hidden="true"
-                className={`
-                  h-1.5 w-1.5 rounded-full
-                  ${
-                    isConnected
-                      ? "bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.75),0_0_12px_rgba(16,185,129,0.35)]"
-                      : "bg-rose-500 shadow-[0_0_6px_rgba(239,68,68,0.35)]"
-                  }
-                `}
-              />
-            </div>
 
             {/* Notifications */}
             <div

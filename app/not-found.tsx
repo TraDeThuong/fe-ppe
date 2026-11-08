@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { NotFoundView } from "@/components/features/not-found";
 
@@ -7,5 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function RootNotFound() {
-  return <NotFoundView mode="fullscreen" />;
+  return (
+    <Suspense fallback={null}>
+      <NotFoundView mode="fullscreen" />
+    </Suspense>
+  );
 }

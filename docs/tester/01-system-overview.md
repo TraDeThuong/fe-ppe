@@ -1,5 +1,5 @@
 # TỔNG QUAN HỆ THỐNG GIÁM SÁT TRANG BỊ BẢO HỘ LAO ĐỘNG THÔNG MINH (SMART PPE MONITORING)
-*Tài liệu kiểm thử & chuyển giao kỹ thuật* · *Phiên bản:* 1.0.0
+*Tài liệu kiểm thử & chuyển giao kỹ thuật* · *Phiên bản:* 1.1.0 · *Cập nhật:* 08/11/2026
 
 ---
 
@@ -9,45 +9,79 @@ Hệ thống **Smart PPE Monitoring System** là giải pháp phần mềm chuy�
 
 ```mermaid
 flowchart LR
-    A["Camera CCTV / IP<br>(RTSP / HLS / WebRTC)"] --> B["AI Inference Engine<br>(YOLOv11 / Vision Worker)"]
-    B -->|Phát hiện vi phạm PPE| C["Traefik Gateway<br>& Microservices"]
-    C -->|SSE Realtime Alert| D["Frontend Next.js<br>(fe-ppe)"]
+    A["Camera CCTV / IP / YouTube<br>(RTSP / HLS / Ingestion Worker)"] --> B["AI Inference Engine<br>(YOLOv11 + ByteTrack :8000)"]
+    B -->|Bằng chứng Snapshot Kép<br>& Normalized Box [0..1]| C["Traefik Gateway<br>& Microservices (:80)"]
+    C -->|SSE Realtime Alert (<500ms)| D["Frontend Next.js 16<br>(fe-ppe)"]
     D --> E["Cán bộ An toàn<br>(Safety Officer / Manager)"]
     E -->|Thẩm duyệt & Phân công| C
 ```
 
 ### 1.1. Các nhóm tính năng chính của hệ thống
 1. **Giám sát Thị giác AI Thời gian thực (Real-time AI Vision Monitoring)**:
-   - Tiếp nhận luồng video trực tiếp từ các camera an ninh tại công trường qua các giao thức HLS/RTSP/WebRTC.
-   - Ứng dụng mô hình AI Deep Learning (YOLOv11/YOLOv8) để nhận diện người lao động và kiểm tra tức thời các trang thiết bị bảo hộ bắt buộc: Mũ bảo hộ (`HELMET`), Áo phản quang (`SAFETY_VEST`), Găng tay bảo hộ (`GLOVES`), Giày/Ủng bảo hộ (`BOOTS`), Kính bảo vệ mắt (`SAFETY_GLASSES`), và Dây an toàn trên cao (`SAFETY_HARNESS`).
+   - Tiếp nhận luồng video trực tiếp từ các camera an ninh tại công trường qua các giao thức HLS/RTSP/WebRTC hoặc luồng nạp video kiểm thử YouTube/MP4.
+   - Ứng dụng mô hình AI Deep Learning (YOLOv11s-PPE kết hợp thuật toán theo dõi ByteTrack) để nhận diện người lao động và kiểm tra tức thời các trang thiết bị bảo hộ bắt buộc: Mũ bảo hộ (`HARD_HAT`), Áo phản quang (`SAFETY_VEST`), Găng tay bảo hộ (`GLOVES`), Giày/Ủng bảo hộ (`BOOTS`), Kính bảo vệ mắt (`GOGGLES`), và Dây an toàn trên cao (`SAFETY_HARNESS`).
+   - Cung cấp tính năng lọc nhiễu với cơ chế **Temporal Confirmation**: chỉ khi hành vi vi phạm kéo dài liên tục $\ge 3$ giây mới kích hoạt sự cố chính thức, triệt tiêu báo động giả do giật frame.
    - Khoanh vùng nhận diện theo đa giác tùy chỉnh (AI ROI - Region of Interest Canvas) cho từng camera để loại trừ các khu vực công cộng ngoài ý muốn.
 
-2. **Quản lý Vòng đời Sự cố Vi phạm (Incident Lifecycle Governance)**:
-   - Tự động bắt giữ ảnh chụp bằng chứng (Evidence Snapshot) tại khung hình phát hiện vi phạm, lưu trữ trên Object Storage (MinIO/S3) và tính toán mã băm SHA-256 để chống làm giả hoặc can thiệp dữ liệu.
+2. **Quản lý Vòng đời Sự cố Vi phạm & Bộ Bằng chứng Kép (Incident Evidence Governance)**:
+   - Tự động bắt giữ bộ bằng chứng thị giác kép (Dual-Snapshot Visual Evidence):
+     - `SNAPSHOT`: Ảnh chụp độ phân giải cao tại chính xác khung hình giây T phát hiện vi phạm.
+     - `REFERENCE_SNAPSHOT`: Ảnh chụp tại thời điểm T=0 (khởi tạo luồng) hoặc lúc người lao động tuân thủ hợp lệ nhằm đối chiếu minh bạch.
+   - Tọa độ khung nhận diện được chuẩn hóa thành hệ tọa độ Normalized Coordinates `[0..1]` (`ymin, xmin, ymax, xmax`), co giãn hoàn hảo trên mọi độ phân giải màn hình mà không bao giờ bị lệch box.
+   - Dữ liệu bằng chứng được lưu trữ vĩnh viễn trên MinIO Object Storage, gắn mã băm SHA-256 chống chỉnh sửa và metadata AI (`model`, `confidence`, `box`) trong cơ sở dữ liệu `ppe_incident_db`.
    - Quy trình thẩm duyệt khép kín 6 trạng thái: `DETECTED` (Mới phát hiện) $\rightarrow$ `UNDER_REVIEW` (Đang xem xét) $\rightarrow$ `CONFIRMED` (Xác nhận vi phạm) / `DISMISSED` (Bác bỏ / Báo động giả) $\rightarrow$ `RESOLVING` (Đang khắc phục) $\rightarrow$ `RESOLVED` (Đã xử lý) $\rightarrow$ `CLOSED` (Nghiệm thu đóng).
    - Phân công cán bộ an toàn phụ trách hiện trường, theo dõi thời gian xử lý trung bình (MTTR) và dòng sự kiện thảo luận (Incident Comments Timeline).
 
-3. **Số hóa & Quản trị Không gian Công trường (Site Spatial Governance)**:
+3. **Số hóa Không gian Công trường & Khoanh Vùng Cấm Đa Giác (Site Spatial & Danger Zones)**:
    - Quản trị đa công trường (`Sites`), phân khu thi công (`Zones`) và các khu vực giới hạn nguy hiểm cao (`Restricted Areas`).
+   - **Công cụ vẽ chuột đa giác tương tác (Interactive Mouse Polygon Canvas)**: Cho phép cán bộ an toàn chọn camera bất kỳ trong công trường và dùng chuột click các điểm trực tiếp trên khung hình video để khoanh vùng cấm nguy hiểm.
+   - Tự động phát hiện vi phạm xâm nhập vùng cấm nguy hiểm (`RESTRICTED_AREA`) với mức độ cảnh báo tối khẩn (`CRITICAL`).
    - Cấu hình quy chuẩn an toàn động (Safety Rules): Thiết lập các trang bị bảo hộ bắt buộc riêng biệt cho từng công trường hoặc kế thừa theo mặc định toàn hệ thống.
 
 4. **Trung tâm Chỉ huy Điều hành & Cảnh báo Tức thời (Command Center & Realtime Hub)**:
    - Cơ chế Server-Sent Events (SSE) đẩy thông tin sự cố vi phạm tới trình duyệt trong vòng $<500\text{ms}$.
    - Phát âm thanh còi báo động khẩn cấp (`soundService`), hiển thị thẻ cảnh báo động đỏ viền neumorphic (`IncidentAlertToast`) và số đếm chưa đọc trên chuông thông báo.
    - Bảng điều khiển tích hợp mô hình 3D tương tác nón bảo hộ lao động (`HelmetShowcase` sử dụng Three.js/Fiber) và 4 bảng biểu đồ giám sát tác chiến theo giờ trong ngày.
+   - Tối ưu hóa điều hướng mượt mà: Chuyển trang tức thời kết hợp hiệu ứng Skeleton Loading giữ nguyên bố cục cho từng thành phần con, triệt tiêu hiện tượng đơ giật UI.
 
-5. **Phân tích Báo cáo An toàn & Đo lường Hiệu năng AI (Safety Analytics & AI Metrics)**:
+5. **Phân tích Báo cáo An toàn & Đo lường Hiệu năng AI (Safety Analytics & AI Governance)**:
    - Xuất báo cáo chuyên nghiệp định dạng PDF và Excel phục vụ thanh tra an toàn và nghiệm thu định kỳ.
    - Thống kê tỷ lệ tuân thủ PPE toàn dự án, ma trận phân bổ vi phạm, xếp hạng các camera điểm nóng có tần suất vi phạm cao.
    - Bảng điều khiển quản trị mô hình AI (Model Governance): Giám sát chỉ số mAP50, độ trễ suy luận (Latency ms), tốc độ xử lý khung hình (FPS), ma trận nhầm lẫn (Confusion Matrix Heatmap) và tính năng triển khai phiên bản mô hình trực tiếp từ giao diện.
-   - Phòng thí nghiệm AI Sandbox: Kiểm thử suy luận trực tiếp với file video hoặc ảnh tải lên từ máy tính cá nhân.
+   - **Phòng thí nghiệm AI Sandbox (`/ai-metrics/test`) nâng cấp toàn diện**: Cung cấp công cụ hiệu chuẩn AI ROI, khoanh vùng cấm nguy hiểm trực tiếp trên frame video tải lên (khắc phục hoàn toàn lỗi màn hình đen) và modal tinh chỉnh tham số ngưỡng AI (`Confidence`, `IOU`, `ByteTrack Buffer`, `Confirmation Time`).
 
 6. **Bảo mật, Định danh & Quản trị Nền tảng (Identity, RBAC & Platform Ops)**:
    - Xác thực đa yếu tố (TOTP 2FA) qua ứng dụng Authenticator (Google Authenticator / Authy) kèm mã sao lưu khẩn cấp (Backup Codes).
    - Đăng nhập một chạm qua Google OAuth 2.0 và liên kết tài khoản mạng xã hội.
    - Phân quyền động đa tầng (Dynamic RBAC) trên 21 miền tài nguyên hệ thống.
+   - Màn hình 404 Not Found Neumorphic thân thiện hỗ trợ phục hồi điều hướng khi gõ sai URL hoặc tài nguyên bị thu hồi.
    - Nhật ký kiểm toán an ninh (Audit Logs) truy vết mọi thao tác nhạy cảm, thay đổi cấu hình và lịch sử thẩm duyệt sự cố.
    - Quản lý chế độ bảo trì hệ thống (Maintenance Mode) với màn hình khóa toàn trang và cơ chế cho phép quản trị viên vượt rào (Maintenance Bypass).
+
+### 1.2. Phân định 3 khái niệm khoanh vùng trong hệ thống (Dành cho Tester)
+
+| Loại Khoanh Vùng | Tên Kỹ Thuật | Vị Trí Thao Tác | Thực Hiện Bởi | Mục Đích Nghiệp Vụ | Dữ Liệu Lưu Trữ |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **1. Vùng nhận diện quét AI của Camera** | `Camera AI ROI` (Region of Interest) | `/cameras` (Drawer `CameraRoiDrawer`) hoặc `/ai-metrics/test` | Người dùng dùng chuột vẽ đa giác trên khung hình | Giới hạn phạm vi AI quét người/PPE, bỏ qua các vùng ngoài lề (đường xe chạy, nhà dân kế bên). | `roiPolygon: Point[]` trong Camera Config |
+| **2. Vùng cấm nguy hiểm của Công trường** | `Site Restricted Area` (Danger Zone) | `/sites/[id]` (Tab Phân khu & Vùng cấm) hoặc `/ai-metrics/test` | Người dùng chọn Camera và vẽ đa giác vùng cấm bằng chuột | Xác định hố sâu, khu vực cẩu tải rủi ro cao. Bất kỳ ai bước vào sẽ kích hoạt sự cố `RESTRICTED_AREA`. | `polygonCoordinates: Point[]` trong Site Restricted Area |
+| **3. Khung nhận diện Bounding Box** | `AI Detection Bounding Box` | `/incidents/[id]` hoặc `/cameras/[id]` | **AI Worker tự động sinh ra** sau mỗi frame suy luận | Đánh dấu chính xác vị trí cơ thể người lao động và đồ bảo hộ thiếu/đủ (Màu xanh = Đạt, Màu đỏ = Vi phạm). | `aiDetections.box: [ymin, xmin, ymax, xmax]` |
+
+### 1.3. Danh mục phân loại sự cố và cơ chế tính mức độ nghiêm trọng
+
+#### A. Danh mục các loại sự cố (`ViolationType`)
+Hệ thống chuẩn hóa 6 nhóm sự cố vi phạm an toàn:
+1. `NO_HARD_HAT`: Không đội mũ bảo hộ lao động hoặc đội mũ sai quy cách tại khu vực yêu cầu.
+2. `NO_SAFETY_VEST`: Không mặc áo phản quang tại công trường thi công.
+3. `NO_BOOTS`: Không mang giày/ủng bảo hộ mũi thép chống đinh dập ngón.
+4. `NO_GLOVES`: Không đeo găng tay bảo hộ khi thao tác vật liệu nguy hiểm.
+5. `NO_GOGGLES`: Không đeo kính bảo hộ khi thực hiện công việc hàn cắt, bụi mịn.
+6. `RESTRICTED_AREA`: Xâm nhập trái phép vào vùng cấm nguy hiểm đã khoanh vùng trên mặt bằng công trường.
+
+#### B. Quy tắc tính mức độ nghiêm trọng (`Severity Level`)
+- **`LOW` (Thấp)**: Vi phạm trang bị phụ đơn lẻ (thiếu găng tay hoặc thiếu kính bảo vệ) trong khu vực rủi ro thấp.
+- **`MEDIUM` (Trung bình)**: Thiếu 1 trang bị chính đơn lẻ (`NO_HARD_HAT` hoặc `NO_SAFETY_VEST`).
+- **`HIGH` (Cao)**: Thiếu đồng thời nhiều trang bị bảo hộ chính (vừa không đội mũ, vừa không mặc áo phản quang) hoặc vi phạm kéo dài liên tục trên 10 giây.
+- **`CRITICAL` (Cực kỳ khẩn cấp)**: Xâm nhập vùng cấm nguy hiểm (`RESTRICTED_AREA`), làm việc trên cao thiếu dây an toàn hoặc vi phạm nghiêm trọng tại các điểm nóng thi công. Kích hoạt còi báo động tức thì trên Dashboard.
 
 ---
 
@@ -164,10 +198,12 @@ sequenceDiagram
     participant FE as Frontend AppShell (:3000)
 
     AI->>SiteSvc: GET /safety-rules/effective (Lấy quy tắc an toàn công trường)
-    Cam->>AI: Luồng hình ảnh liên tục (RTSP Frame)
-    AI->>AI: Suy luận nhận diện người + Phân loại đồ bảo hộ
-    note over AI: Phát hiện công nhân KHÔNG đội mũ hoặc thiếu áo phản quang
-    AI->>IncSvc: Gửi sự kiện Kafka: ppe-violation-detected (kèm ảnh bằng chứng)
+    Cam->>AI: Luồng hình ảnh liên tục (RTSP / Ingestion Frame)
+    AI->>AI: ByteTrack duy trì track_id qua các frames
+    AI->>AI: Đối chiếu ROI Camera & Vùng cấm Site (Restricted Area)
+    AI->>AI: Kiểm tra điều kiện Temporal Confirmation (Vi phạm liên tục ≥ 3 giây)
+    note over AI: Xác nhận vi phạm! Trích xuất Frame SNAPSHOT (giây T) & REFERENCE_SNAPSHOT (T=0)
+    AI->>IncSvc: Gửi sự kiện Kafka: ppe-violation-detected (Metadata AI + Bounding Box [0..1] + 2 Snapshots)
     IncSvc->>IncSvc: Lưu DB với trạng thái DETECTED + Tính mã băm SHA-256
     IncSvc->>NotifSvc: Phát tín hiệu Broadcast Alert
     
@@ -206,19 +242,26 @@ stateDiagram-v2
 
 ---
 
-### 3.4. Luồng 4: Cấu Hình Không Gian & Vùng Quan Tâm AI (AI ROI Canvas)
+### 3.4. Luồng 4: Cấu Hình Không Gian, Vùng ROI Camera & Vùng Cấm Site Bằng Chuột
 Quy trình thiết lập vùng giám sát trọng yếu giúp camera AI tập trung vào khu vực thi công nguy hiểm:
 
 ```mermaid
 flowchart TD
-    S1[Tạo Công Trường mới tại /sites] --> S2[Tạo Phân Khu Zone]
-    S2 --> S3[Tạo Vùng Cấm Restricted Area]
-    S3 --> S4[Cấu hình Safety Rules bắt buộc: Hardhat, Vest, Boots...]
-    S4 --> C1[Gán Camera vào Phân Khu tương ứng]
-    C1 --> C2[Mở Drawer Cấu hình AI ROI tại /cameras]
-    C2 --> C3[Dùng chuột vẽ các điểm đa giác Polygon trên khung hình thật]
-    C3 --> C4[Lưu cấu hình: PUT /api/v1/cameras/:id/config]
-    C4 --> C5[AI Worker tự động cập nhật mặt phẳng cắt suy luận]
+    S1["1. Tạo Công Trường mới tại /sites"] --> S2["2. Tạo Phân Khu Zone"]
+    S2 --> S3["3. Gán Camera vào Phân Khu"]
+    
+    S3 --> C1["Nhánh A: Cấu hình Camera AI ROI (/cameras)"]
+    C1 --> C2["Mở Drawer CameraRoiDrawer"]
+    C2 --> C3["Dùng chuột vẽ các điểm đa giác Polygon trên khung hình camera"]
+    C3 --> C4["Lưu cấu hình: PUT /api/v1/cameras/:id/config"]
+    
+    S3 --> D1["Nhánh B: Khoanh Vùng Cấm Site (/sites/[id])"]
+    D1 --> D2["Mở Tab Phân khu & Vùng cấm -> Thêm Vùng Cấm"]
+    D2 --> D3["Chọn Camera làm nền quan sát"]
+    D3 --> D4["Dùng chuột click vẽ đa giác vùng nguy hiểm (Hố sâu, khu vực cẩu)"]
+    D4 --> D5["Lưu tọa độ đa giác: POST /api/v1/sites/:id/restricted-areas"]
+    
+    C4 & D5 --> AI_SYNC["AI Worker tự động cập nhật mặt phẳng cắt suy luận & phát hiện xâm nhập"]
 ```
 
 ---

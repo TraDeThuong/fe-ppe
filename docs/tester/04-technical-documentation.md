@@ -312,3 +312,48 @@ Hệ thống yêu cầu các biến môi trường cấu hình tại tệp `.env
 
 > [!NOTE]
 > Để tương thích tuyệt đối với trình biên dịch Next.js 16 Turbopack, các biến môi trường luôn được tham chiếu tĩnh dạng `process.env.NEXT_PUBLIC_...`. Turbopack sẽ thay thế trực tiếp các chuỗi này vào mã nguồn client bundle trong quá trình build production.
+
+---
+
+## 8. CƠ CHẾ CHUYỂN TRANG TỨC THÌ & PROGRESSIVE COMPONENT SKELETONS
+
+### 8.1. Vấn đề nghẽn điều hướng và giải pháp
+Trong các ứng dụng Next.js App Router trước đây, việc bấm chuyển trang trên thanh Sidebar thường gặp tình trạng "khựng" hoặc "đơ" giao diện trong lúc chờ component nạp dữ liệu. Hệ thống `fe-ppe` đã áp dụng kiến trúc:
+1. **Instant Client-side Transition**: Tách rời việc điều hướng route khỏi việc chờ đợi dữ liệu (`Suspense` boundaries kết hợp với Client Components).
+2. **Component-level Progressive Skeletons**: Thay vì khóa toàn màn hình bằng màn hình trắng hoặc vòng quay loading đơn độc giữa trang, từng component con (như `DashboardZoneRiskChart`, `DashboardAiStatusCard`, `DashboardKpiRibbon`, `UserDetailKpiBar`, `DashboardSeveritySlaChart`) tự hiển thị khung Neumorphic Shimmer Skeleton tương ứng với đúng kích thước và tỷ lệ thực tế.
+3. **Giữ nguyên Layout**: Người dùng vẫn có thể tương tác với Sidebar, Header hoặc chuyển sang trang khác mà không bị chặn luồng tác vụ.
+
+---
+
+## 9. CHUẨN HÓA TỌA ĐỘ BẰNG CHỨNG THỊ GIÁC AI (NORMALIZED BOUNDING BOXES)
+
+### 9.1. Kiến trúc Tọa độ Normalized Coordinates `[0..1]`
+Nhằm giải quyết triệt để lỗi Bounding Box bị lệch khi xem trên các độ phân giải khác nhau hoặc khi nạp luồng video mới:
+- AI Worker (`smart-ppe-ai-service`) tính toán tọa độ theo chuẩn Normalized `[0..1]`:
+  $$\text{ymin} = \frac{Y_1}{H}, \quad \text{xmin} = \frac{X_1}{W}, \quad \text{ymax} = \frac{Y_2}{H}, \quad \text{xmax} = \frac{X_2}{W}$$
+- Dữ liệu lưu trong CSDL `ppe_incident_db` bảng `evidences` trường `metadata.aiDetections`:
+  ```json
+  {
+    "model": "yolov11s-ppe.pt",
+    "box": [0.152, 0.412, 0.684, 0.589],
+    "confidence": 0.92,
+    "label": "NO_HARD_HAT"
+  }
+  ```
+- Component `IncidentEvidenceViewer` phía Frontend tự động nhân tọa độ `[0..1]` với chiều rộng ($W$) và chiều cao ($H$) thực tế của thẻ ảnh hiển thị trên trình duyệt:
+  $$\text{top} = \text{ymin} \times H, \quad \text{left} = \text{xmin} \times W, \quad \text{width} = (\text{xmax} - \text{xmin}) \times W, \quad \text{height} = (\text{ymax} - \text{ymin}) \times H$$
+Đảm bảo khung nhận diện luôn ôm sát chính xác người vi phạm trên mọi kích thước màn hình (Desktop, Laptop, Tablet).
+
+### 9.2. Bộ Bằng Chứng Thị Giác Kép (Dual Snapshot Evidence)
+Mỗi sự cố lưu trữ 2 frame ảnh độc lập trên Object Storage:
+- `SNAPSHOT`: Chụp tại thời điểm giây T xảy ra vi phạm.
+- `REFERENCE_SNAPSHOT`: Chụp tại thời điểm khởi tạo luồng (T=0) hoặc lúc công nhân tuân thủ hợp lệ để phục vụ đối chiếu, thanh tra.
+
+---
+
+## 10. XỬ LÝ ĐIỀU HƯỚNG LỖI 404 NOT FOUND TOÀN CỤC
+
+Hệ thống thiết lập cơ chế bắt lỗi 404 đa tầng:
+1. `app/not-found.tsx`: Bắt lỗi 404 cấp Root cho các đường dẫn public ngoài App Router.
+2. `app/(auth)/not-found.tsx`: Bắt lỗi 404 bên trong layout AppShell (giữ nguyên Sidebar và Header).
+3. `NotFoundView`: Component Neumorphic chuẩn hóa với các hành động điều hướng nhanh (`router.back()`, điều hướng về `/dashboard`), giúp kiểm thử viên và người dùng dễ dàng khôi phục phiên khi gặp URL sai.

@@ -70,7 +70,8 @@ flowchart LR
 | `/incidents` | Nút Xóa sự cố | Xóa vĩnh viễn bản ghi rác | `useDeleteIncident` | Incident Service | `DELETE`| `/api/v1/incidents/:id` | Incident UUID |
 | `/incidents/[id]` | `CommentsTimeline` | Tải lịch sử trao đổi | `useIncidentComments` | Incident Service | `GET` | `/api/v1/incidents/:id/comments` | Incident UUID |
 | `/incidents/[id]` | `CommentsTimeline` | Gửi bình luận hiện trường | `useAddIncidentComment` | Incident Service | `POST` | `/api/v1/incidents/:id/comments` | `{ comment: string }` |
-| `/incidents/[id]` | `EvidenceViewer` | Lấy Signed URL tải ảnh gốc | `incidentService.getEvidenceDownloadUrl` | Incident Service | `GET` | `/api/v1/evidences/:id/download-url` | Evidence ID |
+| `/incidents/[id]` | `EvidenceViewer` | Lấy Signed URL tải ảnh vi phạm SNAPSHOT | `incidentService.getEvidenceDownloadUrl` | Incident Service | `GET` | `/api/v1/evidences/:id/download-url` | Evidence ID |
+| `/incidents/[id]` | `EvidenceViewer` | Lấy Signed URL ảnh đối chứng REFERENCE | `incidentService.getEvidenceDownloadUrl` | Incident Service | `GET` | `/api/v1/evidences/:refId/download-url` | Reference Evidence ID |
 | `/incidents/[id]` | `ChecksumVerifier` | Kiểm tra toàn vẹn SHA-256 | `useEvidenceIntegrity` | Incident Service | `GET` | `/api/v1/evidences/:id/verify-checksum`| Evidence ID |
 
 ---
@@ -91,6 +92,7 @@ flowchart LR
 | `/cameras` | `CameraHealthDialog` | Ping kiểm tra kết nối | `cameraService.pingCamera` | Camera Service | `POST` | `/api/v1/cameras/:id/ping` | Camera UUID |
 | `/cameras` | `CameraHealthDialog` | Tải nhật ký nhịp tim | `cameraService.getHealthLogs` | Camera Service | `GET` | `/api/v1/cameras/:id/health-logs` | Camera UUID, limit=50 |
 | `/cameras` | Tường Video (`wall`) | Tải danh sách luồng video | `cameraService.getCameraStreams` | Camera Service | `GET` | `/api/v1/cameras/:id/streams` | Camera UUID |
+| `/cameras/[id]` | `WorkerComplianceSummaryTable` | Thống kê tuân thủ theo người | Dùng chung `DataTable` | Cục bộ / AI Inference | `GET` | Dữ liệu khung hình video | Phân trang, tìm Track ID, lọc PPE |
 
 ---
 
@@ -110,8 +112,8 @@ flowchart LR
 | `/sites` | `SiteZonesDrawer` | Tải danh sách phân khu Zone | `useSiteZones` | Site Service | `GET` | `/api/v1/sites/:id/zones` | Site UUID |
 | `/sites` | `SiteZonesDrawer` | Thêm phân khu mới | `useCreateZone` | Site Service | `POST` | `/api/v1/sites/:id/zones` | `{ name, code, description }` |
 | `/sites` | Nút Xóa Phân Khu | Xóa phân khu thi công | `useDeleteZone` | Site Service | `DELETE`| `/api/v1/zones/:id` | Zone UUID |
+| `/sites/[id]` | `RestrictedAreaCanvas`| Vẽ đa giác vùng cấm bằng chuột| `useCreateRestrictedArea`| Site Service | `POST` | `/api/v1/sites/:id/restricted-areas`| `{ name, cameraId, polygonCoordinates, severity }` |
 | `/sites` | `RestrictedAreaPanel` | Tải danh sách vùng cấm | `useRestrictedAreas` | Site Service | `GET` | `/api/v1/sites/:id/restricted-areas`| Site UUID |
-| `/sites` | `RestrictedAreaPanel` | Thêm vùng cấm nguy hiểm | `useCreateRestrictedArea`| Site Service | `POST` | `/api/v1/sites/:id/restricted-areas`| `{ name, boundary, severity }` |
 | `/sites` | Nút Xóa Vùng Cấm | Xóa vùng cấm nguy hiểm | `useDeleteRestrictedArea`| Site Service | `DELETE`| `/api/v1/restricted-areas/:id` | Area UUID |
 | Toàn hệ thống | Quét quy tắc an toàn | Lấy quy tắc an toàn hiệu lực | `siteService.getEffectiveSafetyConfig`| Site Service | `GET` | `/api/v1/safety-rules/effective` | `?siteId=...&cameraId=...` |
 
@@ -142,7 +144,11 @@ flowchart LR
 | `/ai-metrics` | `AiMetricsKpiSummary`| Tải chỉ số mAP50, Latency, FPS| `useAiPerformance` | Reporting Service | `GET` | `/api/v1/statistics/ai-performance` | `?modelId&timeRange` |
 | `/ai-metrics` | `ModelGovernanceTable`| Tải toàn bộ phiên bản YOLO | `useAiModels` | Reporting Service | `GET` | `/api/v1/ai-models` | None |
 | `/ai-metrics` | `DeployModelDialog` | Triển khai phiên bản mô hình | `useDeployModelVersion` | Reporting Service | `POST` | `/api/v1/ai-models/:id/deploy` | Model Version ID |
-| `/ai-metrics/test`| `AiModelTestContent` | Chạy thử nghiệm phân tích | Internal Route Handler | `POST` | `/api/ai-sandbox/analyze` | FormData chứa video/ảnh |
+| `/ai-metrics/test`| `MediaUploadZone` | Tải video/ảnh thử nghiệm | `aiMetricsService.uploadTestMedia` | AI Service / Proxy | `POST` | `/api/ai-sandbox/upload` | `FormData (file)` |
+| `/ai-metrics/test`| `AiModelTestContent` | Chạy phân tích AI | Internal Route Handler | `POST` | `/api/ai-sandbox/analyze` | FormData chứa video/ảnh |
+| `/ai-metrics/test`| `RoiCanvas` | Lưu vùng hiệu chuẩn AI ROI | `aiMetricsService.saveRoiConfig` | AI Service | `POST` | `/api/ai-sandbox/roi` | `{ roiPolygon: Point[] }` |
+| `/ai-metrics/test`| `DangerZoneCanvas` | Lưu Vùng Cấm ảo Sandbox | `aiMetricsService.saveDangerZones`| AI Service | `POST` | `/api/ai-sandbox/danger-zones` | `{ zones: DangerZone[] }` |
+| `/ai-metrics/test`| `AiModelTuningModal`| Tinh chỉnh tham số ngưỡng AI | `aiMetricsService.updateModelParams` | AI Service | `POST` | `/api/ai-sandbox/tune-params` | `AiTuningParamsPayload` |
 
 ---
 
@@ -152,6 +158,7 @@ flowchart LR
 | Screen | UI Component | Action | FE Hook/Function | Backend Service | Method | Endpoint | Data Dependency |
 | :--- | :--- | :--- | :--- | :--- | :---: | :--- | :--- |
 | `/users` | `UserTable` | Tải danh sách người dùng | `useUsers` | Identity Service | `GET` | `/api/v1/users` | `page`, `limit`, `role`, `status`, `search` |
+| `/users/[id]` | `UserDetailKpiBar` | Tải thống kê KPI cá nhân | `userService.getUserStats` | Identity Service | `GET` | `/api/v1/users/:id/stats` | User UUID |
 | `/users` | `CreateUserModal` | Tạo tài khoản người dùng mới | `useCreateUser` | Identity Service | `POST` | `/api/v1/users` | `CreateUserPayload` |
 | `/users` | `EditUserModal` | Cập nhật thông tin tài khoản | `useUpdateUser` | Identity Service | `PUT` | `/api/v1/users/:id` | `UpdateUserPayload` |
 | `/users` | Nút Khóa tài khoản | Vô hiệu hóa tài khoản | `useDeleteUser` | Identity Service | `DELETE`| `/api/v1/users/:id` | User UUID |

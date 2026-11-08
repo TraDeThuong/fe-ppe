@@ -362,7 +362,7 @@ export function NotFoundView({ mode = "auto" }: NotFoundViewProps) {
       {isFullscreen && (
         <footer className="relative z-10 px-4 py-4 text-center text-xs text-muted-foreground">
           <p>
-            &copy; {new Date().getFullYear()} Smart PPE Monitoring System. All rights
+            &copy; {currentYear} Smart PPE Monitoring System. All rights
             reserved.
           </p>
         </footer>
