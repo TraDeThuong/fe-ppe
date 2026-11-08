@@ -187,3 +187,4 @@ Chạy lệnh sau trên terminal để mở khóa tức thì:
 docker exec ppe_postgres psql -U postgres -d ppe_identity_db -c \
 "UPDATE users SET failed_login_attempts=0, locked_until=NULL WHERE email='user@ppe.local';"
 ```
+
