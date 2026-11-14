@@ -71,10 +71,6 @@ export function EditCameraModal({
       await onSubmit(camera.id, {
         name: name.trim(),
         code: code.trim().toUpperCase() || undefined,
-        siteId:
-          siteId ||
-          camera.siteId ||
-          (sites.length > 0 ? sites[0].id : "0192d6e3-8f0a-7bb1-8c4d-91b53f608a11"),
         zoneId: zoneId.trim() ? zoneId.trim() : null,
         sourceType,
         status,
@@ -150,8 +146,8 @@ export function EditCameraModal({
                 setSiteId(e.target.value);
                 setZoneId("");
               }}
-              className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              disabled={loading}
+              className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
+              disabled
               required
             >
               {sites.length === 0 ? (
@@ -203,8 +199,7 @@ export function EditCameraModal({
             >
               <option value="RTSP">RTSP (Real-Time Streaming)</option>
               <option value="HLS">HLS (HTTP Live Streaming)</option>
-              <option value="HTTP">HTTP (MJPEG / Web Feed)</option>
-              <option value="FILE">FILE (Video File / Local Clip)</option>
+              <option value="WEBRTC">WEBRTC (Low Latency Stream)</option>
             </select>
           </div>
 
@@ -234,7 +229,7 @@ export function EditCameraModal({
               {isVietnamese ? "Địa chỉ URL Luồng Stream" : "Stream URL Endpoint"}
             </label>
             <span className="text-[11px] text-muted-foreground/80">
-              {isVietnamese ? "Hỗ trợ RTSP, HTTP/MP4, YouTube, Webcam" : "Supports RTSP, HTTP/MP4, YouTube, Webcam"}
+              {isVietnamese ? "Hỗ trợ RTSP, HLS/WebRTC, YouTube, HTTPS" : "Supports RTSP, HLS/WebRTC, YouTube, HTTPS"}
             </span>
           </div>
           <input
@@ -253,18 +248,8 @@ export function EditCameraModal({
             <button
               type="button"
               onClick={() => {
-                setStreamUrl("http://localhost/webcam");
-                setSourceType("HTTP");
-              }}
-              className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
-            >
-              {isVietnamese ? "Webcam máy tính" : "Local Webcam"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
                 setStreamUrl("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
-                setSourceType("HTTP");
+                setSourceType("HLS");
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >

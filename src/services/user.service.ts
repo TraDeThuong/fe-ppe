@@ -54,12 +54,52 @@ export const userService = {
   },
 
   /**
-   * GET /api/v1/users/statistics/summary
-   * Lấy số liệu thống kê tổng quan (total, active, twoFactor, locked).
+   * Tổng hợp số liệu người dùng (total, active, twoFactor, locked) từ GET /api/v1/users
+   * (khớp với smart-ppe-identity-service trên nhánh origin/develop).
    */
   async getUserSummary(): Promise<{ total: number; active: number; twoFactor: number; locked: number }> {
-    const res = await apiClient.get<any, any>("/users/statistics/summary");
-    return res?.data ?? res ?? { total: 0, active: 0, twoFactor: 0, locked: 0 };
+    const limit = 100;
+    const firstPage = await this.getUsers({ page: 1, limit });
+    const users = [...firstPage.data];
+    const totalPages = Math.min(firstPage.meta?.totalPages ?? 1, 20);
+
+    if (totalPages > 1) {
+      const restPages = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, i) =>
+          this.getUsers({ page: i + 2, limit }).catch(() => null),
+        ),
+      );
+      for (const pageRes of restPages) {
+        if (pageRes?.data?.length) {
+          users.push(...pageRes.data);
+        }
+      }
+    }
+
+    const nowMs = Date.now();
+    let active = 0;
+    let twoFactor = 0;
+    let locked = 0;
+
+    for (const user of users) {
+      const lockedUntilMs = user.lockedUntil ? new Date(user.lockedUntil).getTime() : 0;
+      const isLocked = !user.isActive || (Number.isFinite(lockedUntilMs) && lockedUntilMs > nowMs);
+      if (isLocked) {
+        locked++;
+      } else {
+        active++;
+      }
+      if (user.twoFactorEnabled) {
+        twoFactor++;
+      }
+    }
+
+    return {
+      total: firstPage.meta?.total ?? users.length,
+      active,
+      twoFactor,
+      locked,
+    };
   },
 
   /**

@@ -34,6 +34,7 @@ export interface ViolationEvent {
   evidence_path?: string;
   reference_path?: string;
   reference_type?: string;
+  dispatched_via?: { method?: string; [key: string]: unknown } | string | null;
   box?: {
     x: number;
     y: number;

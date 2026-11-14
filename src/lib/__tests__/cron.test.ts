@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildCronPayload, canReadCron, describeCronSchedule, filterCronJobs } from "../cron";
+import {
+  buildCronPayload,
+  calculateNextRun,
+  canReadCron,
+  describeCronSchedule,
+  detectCronConflicts,
+  filterCronJobs,
+} from "../cron";
 import { getVisibleNavItems, resolveRoutePermission } from "@/config/navigation";
 import type { CronJobItem } from "@/types/cron.types";
 
@@ -49,4 +56,76 @@ describe("Cron page data and authorization", () => {
     assert.equal(describeCronSchedule("0 8 * * 1", t), "cron.schedule.monday:08:00");
     for (const cron of ["*/5 * * * *", "0 25 * * *", "0 8 * * 2", "bad expression"]) assert.equal(describeCronSchedule(cron, t), "cron.schedule.custom:");
   });
+  it("filters jobs with localized Vietnamese name via translator function", () => {
+    const t = (key: string) => {
+      if (key === "cron.jobs.cleanup-audit-logs") return "Dọn dẹp nhật ký kiểm toán";
+      if (key === "cron.jobs.weekly-summary-digest") return "Báo cáo hoạt động hằng tuần";
+      return key;
+    };
+    const matched = filterCronJobs(jobs, "dọn dẹp", "all", t);
+    assert.equal(matched.length, 1);
+    assert.equal(matched[0].name, "cleanup-audit-logs");
+  });
 });
+
+describe("Cron next run calculation & conflict detection", () => {
+  const jobs: CronJobItem[] = [
+    { name: "daily-summary-digest", description: "Daily", cron: "0 8 * * *", isEnabled: true },
+    { name: "weekly-summary-digest", description: "Weekly", cron: "0 8 * * 1", isEnabled: true },
+  ];
+
+  it("returns paused status when job is disabled", () => {
+    const result = calculateNextRun("0 2 * * *", false);
+    assert.equal(result.isPaused, true);
+    assert.equal(result.date, null);
+    assert.equal(result.formatted, "Lịch đang tắt");
+  });
+
+  it("calculates next daily run correctly", () => {
+    // 2026-11-12 01:00:00 VN time (UTC: 2026-11-11 18:00:00)
+    const baseBefore2am = new Date(Date.UTC(2026, 10, 11, 18, 0, 0));
+    const nextBefore = calculateNextRun("0 2 * * *", true, baseBefore2am);
+    assert.equal(nextBefore.isPaused, false);
+    assert.notEqual(nextBefore.date, null);
+    // Should run at 02:00 VN time today (UTC: 2026-11-11 19:00:00)
+    assert.equal(nextBefore.date?.toISOString(), "2026-11-11T19:00:00.000Z");
+
+    // 2026-11-12 03:00:00 VN time (UTC: 2026-11-11 20:00:00)
+    const baseAfter2am = new Date(Date.UTC(2026, 10, 11, 20, 0, 0));
+    const nextAfter = calculateNextRun("0 2 * * *", true, baseAfter2am);
+    // Should run at 02:00 VN time tomorrow (UTC: 2026-11-12 19:00:00)
+    assert.equal(nextAfter.date?.toISOString(), "2026-11-12T19:00:00.000Z");
+  });
+
+  it("calculates next weekly Monday run correctly", () => {
+    // 2026-11-16 is a Monday. 07:00 VN time -> UTC: 2026-11-16 00:00:00
+    const mondayMorning = new Date(Date.UTC(2026, 10, 16, 0, 0, 0));
+    const nextMonMorning = calculateNextRun("0 8 * * 1", true, mondayMorning);
+    // Runs at 08:00 VN time today (UTC: 2026-11-16 01:00:00)
+    assert.equal(nextMonMorning.date?.toISOString(), "2026-11-16T01:00:00.000Z");
+
+    // 2026-11-16 Monday 09:00 VN time -> UTC: 2026-11-16 02:00:00
+    const mondayAfternoon = new Date(Date.UTC(2026, 10, 16, 2, 0, 0));
+    const nextMonNextWeek = calculateNextRun("0 8 * * 1", true, mondayAfternoon);
+    // Runs at 08:00 VN time next Monday 2026-11-23 (UTC: 2026-11-23 01:00:00)
+    assert.equal(nextMonNextWeek.date?.toISOString(), "2026-11-23T01:00:00.000Z");
+  });
+
+  it("detects Monday 08:00 AM conflict between daily and weekly summary", () => {
+    const dailyConflict = detectCronConflicts("daily-summary-digest", jobs);
+    assert.equal(dailyConflict.hasConflict, true);
+    assert.deepEqual(dailyConflict.conflictingJobNames, ["weekly-summary-digest"]);
+
+    const weeklyConflict = detectCronConflicts("weekly-summary-digest", jobs);
+    assert.equal(weeklyConflict.hasConflict, true);
+    assert.deepEqual(weeklyConflict.conflictingJobNames, ["daily-summary-digest"]);
+
+    // If weekly job is disabled, daily should have no conflict
+    const jobsWithWeeklyDisabled: CronJobItem[] = [
+      jobs[0],
+      { ...jobs[1], isEnabled: false },
+    ];
+    assert.equal(detectCronConflicts("daily-summary-digest", jobsWithWeeklyDisabled).hasConflict, false);
+  });
+});
+

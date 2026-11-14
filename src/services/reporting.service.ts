@@ -5,7 +5,9 @@ import type {
   AiPerformanceStatDto,
   CameraStatDto,
   CreateReportTemplateDto,
+  DashboardKpiDto,
   GenerateReportDto,
+  HourlyRiskResponseDto,
   PaginationMeta,
   ReportContentResult,
   ReportDownloadResult,
@@ -71,6 +73,47 @@ const EMPTY_SUMMARY: StatisticsSummaryDto = {
 };
 
 export const reportingService = {
+  /**
+   * GET /api/v1/statistics/dashboard-kpi
+   * Lấy số liệu KPI tổng hợp cho Dashboard (BFF endpoint từ origin/develop).
+   */
+  async getDashboardKpi(siteId?: string): Promise<DashboardKpiDto | null> {
+    try {
+      const res = await apiClient.get<unknown>("/statistics/dashboard-kpi", {
+        params: siteId ? { siteId } : undefined,
+      });
+      const data = unwrapData<DashboardKpiDto>(res);
+      return data && typeof data === "object" && "totalIncidents" in data
+        ? data
+        : null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
+   * GET /api/v1/statistics/hourly-risk
+   * Thống kê rủi ro vi phạm theo 24 giờ và 3 ca trực trong 1 ngày.
+   */
+  async getHourlyRisk(params?: {
+    siteId?: string;
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<HourlyRiskResponseDto | null> {
+    try {
+      const res = await apiClient.get<unknown>("/statistics/hourly-risk", {
+        params,
+      });
+      const data = unwrapData<HourlyRiskResponseDto>(res);
+      return data && typeof data === "object" && Array.isArray(data.hourly)
+        ? data
+        : null;
+    } catch {
+      return null;
+    }
+  },
+
   /**
    * GET /api/v1/statistics/summary
    */

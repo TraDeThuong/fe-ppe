@@ -52,6 +52,29 @@ export function useReviewIncident() {
   });
 }
 
+export function useBatchReviewIncidents() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: {
+      ids: string[];
+      action: "CONFIRM" | "REJECT";
+      resolutionNote?: string;
+    }) => incidentService.batchReviewIncidents(payload),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
+      toast.success(
+        `Đã thẩm duyệt hàng loạt ${result.updatedCount}/${result.total} sự cố thành công.`,
+      );
+    },
+    onError: (err: unknown) => {
+      const msg =
+        err instanceof Error ? err.message : "Không thể thẩm duyệt hàng loạt sự cố.";
+      toast.error(msg);
+    },
+  });
+}
+
 export function useResolveIncident() {
   const queryClient = useQueryClient();
 

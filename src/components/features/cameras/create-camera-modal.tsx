@@ -234,8 +234,7 @@ export function CreateCameraModal({
             >
               <option value="RTSP">RTSP (Real-Time Streaming)</option>
               <option value="HLS">HLS (HTTP Live Streaming)</option>
-              <option value="HTTP">HTTP (MJPEG / Web Feed)</option>
-              <option value="FILE">FILE (Video File / Local Clip)</option>
+              <option value="WEBRTC">WEBRTC (Low Latency Stream)</option>
             </select>
           </div>
 
@@ -262,7 +261,7 @@ export function CreateCameraModal({
               {isVietnamese ? "Địa chỉ URL Luồng Stream" : "Stream URL Endpoint"} <span className="text-danger">*</span>
             </label>
             <span className="text-[11px] text-muted-foreground/80">
-              {isVietnamese ? "Hỗ trợ RTSP, HTTP/MP4, YouTube, Webcam" : "Supports RTSP, HTTP/MP4, YouTube, Webcam"}
+              {isVietnamese ? "Hỗ trợ RTSP, HLS/WebRTC, YouTube, HTTPS" : "Supports RTSP, HLS/WebRTC, YouTube, HTTPS"}
             </span>
           </div>
           <input
@@ -283,20 +282,8 @@ export function CreateCameraModal({
             <button
               type="button"
               onClick={() => {
-                setStreamUrl("http://localhost/webcam");
-                setSourceType("HTTP");
-                if (!name) setName(isVietnamese ? "Webcam Máy Tính Test" : "Local Test Webcam");
-                if (!code) setCode("CAM-WEBCAM-01");
-              }}
-              className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
-            >
-              {isVietnamese ? "Webcam máy tính" : "Local Webcam"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
                 setStreamUrl("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
-                setSourceType("HTTP");
+                setSourceType("HLS");
                 if (!name) setName(isVietnamese ? "Camera Giàn Giáo Test" : "Scaffolding Test Camera");
                 if (!code) setCode("CAM-TEST-MP4");
               }}

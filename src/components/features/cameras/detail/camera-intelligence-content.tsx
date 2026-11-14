@@ -631,66 +631,34 @@ export function CameraIntelligenceContent({
         };
       }
 
-      // Lọc theo vùng ROI Polygon nếu camera có cấu hình ROI
-      const roiPoly = camera?.config?.roiPolygon;
-      const [coordW, coordH] = realLogData.meta?.size || [streamMetadata.videoWidth || 1280, streamMetadata.videoHeight || 720];
-      let filteredDetections = rawFrame.detections || [];
-      let filteredPersons = rawFrame.persons || [];
-
-      if (Array.isArray(roiPoly) && roiPoly.length >= 3 && coordW > 0 && coordH > 0) {
-        const isPointInRoi = (px: number, py: number) => {
-          let inside = false;
-          for (let i = 0, j = roiPoly.length - 1; i < roiPoly.length; j = i++) {
-            const xi = roiPoly[i].x <= 1 && roiPoly[i].y <= 1 ? roiPoly[i].x : roiPoly[i].x / coordW;
-            const yi = roiPoly[i].x <= 1 && roiPoly[i].y <= 1 ? roiPoly[i].y : roiPoly[i].y / coordH;
-            const xj = roiPoly[j].x <= 1 && roiPoly[j].y <= 1 ? roiPoly[j].x : roiPoly[j].x / coordW;
-            const yj = roiPoly[j].x <= 1 && roiPoly[j].y <= 1 ? roiPoly[j].y : roiPoly[j].y / coordH;
-            const intersect =
-              yi > py !== yj > py &&
-              px < ((xj - xi) * (py - yi)) / (Math.abs(yj - yi) > 1e-9 ? yj - yi : 1e-9) + xi;
-            if (intersect) inside = !inside;
-          }
-          return inside;
-        };
-
-        const allowedPersonIds = new Set<number>();
-        filteredDetections = filteredDetections.filter((d) => {
-          if (d.class_name === "person" && Array.isArray(d.bbox) && d.bbox.length === 4) {
-            const footX = (d.bbox[0] + d.bbox[2]) * 0.5 / coordW;
-            const footY = d.bbox[3] / coordH;
-            const inside = isPointInRoi(footX, footY);
-            if (inside && typeof d.track_id === "number") {
-              allowedPersonIds.add(d.track_id);
-            }
-            return inside;
-          }
-          return true;
-        });
-        filteredPersons = filteredPersons.filter((p) => allowedPersonIds.has(p.track_id));
-      }
-
       const currentViolations = fullViolations.filter((v) => v.frame <= rawFrame.frame);
 
       return {
-        entry: {
-          ...rawFrame,
-          detections: filteredDetections,
-          persons: filteredPersons,
-        },
+        entry: rawFrame,
         violations: currentViolations,
         personTracks: fullPersonTracks.length > 0 ? fullPersonTracks : liveTrackingData.personTracks,
         isRealAiLog: true,
       };
     }
 
-    // 2. Dữ liệu thời gian thực từ Look-Ahead Live AI Engine (Port 8000) cho luồng RTSP / YouTube mới / Webcam
+    // 2. Dữ liệu thời gian thực từ Live AI Engine (qua proxy /api/ai-test/live)
     if (liveSessionId && liveSessionState) {
+      const liveFps = liveSessionState.metrics?.fps || liveSessionState.fps || 25;
       const liveEntry: FrameLogEntry = liveSessionState.entry || {
         frame: liveSessionState.current_frame || 0,
-        t: Number(((liveSessionState.current_frame || 0) / (liveSessionState.fps || 25)).toFixed(2)),
-        raw_detections: [],
+        t: Number(((liveSessionState.current_frame || 0) / liveFps).toFixed(2)),
+        detections: [],
+        summary: {
+          person: liveSessionState.metrics?.active_persons ?? 0,
+          helmet: 0,
+          safety_vest: 0,
+          tracks: liveSessionState.metrics?.active_persons ?? 0,
+        },
+        events: [],
         persons: [],
+        confirmations: [],
         violations: [],
+        evidence: [],
       };
 
       const mappedTracks: ComputedPersonTrack[] = Array.isArray(liveSessionState.person_tracks)
@@ -704,9 +672,28 @@ export function CameraIntelligenceContent({
           }))
         : [];
 
-      const mappedViolations: ViolationEvent[] = Array.isArray(liveSessionState.violations)
+      const rawLiveViolations = Array.isArray(liveSessionState.recent_violations)
+        ? liveSessionState.recent_violations
+        : Array.isArray(liveSessionState.violations)
         ? liveSessionState.violations
         : [];
+
+      const mappedViolations: ViolationEvent[] = rawLiveViolations.map((v: any) => ({
+        event_id: v.event_id,
+        camera_id: v.camera_id || liveSessionId,
+        person: v.person ?? v.person_id ?? v.canonical_person_id ?? 0,
+        canonical_person: v.canonical_person ?? v.canonical_person_id,
+        violation_type: v.violation_type || "no_helmet",
+        start_t: v.start_t ?? 0,
+        confirmed_t: v.confirmed_t ?? v.start_t ?? 0,
+        duration_s: v.duration_s ?? 0,
+        frame: v.frame ?? 0,
+        evidence_path: v.evidence_path ?? v.snapshot_url,
+        reference_path: v.reference_path ?? v.reference_snapshot_url,
+        reference_type: v.reference_type,
+        dispatched_via: v.dispatched_via ?? null,
+        box: v.box,
+      }));
 
       return {
         entry: liveEntry,
@@ -763,9 +750,6 @@ export function CameraIntelligenceContent({
     fullPersonTracks,
     liveTrackingData,
     camera?.config?.processingEnabled,
-    camera?.config?.roiPolygon,
-    streamMetadata.videoWidth,
-    streamMetadata.videoHeight,
   ]);
 
   // Tên hiển thị mô hình AI trên HUD Video Player, Sidebar & Telemetry
@@ -1082,9 +1066,6 @@ export function CameraIntelligenceContent({
           latestViol?.evidence_path ||
           capturedSnapshotUrl ||
           freshAnnotatedFrame ||
-          (liveSessionId && (liveSessionState?.status === "streaming" || liveSessionState?.status === "buffering")
-            ? `/api/live/${liveSessionId}/frame.jpg?bbox=1`
-            : null) ||
           resolvedTrackingData.entry?.evidence?.[0]?.path ||
           camera?.snapshotUrl ||
           null;
@@ -1093,16 +1074,14 @@ export function CameraIntelligenceContent({
         const derivedLiveRefPath =
           latestViol?.reference_path ||
           resolvedTrackingData.entry?.evidence?.[0]?.reference_path ||
-          (latestViol?.evidence_path?.startsWith("/api/jobs/live/evidence/")
+          (latestViol?.evidence_path?.startsWith("/api/jobs/live/evidence/") ||
+          latestViol?.evidence_path?.startsWith("/api/live/evidence/")
             ? latestViol.evidence_path.replace(/\.jpg$/i, "_ref.jpg")
             : null);
 
         const actualReferenceUrl =
           latestViol?.reference_path ||
           freshRawFrame ||
-          (liveSessionId && (liveSessionState?.status === "streaming" || liveSessionState?.status === "buffering")
-            ? `/api/live/${liveSessionId}/frame.jpg?bbox=0`
-            : null) ||
           derivedLiveRefPath ||
           (streamMetadata?.youtubeId ? `https://img.youtube.com/vi/${streamMetadata.youtubeId}/hqdefault.jpg` : null) ||
           camera?.snapshotUrl ||
@@ -1201,10 +1180,11 @@ export function CameraIntelligenceContent({
               if (!targetUrl) return null;
               try {
                 let fetchUrl = targetUrl;
-                if (targetUrl.startsWith("/api/jobs/") || targetUrl.startsWith("/api/live/")) {
-                  fetchUrl = `http://127.0.0.1:8000${targetUrl}`;
-                } else if (targetUrl.startsWith("/") && typeof window !== "undefined") {
-                  fetchUrl = `${window.location.origin}${targetUrl}`;
+                if (targetUrl.startsWith("/api/live/")) {
+                  fetchUrl = `/api/ai-test${targetUrl}`;
+                }
+                if (fetchUrl.startsWith("/") && typeof window !== "undefined") {
+                  fetchUrl = `${window.location.origin}${fetchUrl}`;
                 }
                 if (
                   fetchUrl.startsWith("data:") ||
@@ -1232,6 +1212,7 @@ export function CameraIntelligenceContent({
 
               const isEvidencePreAnnotated = Boolean(
                 actualEvidenceUrl?.includes("/api/jobs/live/evidence/") ||
+                actualEvidenceUrl?.includes("/api/live/evidence/") ||
                 actualEvidenceUrl?.includes("bbox=1") ||
                 actualEvidenceUrl?.includes("annotated") ||
                 actualEvidenceUrl?.includes("-evidence")
@@ -1331,14 +1312,25 @@ export function CameraIntelligenceContent({
     });
 
     // Khi phát hiện vi phạm mới và đang bật chế độ quét tự động cảnh báo:
+    // Nếu AI Service đã tự dispatch (dispatched_via.method !== "disabled"), bỏ qua tạo trùng ở FE.
     if (autoAlertEnabled) {
+      const firstNew = newItems[0];
+      const dispatchMethod =
+        typeof firstNew.dispatched_via === "string"
+          ? firstNew.dispatched_via
+          : firstNew.dispatched_via?.method;
+      if (dispatchMethod && dispatchMethod !== "disabled") {
+        return;
+      }
       const now = Date.now();
       // Giãn cách Cooldown 30s giữa các lần tự động bắn sự cố để chống spam CSDL
       if (now - lastAutoIncidentTimeRef.current >= 30000) {
         lastAutoIncidentTimeRef.current = now;
-        const firstNew = newItems[0];
-        const vType = firstNew.violation_type?.toUpperCase().includes("HELMET")
+        const upperType = firstNew.violation_type?.toUpperCase() || "";
+        const vType = upperType.includes("HELMET")
           ? "NO_HELMET"
+          : upperType.includes("RESTRICTED")
+          ? "RESTRICTED_AREA"
           : "NO_VEST";
         triggerLiveIncidentAlert({
           violationType: vType,
@@ -1378,120 +1370,161 @@ export function CameraIntelligenceContent({
     setAiModalOpen(true);
   }, []);
 
-  // Khởi động và kết nối Live Look-Ahead AI Engine trên port 8000
+  const resolveLiveSourceForAi = useCallback((rawUrl?: string | null): string | null => {
+    const trimmed = (rawUrl || "").trim();
+    if (!trimmed) return null;
+    if (/^webcam(?::\d+)?$/i.test(trimmed) || trimmed.toLowerCase().includes("webcam")) {
+      const match = trimmed.match(/(\d+)$/);
+      return match ? match[1] : "0";
+    }
+    const jobMatch = trimmed.match(/\/api\/(?:ai-test\/)?jobs\/([a-f0-9]{6,64})\b/i);
+    if (jobMatch?.[1]) {
+      return jobMatch[1];
+    }
+    if (
+      /^rtsps?:\/\//i.test(trimmed) ||
+      /(?:youtube\.com|youtu\.be)\//i.test(trimmed)
+    ) {
+      return trimmed;
+    }
+    return null;
+  }, []);
+
+  const buildPixelRoiPolygons = useCallback((): [number, number][][] | undefined => {
+    const roiPoly = camera?.config?.roiPolygon;
+    if (!Array.isArray(roiPoly) || roiPoly.length < 3) return undefined;
+    const frameW = streamMetadata.videoWidth || 1280;
+    const frameH = streamMetadata.videoHeight || 720;
+    const pts = roiPoly
+      .slice(0, 32)
+      .map((pt): [number, number] => {
+        const isNormalized = pt.x <= 1 && pt.y <= 1;
+        return [
+          Math.round(isNormalized ? pt.x * frameW : pt.x),
+          Math.round(isNormalized ? pt.y * frameH : pt.y),
+        ];
+      });
+    return pts.length >= 3 ? [pts] : undefined;
+  }, [camera?.config?.roiPolygon, streamMetadata.videoWidth, streamMetadata.videoHeight]);
+
+  // Khởi động và kết nối Live AI Engine qua Next.js proxy (/api/ai-test/live)
   const connectLiveSession = useCallback(
     async (forceRestart: boolean = false) => {
       if (!cameraId || !effectiveStreamUrl) return;
+      const resolvedSource = resolveLiveSourceForAi(effectiveStreamUrl);
+      if (!resolvedSource) {
+        setLiveSessionId(null);
+        setLiveSessionState(null);
+        return;
+      }
+
+      const safeCamId = cameraId.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 64) || "CAM-01";
+      const targetFps = Math.min(60, Math.max(1, Number(camera?.config?.captureFps || aiConfig.processFps || 25)));
+      const aiFps = Math.min(targetFps, 15);
+      const modelFile = resolveModelPath(aiConfig.modelVersionId).replace(/^models\//, "");
 
       try {
-        const res = await fetch("http://127.0.0.1:8000/api/live/start", {
+        if (forceRestart && liveSessionId) {
+          await fetch(`/api/ai-test/live/${liveSessionId}/stop`, { method: "POST" }).catch(() => {});
+        }
+
+        const res = await fetch("/api/ai-test/live/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            camera_id: cameraId,
-            stream_url: effectiveStreamUrl,
-            conf_threshold: aiConfig.confidenceThreshold,
-            confirmation_s: aiConfig.confirmationDuration,
-            cooldown_s: aiConfig.cooldownDuration,
-            enable_no_helmet: aiConfig.enableNoHelmet,
-            enable_no_vest: aiConfig.enableNoVest,
-            target_fps: camera?.config?.captureFps || aiConfig.processFps || 25,
-            model_path: aiConfig.modelVersionId,
-            force_restart: forceRestart,
-            roi_polygon: camera?.config?.roiPolygon ?? null,
-            processing_enabled: camera?.config?.processingEnabled ?? true,
-            motion_sensitivity: camera?.config?.motionSensitivity ?? 75,
+            camera_id: safeCamId,
+            source: resolvedSource,
+            model: modelFile,
+            target_fps: targetFps,
+            ai_fps: aiFps,
+            roi_polygons: buildPixelRoiPolygons(),
+            confirmation_duration_s: Math.min(30, Math.max(0.5, Number(aiConfig.confirmationDuration || 2.0))),
+            enable_no_helmet: Boolean(aiConfig.enableNoHelmet),
+            enable_no_vest: Boolean(aiConfig.enableNoVest),
+            enable_restricted_area: Boolean(aiConfig.enableRestrictedArea ?? true),
+            enable_scene_cut: true,
           }),
         });
 
         if (res.ok) {
           const data = await res.json();
-          if (data.success && data.session_id) {
-            setLiveSessionId(data.session_id);
-            if (data.state) {
-              setLiveSessionState(data.state);
-            }
-          }
+          const activeId = data.camera_id || safeCamId;
+          setLiveSessionId(activeId);
+          setLiveSessionState((prev: any) => ({
+            ...(prev || {}),
+            status: data.status || "starting",
+            fps: data.target_fps || targetFps,
+          }));
         }
       } catch (err) {
-        console.warn("[Live Look-Ahead] AI Server port 8000 chưa sẵn sàng hoặc không kết nối được:", err);
+        console.warn("[Live AI] Không kết nối được AI Service qua /api/ai-test/live:", err);
       }
     },
     [
       cameraId,
       effectiveStreamUrl,
       aiConfig,
+      liveSessionId,
       camera?.config?.captureFps,
-      camera?.config?.roiPolygon,
-      camera?.config?.processingEnabled,
-      camera?.config?.motionSensitivity,
+      resolveLiveSourceForAi,
+      buildPixelRoiPolygons,
     ]
   );
 
-  // Tự động kết nối hoặc cập nhật nóng Live AI Stream khi mở camera hoặc thay đổi cấu hình
+  // Tự động kết nối hoặc cập nhật nóng Live AI Stream khi mở camera hoặc thay đổi nguồn phát
   useEffect(() => {
     if (!cameraId || !effectiveStreamUrl) return;
     connectLiveSession(false);
   }, [cameraId, effectiveStreamUrl, connectLiveSession]);
 
-  // Kết nối WebSocket & Fallback polling đồng bộ Telemetry theo thời gian thực
+  // Polling /stats mỗi 1s đồng bộ Telemetry & vi phạm từ AI Service; dọn dẹp /stop khi đổi camera/unmount
   useEffect(() => {
     if (!liveSessionId) return;
 
-    let ws: WebSocket | null = null;
-    let pollInterval: any = null;
     let active = true;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-    try {
-      ws = new WebSocket(`ws://127.0.0.1:8000/api/live/${liveSessionId}/ws`);
-
-      ws.onmessage = (event) => {
-        if (!active) return;
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === "telemetry" || data.type === "init") {
-            const state = data.state || data;
-            setLiveSessionState((prev: any) => ({ ...prev, ...state }));
+    const fetchStats = async () => {
+      if (!active) return;
+      try {
+        const res = await fetch(`/api/ai-test/live/${liveSessionId}/stats`);
+        if (res.status === 404) {
+          if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
           }
-        } catch {}
-      };
-
-      ws.onerror = () => {
-        // Fallback polling mỗi 1.5s nếu WebSocket không hỗ trợ hoặc ngắt
-        if (active && !pollInterval) {
-          pollInterval = setInterval(async () => {
-            if (!active) return;
-            try {
-              const r = await fetch(`http://127.0.0.1:8000/api/live/${liveSessionId}/status`);
-              if (r.ok) {
-                const s = await r.json();
-                setLiveSessionState(s);
-                // Dừng ngay polling khi phiên phân tích hoàn tất hoặc gặp lỗi kết thúc
-                if (s?.status === "completed" || s?.status === "error" || s?.status === "stopped") {
-                  if (pollInterval) {
-                    clearInterval(pollInterval);
-                    pollInterval = null;
-                  }
-                }
-              }
-            } catch {}
-          }, 1500);
+          return;
         }
-      };
-    } catch {
-      // ignore ws constructor failure
-    }
+        if (res.ok) {
+          const stats = await res.json();
+          if (!active) return;
+          setLiveSessionState((prev: any) => ({
+            ...(prev || {}),
+            ...stats,
+            fps: stats.metrics?.fps ?? stats.metrics?.target_fps ?? prev?.fps ?? 25,
+            latency_ms: stats.metrics?.inference_latency_ms ?? prev?.latency_ms,
+          }));
+          if (stats?.status === "error" || stats?.status === "stopped") {
+            if (pollTimer) {
+              clearInterval(pollTimer);
+              pollTimer = null;
+            }
+          }
+        }
+      } catch {
+        // ignore transient polling failure
+      }
+    };
+
+    void fetchStats();
+    pollTimer = setInterval(fetchStats, 1000);
 
     return () => {
       active = false;
-      if (ws) {
-        try {
-          ws.close();
-        } catch {}
+      if (pollTimer) {
+        clearInterval(pollTimer);
       }
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
+      void fetch(`/api/ai-test/live/${liveSessionId}/stop`, { method: "POST" }).catch(() => {});
     };
   }, [liveSessionId]);
 
@@ -1529,10 +1562,13 @@ export function CameraIntelligenceContent({
 
     // 2. Lưu cấu hình an toàn riêng cho Camera xuống Backend (Site Service) & Camera Hardware Config
     if (cameraId) {
-      const resolvedModelUuid =
-        newConfig.modelVersionId === "models/best.pt" || !newConfig.modelVersionId
-          ? "0192e210-0000-7000-8000-000000000001"
-          : newConfig.modelVersionId;
+      const candidateModelId = newConfig.modelVersionId?.trim();
+      const isSafeDbModelId =
+        Boolean(candidateModelId) &&
+        !candidateModelId!.includes("/") &&
+        candidateModelId !== "0192e210-0000-7000-8000-000000000001" &&
+        /^[a-zA-Z0-9._-]+$/.test(candidateModelId!);
+
       siteService
         .updateCameraSafetyConfig(cameraId, {
           confidenceThreshold: newConfig.confidenceThreshold,
@@ -1541,7 +1577,7 @@ export function CameraIntelligenceContent({
           enableNoHelmet: newConfig.enableNoHelmet,
           enableNoVest: newConfig.enableNoVest,
           enableRestrictedArea: newConfig.enableRestrictedArea,
-          modelVersionId: resolvedModelUuid,
+          ...(isSafeDbModelId ? { modelVersionId: candidateModelId } : {}),
         })
         .catch(() => {});
     }
@@ -1554,8 +1590,29 @@ export function CameraIntelligenceContent({
         .catch(() => {});
     }
 
-    // Áp dụng và khởi động lại luồng Live AI Look-Ahead với thông số mới
-    connectLiveSession(true);
+    // Cập nhật nóng cấu hình lên phiên Live AI đang chạy hoặc khởi động lại nếu cần
+    if (liveSessionId) {
+      const targetFps = Math.min(60, Math.max(1, Number(newConfig.processFps || 25)));
+      fetch(`/api/ai-test/live/${liveSessionId}/config`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target_fps: targetFps,
+          ai_fps: Math.min(targetFps, 15),
+          roi_polygons: buildPixelRoiPolygons(),
+          confirmation_duration_s: Math.min(30, Math.max(0.5, Number(newConfig.confirmationDuration || 2.0))),
+          enable_no_helmet: Boolean(newConfig.enableNoHelmet),
+          enable_no_vest: Boolean(newConfig.enableNoVest),
+          enable_restricted_area: Boolean(newConfig.enableRestrictedArea),
+        }),
+      })
+        .then((r) => {
+          if (!r.ok) connectLiveSession(false);
+        })
+        .catch(() => connectLiveSession(false));
+    } else {
+      connectLiveSession(false);
+    }
 
     toast.success(
       isVietnamese

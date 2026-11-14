@@ -197,6 +197,24 @@ export const cameraService = {
   },
 
   /**
+   * GET /api/v1/cameras/status-counts
+   * Đếm số lượng camera theo trạng thái kết nối (total, online, offline).
+   */
+  async getStatusCounts(
+    siteId?: string,
+  ): Promise<{ total: number; online: number; offline: number }> {
+    const res = await apiClient.get<unknown, any>("/cameras/status-counts", {
+      params: siteId ? { siteId } : undefined,
+    });
+    const data = unwrapData<{ total?: number; online?: number; offline?: number }>(res);
+    return {
+      total: Number(data?.total ?? 0),
+      online: Number(data?.online ?? 0),
+      offline: Number(data?.offline ?? 0),
+    };
+  },
+
+  /**
    * GET /api/v1/cameras/:id/health-logs
    * Lấy nhật ký đo sức khỏe nhịp tim camera.
    */

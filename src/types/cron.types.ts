@@ -33,3 +33,25 @@ export interface ToggleCronJobResult {
 }
 
 export type CronScheduleFilter = "all" | "enabled" | "disabled";
+
+export interface CronScheduleConflict {
+  hasConflict: boolean;
+  conflictingJobNames: CronJobName[];
+  description: string;
+}
+
+export interface NextRunCalculation {
+  date: Date | null;
+  formatted: string;
+  relativeTime: string;
+  isPaused: boolean;
+}
+
+export interface RecentExecutionState {
+  timestamp: string;
+  success: boolean;
+  durationMs: number;
+  data?: Record<string, unknown>;
+  error?: string;
+}
+

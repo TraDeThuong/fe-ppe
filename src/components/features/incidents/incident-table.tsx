@@ -1,10 +1,23 @@
 "use client";
-import { Table, TableToolbar, TableContent, TablePagination, TableRefresh, TableRowActions } from "@/components/ui/table";
+import { useMemo, useState } from "react";
+import type { RowSelectionState } from "@tanstack/react-table";
+import {
+  Table,
+  TableToolbar,
+  TableContent,
+  TablePagination,
+  TableRefresh,
+  TableRowActions,
+  TableSelectionHeader,
+  TableSelectionRow,
+  TableBulkActions,
+  type TableBulkAction,
+} from "@/components/ui/table";
 import type { TableProps } from "@/components/ui/table";
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ExternalLink } from "lucide-react";
+import { CheckCircle2, ExternalLink, XCircle } from "lucide-react";
 import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
 import { useCan } from "@/hooks/use-can";
@@ -16,6 +29,8 @@ import { resolveEvidenceUrl } from "@/lib/evidence-url";
 export interface IncidentTableProps {
   incidents: IncidentItem[];
   onReview?: (incident: IncidentItem) => void;
+  onBatchReview?: (ids: string[], action: "CONFIRM" | "REJECT") => Promise<void> | void;
+  batchReviewPending?: boolean;
   onResolve?: (incident: IncidentItem) => void;
   onAssign?: (incident: IncidentItem) => void;
   onDelete?: (incident: IncidentItem) => void;
@@ -48,6 +63,8 @@ export function getIncidentEvidenceUrl(incident: IncidentItem): string {
 export function IncidentTable({
   incidents,
   onReview,
+  onBatchReview,
+  batchReviewPending = false,
   onResolve,
   onAssign,
   onDelete,
@@ -61,6 +78,51 @@ export function IncidentTable({
   const router = useRouter();
   const isVietnamese = locale === "vi-VN";
   const { getSiteName, getCameraCode, getCameraName } = useEntityLookup();
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const canBatchReview = Boolean(onBatchReview) && can("PPE_INCIDENT_REVIEW");
+
+  const pendingSelectedIds = useMemo(() => {
+    const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id]);
+    if (selectedIds.length === 0) return [];
+    const pendingSet = new Set(
+      incidents.filter((i) => i.status === "PENDING_REVIEW").map((i) => i.id)
+    );
+    return selectedIds.filter((id) => pendingSet.has(id));
+  }, [incidents, rowSelection]);
+
+  const bulkActions = useMemo<TableBulkAction[]>(() => {
+    if (!canBatchReview || !onBatchReview) return [];
+    return [
+      {
+        id: "batch-confirm",
+        label: isVietnamese
+          ? `Xác nhận vi phạm (${pendingSelectedIds.length})`
+          : `Confirm Violations (${pendingSelectedIds.length})`,
+        icon: <CheckCircle2 size={14} />,
+        variant: "primary",
+        disabled: pendingSelectedIds.length === 0 || batchReviewPending,
+        onClick: async () => {
+          if (pendingSelectedIds.length === 0) return;
+          await onBatchReview(pendingSelectedIds, "CONFIRM");
+          setRowSelection({});
+        },
+      },
+      {
+        id: "batch-false-positive",
+        label: isVietnamese
+          ? `Báo nhầm (${pendingSelectedIds.length})`
+          : `False Positive (${pendingSelectedIds.length})`,
+        icon: <XCircle size={14} />,
+        variant: "outline",
+        disabled: pendingSelectedIds.length === 0 || batchReviewPending,
+        onClick: async () => {
+          if (pendingSelectedIds.length === 0) return;
+          await onBatchReview(pendingSelectedIds, "REJECT");
+          setRowSelection({});
+        },
+      },
+    ];
+  }, [canBatchReview, onBatchReview, isVietnamese, pendingSelectedIds, batchReviewPending]);
 
   const formatViolation = (type: string) => {
     switch (type) {
@@ -79,7 +141,19 @@ export function IncidentTable({
 
   return (<Table
     data={incidents}
-    columns={[{
+    columns={[
+      ...(canBatchReview
+        ? [
+            {
+              id: "select",
+              header: () => <TableSelectionHeader />,
+              cell: ({ row }: { row: any }) => <TableSelectionRow row={row} />,
+              enableSorting: false,
+              size: 40,
+            },
+          ]
+        : []),
+      {
       id: "id",
       header: t("incidents.table.incident"),
       accessorFn: (incident) => incident.id,
@@ -292,20 +366,24 @@ export function IncidentTable({
     }]}
     loading={loading}
     getRowId={row => row.id}
-    features={{
-      globalFilter: false,
-      sorting: false,
-      rowSelection: false,
-      pagination: true
-    }}
+    rowSelection={rowSelection}
+    onRowSelectionChange={setRowSelection}
     manualFiltering
     manualSorting
     manualPagination
     emptyMessage={t("incidents.table.empty")}
     getRowClassName={incident => incident.id === highlightedId ? "bg-danger/10 ring-2 ring-inset ring-danger/40" : ""}
     {...tableState}
+    features={{
+      globalFilter: false,
+      sorting: false,
+      pagination: true,
+      ...tableState?.features,
+      rowSelection: canBatchReview,
+    }}
   >
     <TableToolbar showSearch={false} actions={<TableRefresh />} />
+    <TableBulkActions actions={bulkActions} />
     <TableContent />
     <TablePagination />
   </Table>);

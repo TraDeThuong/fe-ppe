@@ -126,7 +126,7 @@ export function CameraRoiDrawer({
             ) : (
               <Save className="h-4 w-4" />
             )}
-            <span>{isVietnamese ? "Lưu cấu hình AI ROI" : "Save AI ROI Config"}</span>
+            <span>{isVietnamese ? "Lưu Vùng cấm (ROI)" : "Save Restricted Area (ROI)"}</span>
           </Button>
         </div>
       }
@@ -146,6 +146,13 @@ export function CameraRoiDrawer({
           <span className="text-[11px] text-muted-foreground">
             {camera?.location || (isVietnamese ? "Phòng thử nghiệm AI" : "AI Sandbox")}
           </span>
+        </div>
+
+        {/* Restricted Area Notice (origin/develop AI Engine) */}
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
+          {isVietnamese
+            ? "Vùng ROI được AI Engine sử dụng làm Vùng cấm / Khu vực nguy hiểm (RESTRICTED_AREA): công nhân bước vào vùng vẽ sẽ bị cảnh báo xâm nhập."
+            : "ROI polygon acts as a Restricted Area (RESTRICTED_AREA) in the AI Engine: entering the polygon triggers an intrusion alert."}
         </div>
 
         {/* Interactive Drawing Canvas */}

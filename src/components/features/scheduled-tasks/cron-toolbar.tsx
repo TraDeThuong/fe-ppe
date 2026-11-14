@@ -1,7 +1,8 @@
 "use client";
 
-import { Search, X } from "lucide-react";
+import { RotateCcw, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/form/foundation/input";
 import { Select } from "@/components/ui/form/selection-controls/select";
 import { useLocale } from "@/providers/locale-provider";
@@ -12,6 +13,7 @@ export interface CronToolbarProps {
   onSearchChange: (value: string) => void;
   filter: CronScheduleFilter;
   onFilterChange: (filter: CronScheduleFilter) => void;
+  onClearFilters?: () => void;
   totalCount: number;
   visibleCount: number;
   enabledCount: number;
@@ -24,6 +26,7 @@ export function CronToolbar({
   onSearchChange,
   filter,
   onFilterChange,
+  onClearFilters,
   totalCount,
   visibleCount,
   enabledCount: _enabledCount,
@@ -33,11 +36,22 @@ export function CronToolbar({
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
+  const isFiltered = Boolean(search.trim()) || filter !== "all";
+
   const filterOptions = [
     { value: "all", label: t("cron.all") },
     { value: "enabled", label: t("cron.enabled") },
     { value: "disabled", label: t("cron.disabled") },
   ];
+
+  const handleClear = () => {
+    if (onClearFilters) {
+      onClearFilters();
+    } else {
+      onSearchChange("");
+      onFilterChange("all");
+    }
+  };
 
   return (
     <div
@@ -67,9 +81,9 @@ export function CronToolbar({
           )}
         </div>
 
-        {/* Filter Select & Counter */}
-        <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0">
-          <div className="w-40 sm:w-48">
+        {/* Filter Select, Reset & Counter */}
+        <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 flex-wrap">
+          <div className="w-36 sm:w-44">
             <Select
               ariaLabel={t("cron.filter")}
               value={filter}
@@ -79,10 +93,23 @@ export function CronToolbar({
             />
           </div>
 
+          {isFiltered && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleClear}
+              className="h-9 gap-1.5 rounded-xl px-2.5 text-xs text-muted-foreground hover:text-foreground shadow-sm"
+              aria-label={t("cron.clearFilters")}
+            >
+              <RotateCcw className="size-3.5" />
+              <span className="hidden sm:inline">{t("cron.clearFilters")}</span>
+            </Button>
+          )}
+
           <Badge
             variant="outline"
             size="sm"
-            className="font-mono text-[11px] px-2.5 py-1 shrink-0 text-muted-foreground"
+            className="font-mono text-[11px] px-2.5 py-1.5 shrink-0 text-muted-foreground"
           >
             {t("cron.showing", { count: visibleCount, total: totalCount })}
           </Badge>

@@ -106,6 +106,57 @@ export const incidentService = {
   },
 
   /**
+   * POST /api/v1/incidents/batch-review
+   * Duyệt hoặc bác bỏ hàng loạt sự cố đang chờ thẩm duyệt.
+   */
+  async batchReviewIncidents(payload: {
+    ids: string[];
+    action: "CONFIRM" | "REJECT";
+    resolutionNote?: string;
+  }): Promise<{
+    total: number;
+    updatedCount: number;
+    action: "CONFIRM" | "REJECT";
+    newStatus: string;
+    updatedIds: string[];
+  }> {
+    const res = await apiClient.post<unknown>("/incidents/batch-review", payload);
+    return unwrapData(res);
+  },
+
+  /**
+   * GET /api/v1/incidents/status-counts
+   * Đếm nhanh số lượng sự cố theo trạng thái/mức độ cho Dashboard KPI.
+   */
+  async getStatusCounts(params?: {
+    siteId?: string;
+    cameraId?: string;
+    fromDate?: string;
+    toDate?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<{
+    total: number;
+    pendingReview: number;
+    critical: number;
+    resolved: number;
+  }> {
+    const res = await apiClient.get<unknown>("/incidents/status-counts", { params });
+    const data = unwrapData<{
+      total?: number;
+      pendingReview?: number;
+      critical?: number;
+      resolved?: number;
+    }>(res);
+    return {
+      total: Number(data?.total ?? 0),
+      pendingReview: Number(data?.pendingReview ?? 0),
+      critical: Number(data?.critical ?? 0),
+      resolved: Number(data?.resolved ?? 0),
+    };
+  },
+
+  /**
    * POST /api/v1/incidents/:id/resolve
    * Đánh dấu sự cố đã được khắc phục tại hiện trường.
    */

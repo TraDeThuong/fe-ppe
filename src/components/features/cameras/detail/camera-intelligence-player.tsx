@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
 import type { FrameLogEntry, StreamMetadata } from "./types";
 
-const AI_SERVER_BASE = "http://127.0.0.1:8000";
+const AI_SERVER_BASE = "/api/ai-test";
 
 export function getYouTubeEmbedUrl(url?: string): {
   embedUrl: string | null;
@@ -126,6 +126,7 @@ export function CameraIntelligencePlayer({
   const isVietnamese = locale === "vi-VN";
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
   const hiddenWebcamVideoRef = useRef<HTMLVideoElement | null>(null);
+  const mjpegImgRef = useRef<HTMLImageElement | null>(null);
   const lastSyncEmitMsRef = useRef<number>(0);
 
   const [webcamReady, setWebcamReady] = useState<boolean>(false);
@@ -180,10 +181,6 @@ export function CameraIntelligencePlayer({
 
     let active = true;
     let localStream: MediaStream | null = null;
-    const offscreenCanvas = document.createElement("canvas");
-    offscreenCanvas.width = 640;
-    offscreenCanvas.height = 480;
-    const ctx = offscreenCanvas.getContext("2d");
 
     const runWebcamLoop = async () => {
       try {
@@ -212,46 +209,6 @@ export function CameraIntelligencePlayer({
           }
           setWebcamReady(true);
         }
-
-        while (active) {
-          if (!isPlaying || !liveSessionId || !v || v.readyState < 2 || !ctx) {
-            await new Promise((r) => setTimeout(r, 100));
-            continue;
-          }
-
-          const targetW = 640;
-          const targetH =
-            v.videoWidth && v.videoHeight
-              ? Math.round((v.videoHeight / v.videoWidth) * targetW)
-              : 360;
-          offscreenCanvas.width = targetW;
-          offscreenCanvas.height = targetH;
-          ctx.drawImage(v, 0, 0, targetW, targetH);
-
-          const blob: Blob | null = await new Promise((resolve) =>
-            offscreenCanvas.toBlob(resolve, "image/jpeg", 0.72)
-          );
-          if (!blob || !active) continue;
-
-          try {
-            const res = await fetch(
-              `${AI_SERVER_BASE}/api/live/${liveSessionId}/webcam_frame?bbox=0`,
-              {
-                method: "POST",
-                body: blob,
-              }
-            );
-            if (res.ok && active) {
-              const data = await res.json();
-              if (data.state) {
-                onLiveStateUpdate?.(data.state);
-              }
-            }
-          } catch {
-            await new Promise((r) => setTimeout(r, 200));
-          }
-          await new Promise((r) => setTimeout(r, 75));
-        }
       } catch {
         if (active) {
           setWebcamError(
@@ -271,11 +228,11 @@ export function CameraIntelligencePlayer({
         localStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [isWebcam, isPlaying, liveSessionId, isVietnamese, onLiveStateUpdate]);
+  }, [isWebcam, isVietnamese]);
 
   const mjpegStreamUrl =
     liveSessionId && !isWebcam && !isNativePlayableVideo && !youtubeEmbedUrl && cleanVideoSrc
-      ? `${AI_SERVER_BASE}/api/live/${liveSessionId}/stream.mjpeg?bbox=${showBbox ? 1 : 0}&src=${encodeURIComponent(cleanVideoSrc)}`
+      ? `${AI_SERVER_BASE}/live/${liveSessionId}/stream`
       : null;
 
   // ── 2. ĐỒNG BỘ PLAY/PAUSE CHO VIDEO NATIVE 60FPS ──
@@ -508,18 +465,16 @@ export function CameraIntelligencePlayer({
       }
     }
 
-    if (liveSessionId) {
+    if (liveSessionId && mjpegImgRef.current && mjpegImgRef.current.complete && mjpegImgRef.current.naturalWidth > 0) {
       try {
-        const res = await fetch(
-          `${AI_SERVER_BASE}/api/live/${liveSessionId}/frame.jpg?bbox=${showBbox ? 1 : 0}&t=${Date.now()}`
-        );
-        if (res.ok) {
-          const blob = await res.blob();
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            onSnapshot?.(reader.result as string, true);
-          };
-          reader.readAsDataURL(blob);
+        const imgEl = mjpegImgRef.current;
+        const canvas = document.createElement("canvas");
+        canvas.width = imgEl.naturalWidth;
+        canvas.height = imgEl.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
+          onSnapshot?.(canvas.toDataURL("image/jpeg", 0.95), true);
           return;
         }
       } catch {
@@ -535,7 +490,7 @@ export function CameraIntelligencePlayer({
   };
 
   const displayFps = streamMetadata?.fps || currentFps || 24;
-  const displayLatency = currentLatencyMs ? `${currentLatencyMs}ms` : "Pre-Buffered 0ms Drift";
+  const displayLatency = currentLatencyMs ? `${currentLatencyMs}ms` : "Live AI";
   const isOnline = cameraStatus === "ONLINE";
 
   // Tự động bỏ qua lớp phủ buffering nếu sau 2.5s để người dùng xem video ngay
@@ -555,7 +510,7 @@ export function CameraIntelligencePlayer({
     Boolean(mjpegStreamUrl) &&
     !isWebcam &&
     !forceStreamReady &&
-    (liveSessionStatus === "initializing" || liveSessionStatus === "buffering") &&
+    (liveSessionStatus === "initializing" || liveSessionStatus === "buffering" || liveSessionStatus === "starting") &&
     bufferedFramesCount < 2;
 
   // Bản đồ trạng thái công nhân trong khung hình
@@ -1029,6 +984,7 @@ export function CameraIntelligencePlayer({
               /* CHẾ ĐỘ 2: LUỒNG RTSP QUA AI MJPEG STREAM */
               <div className="relative h-full w-full flex items-center justify-center bg-neutral-950">
                 <img
+                  ref={mjpegImgRef}
                   key={mjpegStreamUrl}
                   src={mjpegStreamUrl}
                   alt={cameraName}
@@ -1038,7 +994,7 @@ export function CameraIntelligencePlayer({
                     const img = e.currentTarget;
                     setTimeout(() => {
                       if (img && mjpegStreamUrl) {
-                        img.src = `${mjpegStreamUrl}&t=${Date.now()}`;
+                        img.src = `${mjpegStreamUrl}?t=${Date.now()}`;
                       }
                     }, 1000);
                   }}
@@ -1049,13 +1005,13 @@ export function CameraIntelligencePlayer({
                     <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
                     <p className="text-sm font-bold text-foreground tracking-wide">
                       {isVietnamese
-                        ? "Đang nạp bộ đệm AI chạy trước (Look-Ahead Pre-Buffer)..."
-                        : "Pre-buffering AI Stream (Look-Ahead Ring Buffer)..."}
+                        ? "Đang khởi động luồng AI trực tiếp..."
+                        : "Starting Live AI Stream..."}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground max-w-md">
                       {isVietnamese
-                        ? "Hệ thống xử lý trước ~1.5 giây để khóa chặt tọa độ Bounding Box 100% vào người và loại bỏ rung lag."
-                        : "Buffering ~1.5s ahead to lock Bounding Boxes 100% and eliminate lag."}
+                        ? "Hệ thống đang mở luồng camera và nạp mô hình YOLOv11."
+                        : "Opening camera stream and initializing YOLOv11 inference."}
                     </p>
                     <div className="mt-4 w-60 h-2.5 rounded-full bg-background border border-border/60 p-0.5 shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)]">
                       <div

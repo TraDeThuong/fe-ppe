@@ -5,6 +5,7 @@ import {
   CalendarClock,
   Info,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/features/app-shell/page-header";
@@ -21,16 +22,19 @@ import type {
   CronJobItem,
   CronJobName,
   CronScheduleFilter,
+  RecentExecutionState,
   TriggerCronJobPayload,
 } from "@/types/cron.types";
 import { CronJobTable } from "./cron-job-table";
 import { CronJobDialog } from "./cron-job-dialog";
+import { CronJobDetailModal } from "./cron-job-detail-modal";
+import { CronToggleConfirmDialog } from "./cron-toggle-confirm-dialog";
 import { CronKpiSummary, type CronStatKey } from "./cron-kpi-summary";
 import { CronToolbar } from "./cron-toolbar";
 
 export function ScheduledTasksScreen() {
   const { user, status } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
 
   const canRead = canReadCron(status, user?.permissions ?? []);
   const canManage = canRead && Boolean(user?.permissions.includes("CRON_JOB_MANAGE"));
@@ -40,10 +44,23 @@ export function ScheduledTasksScreen() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<CronScheduleFilter>("all");
   const [selectedStat, setSelectedStat] = useState<CronStatKey | null>(null);
+
+  // Trigger modal state
   const [selection, setSelection] = useState<{
     job: CronJobItem;
-    action: "trigger" | "toggle";
+    action: "trigger";
   } | null>(null);
+
+  // Detail modal state
+  const [detailJob, setDetailJob] = useState<CronJobItem | null>(null);
+
+  // Toggle confirm modal state
+  const [toggleConfirmJob, setToggleConfirmJob] = useState<CronJobItem | null>(null);
+
+  // Lưu lịch sử các lần chạy ngay gần nhất trên giao diện
+  const [recentExecutions, setRecentExecutions] = useState<Record<string, RecentExecutionState>>({});
+  const [lastSynced, setLastSynced] = useState<Date>(new Date());
+
   const [result, setResult] = useState<CronJobExecutionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [blockedJobs, setBlockedJobs] = useState<ReadonlySet<CronJobName>>(new Set());
@@ -52,7 +69,7 @@ export function ScheduledTasksScreen() {
   const submitting = useRef(false);
   const pending = trigger.isPending || toggle.isPending;
   const jobs = query.data ?? [];
-  const visible = filterCronJobs(jobs, search, filter);
+  const visible = filterCronJobs(jobs, search, filter, t);
   const enabledCount = jobs.filter((job) => job.isEnabled).length;
   const disabledCount = jobs.length - enabledCount;
 
@@ -60,15 +77,15 @@ export function ScheduledTasksScreen() {
     if (!canRead || submitting.current) return;
     const response = await query.refetch();
     if (response.isSuccess) {
+      setLastSynced(new Date());
       setBlockedJobs(new Set());
       setError(null);
-      // Close an old confirmation instead of replaying a toggle against new data.
       setSelection(null);
       setResult(null);
     }
   };
 
-  const open = (job: CronJobItem, action: "trigger" | "toggle") => {
+  const openTrigger = (job: CronJobItem) => {
     if (
       !canManage ||
       query.isFetching ||
@@ -79,17 +96,29 @@ export function ScheduledTasksScreen() {
       return;
     setResult(null);
     setError(null);
-    setSelection({ job, action });
+    setSelection({ job, action: "trigger" });
   };
 
-  const close = () => {
+  const openToggle = (job: CronJobItem) => {
+    if (
+      !canManage ||
+      query.isFetching ||
+      query.isError ||
+      blockedJobs.has(job.name) ||
+      submitting.current
+    )
+      return;
+    setToggleConfirmJob(job);
+  };
+
+  const closeDialog = () => {
     if (submitting.current) return;
     setSelection(null);
     setResult(null);
     setError(null);
   };
 
-  const confirm = async (payload: TriggerCronJobPayload) => {
+  const confirmTrigger = async (payload: TriggerCronJobPayload) => {
     if (
       !selection ||
       !canManage ||
@@ -97,33 +126,33 @@ export function ScheduledTasksScreen() {
       blockedJobs.has(selection.job.name)
     )
       return;
-    const { job, action } = selection;
+    const { job } = selection;
     if (query.isError || query.isFetching) {
       setError(t("cron.refreshBeforeAction"));
-      return;
-    }
-    const current = jobs.find((item) => item.name === job.name);
-    if (!current || (action === "toggle" && current.isEnabled !== job.isEnabled)) {
-      setError(t("cron.stateChanged"));
-      setBlockedJobs((previous) => new Set(previous).add(job.name));
       return;
     }
     submitting.current = true;
     setError(null);
     try {
-      if (action === "trigger") {
-        const response = await trigger.mutateAsync({ jobName: job.name, payload });
-        setResult(response);
-      } else {
-        const response = await toggle.mutateAsync(job.name);
-        toast.success(
-          t(response.isEnabled ? "cron.toast.enabled" : "cron.toast.disabled")
-        );
-        setSelection(null);
-      }
-    } catch (cause) {
-      // A transport/server error may occur after a side effect already happened.
-      // Never replay a non-idempotent trigger/toggle automatically.
+      const response = await trigger.mutateAsync({ jobName: job.name, payload });
+      setResult(response);
+      setRecentExecutions((prev) => ({
+        ...prev,
+        [job.name]: {
+          timestamp: new Date().toISOString(),
+          success: response.success,
+          durationMs: response.durationMs,
+          data: response.data,
+          error: response.error,
+        },
+      }));
+      toast.success(
+        t("cron.toast.triggerSuccess", {
+          name: t(`cron.jobs.${job.name}`),
+          duration: response.durationMs,
+        })
+      );
+    } catch (cause: any) {
       const uncertain =
         !(cause instanceof ApiError) ||
         cause.status === 0 ||
@@ -134,6 +163,39 @@ export function ScheduledTasksScreen() {
         setError(t("cron.unknownOutcome"));
       } else {
         setError(cause.message);
+      }
+    } finally {
+      submitting.current = false;
+    }
+  };
+
+  const confirmToggle = async () => {
+    if (!toggleConfirmJob || !canManage || submitting.current || blockedJobs.has(toggleConfirmJob.name)) {
+      return;
+    }
+    const job = toggleConfirmJob;
+    if (query.isError || query.isFetching) {
+      toast.error(t("cron.refreshBeforeAction"));
+      return;
+    }
+    submitting.current = true;
+    try {
+      const response = await toggle.mutateAsync(job.name);
+      toast.success(
+        t(response.isEnabled ? "cron.toast.enabled" : "cron.toast.disabled")
+      );
+      setToggleConfirmJob(null);
+    } catch (cause: any) {
+      const uncertain =
+        !(cause instanceof ApiError) ||
+        cause.status === 0 ||
+        cause.status >= 500 ||
+        cause.status === 408;
+      if (uncertain) {
+        setBlockedJobs((previous) => new Set(previous).add(job.name));
+        toast.error(t("cron.unknownOutcome"));
+      } else {
+        toast.error(cause.message || t("cron.toast.triggerFailed", { error: "Unknown" }));
       }
     } finally {
       submitting.current = false;
@@ -159,7 +221,9 @@ export function ScheduledTasksScreen() {
           { label: t("nav.group.admin") },
           { label: t("nav.scheduledTasks") },
         ]}
-        badge={`${CRON_TIMEZONE} (UTC+7)`}
+        badge={`${CRON_TIMEZONE} • ${t("cron.lastSynced", {
+          time: lastSynced.toLocaleTimeString(locale),
+        })}`}
         actions={
           <Button
             size="sm"
@@ -189,8 +253,8 @@ export function ScheduledTasksScreen() {
         blockedJobs={blockedJobs}
         selectedStat={selectedStat}
         onSelectStat={setSelectedStat}
-        onTrigger={(job) => open(job, "trigger")}
-        onToggle={(job) => open(job, "toggle")}
+        onTrigger={(job) => openTrigger(job)}
+        onToggle={(job) => openToggle(job)}
         onFilterChange={setFilter}
       />
 
@@ -198,6 +262,10 @@ export function ScheduledTasksScreen() {
       <div className="flex items-start gap-3 rounded-2xl border border-border/50 bg-surface/70 p-3 sm:p-4 text-xs sm:text-sm text-muted-foreground shadow-sm">
         <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
         <div className="space-y-1 leading-relaxed">
+          <p className="font-semibold text-foreground flex items-center gap-1.5">
+            <Sparkles className="size-3.5 text-primary" />
+            {t("cron.apiConnected")} ({jobs.length} tác vụ được định thời)
+          </p>
           <p>{t("cron.stateNote")}</p>
           <p className="text-xs text-muted-foreground/80">{t("cron.schedulerNote")}</p>
         </div>
@@ -211,6 +279,10 @@ export function ScheduledTasksScreen() {
           onSearchChange={setSearch}
           filter={filter}
           onFilterChange={setFilter}
+          onClearFilters={() => {
+            setSearch("");
+            setFilter("all");
+          }}
           totalCount={jobs.length}
           visibleCount={visible.length}
           enabledCount={enabledCount}
@@ -220,6 +292,8 @@ export function ScheduledTasksScreen() {
         {/* High-fidelity Table */}
         <CronJobTable
           jobs={visible}
+          allJobs={jobs}
+          recentExecutions={recentExecutions}
           loading={query.isPending}
           fetching={query.isFetching}
           error={query.error}
@@ -227,22 +301,53 @@ export function ScheduledTasksScreen() {
           canManage={canManage}
           blockedJobs={blockedJobs}
           onRetry={() => void refresh()}
-          onTrigger={(job) => open(job, "trigger")}
-          onToggle={(job) => open(job, "toggle")}
+          onTrigger={(job) => openTrigger(job)}
+          onToggle={(job) => openToggle(job)}
+          onViewDetail={(job) => setDetailJob(job)}
+          onResetFilters={() => {
+            setSearch("");
+            setFilter("all");
+          }}
         />
       </section>
 
-      {/* Confirmation & Execution Dialog */}
+      {/* Confirmation & Execution Dialog for Run Now */}
       {selection && canManage ? (
         <CronJobDialog
           key={`${selection.job.name}:${selection.action}`}
-          {...selection}
+          job={selection.job}
+          action={selection.action}
           pending={pending}
           error={error}
           result={result}
           blocked={blockedJobs.has(selection.job.name)}
-          onConfirm={confirm}
-          onClose={close}
+          onConfirm={confirmTrigger}
+          onClose={closeDialog}
+        />
+      ) : null}
+
+      {/* Safety Toggle Confirmation Dialog */}
+      {toggleConfirmJob && canManage ? (
+        <CronToggleConfirmDialog
+          job={toggleConfirmJob}
+          open={Boolean(toggleConfirmJob)}
+          pending={pending}
+          onConfirm={confirmToggle}
+          onClose={() => setToggleConfirmJob(null)}
+        />
+      ) : null}
+
+      {/* Detail Modal */}
+      {detailJob ? (
+        <CronJobDetailModal
+          job={detailJob}
+          allJobs={jobs}
+          recentExecution={recentExecutions[detailJob.name]}
+          canManage={canManage}
+          blocked={blockedJobs.has(detailJob.name)}
+          onTrigger={(job) => openTrigger(job)}
+          onToggle={(job) => openToggle(job)}
+          onClose={() => setDetailJob(null)}
         />
       ) : null}
     </div>

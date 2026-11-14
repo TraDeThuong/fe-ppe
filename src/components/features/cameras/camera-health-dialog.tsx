@@ -106,7 +106,13 @@ export function CameraHealthDialog({
                 {isVietnamese ? "Tỷ lệ rớt gói" : "Packet Loss"}
               </span>
               <p className="mt-1 font-mono text-base font-bold text-emerald-500">
-                {pingResult?.packetLoss != null ? `${pingResult.packetLoss}%` : "--%"}
+                {pingResult?.packetLoss != null
+                  ? `${pingResult.packetLoss}%`
+                  : pingResult
+                    ? pingResult.success
+                      ? "0%"
+                      : "100%"
+                    : "N/A"}
               </p>
             </div>
 

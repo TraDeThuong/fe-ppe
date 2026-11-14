@@ -64,6 +64,79 @@ export interface ReportingFilterParams {
   groupBy?: "DAY" | "WEEK" | "MONTH" | "day" | "week" | "month";
 }
 
+export interface SeverityBreakdownItemDto {
+  count: number;
+  resolved: number;
+  targetSlaMinutes: number;
+  actualMttrMinutes: number;
+}
+
+export interface SeverityBreakdownMapDto {
+  CRITICAL: SeverityBreakdownItemDto;
+  HIGH: SeverityBreakdownItemDto;
+  MEDIUM: SeverityBreakdownItemDto;
+  LOW: SeverityBreakdownItemDto;
+}
+
+export interface DashboardKpiDto {
+  totalIncidents: number;
+  pendingReview: number;
+  complianceRate: number;
+  cameraStatus: {
+    total: number;
+    online: number;
+    offline: number;
+  };
+  activeModel: {
+    name: string;
+    version: string;
+    latencyMs: number;
+    fps: number;
+  };
+}
+
+export interface HourlyRiskItemDto {
+  hour: number;
+  label: string;
+  shift: "MORNING" | "AFTERNOON" | "NIGHT";
+  count: number;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  severityBreakdown: {
+    CRITICAL: number;
+    HIGH: number;
+    MEDIUM: number;
+    LOW: number;
+  };
+}
+
+export interface ShiftRiskSummaryDto {
+  name: string;
+  timeRange: string;
+  totalIncidents: number;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+}
+
+export interface HourlyRiskResponseDto {
+  date: string;
+  siteId?: string;
+  hourly: HourlyRiskItemDto[];
+  shifts: {
+    morning: ShiftRiskSummaryDto;
+    afternoon: ShiftRiskSummaryDto;
+    night: ShiftRiskSummaryDto;
+  };
+  summary: {
+    totalIncidents: number;
+    peakHour: number;
+    peakShift: "MORNING" | "AFTERNOON" | "NIGHT";
+    riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  };
+}
+
 export interface StatisticsSummaryDto {
   totalIncidents: number;
   openIncidents: number;
@@ -75,6 +148,7 @@ export interface StatisticsSummaryDto {
   meanTimeToResolveHours: number; // Thời gian giải quyết trung bình (MTTR)
   periodStart?: string;
   periodEnd?: string;
+  severityBreakdown?: SeverityBreakdownMapDto;
 }
 
 export interface TrendItemDto {

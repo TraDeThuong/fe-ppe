@@ -5,6 +5,7 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { incidentService } from "@/services/incident.service";
 import { cameraService } from "@/services/camera.service";
 import { aiMetricsService } from "@/services/ai-metrics.service";
+import { reportingService } from "@/services/reporting.service";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { cameraKeys } from "@/hooks/cameras/camera.query-keys";
 import { aiMetricsKeys } from "@/hooks/ai-metrics/ai-metrics.query-keys";
@@ -108,18 +109,25 @@ export function useDashboardData(access: DashboardAccess) {
     queryKey: [...incidentKeys.lists(), "dashboard-pending", scope],
     enabled: ready && access.incidents,
     queryFn: async ({ signal }) => {
-      const page = await incidentService.getIncidents(
-        {
+      try {
+        const counts = await incidentService.getStatusCounts({
           siteId: siteId || undefined,
-          status: "PENDING_REVIEW",
-          page: 1,
-          limit: 1,
-        },
-        { signal },
-      );
-      const total = pageTotal(page, 1, 1);
-      if (total === null) throw new Error("Invalid incident count metadata");
-      return total;
+        });
+        return counts.pendingReview;
+      } catch {
+        const page = await incidentService.getIncidents(
+          {
+            siteId: siteId || undefined,
+            status: "PENDING_REVIEW",
+            page: 1,
+            limit: 1,
+          },
+          { signal },
+        );
+        const total = pageTotal(page, 1, 1);
+        if (total === null) throw new Error("Invalid incident count metadata");
+        return total;
+      }
     },
     ...polling,
     refetchInterval: 15_000,
@@ -159,14 +167,30 @@ export function useDashboardData(access: DashboardAccess) {
     queryKey: [...cameraKeys.lists(), "dashboard-online", scope],
     enabled: ready && access.cameras,
     queryFn: async ({ signal }) => {
-      const page = await cameraService.getCameras(
-        { siteId: siteId || undefined, status: "ONLINE", page: 1, limit: 1 },
-        { signal },
-      );
-      const total = pageTotal(page, 1, 1);
-      if (total === null) throw new Error("Invalid camera count metadata");
-      return total;
+      try {
+        const counts = await cameraService.getStatusCounts(siteId || undefined);
+        return counts.online;
+      } catch {
+        const page = await cameraService.getCameras(
+          { siteId: siteId || undefined, status: "ONLINE", page: 1, limit: 1 },
+          { signal },
+        );
+        const total = pageTotal(page, 1, 1);
+        if (total === null) throw new Error("Invalid camera count metadata");
+        return total;
+      }
     },
+    ...polling,
+  });
+  const isSingleDayPeriod = Boolean(period && period.startDate === period.endDate);
+  const hourlyRiskQuery = useQuery({
+    queryKey: ["reporting", "hourly-risk", scope, period?.startDate],
+    enabled: ready && access.analytics && isSingleDayPeriod,
+    queryFn: () =>
+      reportingService.getHourlyRisk({
+        siteId: siteId || undefined,
+        date: period!.startDate,
+      }),
     ...polling,
   });
   const modelQuery = useQuery({
@@ -180,13 +204,23 @@ export function useDashboardData(access: DashboardAccess) {
     periodQuery,
     ready && access.analytics && access.incidents && !!period,
   );
-  const analytics = useMemo(
-    () =>
-      visiblePeriod.data?.complete
-        ? aggregateDashboard(visiblePeriod.data.items)
-        : null,
-    [visiblePeriod.data],
-  );
+  const analytics = useMemo(() => {
+    if (!visiblePeriod.data?.complete) return null;
+    const base = aggregateDashboard(visiblePeriod.data.items);
+    const hr = hourlyRiskQuery.data;
+    if (isSingleDayPeriod && hr && Array.isArray(hr.hourly) && hr.hourly.length === 24) {
+      return {
+        ...base,
+        hours: hr.hourly.map((item) => item.count),
+        shifts: {
+          morning: hr.shifts?.morning?.totalIncidents ?? base.shifts.morning,
+          afternoon: hr.shifts?.afternoon?.totalIncidents ?? base.shifts.afternoon,
+          night: hr.shifts?.night?.totalIncidents ?? base.shifts.night,
+        },
+      };
+    }
+    return base;
+  }, [visiblePeriod.data, hourlyRiskQuery.data, isSingleDayPeriod]);
   return {
     periodQuery: visiblePeriod,
     pendingQuery: visibleQuery(pendingQuery, ready && access.incidents),

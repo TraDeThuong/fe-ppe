@@ -30,6 +30,7 @@ import {
 import {
   useIncidents,
   useReviewIncident,
+  useBatchReviewIncidents,
   useAssignOfficer,
   useResolveIncident,
   useCloseIncident,
@@ -225,6 +226,7 @@ export default function IncidentsContent() {
 
   // Mutations
   const reviewMutation = useReviewIncident();
+  const batchReviewMutation = useBatchReviewIncidents();
   const assignMutation = useAssignOfficer();
   const resolveMutation = useResolveIncident();
   const closeMutation = useCloseIncident();
@@ -242,6 +244,17 @@ export default function IncidentsContent() {
   const handleOpenReview = (incident: IncidentItem) => {
     setSelectedIncident(incident);
     setIsReviewOpen(true);
+  };
+
+  const handleBatchReview = async (
+    ids: string[],
+    action: "CONFIRM" | "REJECT"
+  ) => {
+    try {
+      await batchReviewMutation.mutateAsync({ ids, action });
+    } catch {
+      // Handled by onError in hook
+    }
   };
 
   const handleOpenAssign = (incident: IncidentItem) => {
@@ -457,6 +470,10 @@ export default function IncidentsContent() {
 
           onReview={handleOpenReview}
 
+          onBatchReview={handleBatchReview}
+
+          batchReviewPending={batchReviewMutation.isPending}
+
           onAssign={handleOpenAssign}
 
           onResolve={handleOpenResolve}
@@ -473,7 +490,7 @@ export default function IncidentsContent() {
             features: {
               sorting: true,
               globalFilter: false,
-              rowSelection: false
+              rowSelection: true
             },
             pagination: { pageIndex: page - 1, pageSize: limit },
             onPaginationChange: update => {
