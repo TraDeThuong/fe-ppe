@@ -83,13 +83,14 @@ function Switch({
         onClick={toggle}
         className={[
           "relative inline-flex shrink-0 items-center",
-          "rounded-full border border-border/50",
-          "bg-background p-1",
-          "shadow-[var(--nm-inset)]",
+          "rounded-full border p-1",
           "transition-colors duration-200",
           "focus-visible:outline-none focus-visible:ring-2",
           "focus-visible:ring-primary/40 focus-visible:ring-offset-2",
           "focus-visible:ring-offset-background",
+          isChecked
+            ? "border-primary/60 bg-primary shadow-[inset_2px_2px_4px_rgba(0,0,0,0.2)]"
+            : "border-border/60 bg-background shadow-[var(--nm-inset)]",
           sizes[size].track,
         ].join(" ")}
       >
@@ -97,10 +98,11 @@ function Switch({
           aria-hidden="true"
           className={[
             "pointer-events-none inline-block rounded-full",
-            "bg-background shadow-[var(--nm-raised-sm)]",
-            "transition-transform duration-200 ease-out",
+            "transition-all duration-200 ease-out",
             sizes[size].thumb,
-            isChecked ? sizes[size].translate : "translate-x-0",
+            isChecked
+              ? `${sizes[size].translate} bg-white shadow-[0_1px_4px_rgba(0,0,0,0.3)]`
+              : "translate-x-0 bg-muted-foreground/45 shadow-[var(--nm-raised-sm)]",
           ].join(" ")}
         />
       </button>

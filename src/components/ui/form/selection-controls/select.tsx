@@ -2,13 +2,17 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 import { useFormField } from "../foundation/form-field";
@@ -84,6 +88,7 @@ function Select({
 
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef(new Map<string, HTMLButtonElement>());
 
   const isControlled = value !== undefined;
@@ -92,6 +97,7 @@ function Select({
 
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
 
   const selectedOption = options.find(
     (option) => option.value === selectedValue,
@@ -135,14 +141,47 @@ function Select({
     setOpen(true);
   };
 
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const estimatedHeight = Math.min(260, Math.max(88, options.length * 48 + 16));
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpward = spaceBelow < estimatedHeight && rect.top > spaceBelow;
+
+    setMenuStyle({
+      position: "fixed",
+      left: rect.left,
+      width: rect.width,
+      zIndex: 9999,
+      ...(openUpward
+        ? { bottom: window.innerHeight - rect.top + 8 }
+        : { top: rect.bottom + 8 }),
+    });
+  }, [options.length]);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuStyle(null);
+      return;
+    }
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [open, updateMenuPosition]);
+
   useEffect(() => {
     if (!open) return;
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (
-        rootRef.current &&
-        !rootRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+      const inRoot = rootRef.current?.contains(target) ?? false;
+      const inMenu = menuRef.current?.contains(target) ?? false;
+      if (!inRoot && !inMenu) {
         setOpen(false);
       }
     };
@@ -327,97 +366,102 @@ function Select({
         />
       </button>
 
-      {open && (
-        <div
-          className={[
-            "absolute left-0 top-[calc(100%+8px)] z-50 w-full",
-            "overflow-hidden rounded-2xl",
-            "border border-border/70 bg-background/95",
-            "shadow-[var(--nm-raised)] backdrop-blur-xl",
-            "motion-safe:animate-in motion-safe:fade-in",
-            "motion-safe:slide-in-from-top-1 motion-safe:duration-150",
-            menuClassName,
-          ]
-            .filter(Boolean)
-            .join(" ")}
-        >
+      {open &&
+        menuStyle &&
+        typeof document !== "undefined" &&
+        createPortal(
           <div
-            id={listboxId}
-            role="listbox"
-            aria-labelledby={ariaLabel ? undefined : triggerId}
-            aria-label={ariaLabel}
-            className="max-h-60 overflow-y-auto p-2"
+            ref={menuRef}
+            style={menuStyle}
+            className={[
+              "overflow-hidden rounded-2xl",
+              "border border-border/70 bg-background/95",
+              "shadow-[var(--nm-raised)] backdrop-blur-xl",
+              "motion-safe:animate-in motion-safe:fade-in",
+              "motion-safe:slide-in-from-top-1 motion-safe:duration-150",
+              menuClassName,
+            ]
+              .filter(Boolean)
+              .join(" ")}
           >
-            {options.length === 0 ? (
-              <p className="px-3 py-2 text-sm text-muted-foreground">
-                {effectiveEmptyMessage}
-              </p>
-            ) : (
-              options.map((option, index) => {
-                const selected = option.value === selectedValue;
-                const active =
-                  enabledOptions[activeIndex]?.value === option.value;
+            <div
+              id={listboxId}
+              role="listbox"
+              aria-labelledby={ariaLabel ? undefined : triggerId}
+              aria-label={ariaLabel}
+              className="max-h-60 overflow-y-auto p-2"
+            >
+              {options.length === 0 ? (
+                <p className="px-3 py-2 text-sm text-muted-foreground">
+                  {effectiveEmptyMessage}
+                </p>
+              ) : (
+                options.map((option, index) => {
+                  const selected = option.value === selectedValue;
+                  const active =
+                    enabledOptions[activeIndex]?.value === option.value;
 
-                return (
-                  <button
-                    key={option.value}
-                    ref={(node) => {
-                      if (node) optionRefs.current.set(option.value, node);
-                      else optionRefs.current.delete(option.value);
-                    }}
-                    id={`${listboxId}-option-${index}`}
-                    type="button"
-                    role="option"
-                    aria-selected={selected}
-                    disabled={option.disabled}
-                    onMouseEnter={() => {
-                      if (!option.disabled) {
-                        setActiveIndex(
-                          enabledOptions.findIndex(
-                            (item) => item.value === option.value,
-                          ),
-                        );
-                      }
-                    }}
-                    onClick={() => chooseOption(option)}
-                    className={[
-                      "flex w-full items-center gap-3",
-                      "rounded-xl px-3 py-2.5 text-left text-sm",
-                      "transition-colors duration-150",
-                      active && "bg-secondary/70",
-                      selected && "font-medium text-primary",
-                      !selected && "text-foreground",
-                      "hover:bg-secondary/70",
-                      "disabled:cursor-not-allowed disabled:opacity-40",
-                      optionClassName,
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block">{option.label}</span>
+                  return (
+                    <button
+                      key={option.value}
+                      ref={(node) => {
+                        if (node) optionRefs.current.set(option.value, node);
+                        else optionRefs.current.delete(option.value);
+                      }}
+                      id={`${listboxId}-option-${index}`}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      disabled={option.disabled}
+                      onMouseEnter={() => {
+                        if (!option.disabled) {
+                          setActiveIndex(
+                            enabledOptions.findIndex(
+                              (item) => item.value === option.value,
+                            ),
+                          );
+                        }
+                      }}
+                      onClick={() => chooseOption(option)}
+                      className={[
+                        "flex w-full items-center gap-3",
+                        "rounded-xl px-3 py-2.5 text-left text-sm",
+                        "transition-colors duration-150",
+                        active && "bg-secondary/70",
+                        selected && "font-medium text-primary",
+                        !selected && "text-foreground",
+                        "hover:bg-secondary/70",
+                        "disabled:cursor-not-allowed disabled:opacity-40",
+                        optionClassName,
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block">{option.label}</span>
 
-                      {option.description && (
-                        <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-                          {option.description}
-                        </span>
+                        {option.description && (
+                          <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                            {option.description}
+                          </span>
+                        )}
+                      </span>
+
+                      {selected && (
+                        <Check
+                          aria-hidden="true"
+                          className="size-4 shrink-0 text-primary"
+                          strokeWidth={2.5}
+                        />
                       )}
-                    </span>
-
-                    {selected && (
-                      <Check
-                        aria-hidden="true"
-                        className="size-4 shrink-0 text-primary"
-                        strokeWidth={2.5}
-                      />
-                    )}
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
