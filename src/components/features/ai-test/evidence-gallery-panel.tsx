@@ -79,12 +79,16 @@ export interface EvidenceGalleryPanelProps {
   items: EvidenceItem[];
   onInspectEvidence: (items: EvidenceItem[], index: number) => void;
   onSeekToJobTime: (timeSec: number) => void;
+  hideSourceFilter?: boolean;
+  emptyDescription?: string;
 }
 
 export function EvidenceGalleryPanel({
   items,
   onInspectEvidence,
   onSeekToJobTime,
+  hideSourceFilter = false,
+  emptyDescription,
 }: EvidenceGalleryPanelProps) {
   const [sourceFilter, setSourceFilter] = useState<EvidenceSourceFilter>("all");
   const [violationFilter, setViolationFilter] =
@@ -307,7 +311,9 @@ export function EvidenceGalleryPanel({
               </span>
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Đối chiếu ảnh trước &amp; khoảnh khắc xác nhận vi phạm từ Live Session và Offline Job đang nạp.
+              {hideSourceFilter
+                ? "Đối chiếu ảnh trước & khoảnh khắc xác nhận vi phạm từ Phiên Live hiện tại và Lịch sử Incident DB của camera."
+                : "Đối chiếu ảnh trước & khoảnh khắc xác nhận vi phạm từ Live Session và Offline Job đang nạp."}
             </p>
           </div>
         </div>
@@ -400,16 +406,27 @@ export function EvidenceGalleryPanel({
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Phân bổ nguồn
+              {hideSourceFilter ? "Phân bổ vi phạm" : "Phân bổ nguồn"}
             </p>
-            <div className="mt-0.5 flex items-center gap-2 font-mono text-xs font-bold">
-              <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-accent">
-                Live {counts.live}
-              </span>
-              <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-primary">
-                Job {counts.job}
-              </span>
-            </div>
+            {hideSourceFilter ? (
+              <div className="mt-0.5 flex flex-wrap items-center gap-1.5 font-mono text-xs font-bold">
+                <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-accent">
+                  Mũ {counts.noHelmet}
+                </span>
+                <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-primary">
+                  Áo {counts.noVest}
+                </span>
+              </div>
+            ) : (
+              <div className="mt-0.5 flex items-center gap-2 font-mono text-xs font-bold">
+                <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-accent">
+                  Live {counts.live}
+                </span>
+                <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-primary">
+                  Job {counts.job}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -420,26 +437,32 @@ export function EvidenceGalleryPanel({
       <div className={`rounded-2xl p-4 space-y-4 ${NM.recessed}`}>
         {/* Hàng 1: Bộ lọc Nguồn + Loại Vi Phạm + Kiểu Ảnh */}
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-          <div className="space-y-1.5 xl:col-span-4">
-            <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              1. Nguồn dữ liệu
-            </span>
-            <SegmentedControl<EvidenceSourceFilter>
-              aria-label="Lọc theo nguồn bằng chứng"
-              options={sourceOptions}
-              value={sourceFilter}
-              onValueChange={(next) => {
-                setSourceFilter(next);
-                setPage(1);
-              }}
-              size="sm"
-              fullWidth
-            />
-          </div>
+          {!hideSourceFilter && (
+            <div className="space-y-1.5 xl:col-span-4">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                1. Nguồn dữ liệu
+              </span>
+              <SegmentedControl<EvidenceSourceFilter>
+                aria-label="Lọc theo nguồn bằng chứng"
+                options={sourceOptions}
+                value={sourceFilter}
+                onValueChange={(next) => {
+                  setSourceFilter(next);
+                  setPage(1);
+                }}
+                size="sm"
+                fullWidth
+              />
+            </div>
+          )}
 
-          <div className="space-y-1.5 xl:col-span-5">
+          <div
+            className={`space-y-1.5 ${
+              hideSourceFilter ? "xl:col-span-7" : "xl:col-span-5"
+            }`}
+          >
             <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              2. Loại vi phạm
+              {hideSourceFilter ? "1. Loại vi phạm" : "2. Loại vi phạm"}
             </span>
             <SegmentedControl<ViolationFilterType>
               aria-label="Lọc theo loại vi phạm"
@@ -454,9 +477,13 @@ export function EvidenceGalleryPanel({
             />
           </div>
 
-          <div className="space-y-1.5 xl:col-span-3">
+          <div
+            className={`space-y-1.5 ${
+              hideSourceFilter ? "xl:col-span-5" : "xl:col-span-3"
+            }`}
+          >
             <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              3. Định dạng ảnh
+              {hideSourceFilter ? "2. Định dạng ảnh" : "3. Định dạng ảnh"}
             </span>
             <SegmentedControl<EvidencePairFilter>
               aria-label="Lọc theo cặp Before/After"
@@ -561,8 +588,9 @@ export function EvidenceGalleryPanel({
           </p>
           <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
             {counts.totalAll === 0
-              ? "Hãy bật Live Stream hoặc chọn một Job đã phân tích xong ở tab Offline Analysis để hệ thống trích xuất cặp ảnh Before / After."
-              : "Thử nới lỏng bộ lọc nguồn, loại vi phạm hoặc xóa từ khóa tìm kiếm."}
+              ? emptyDescription ??
+                "Hãy bật Live Stream hoặc chọn một Job đã phân tích xong ở tab Offline Analysis để hệ thống trích xuất cặp ảnh Before / After."
+              : "Thử nới lỏng bộ lọc loại vi phạm, cặp ảnh hoặc xóa từ khóa tìm kiếm."}
           </p>
           {hasActiveFilters && (
             <button

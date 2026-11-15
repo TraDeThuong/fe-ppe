@@ -13,6 +13,7 @@ export function useCreateCamera() {
     mutationFn: (payload: CreateCameraPayload) => cameraService.createCamera(payload),
     onSuccess: (newCamera) => {
       queryClient.invalidateQueries({ queryKey: cameraKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: cameraKeys.statusCountsRoot() });
       toast.success(`Đã thêm camera "${newCamera.name}" thành công.`);
     },
     onError: (err: unknown) => {
@@ -30,6 +31,7 @@ export function useUpdateCamera() {
       cameraService.updateCamera(id, payload),
     onSuccess: (updatedCamera, { id }) => {
       queryClient.invalidateQueries({ queryKey: cameraKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: cameraKeys.statusCountsRoot() });
       queryClient.setQueryData(cameraKeys.detail(id), updatedCamera);
       toast.success(`Đã cập nhật camera "${updatedCamera.name}" thành công.`);
     },
@@ -48,6 +50,7 @@ export function useDeleteCamera() {
       cameraService.deleteCamera(id),
     onSuccess: (_, { name }) => {
       queryClient.invalidateQueries({ queryKey: cameraKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: cameraKeys.statusCountsRoot() });
       toast.success(
         name ? `Đã xóa camera "${name}" thành công.` : "Đã xóa camera thành công.",
       );

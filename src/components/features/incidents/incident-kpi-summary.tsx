@@ -13,7 +13,14 @@ import {
 export interface IncidentKpiSummaryProps {
   incidents: IncidentItem[];
   totalIncidentsCount?: number;
+  statusCounts?: {
+    total: number;
+    pendingReview: number;
+    critical: number;
+    resolved: number;
+  };
   loading?: boolean;
+  detailLoading?: boolean;
   selectedStat?: IncidentStatKey | null;
   onSelectStat?: (stat: IncidentStatKey | null) => void;
   onReview?: (incident: IncidentItem) => void;
@@ -28,7 +35,9 @@ export interface IncidentKpiSummaryProps {
 export function IncidentKpiSummary({
   incidents,
   totalIncidentsCount,
+  statusCounts,
   loading = false,
+  detailLoading,
   selectedStat: propSelectedStat,
   onSelectStat,
   onReview,
@@ -54,10 +63,18 @@ export function IncidentKpiSummary({
     }
   };
 
-  const total = totalIncidentsCount !== undefined ? totalIncidentsCount : incidents.length;
-  const pending = incidents.filter((i) => i.status === "PENDING_REVIEW").length;
-  const critical = incidents.filter((i) => i.severity === "CRITICAL" || i.severity === "HIGH").length;
-  const resolved = incidents.filter((i) => i.status === "RESOLVED" || i.status === "CLOSED").length;
+  const total =
+    statusCounts?.total ??
+    (totalIncidentsCount !== undefined ? totalIncidentsCount : incidents.length);
+  const pending =
+    statusCounts?.pendingReview ??
+    incidents.filter((i) => i.status === "PENDING_REVIEW").length;
+  const critical =
+    statusCounts?.critical ??
+    incidents.filter((i) => i.severity === "CRITICAL" || i.severity === "HIGH").length;
+  const resolved =
+    statusCounts?.resolved ??
+    incidents.filter((i) => i.status === "RESOLVED" || i.status === "CLOSED").length;
 
   // Hiệu ứng chìm sâu (neumorphic sunken) chuẩn mực giống trang Role:
   // - Chìm xuống dưới (translate-y-1.5)
@@ -189,7 +206,7 @@ export function IncidentKpiSummary({
         <IncidentStatsDetailPanel
           activeStat={activeStat}
           incidents={incidents}
-          loading={loading}
+          loading={detailLoading ?? loading}
           onClose={() => handleToggle(activeStat)}
           onReview={onReview}
           onAssign={onAssign}

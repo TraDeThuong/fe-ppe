@@ -1,116 +1,118 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { Maximize2, Minimize2, MonitorPlay } from "lucide-react";
+import { memo } from "react";
+import Link from "next/link";
+import { ArrowUpRight, MonitorOff, Radio } from "lucide-react";
+import { NM } from "@/components/features/ai-test/nm-styles";
 import { CameraVideoPlayer } from "./camera-video-player";
-import { useLocale } from "@/providers/locale-provider";
+import type { LiveSessionInfo } from "@/types/ai-test.types";
 import type { CameraItem } from "@/types";
 
 export interface CameraVideoWallProps {
   cameras: CameraItem[];
   layout: "1x1" | "2x2" | "3x3";
-  onSnapshot?: (camera: CameraItem) => void;
-  onPing?: (camera: CameraItem) => void;
-  onOpenRoi?: (camera: CameraItem) => void;
+  getSessionForCamera: (camera: CameraItem) => LiveSessionInfo | undefined;
+  startingCameraId?: string | null;
+  onStartLive: (camera: CameraItem) => void;
+  onStopLive: (camera: CameraItem) => void;
 }
 
-export function CameraVideoWall({
+export const CameraVideoWall = memo(function CameraVideoWall({
   cameras,
   layout,
-  onSnapshot,
-  onPing,
-  onOpenRoi,
+  getSessionForCamera,
+  startingCameraId,
+  onStartLive,
+  onStopLive,
 }: CameraVideoWallProps) {
-  const { t, locale } = useLocale();
-  const isVietnamese = locale === "vi-VN";
-  const wallContainerRef = useRef<HTMLDivElement>(null);
-  const [isWallFullscreen, setIsWallFullscreen] = useState(false);
-
-  const toggleWallFullscreen = async () => {
-    if (!wallContainerRef.current) return;
-    try {
-      if (!document.fullscreenElement) {
-        await wallContainerRef.current.requestFullscreen();
-        setIsWallFullscreen(true);
-      } else {
-        await document.exitFullscreen();
-        setIsWallFullscreen(false);
-      }
-    } catch {
-      // Ignore fullscreen rejection
-    }
-  };
-
   const maxSlots = layout === "1x1" ? 1 : layout === "2x2" ? 4 : 9;
+  const visibleCameras = cameras.slice(0, maxSlots);
 
-  const displayCameras = useMemo(() => {
-    return cameras.slice(0, maxSlots);
-  }, [cameras, maxSlots]);
+  const gridClass =
+    layout === "1x1"
+      ? "grid-cols-1"
+      : layout === "2x2"
+        ? "grid-cols-1 md:grid-cols-2"
+        : "grid-cols-1 md:grid-cols-2 xl:grid-cols-3";
 
-  if (cameras.length === 0) {
+  if (visibleCameras.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-2xl border border-border/40 bg-surface p-16 text-center">
-        <MonitorPlay className="h-12 w-12 text-muted-foreground/60 mb-3" />
-        <p className="text-sm font-medium text-foreground">{t("cameras.wall.noCameras")}</p>
+      <div
+        className={`flex min-h-[340px] flex-col items-center justify-center gap-3 rounded-[28px] p-10 text-center ${NM.chassis}`}
+      >
+        <div
+          className={`flex h-16 w-16 items-center justify-center rounded-2xl ${NM.recessed}`}
+        >
+          <MonitorOff className="size-7 text-muted-foreground" />
+        </div>
+        <h3 className="text-base font-extrabold text-foreground">
+          Không có camera trong khung Video Wall
+        </h3>
+        <p className="max-w-md text-xs text-muted-foreground">
+          Điều chỉnh bộ lọc công trường/trạng thái hoặc thêm camera mới để bắt đầu theo dõi đa luồng.
+        </p>
       </div>
     );
   }
 
-  const gridClass =
-    layout === "1x1"
-      ? "grid-cols-1 max-w-4xl mx-auto"
-      : layout === "2x2"
-      ? "grid-cols-1 md:grid-cols-2"
-      : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
-
   return (
-    <div
-      ref={wallContainerRef}
-      className={`relative space-y-3 ${
-        isWallFullscreen ? "p-4 bg-background overflow-y-auto" : ""
-      }`}
-    >
-      {/* Wall Toolbar Action */}
-      <div className="flex items-center justify-between px-1">
-        <span className="text-xs font-semibold text-muted-foreground">
-          {isVietnamese
-            ? `Hiển thị ${displayCameras.length} luồng camera (${layout})`
-            : `Showing ${displayCameras.length} camera feeds (${layout})`}
-        </span>
-        <button
-          type="button"
-          onClick={toggleWallFullscreen}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-border/40 bg-surface px-3 py-1.5 text-xs font-bold text-foreground shadow-[2px_2px_5px_var(--shadow-dark)] transition-all hover:bg-surface-elevated active:scale-95"
-          title={isWallFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình Video Wall"}
-        >
-          {isWallFullscreen ? (
-            <>
-              <Minimize2 className="h-3.5 w-3.5" />
-              <span>{isVietnamese ? "Thu nhỏ" : "Exit Fullscreen"}</span>
-            </>
-          ) : (
-            <>
-              <Maximize2 className="h-3.5 w-3.5" />
-              <span>{isVietnamese ? "Toàn màn hình SOC" : "SOC Fullscreen"}</span>
-            </>
-          )}
-        </button>
-      </div>
+    <div className={`grid gap-4 ${gridClass}`}>
+      {visibleCameras.map((camera) => {
+        const session = getSessionForCamera(camera);
+        const isLive = session?.status === "running";
 
-      {/* Grid feeds */}
-      <div className={`grid gap-4 ${gridClass}`}>
-        {displayCameras.map((camera) => (
-          <div key={camera.id} className="relative">
+        return (
+          <div
+            key={camera.id}
+            className={`flex flex-col gap-3 rounded-[24px] p-3.5 sm:p-4 ${NM.chassis}`}
+          >
+            {/* Top Wall Bar */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <span
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
+                    isLive
+                      ? "bg-accent text-accent-foreground"
+                      : `${NM.recessed} text-primary`
+                  }`}
+                >
+                  <Radio className={`size-3.5 ${isLive ? "animate-pulse" : ""}`} />
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] font-extrabold text-primary">
+                      {camera.code}
+                    </span>
+                    <span className="truncate text-xs font-bold text-foreground">
+                      {camera.name}
+                    </span>
+                  </div>
+                  <p className="truncate text-[10px] text-muted-foreground">
+                    {camera.siteName || "Site"} {camera.zoneName ? `· ${camera.zoneName}` : ""}
+                  </p>
+                </div>
+              </div>
+
+              <Link
+                href={`/cameras/${camera.id}`}
+                title="Mở Studio Chi Tiết"
+                className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-primary ${NM.tactileBtn}`}
+              >
+                <ArrowUpRight className="size-4" />
+              </Link>
+            </div>
+
             <CameraVideoPlayer
               camera={camera}
-              showControls={true}
-              onSnapshot={onSnapshot}
-              onPing={onPing}
-              onOpenRoi={onOpenRoi}
+              liveSession={session}
+              isBusy={startingCameraId === camera.id}
+              onStartLive={onStartLive}
+              onStopLive={onStopLive}
+              compact={layout === "3x3"}
             />
           </div>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
-}
+});

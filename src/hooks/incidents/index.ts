@@ -1,5 +1,6 @@
 export * from "./incident.query-keys";
 export * from "./use-incidents";
+export * from "./use-incident-status-counts";
 export * from "./use-incident-detail";
 export * from "./use-incident-lifecycle";
 export * from "./use-incident-assignments";

@@ -15,20 +15,25 @@ import {
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
+import { useSidebarBadges } from "@/hooks/app-shell";
+import type { SidebarBadgesMap } from "@/lib/sidebar-badges";
 import {
   NAV_GROUPS,
   getVisibleNavItems,
 } from "@/config/navigation";
 import { Typography } from "@ui/typography";
+import { SidebarBadge } from "./sidebar-badge";
 
 export interface MobileSidebarProps {
   open?: boolean;
   onClose?: () => void;
+  badges?: SidebarBadgesMap;
 }
 
 export function MobileSidebar({
   open: controlledOpen,
   onClose,
+  badges: badgesProp,
 }: MobileSidebarProps = {}) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -53,6 +58,8 @@ export function MobileSidebar({
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const pathname = usePathname();
+  const contextBadges = useSidebarBadges();
+  const badges = badgesProp ?? contextBadges;
 
   useEffect(() => {
     setMounted(true);
@@ -92,7 +99,7 @@ export function MobileSidebar({
   );
 
   const isActive = (route: string) =>
-    pathname === route || pathname.startsWith(`${route}/`);
+    Boolean(pathname && (pathname === route || pathname.startsWith(`${route}/`)));
 
   return createPortal(
     <>
@@ -311,6 +318,7 @@ export function MobileSidebar({
                       {groupItems.map((item) => {
                         const active = isActive(item.route);
                         const Icon = item.icon;
+                        const badge = badges[item.key];
 
                         return (
                           <li key={item.key}>
@@ -376,6 +384,8 @@ export function MobileSidebar({
                                   </span>
                                 )}
                               </span>
+
+                              {badge && <SidebarBadge badge={badge} />}
 
                               {active ? (
                                 <span

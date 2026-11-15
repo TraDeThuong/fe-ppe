@@ -14,19 +14,28 @@ import {
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
+import { useSidebarBadges } from "@/hooks/app-shell";
+import type { SidebarBadgesMap } from "@/lib/sidebar-badges";
 import {
   NAV_GROUPS,
   getVisibleNavItems,
 } from "@/config/navigation";
 import { Button } from "@ui/button";
 import { Typography } from "@ui/typography";
+import { SidebarBadge, SidebarCollapsedBadge } from "./sidebar-badge";
 
 const COLLAPSED_KEY = "ppe_sidebar_collapsed";
 
-export function AppSidebar() {
+export interface AppSidebarProps {
+  badges?: SidebarBadgesMap;
+}
+
+export function AppSidebar({ badges: badgesProp }: AppSidebarProps = {}) {
   const { user } = useAuth();
   const { t } = useLocale();
   const pathname = usePathname();
+  const contextBadges = useSidebarBadges();
+  const badges = badgesProp ?? contextBadges;
 
   const [collapsed, setCollapsed] = useState(false);
   const [pendingRoute, setPendingRoute] = useState<string | null>(null);
@@ -63,7 +72,7 @@ export function AppSidebar() {
   );
 
   const isActive = (route: string) =>
-    pathname === route || pathname.startsWith(`${route}/`);
+    Boolean(pathname && (pathname === route || pathname.startsWith(`${route}/`)));
 
   // Chỉ thu gọn trên desktop. Mobile ẩn toàn bộ sidebar bằng CSS.
   const iconOnly = collapsed;
@@ -225,6 +234,11 @@ export function AppSidebar() {
                   const isPending = pendingRoute === item.route && !isCurrent;
                   const active = isCurrent || isPending;
                   const Icon = item.icon;
+                  const badge = badges[item.key];
+                  const itemLabel = t(item.i18nKey);
+                  const collapsedAccessibleLabel = badge
+                    ? `${itemLabel} (${badge.label})`
+                    : itemLabel;
 
                   return (
                     <li key={item.key}>
@@ -236,9 +250,9 @@ export function AppSidebar() {
                             setPendingRoute(item.route);
                           }
                         }}
-                        title={iconOnly ? t(item.i18nKey) : undefined}
+                        title={iconOnly ? collapsedAccessibleLabel : undefined}
                         aria-label={
-                          iconOnly ? t(item.i18nKey) : undefined
+                          iconOnly ? collapsedAccessibleLabel : undefined
                         }
                         aria-current={active ? "page" : undefined}
                         className={[
@@ -304,26 +318,41 @@ export function AppSidebar() {
                                 ring-1 ring-primary/15"
                             />
                           )}
+
+                          {iconOnly && !isPending && (
+                            <SidebarCollapsedBadge badge={badge} />
+                          )}
                         </span>
 
                         {!iconOnly && (
                           <span className="min-w-0 flex-1 truncate">
-                            {t(item.i18nKey)}
+                            {itemLabel}
                           </span>
                         )}
 
-                        {!iconOnly && active && (
+                        {!iconOnly && isPending && (
                           <span
                             aria-hidden="true"
                             className="relative flex h-5 w-5 shrink-0
                               items-center justify-center rounded-full
                               bg-background text-primary shadow-nm-sm"
                           >
-                            {isPending ? (
-                              <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                            ) : (
-                              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                            )}
+                            <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                          </span>
+                        )}
+
+                        {!iconOnly && !isPending && badge && (
+                          <SidebarBadge badge={badge} />
+                        )}
+
+                        {!iconOnly && active && !isPending && !badge && (
+                          <span
+                            aria-hidden="true"
+                            className="relative flex h-5 w-5 shrink-0
+                              items-center justify-center rounded-full
+                              bg-background text-primary shadow-nm-sm"
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                           </span>
                         )}
 
@@ -348,9 +377,10 @@ export function AppSidebar() {
                               border border-white/40 bg-background px-3 py-2
                               text-xs font-medium text-foreground
                               shadow-[5px_5px_12px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]
-                              group-hover/item:block"
+                              group-hover/item:flex group-hover/item:items-center group-hover/item:gap-2"
                           >
-                            {t(item.i18nKey)}
+                            <span>{itemLabel}</span>
+                            {badge && <SidebarBadge badge={badge} size="sm" />}
                           </span>
                         )}
                       </Link>

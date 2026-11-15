@@ -24,6 +24,7 @@ export function usePingCamera() {
       queryClient.invalidateQueries({ queryKey: cameraKeys.healthLogs(cameraId) });
       queryClient.invalidateQueries({ queryKey: cameraKeys.detail(cameraId) });
       queryClient.invalidateQueries({ queryKey: cameraKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: cameraKeys.statusCountsRoot() });
       if (result.success) {
         toast.success(`Ping thành công: độ trễ ${result.latencyMs ?? 0} ms`);
       } else {

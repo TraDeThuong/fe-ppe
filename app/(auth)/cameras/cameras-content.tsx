@@ -1,114 +1,69 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  Building2,
-  Camera,
-  Cctv,
-  Plus,
-  Radio,
-  X,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Table, TablePagination } from "@/components/ui/table";
+import { Camera, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { mapTableSort } from "@/lib/table-utils";
 import { useTableState } from "@/hooks/use-table-state";
 import { useDebounce } from "@/hooks/use-debounce";
-import { PageHeader } from "@/components/features/app-shell/page-header";
+import { useCan } from "@/hooks/use-can";
+import { useSite } from "@/contexts/SiteContext";
+import { useEntityLookup } from "@/hooks/use-entity-lookup";
+import { NM } from "@/components/features/ai-test/nm-styles";
 import {
   CameraCard,
+  CameraFleetHeader,
   CameraHealthDialog,
   CameraKpiSummary,
-  CameraRoiDrawer,
-  CameraSpotlight,
   CameraTable,
   CameraToolbar,
   CameraVideoWall,
   CreateCameraModal,
   DeleteCameraDialog,
   EditCameraModal,
-  type CameraKpiStatKey,
+  type CameraFleetViewMode,
+  type CameraKpiFilterKey,
 } from "@/components/features/cameras";
 import {
+  useCameraLiveSessions,
   useCameras,
   useCamerasCatalog,
   useCreateCamera,
   useDeleteCamera,
   useUpdateCamera,
 } from "@/hooks/cameras";
-import { useSite } from "@/contexts/SiteContext";
-import { useEntityLookup } from "@/hooks/use-entity-lookup";
-import { toast } from "@/lib/toast";
-import { useLocale } from "@/providers/locale-provider";
 import type {
   CameraItem,
   CreateCameraPayload,
   UpdateCameraPayload,
 } from "@/types";
 
-const STAT_TO_URL: Record<CameraKpiStatKey, string> = {
-  totalCameras: "total-cameras",
-  onlineStreams: "live-streams",
-  edgeTelemetry: "telemetry",
-  signalDiagnostics: "diagnostics",
-};
-
-const URL_TO_STAT: Record<string, CameraKpiStatKey> = {
-  "total-cameras": "totalCameras",
-  "live-streams": "onlineStreams",
-  telemetry: "edgeTelemetry",
-  diagnostics: "signalDiagnostics",
-  totalCameras: "totalCameras",
-  onlineStreams: "onlineStreams",
-  edgeTelemetry: "edgeTelemetry",
-  signalDiagnostics: "signalDiagnostics",
-  fleetPulse: "totalCameras",
-};
-
 export default function CamerasContent() {
-  const { t, locale } = useLocale();
-  const isVietnamese = locale === "vi-VN";
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const canCreate = useCan()("PPE_CAMERA_MANAGE");
   const { siteId: globalSiteId } = useSite();
   const { getSiteName } = useEntityLookup();
-
-  // URL state synchronization for stats (Chuẩn phong cách Roles & Sites)
-  const statParam = searchParams.get("stat");
-  const selectedStat =
-    statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
-
-  const handleSelectStat = (stat: CameraKpiStatKey | null) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (stat) {
-      params.set("stat", STAT_TO_URL[stat]);
-    } else {
-      params.delete("stat");
-    }
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  };
 
   const urlSearch = searchParams.get("search") || "";
   const urlSiteId = searchParams.get("siteId") || "";
   const urlView = searchParams.get("view");
   const urlLayout = searchParams.get("layout");
 
-  // Filter & View State
   const [search, setSearch] = useState(urlSearch);
   const [statusFilter, setStatusFilter] = useState("");
+  const [kpiFilter, setKpiFilter] = useState<CameraKpiFilterKey>("all");
   const [siteFilter, setSiteFilter] = useState(urlSiteId || globalSiteId || "");
   const [zoneFilter, setZoneFilter] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "table" | "wall">(
-    urlView === "wall" || urlView === "table" ? urlView : "grid"
+  const [viewMode, setViewMode] = useState<CameraFleetViewMode>(
+    urlView === "wall" || urlView === "table" ? urlView : "grid",
   );
   const [wallLayout, setWallLayout] = useState<"1x1" | "2x2" | "3x3">(
-    urlLayout === "1x1" || urlLayout === "3x3" ? urlLayout : "2x2"
+    urlLayout === "1x1" || urlLayout === "3x3" ? urlLayout : "2x2",
   );
 
-  // Sync state whenever URL searchParams change
+  // Sync URL query params
   useEffect(() => {
     const s = searchParams.get("search");
     if (s !== null) setSearch(s);
@@ -120,494 +75,395 @@ export default function CamerasContent() {
     if (l === "1x1" || l === "2x2" || l === "3x3") setWallLayout(l);
   }, [searchParams]);
 
-  // Đồng bộ với Global Site Selector khi người dùng chọn site từ Header
+  // Sync global site context when not explicitly specified in URL
   useEffect(() => {
-    if (!searchParams.get("siteId") && globalSiteId) {
-      setSiteFilter(globalSiteId);
+    if (!urlSiteId) {
+      setSiteFilter(globalSiteId || "");
+      setZoneFilter("");
     }
-  }, [globalSiteId, searchParams]);
+  }, [globalSiteId, urlSiteId]);
 
-  const tableState = useTableState([{ id: "name", desc: false }], `${search}:${statusFilter}:${siteFilter}:${zoneFilter}`);
-  const apiSorting = mapTableSort(tableState.sorting, { name: "name", code: "code", createdAt: "createdAt", status: "status" }, { sortBy: "name", order: "asc" });
-  const debouncedSearch = useDebounce(search, 350);
+  const syncUrlView = (mode: CameraFleetViewMode, layout?: "1x1" | "2x2" | "3x3") => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (mode === "grid") {
+      params.delete("view");
+    } else {
+      params.set("view", mode);
+    }
+    if (layout) {
+      params.set("layout", layout);
+    }
+    const q = params.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  };
 
-  // Fetch Cameras
-  const { data, isLoading, isFetching, error, refetch } = useCameras({
-    page: tableState.pagination.pageIndex + 1,
-    limit: tableState.pagination.pageSize,
-    sortBy: apiSorting.sortBy,
-    sortOrder: apiSorting.order,
-    search: debouncedSearch.trim() || undefined,
-    status: statusFilter || undefined,
+  const debouncedSearch = useDebounce(search, 300);
+
+  const filterKey = `${debouncedSearch}:${siteFilter}:${zoneFilter}:${statusFilter}:${kpiFilter}`;
+  const tableState = useTableState(
+    [{ id: "createdAt", desc: true }],
+    filterKey,
+  );
+
+  const {
+    pagination: { pageIndex, pageSize },
+    sorting,
+    onPaginationChange,
+  } = tableState;
+
+  const sortParams = mapTableSort(
+    sorting,
+    {
+      name: "name",
+      code: "code",
+      status: "status",
+      createdAt: "createdAt",
+    },
+    { sortBy: "createdAt", order: "desc" },
+  );
+
+  // Queries: Catalog (KPI), Filtered Page (Grid/Wall/Table), Live AI Sessions
+  const { data: catalogCameras = [], refetch: refetchCatalog } = useCamerasCatalog();
+
+  const {
+    data: camerasResponse,
+    isLoading: camerasLoading,
+    isFetching: camerasFetching,
+    refetch: refetchCameras,
+  } = useCameras({
+    page: pageIndex + 1,
+    limit: pageSize,
+    search: debouncedSearch || undefined,
     siteId: siteFilter || undefined,
     zoneId: zoneFilter || undefined,
-
+    status: statusFilter || (kpiFilter === "online" ? "ONLINE" : undefined),
+    sortBy: sortParams.sortBy,
+    sortOrder: sortParams.order,
   });
-  const cameras = data?.items || [];
-  const { data: camerasCatalog = [], isLoading: catalogLoading } = useCamerasCatalog();
 
-  // Mutations
-  const createCamera = useCreateCamera();
-  const updateCamera = useUpdateCamera();
-  const deleteCamera = useDeleteCamera();
+  const {
+    engineOnline,
+    engineError,
+    models,
+    sessions,
+    getSessionForCamera,
+    startLive,
+    stopLive,
+    startingCameraId,
+    isFetchingSessions,
+    refreshAll: refreshAiEngine,
+  } = useCameraLiveSessions({ enabled: true, pollIntervalMs: 2500 });
 
-  // Modals & Drawers State
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [roiDrawerOpen, setRoiDrawerOpen] = useState(false);
-  const [healthDialogOpen, setHealthDialogOpen] = useState(false);
-  const [selectedCamera, setSelectedCamera] = useState<CameraItem | null>(null);
+  const createMutation = useCreateCamera();
+  const updateMutation = useUpdateCamera();
+  const deleteMutation = useDeleteCamera();
 
-  const filteredCameras = cameras;
+  // Modal states
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<CameraItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CameraItem | null>(null);
+  const [healthTarget, setHealthTarget] = useState<CameraItem | null>(null);
 
-  // Breadcrumbs & Header Actions matching Users & Roles
-  const breadcrumbs = useMemo(
-    () => [{ label: t("nav.cameras") }],
-    [t]
+  const rawCameras = useMemo(
+    () => camerasResponse?.items || [],
+    [camerasResponse?.items],
+  );
+  const meta = camerasResponse?.meta;
+
+  const camerasWithSite = useMemo(
+    () =>
+      rawCameras.map((c) => ({
+        ...c,
+        siteName: c.siteName || getSiteName(c.siteId),
+      })),
+    [rawCameras, getSiteName],
   );
 
-  const headerActions = (
-    <Button
+  // Client filter when user clicks AI Live / Violations KPI Pod
+  const visibleCameras = useMemo(() => {
+    if (kpiFilter === "ai_live") {
+      return camerasWithSite.filter(
+        (c) => getSessionForCamera(c)?.status === "running",
+      );
+    }
+    if (kpiFilter === "violations") {
+      return camerasWithSite.filter((c) => {
+        const s = getSessionForCamera(c);
+        return s?.status === "running" && (s.metrics?.active_violations ?? 0) > 0;
+      });
+    }
+    return camerasWithSite;
+  }, [camerasWithSite, getSessionForCamera, kpiFilter]);
 
-      variant="primary"
-
-      size="md"
-
-      className="gap-2 shadow-nm-sm hover:shadow-nm transition-all"
-
-      onClick={() => setCreateModalOpen(true)}
-
-    >
-      <Plus className="h-4 w-4" />
-      <span>{t("cameras.toolbar.createCamera")}</span>
-    </Button>
+  const runningSessionsCount = useMemo(
+    () => sessions.filter((s) => s.status === "running").length,
+    [sessions],
   );
 
-  // Handlers
-  const handleOpenCreate = () => {
-    setCreateModalOpen(true);
+  const totalCount = meta?.total ?? visibleCameras.length;
+  const pageCount = Math.max(1, meta?.totalPages ?? Math.ceil(totalCount / pageSize));
+
+  const handleRefreshAll = () => {
+    void Promise.all([refetchCameras(), refetchCatalog(), refreshAiEngine()]);
   };
 
-  const handleOpenEdit = (camera: CameraItem) => {
-    setSelectedCamera(camera);
-    setEditModalOpen(true);
-  };
-
-  const handleOpenDelete = (camera: CameraItem) => {
-    setSelectedCamera(camera);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleOpenRoi = (camera: CameraItem) => {
-    setSelectedCamera(camera);
-    setRoiDrawerOpen(true);
-  };
-
-  const handleOpenPing = (camera: CameraItem) => {
-    setSelectedCamera(camera);
-    setHealthDialogOpen(true);
-  };
-
-  const handleViewLive = (camera: CameraItem) => {
-    setSelectedCamera(camera);
-    setViewMode("wall");
-    setWallLayout("1x1");
-  };
-
-  const handleSnapshot = (camera: CameraItem) => {
-    if (camera.snapshotUrl) {
-      const link = document.createElement("a");
-      link.href = camera.snapshotUrl;
-      link.download = `snapshot-${camera.code || camera.id}-${Date.now()}.jpg`;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success(
-        isVietnamese
-          ? `Đã tải ảnh snapshot từ ${camera.name || camera.code}.`
-          : `Downloaded snapshot from ${camera.name || camera.code}.`
-      );
-    } else {
-      toast.info(
-        isVietnamese
-          ? `Camera ${camera.name || camera.code} chưa có ảnh chụp snapshot khả dụng.`
-          : `No snapshot available for camera ${camera.name || camera.code}.`
-      );
+  const handleKpiSelect = (key: CameraKpiFilterKey) => {
+    setKpiFilter(key);
+    if (key === "online") {
+      setStatusFilter("ONLINE");
+    } else if (statusFilter === "ONLINE") {
+      setStatusFilter("");
     }
   };
 
   const handleCreateSubmit = async (payload: CreateCameraPayload) => {
-    await createCamera.mutateAsync(payload);
+    await createMutation.mutateAsync(payload);
   };
 
   const handleEditSubmit = async (id: string, payload: UpdateCameraPayload) => {
-    await updateCamera.mutateAsync({ id, payload });
+    await updateMutation.mutateAsync({ id, payload });
   };
 
   const handleDeleteConfirm = async (id: string, name?: string) => {
-    await deleteCamera.mutateAsync({ id, name });
+    await deleteMutation.mutateAsync({ id, name });
   };
 
-  const toolbar = (<CameraToolbar
+  const handleStartLive = useCallback((camera: CameraItem) => {
+    void startLive({ camera }).catch(() => {
+      // toast handled inside mutation
+    });
+  }, [startLive]);
 
-    search={search}
-
-    onSearchChange={setSearch}
-
-    statusFilter={statusFilter}
-
-    onStatusFilterChange={setStatusFilter}
-
-    siteFilter={siteFilter}
-
-    onSiteFilterChange={setSiteFilter}
-
-    viewMode={viewMode}
-
-    onViewModeChange={setViewMode}
-
-    wallLayout={wallLayout}
-
-    onWallLayoutChange={setWallLayout}
-
-    onCreateCamera={handleOpenCreate}
-
-    totalCount={data?.meta?.total ?? cameras.length}
-
-    filteredCount={filteredCameras.length}
-
-    onRefresh={() => refetch()}
-
-    isRefreshing={isFetching}
-
-  />);
+  const handleStopLive = useCallback((camera: CameraItem) => {
+    void stopLive(camera).catch(() => {
+      // toast handled inside mutation
+    });
+  }, [stopLive]);
 
   return (
-    <div className="space-y-6 pb-16">
-      {/* 1. Page Header (Đầy đủ Breadcrumbs, Badge & Action CTA) */}
-      <PageHeader
-
-        icon={Cctv}
-
-        title={t("cameras.title")}
-
-        description={t("cameras.description")}
-
-        badge="Live Video Streams"
-
-        badgeIcon={Radio}
-
-        breadcrumbs={breadcrumbs}
-
-        actions={headerActions}
-
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-10">
+      {/* Layer 1: Neumorphism Console Header */}
+      <CameraFleetHeader
+        viewMode={viewMode}
+        onViewModeChange={(mode) => {
+          setViewMode(mode);
+          syncUrlView(mode);
+        }}
+        engineOnline={engineOnline}
+        engineError={engineError}
+        models={models}
+        totalCameras={catalogCameras.length}
+        runningSessionsCount={runningSessionsCount}
+        isRefreshing={camerasFetching || isFetchingSessions}
+        canCreateCamera={canCreate}
+        onRefreshAll={handleRefreshAll}
+        onCreateCamera={() => setCreateOpen(true)}
       />
 
-      {/* 2. KPI Bento Summary (4 Thẻ Đối Xứng Đồng Nhất với Hiệu Ứng Sunken) */}
+      {/* Layer 2: 4 Bento Telemetry Pods (Real Catalog + Live Sessions) */}
       <CameraKpiSummary
-
-        cameras={camerasCatalog}
-
-        loading={catalogLoading}
-
-        selectedStat={selectedStat}
-
-        onSelectStat={handleSelectStat}
-
-        activeFilter={statusFilter}
-
-        onFilterChange={setStatusFilter}
-
-        onFilterSite={setSiteFilter}
-
-        onPing={handleOpenPing}
-
-        onOpenRoi={handleOpenRoi}
-
-        onEditCamera={handleOpenEdit}
-
-        onCreateCamera={handleOpenCreate}
-
-        onViewLive={handleViewLive}
-
+        cameras={catalogCameras}
+        sessions={sessions}
+        activeFilter={kpiFilter}
+        onSelectFilter={handleKpiSelect}
       />
 
-      {/* Contextual Filter Chip (Khi lọc theo công trường từ Header hoặc URL) */}
-      {siteFilter && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/[0.08] p-3 text-xs shadow-sm animate-in fade-in">
-          <div className="flex items-center gap-2 text-foreground font-semibold">
-            <span className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-surface px-3 py-1.5 text-primary shadow-sm">
-              <Building2 className="h-3.5 w-3.5 shrink-0" />
-              <span>
-                {isVietnamese ? "Đang lọc theo Công trường:" : "Filtering by Site:"}{" "}
-                <strong>{getSiteName(siteFilter)}</strong>
-              </span>
-            </span>
-          </div>
+      {/* Layer 3: Search & Portal Select Filter Bar */}
+      <CameraToolbar
+        search={search}
+        onSearchChange={setSearch}
+        statusFilter={statusFilter}
+        onStatusFilterChange={(val) => {
+          setStatusFilter(val);
+          if (val !== "ONLINE" && kpiFilter === "online") setKpiFilter("all");
+        }}
+        siteFilter={siteFilter}
+        onSiteFilterChange={setSiteFilter}
+        zoneFilter={zoneFilter}
+        onZoneFilterChange={setZoneFilter}
+        viewMode={viewMode}
+        wallLayout={wallLayout}
+        onWallLayoutChange={(layout) => {
+          setWallLayout(layout);
+          syncUrlView(viewMode, layout);
+        }}
+        totalCount={totalCount}
+        filteredCount={visibleCameras.length}
+        hasExtraFilter={kpiFilter !== "all"}
+        onResetAll={() => setKpiFilter("all")}
+      />
 
-          <button
-            type="button"
-            onClick={() => {
-              setSiteFilter("");
-              setZoneFilter("");
-            }}
-            className="inline-flex items-center gap-1 rounded-xl border border-border/50 bg-surface px-3 py-1.5 font-semibold text-muted-foreground hover:bg-surface-elevated hover:text-foreground transition shadow-sm"
-          >
-            <X className="h-3.5 w-3.5" />
-            <span>{isVietnamese ? "Xem tất cả công trường" : "View all sites"}</span>
-          </button>
+      {/* Layer 4: Main Viewport (Grid / Video Wall / Table) */}
+      {viewMode === "wall" ? (
+        <CameraVideoWall
+          cameras={visibleCameras}
+          layout={wallLayout}
+          getSessionForCamera={getSessionForCamera}
+          startingCameraId={startingCameraId}
+          onStartLive={handleStartLive}
+          onStopLive={handleStopLive}
+        />
+      ) : viewMode === "table" ? (
+        <CameraTable
+          cameras={visibleCameras}
+          getSessionForCamera={getSessionForCamera}
+          onStartLive={handleStartLive}
+          onStopLive={handleStopLive}
+          onPing={setHealthTarget}
+          onEdit={setEditTarget}
+          onDelete={setDeleteTarget}
+          loading={camerasLoading}
+          onRefresh={handleRefreshAll}
+          tableState={{
+            manualPagination: true,
+            manualSorting: true,
+            pageCount,
+            rowCount: totalCount,
+            pagination: tableState.pagination,
+            sorting: tableState.sorting,
+            onPaginationChange: tableState.onPaginationChange,
+            onSortingChange: tableState.onSortingChange,
+          }}
+        />
+      ) : (
+        /* Grid Mode */
+        <div className="space-y-6">
+          {camerasLoading ? (
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className={`h-[400px] animate-pulse rounded-[26px] p-5 ${NM.chassis}`}
+                />
+              ))}
+            </div>
+          ) : visibleCameras.length === 0 ? (
+            <div
+              className={`flex min-h-[340px] flex-col items-center justify-center gap-4 rounded-[28px] p-10 text-center ${NM.chassis}`}
+            >
+              <div
+                className={`flex h-16 w-16 items-center justify-center rounded-2xl text-primary ${NM.recessed}`}
+              >
+                <Camera className="size-7" />
+              </div>
+              <div className="max-w-md space-y-1">
+                <h3 className="text-base font-extrabold text-foreground">
+                  Không tìm thấy camera nào
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Hãy thử thay đổi điều kiện lọc hoặc thêm thiết bị camera mới vào hệ thống.
+                </p>
+              </div>
+              {canCreate && !search && !statusFilter && kpiFilter === "all" && (
+                <button
+                  type="button"
+                  onClick={() => setCreateOpen(true)}
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-primary px-5 py-2.5 text-xs font-extrabold text-primary-foreground shadow-sm transition hover:brightness-105"
+                >
+                  <Plus className="size-4" />
+                  <span>Thêm Camera Mới</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {visibleCameras.map((camera) => (
+                <CameraCard
+                  key={camera.id}
+                  camera={camera}
+                  siteName={camera.siteName}
+                  liveSession={getSessionForCamera(camera)}
+                  isBusy={startingCameraId === camera.id}
+                  onStartLive={handleStartLive}
+                  onStopLive={handleStopLive}
+                  onEdit={setEditTarget}
+                  onDelete={setDeleteTarget}
+                  onHealthCheck={setHealthTarget}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Clean standalone Neumorphism Pagination */}
+          {pageCount > 1 && (
+            <div
+              className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 ${NM.chassis}`}
+            >
+              <span className="font-mono text-xs font-bold text-muted-foreground">
+                Trang <strong className="text-foreground">{pageIndex + 1}</strong> /{" "}
+                {pageCount} ({totalCount} camera)
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={pageIndex === 0}
+                  onClick={() =>
+                    onPaginationChange((p) => ({
+                      ...p,
+                      pageIndex: Math.max(0, p.pageIndex - 1),
+                    }))
+                  }
+                  className={`inline-flex h-8 items-center gap-1 rounded-xl px-3 text-xs font-bold text-foreground disabled:opacity-40 ${NM.tactileBtn}`}
+                >
+                  <ChevronLeft className="size-3.5" />
+                  <span>Trước</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={pageIndex + 1 >= pageCount}
+                  onClick={() =>
+                    onPaginationChange((p) => ({
+                      ...p,
+                      pageIndex: Math.min(pageCount - 1, p.pageIndex + 1),
+                    }))
+                  }
+                  className={`inline-flex h-8 items-center gap-1 rounded-xl px-3 text-xs font-bold text-foreground disabled:opacity-40 ${NM.tactileBtn}`}
+                >
+                  <span>Sau</span>
+                  <ChevronRight className="size-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* 3. Toolbar & Controls */}
-      {viewMode !== "table" ? toolbar : null}
-
-      {/* 4. Main View Area (Giải Quyết Triệt Để Khoảng Trống) */}
-      {viewMode === "wall" ? (
-        /* Video Wall CCTV Mode */
-        <CameraVideoWall
-
-          cameras={filteredCameras}
-
-          layout={wallLayout}
-
-          onSnapshot={handleSnapshot}
-
-          onPing={handleOpenPing}
-
-          onOpenRoi={handleOpenRoi}
-
-        />
-      ) : viewMode === "table" ? (
-        /* Neumorphic TanStack Data Table (Chuẩn Users Table) */
-        <CameraTable
-
-          cameras={filteredCameras}
-
-          onViewLive={handleViewLive}
-
-          onPing={handleOpenPing}
-
-          onConfigureRoi={handleOpenRoi}
-
-          onEdit={handleOpenEdit}
-
-          onDelete={handleOpenDelete}
-
-          loading={isLoading}
-
-          onRefresh={() => refetch()}
-
-          variant="soft"
-
-          tableState={{
-            ...tableState,
-            manualPagination: true,
-            manualSorting: true,
-            manualFiltering: true,
-            rowCount: data?.meta?.total ?? cameras.length,
-            pageCount: data?.meta?.totalPages ?? 1,
-            fetching: isFetching,
-            error,
-            onRetry: () => {
-              void refetch();
-            },
-            toolbar
-          }}
-
-        />
-      ) : (
-        /* Grid / Spotlight Mode */
-        isLoading ? (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-72 animate-pulse rounded-2xl bg-surface-elevated/40"
-              />
-            ))}
-          </div>
-        ) : filteredCameras.length === 0 ? (
-          /* Trạng Thái Rỗng */
-          <div className="rounded-3xl border border-border/40 bg-surface p-12 text-center shadow-[4px_4px_12px_var(--shadow-dark),-4px_-4px_12px_var(--shadow-light)]">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-[inset_1px_1px_2px_var(--shadow-dark)] mb-4">
-              <Camera className="h-7 w-7 text-primary/70" />
-            </div>
-            <h4 className="text-base font-bold text-foreground">
-              {t("cameras.table.empty")}
-            </h4>
-            <p className="mt-1 text-sm text-muted-foreground max-w-md mx-auto">
-              {isVietnamese
-                ? "Không tìm thấy camera nào khớp với điều kiện tìm kiếm hoặc bộ lọc hiện tại."
-                : "No cameras matched your search or current filter criteria."}
-            </p>
-            <div className="mt-5 flex items-center justify-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSearch("");
-                  setStatusFilter("");
-                  setSiteFilter("");
-                }}
-              >
-                {isVietnamese ? "Xóa bộ lọc" : "Clear filters"}
-              </Button>
-              <Button
-
-                variant="primary"
-
-                size="sm"
-
-                onClick={handleOpenCreate}
-
-                className="gap-1.5"
-
-              >
-                <Plus className="h-4 w-4" />
-                <span>{t("cameras.toolbar.createCamera")}</span>
-              </Button>
-            </div>
-          </div>
-        ) : filteredCameras.length === 1 ? (
-          /* KHẮC PHỤC KHOẢNG TRỐNG: KHI CÓ 1 CAMERA -> HIỂN THỊ COMMAND CENTER SPOTLIGHT */
-          <CameraSpotlight
-
-            camera={filteredCameras[0]}
-
-            onViewLive={handleViewLive}
-
-            onPing={handleOpenPing}
-
-            onConfigureRoi={handleOpenRoi}
-
-            onEdit={handleOpenEdit}
-
-            onDelete={handleOpenDelete}
-
-            onSnapshot={handleSnapshot}
-
-            onCreateCamera={handleOpenCreate}
-
-          />
-        ) : (
-          /* KHI CÓ 2 HOẶC NHIỀU CAMERA -> GRID ĐỐI XỨNG CÂN ĐỐI */
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {filteredCameras.map((cam) => (
-              <CameraCard
-
-                key={cam.id}
-
-                camera={cam}
-
-                onViewLive={handleViewLive}
-
-                onPing={handleOpenPing}
-
-                onConfigureRoi={handleOpenRoi}
-
-                onEdit={handleOpenEdit}
-
-                onDelete={handleOpenDelete}
-
-                onSnapshot={handleSnapshot}
-
-              />
-            ))}
-
-            {/* Thẻ Mở rộng Camera khi danh sách có 2 camera để lấp đầy hàng 3 */}
-            {filteredCameras.length === 2 && (
-              <div
-                onClick={handleOpenCreate}
-                className="group flex flex-col justify-center items-center rounded-2xl border-2 border-dashed border-primary/40 bg-primary/[0.03] p-8 text-center transition-all duration-300 hover:border-primary hover:bg-primary/[0.06] hover:-translate-y-1 hover:shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)] cursor-pointer min-h-[300px]"
-              >
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-nm-sm group-hover:scale-110 transition-transform mb-3">
-                  <Plus className="h-6 w-6" />
-                </span>
-                <h5 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                  {isVietnamese ? "Thêm Camera Giám Sát Mới" : "Add New Camera Stream"}
-                </h5>
-                <p className="mt-1 text-xs text-muted-foreground max-w-xs">
-                  {isVietnamese
-                    ? "Kết nối thêm camera để mở rộng mạng lưới giám sát AI PPE trên toàn công trường."
-                    : "Connect additional RTSP feeds to expand safety monitoring coverage."}
-                </p>
-              </div>
-            )}
-          </div>
-        )
-      )}
-
-      {/* 5. Modals & Drawers */}
-      {viewMode !== "table" ? <Table
-        data={[]}
-        columns={[]}
-        manualPagination
-        rowCount={data?.meta?.total ?? cameras.length}
-        pageCount={data?.meta?.totalPages ?? 1}
-        pagination={tableState.pagination}
-        onPaginationChange={tableState.onPaginationChange}
-        loading={isLoading}
-        fetching={isFetching}
-        error={error}
-        onRetry={() => {
-          void refetch();
-        }}
-      ><TablePagination /></Table> : null}
-
+      {/* Modals & Dialogs */}
       <CreateCameraModal
-
-        open={createModalOpen}
-
-        onOpenChange={setCreateModalOpen}
-
+        open={createOpen}
+        onOpenChange={setCreateOpen}
         onSubmit={handleCreateSubmit}
-
-        loading={createCamera.isPending}
-
+        loading={createMutation.isPending}
+        defaultSiteId={siteFilter || undefined}
       />
 
       <EditCameraModal
-
-        open={editModalOpen}
-
-        onOpenChange={setEditModalOpen}
-
-        camera={selectedCamera}
-
+        open={Boolean(editTarget)}
+        onOpenChange={(open) => {
+          if (!open) setEditTarget(null);
+        }}
+        camera={editTarget}
         onSubmit={handleEditSubmit}
-
-        loading={updateCamera.isPending}
-
+        loading={updateMutation.isPending}
       />
 
       <DeleteCameraDialog
-
-        open={deleteDialogOpen}
-
-        onOpenChange={setDeleteDialogOpen}
-
-        camera={selectedCamera}
-
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        camera={deleteTarget}
         onConfirm={handleDeleteConfirm}
-
-        loading={deleteCamera.isPending}
-
-      />
-
-      <CameraRoiDrawer
-        open={roiDrawerOpen}
-        onOpenChange={setRoiDrawerOpen}
-        camera={selectedCamera}
+        loading={deleteMutation.isPending}
       />
 
       <CameraHealthDialog
-        open={healthDialogOpen}
-        onOpenChange={setHealthDialogOpen}
-        camera={selectedCamera}
+        open={Boolean(healthTarget)}
+        onOpenChange={(open) => {
+          if (!open) setHealthTarget(null);
+        }}
+        camera={healthTarget}
       />
     </div>
   );

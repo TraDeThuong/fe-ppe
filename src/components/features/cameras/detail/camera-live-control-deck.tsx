@@ -1,0 +1,561 @@
+"use client";
+
+import { memo, useMemo, useState } from "react";
+import {
+  Activity,
+  ChevronDown,
+  Link2,
+  Play,
+  Save,
+  Sliders,
+  Square,
+  Wrench,
+} from "lucide-react";
+import { NM } from "@/components/features/ai-test/nm-styles";
+import { Input, Switch } from "@/components/ui/form";
+import {
+  Select,
+  type SelectOption,
+} from "@/components/ui/form/selection-controls/select";
+import type { ModelInfo } from "@/types/ai-test.types";
+
+export interface CameraLiveControlDeckProps {
+  liveCameraId: string;
+  sourceTypeLabel: string;
+  activeSource: string;
+  isUsingOverride: boolean;
+  isRunning: boolean;
+  canStart: boolean;
+  models: ModelInfo[];
+  sourceNote?: string | null;
+  selectedModel: string;
+  onModelChange: (value: string) => void;
+  targetFps: number;
+  onTargetFpsChange: (value: number) => void;
+  aiFps: number;
+  onAiFpsChange: (value: number) => void;
+  confirmHelmetSec: number;
+  onConfirmHelmetSecChange: (value: number) => void;
+  confirmVestSec: number;
+  onConfirmVestSecChange: (value: number) => void;
+  enableNoHelmet: boolean;
+  onEnableNoHelmetChange: (checked: boolean) => void;
+  enableNoVest: boolean;
+  onEnableNoVestChange: (checked: boolean) => void;
+  enableRestrictedArea: boolean;
+  onEnableRestrictedAreaChange: (checked: boolean) => void;
+  enableSceneCut: boolean;
+  onEnableSceneCutChange: (checked: boolean) => void;
+  isStarting: boolean;
+  isApplyingConfig: boolean;
+  isStopping: boolean;
+  isSavingDb: boolean;
+  canManageCamera: boolean;
+  onStartStream: () => void;
+  onHotConfig: () => void;
+  onStopStream: () => void;
+  onSaveToDb: () => void;
+  onOpenDeviceTab?: () => void;
+}
+
+export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
+  liveCameraId,
+  sourceTypeLabel,
+  activeSource,
+  isUsingOverride,
+  isRunning,
+  canStart,
+  models,
+  sourceNote,
+  selectedModel,
+  onModelChange,
+  targetFps,
+  onTargetFpsChange,
+  aiFps,
+  onAiFpsChange,
+  confirmHelmetSec,
+  onConfirmHelmetSecChange,
+  confirmVestSec,
+  onConfirmVestSecChange,
+  enableNoHelmet,
+  onEnableNoHelmetChange,
+  enableNoVest,
+  onEnableNoVestChange,
+  enableRestrictedArea,
+  onEnableRestrictedAreaChange,
+  enableSceneCut,
+  onEnableSceneCutChange,
+  isStarting,
+  isApplyingConfig,
+  isStopping,
+  isSavingDb,
+  canManageCamera,
+  onStartStream,
+  onHotConfig,
+  onStopStream,
+  onSaveToDb,
+  onOpenDeviceTab,
+}: CameraLiveControlDeckProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const modelOptions = useMemo<SelectOption[]>(
+    () =>
+      models.map((m) => ({
+        value: m.path,
+        label: m.name,
+        description:
+          typeof m.size_mb === "number"
+            ? `${m.path} (${m.size_mb.toFixed(1)} MB)`
+            : m.path,
+      })),
+    [models],
+  );
+
+  const activeModelName =
+    models.find((m) => m.path === selectedModel)?.name ??
+    (selectedModel || "best");
+
+  const enabledRulesCount = [
+    enableNoHelmet,
+    enableNoVest,
+    enableRestrictedArea,
+    enableSceneCut,
+  ].filter(Boolean).length;
+
+  return (
+    <section
+      aria-label="Cấu hình AI & Hot Config"
+      className={`relative overflow-hidden rounded-[28px] transition-all duration-300 ${NM.chassis} ${
+        isExpanded ? "p-5 sm:p-7" : "px-5 py-4 sm:px-6"
+      }`}
+    >
+      <div className="pointer-events-none absolute inset-x-10 top-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+
+      <div className="relative space-y-5">
+        {/* Layer 1: Collapsible Summary Header & Tactile Action Bay */}
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <button
+            type="button"
+            aria-expanded={isExpanded}
+            onClick={() => setIsExpanded((prev) => !prev)}
+            className="group flex flex-1 cursor-pointer items-start gap-3.5 rounded-2xl p-1 text-left transition-colors hover:bg-foreground/[0.02]"
+          >
+            <div
+              className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${NM.extruded}`}
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                <Sliders className="size-4" />
+              </div>
+              <span
+                className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-background ${
+                  isRunning
+                    ? "bg-primary shadow-[0_0_8px_hsl(var(--primary))]"
+                    : "bg-muted-foreground/40"
+                }`}
+              />
+            </div>
+
+            <div className="min-w-0 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-extrabold tracking-tight text-foreground sm:text-lg">
+                  Cấu hình AI &amp; Hot Config
+                </h2>
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                    isRunning
+                      ? "bg-primary/15 text-primary"
+                      : "bg-accent/15 text-accent"
+                  }`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      isRunning ? "animate-pulse bg-primary" : "bg-accent"
+                    }`}
+                  />
+                  {isRunning ? "Tracking Active" : "Standby"}
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.05] px-2 py-0.5 text-[10px] font-semibold text-muted-foreground group-hover:text-primary">
+                  {isExpanded ? "Thu gọn" : "Nhấn để chỉnh chi tiết"}
+                  <ChevronDown
+                    className={`size-3 transition-transform duration-200 ${
+                      isExpanded ? "rotate-180" : ""
+                    }`}
+                  />
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="rounded-lg bg-primary/10 px-2 py-0.5 font-mono font-bold text-primary">
+                  {liveCameraId}
+                </span>
+                <span
+                  className={`rounded-lg px-2 py-0.5 font-mono font-bold ${
+                    isUsingOverride
+                      ? "bg-accent/15 text-accent"
+                      : "bg-foreground/[0.05] text-muted-foreground"
+                  }`}
+                >
+                  {isUsingOverride ? "Override" : sourceTypeLabel}
+                </span>
+                <span className="rounded-lg bg-foreground/[0.04] px-2 py-0.5 font-mono font-semibold text-foreground">
+                  {activeModelName}
+                </span>
+                <span className="rounded-lg bg-accent/15 px-2 py-0.5 font-mono font-semibold text-accent">
+                  {targetFps}/{aiFps} FPS • {confirmHelmetSec}s/{confirmVestSec}s
+                </span>
+                <span className="rounded-lg bg-primary/10 px-2 py-0.5 font-mono font-semibold text-primary">
+                  {enabledRulesCount}/4 Rules
+                </span>
+              </div>
+            </div>
+          </button>
+
+          {/* Recessed Action Switch Bay */}
+          <div
+            className={`flex flex-wrap items-center gap-2 self-start rounded-2xl p-2 xl:self-center ${NM.recessed}`}
+          >
+            <button
+              type="button"
+              disabled={isStarting || !canStart}
+              onClick={onStartStream}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground shadow-[4px_4px_10px_rgba(0,0,0,0.16)] transition hover:brightness-105 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45"
+            >
+              <Play className="size-3.5 fill-current" />
+              <span>
+                {isStarting
+                  ? "Đang khởi tạo..."
+                  : isRunning
+                    ? "Khởi chạy lại"
+                    : "Bắt đầu Tracking"}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              disabled={!isRunning || isApplyingConfig}
+              onClick={onHotConfig}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-primary disabled:pointer-events-none disabled:opacity-40 ${NM.tactileBtn}`}
+            >
+              <Activity
+                className={`size-3.5 ${isApplyingConfig ? "animate-spin" : ""}`}
+              />
+              <span>Áp dụng Hot Config</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={!isRunning || isStopping}
+              onClick={onStopStream}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-accent disabled:pointer-events-none disabled:opacity-40 ${NM.tactileBtn}`}
+            >
+              <Square className="size-3.5 fill-current" />
+              <span>Dừng Tracking</span>
+            </button>
+
+            {canManageCamera && (
+              <button
+                type="button"
+                disabled={isSavingDb}
+                onClick={onSaveToDb}
+                title="Lưu cấu hình FPS & xử lý AI vào hồ sơ Camera DB"
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-foreground hover:text-primary disabled:pointer-events-none disabled:opacity-40 ${NM.tactileBtn}`}
+              >
+                <Save className="size-3.5 text-primary" />
+                <span>{isSavingDb ? "Đang lưu..." : "Lưu DB"}</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              aria-expanded={isExpanded}
+              onClick={() => setIsExpanded((prev) => !prev)}
+              title={isExpanded ? "Thu gọn" : "Mở rộng cấu hình"}
+              className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-primary ${NM.tactileBtn}`}
+            >
+              <ChevronDown
+                className={`size-4 transition-transform duration-200 ${
+                  isExpanded ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Expanded Config Modules (2 Balanced Modules + Hot Config Bay) */}
+        {isExpanded && (
+          <>
+            {sourceNote && (
+              <div
+                className={`flex flex-wrap items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-xs font-medium text-accent ${NM.recessed}`}
+              >
+                <span>{sourceNote}</span>
+                {onOpenDeviceTab && (
+                  <button
+                    type="button"
+                    onClick={onOpenDeviceTab}
+                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold text-primary ${NM.tactileBtn}`}
+                  >
+                    <Wrench className="size-3" />
+                    <span>Gắn Override ở Tab 03</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+              {/* Module 1 (6/12): Read-only Camera Source & Model AI (.pt) */}
+              <div className={`space-y-3.5 rounded-2xl p-4 lg:col-span-6 ${NM.extruded}`}>
+                <div className="flex items-center justify-between border-b border-foreground/[0.06] pb-2">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
+                    01. Nguồn Camera Cố Định &amp; Model AI
+                  </span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      isUsingOverride
+                        ? "bg-accent/15 text-accent"
+                        : "bg-primary/10 text-primary"
+                    }`}
+                  >
+                    {isUsingOverride ? "Nguồn Override (Dev)" : sourceTypeLabel}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <span className="block text-[11px] font-semibold text-muted-foreground">
+                      Luồng gắn với {liveCameraId} (Chỉ đọc)
+                    </span>
+                    <div
+                      title={activeSource || "Chưa có luồng khả dụng"}
+                      className={`flex min-h-[38px] items-center gap-2 rounded-xl px-3 py-1.5 font-mono text-[11px] text-foreground ${NM.recessed}`}
+                    >
+                      <Link2 className="size-3.5 shrink-0 text-primary" />
+                      <span className="truncate">
+                        {activeSource || "Chưa gắn nguồn AI khả dụng"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold text-muted-foreground">
+                      Model AI (.pt)
+                    </label>
+                    <Select
+                      size="sm"
+                      options={modelOptions}
+                      value={selectedModel}
+                      onValueChange={onModelChange}
+                      placeholder="Chọn model"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Module 2 (6/12): Frame Rate Clock */}
+              <div className={`space-y-3.5 rounded-2xl p-4 lg:col-span-6 ${NM.extruded}`}>
+                <div className="flex items-center justify-between border-b border-foreground/[0.06] pb-2">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
+                    02. Xung Nhịp FPS
+                  </span>
+                  <span className="font-mono text-[10px] font-bold text-muted-foreground">
+                    1–60 Hz
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold text-muted-foreground">
+                      Target FPS
+                    </label>
+                    <Input
+                      size="sm"
+                      type="number"
+                      min={1}
+                      max={60}
+                      step={1}
+                      value={targetFps}
+                      onChange={(e) =>
+                        onTargetFpsChange(Number(e.target.value) || 25)
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[11px] font-semibold text-muted-foreground">
+                      AI FPS
+                    </label>
+                    <Input
+                      size="sm"
+                      type="number"
+                      min={1}
+                      max={60}
+                      step={1}
+                      value={aiFps}
+                      onChange={(e) => onAiFpsChange(Number(e.target.value) || 15)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tray 03: Hot Config Rules & Sustain Timers */}
+            <div className={`rounded-[22px] p-4 ${NM.recessed}`}>
+              <div className={`space-y-3.5 rounded-2xl p-4 ${NM.extruded}`}>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-foreground/[0.06] pb-2">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
+                    03. Luật &amp; Ngưỡng Sustain (Hot-Config)
+                  </span>
+                  <span className="rounded-full bg-accent/15 px-2.5 py-0.5 text-[10px] font-bold text-accent">
+                    Set mềm trực tiếp không cần restart
+                  </span>
+                </div>
+
+                {/* Sustain Timers */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {[
+                    {
+                      key: "helmet",
+                      label: "Sustain Mũ (s)",
+                      ruleTag: "NO_HELMET",
+                      enabled: enableNoHelmet,
+                      value: confirmHelmetSec,
+                      fallback: 2.0,
+                      onChange: onConfirmHelmetSecChange,
+                    },
+                    {
+                      key: "vest",
+                      label: "Sustain Áo (s)",
+                      ruleTag: "NO_VEST",
+                      enabled: enableNoVest,
+                      value: confirmVestSec,
+                      fallback: 4.0,
+                      onChange: onConfirmVestSecChange,
+                    },
+                  ].map((timer) => (
+                    <div
+                      key={timer.key}
+                      className={`flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 transition-all ${
+                        timer.enabled
+                          ? "border-accent/30 bg-accent/[0.06]"
+                          : "border-foreground/[0.06] bg-background/60 opacity-55"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`size-2 shrink-0 rounded-full ${
+                              timer.enabled ? "bg-accent" : "bg-muted-foreground/40"
+                            }`}
+                          />
+                          <span className="text-xs font-bold text-foreground">
+                            {timer.label}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 pl-3.5 font-mono text-[10px] text-muted-foreground">
+                          Áp dụng cho {timer.ruleTag}
+                        </p>
+                      </div>
+
+                      <Input
+                        size="sm"
+                        type="number"
+                        min={0.5}
+                        max={30}
+                        step={0.5}
+                        disabled={!timer.enabled}
+                        value={timer.value}
+                        onChange={(e) =>
+                          timer.onChange(
+                            Math.max(0.5, Number(e.target.value) || timer.fallback),
+                          )
+                        }
+                        className="w-20 text-center font-mono font-bold text-primary"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* 4 Rules Switches */}
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    {
+                      key: "no_helmet",
+                      label: "NO_HELMET",
+                      checked: enableNoHelmet,
+                      onChange: onEnableNoHelmetChange,
+                      mono: true,
+                    },
+                    {
+                      key: "no_vest",
+                      label: "NO_VEST",
+                      checked: enableNoVest,
+                      onChange: onEnableNoVestChange,
+                      mono: true,
+                    },
+                    {
+                      key: "restricted_area",
+                      label: "RESTRICTED_AREA",
+                      checked: enableRestrictedArea,
+                      onChange: onEnableRestrictedAreaChange,
+                      mono: true,
+                    },
+                    {
+                      key: "scene_cut",
+                      label: "Scene Cut",
+                      checked: enableSceneCut,
+                      onChange: onEnableSceneCutChange,
+                      mono: false,
+                    },
+                  ].map((rule) => (
+                    <div
+                      key={rule.key}
+                      className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 transition-all ${
+                        rule.checked
+                          ? "border-primary/35 bg-primary/[0.08]"
+                          : "border-foreground/[0.06] bg-background/60 opacity-65"
+                      }`}
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`size-2 shrink-0 rounded-full ${
+                              rule.checked
+                                ? "bg-primary shadow-[0_0_6px_var(--primary)]"
+                                : "bg-muted-foreground/40"
+                            }`}
+                          />
+                          <span
+                            className={`truncate text-[11px] font-bold tracking-tight ${
+                              rule.mono ? "font-mono" : ""
+                            } ${rule.checked ? "text-foreground" : "text-muted-foreground"}`}
+                          >
+                            {rule.label}
+                          </span>
+                        </div>
+                        <span
+                          className={`ml-3.5 inline-block rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase ${
+                            rule.checked
+                              ? "bg-primary/15 text-primary"
+                              : "bg-foreground/10 text-muted-foreground"
+                          }`}
+                        >
+                          {rule.checked ? "BẬT" : "TẮT"}
+                        </span>
+                      </div>
+
+                      <Switch
+                        size="sm"
+                        checked={rule.checked}
+                        onCheckedChange={rule.onChange}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+  );
+});

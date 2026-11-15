@@ -16,7 +16,6 @@ import { NotificationEmailLogsTab } from "@/components/features/notifications/no
 import { NotificationTemplatesTab } from "@/components/features/notifications/notification-templates-tab";
 import { SystemConfigTable } from "@/components/features/system/system-config-table";
 import { ModelGovernanceTable } from "@/components/features/ai-metrics/model-governance-table";
-import { CameraTelemetryTables } from "@/components/features/cameras/detail/camera-telemetry-tables";
 import { SiteStatsDetailPanel } from "@/components/features/sites/site-stats-detail-panel";
 import { RoleStatsDetailPanel } from "@/components/features/roles/role-stats-detail-panel";
 import type { AiModelDto, SystemConfigItem } from "@/types";
@@ -158,9 +157,10 @@ function Demo() {
     />;
     case "cameras": return <CameraTable
       cameras={[camera]}
-      onViewLive={noop}
+      getSessionForCamera={() => undefined}
+      onStartLive={noop}
+      onStopLive={noop}
       onPing={noop}
-      onConfigureRoi={noop}
       onEdit={noop}
       onDelete={noop}
     />;
@@ -171,7 +171,6 @@ function Demo() {
     case "templates": return <NotificationTemplatesTab />;
     case "configs": return <SystemConfigTable items={[{ id: "cfg-1", key: "app.name", value: "Smart PPE", category: "GENERAL", isPublic: true } as SystemConfigItem]} onEdit={noop} onDelete={noop} />;
     case "models": return <ModelGovernanceTable models={[{ id: "model-1", name: "PPE detector", code: "PPE", versions: [{ id: "v1", version: "v1", framework: "ONNX", status: "DEPLOYED", createdAt: "2026-11-07T00:00:00Z", metrics: { mAP50: 0.8 } }] } as unknown as AiModelDto]} />;
-    case "telemetry": return <CameraTelemetryTables cameraId={camera.id} camera={camera} realIncidents={[incident]} isIncidentsLoading={false} />;
     case "site-stats": return <SiteStatsDetailPanel activeStat="totalSites" sites={[site]} onClose={noop} />;
     case "role-stats": return <RoleStatsDetailPanel totalPermissionsCount={0} activeStat="totalRoles" roles={[role]} permissions={[]} onClose={noop} />;
     case "health": return <SystemHealthMatrix onRefresh={noop} healthReport={{

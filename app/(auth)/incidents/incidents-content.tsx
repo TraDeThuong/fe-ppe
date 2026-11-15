@@ -29,6 +29,7 @@ import {
 } from "@/components/features/incidents";
 import {
   useIncidents,
+  useIncidentStatusCounts,
   useReviewIncident,
   useBatchReviewIncidents,
   useAssignOfficer,
@@ -201,7 +202,6 @@ export default function IncidentsContent() {
       lastAlert.type === "notification:new"
     ) {
       queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
-      refetch();
 
       const alertData = lastAlert.data as Record<string, unknown> | undefined;
       const newId = (alertData?.incidentId as string) || (alertData?.id as string);
@@ -211,17 +211,28 @@ export default function IncidentsContent() {
         return () => clearTimeout(timer);
       }
     }
-  }, [lastAlert, queryClient, refetch]);
+  }, [lastAlert, queryClient]);
 
-  // Truy vấn overview (tối đa 100 sự cố của site/camera) để KPI summary hiển thị số liệu toàn diện chính xác
-  const { data: statsOverviewData } = useIncidents({
-    siteId: siteIdFilter || undefined,
-    cameraId: cameraIdFilter || undefined,
-    limit: 100,
-    fromDate,
-    toDate,
+  // KPI summary nhẹ từ /incidents/status-counts (không fetch 100 bản ghi dư thừa khi chưa mở rộng)
+  const { data: statusCounts, isLoading: statusCountsLoading } =
+    useIncidentStatusCounts({
+      siteId: siteIdFilter || undefined,
+      cameraId: cameraIdFilter || undefined,
+      fromDate,
+      toDate,
+    });
 
-  });
+  // Chỉ lazy-load 100 bản ghi chi tiết khi người dùng mở rộng một thẻ KPI để xem breakdown
+  const { data: statsOverviewData, isLoading: overviewLoading } = useIncidents(
+    {
+      siteId: siteIdFilter || undefined,
+      cameraId: cameraIdFilter || undefined,
+      limit: 100,
+      fromDate,
+      toDate,
+    },
+    { enabled: Boolean(selectedStat) },
+  );
   const overviewIncidents = statsOverviewData?.items || incidents;
 
   // Mutations
@@ -423,9 +434,13 @@ export default function IncidentsContent() {
 
         incidents={overviewIncidents}
 
-        totalIncidentsCount={statsOverviewData?.meta?.total ?? overviewIncidents.length}
+        totalIncidentsCount={meta?.total ?? overviewIncidents.length}
 
-        loading={isLoading}
+        statusCounts={statusCounts}
+
+        loading={statusCountsLoading}
+
+        detailLoading={overviewLoading}
 
         selectedStat={selectedStat}
 

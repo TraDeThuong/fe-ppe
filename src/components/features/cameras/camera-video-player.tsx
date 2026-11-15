@@ -1,354 +1,170 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import {
-  Activity,
-  AlertTriangle,
-  Camera,
-  Maximize2,
-  Minimize2,
-  RefreshCw,
-  Sliders,
-  Volume2,
-  VolumeX,
-  Wifi,
-  WifiOff,
-} from "lucide-react";
-import { useLocale } from "@/providers/locale-provider";
+import { memo, useState } from "react";
+import Link from "next/link";
+import { Play, Radio, Square } from "lucide-react";
+import { NM } from "@/components/features/ai-test/nm-styles";
+import { aiTestService } from "@/services/ai-test.service";
+import { toSafeLiveCameraId } from "./camera-live-helpers";
+import type { LiveSessionInfo } from "@/types/ai-test.types";
 import type { CameraItem } from "@/types";
 
 export interface CameraVideoPlayerProps {
   camera: CameraItem;
-  showControls?: boolean;
-  onSnapshot?: (camera: CameraItem) => void;
-  onPing?: (camera: CameraItem) => void;
-  onOpenRoi?: (camera: CameraItem) => void;
+  liveSession?: LiveSessionInfo;
+  isBusy?: boolean;
+  onStartLive?: (camera: CameraItem) => void;
+  onStopLive?: (camera: CameraItem) => void;
+  compact?: boolean;
   className?: string;
 }
 
-function getYouTubeEmbedUrl(url?: string): string | null {
-  if (!url) return null;
-  const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|live\/|shorts\/)|youtu\.be\/)([^"&?\/\s]{11})/;
-  const match = url.match(regExp);
-  return match && match[1]
-    ? `https://www.youtube.com/embed/${match[1]}?autoplay=1&mute=1&controls=0&loop=1&playlist=${match[1]}&enablejsapi=1`
-    : null;
-}
-
-export function CameraVideoPlayer({
+/**
+ * Real AI Live MJPEG viewport for `/cameras` Grid & Video Wall.
+ * Replaces legacy fake RTSP scanlines & hardcoded 25fps/38ms metrics.
+ */
+export const CameraVideoPlayer = memo(function CameraVideoPlayer({
   camera,
-  showControls = true,
-  onSnapshot,
-  onPing,
-  onOpenRoi,
+  liveSession,
+  isBusy = false,
+  onStartLive,
+  onStopLive,
+  compact = false,
   className = "",
 }: CameraVideoPlayerProps) {
-  const { t, locale } = useLocale();
-  const isVietnamese = locale === "vi-VN";
-  const containerRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [streamError, setStreamError] = useState(false);
 
-  const isWebcam = camera.streamUrl?.toLowerCase().includes("webcam") || false;
-  const youtubeEmbedUrl = getYouTubeEmbedUrl(camera.streamUrl);
-  const isDirectWebStream = Boolean(youtubeEmbedUrl || isWebcam || camera.streamUrl?.startsWith("http"));
+  const liveId = toSafeLiveCameraId(camera);
+  const isRunning = liveSession?.status === "running";
+  const isInitializing = liveSession?.status === "initializing";
+  const metrics = liveSession?.metrics;
 
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
-  const [streamError, setStreamError] = useState(
-    isDirectWebStream ? false : camera.status === "OFFLINE" || camera.status === "ERROR"
-  );
-  const [fps, setFps] = useState(
-    isDirectWebStream ? 25 : camera.currentFps || (camera.status === "ONLINE" ? 25 : 0)
-  );
-  const [latency, setLatency] = useState(
-    isDirectWebStream ? 18 : camera.currentLatencyMs || (camera.status === "ONLINE" ? 42 : 0)
-  );
-
-  // Webcam stream lifecycle
-  useEffect(() => {
-    let cancelled = false;
-    let localStream: MediaStream | null = null;
-
-    if (isWebcam && !streamError) {
-      if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
-        navigator.mediaDevices
-          .getUserMedia({ video: true, audio: false })
-          .then((stream) => {
-            if (cancelled) {
-              // Unmount trước khi có stream -> đóng ngay các track phần cứng
-              stream.getTracks().forEach((track) => track.stop());
-              return;
-            }
-            localStream = stream;
-            if (videoRef.current) {
-              videoRef.current.srcObject = stream;
-              videoRef.current.play().catch(() => {});
-            }
-          })
-          .catch(() => {
-            if (!cancelled) {
-              setStreamError(true);
-            }
-          });
-      }
-    }
-
-    return () => {
-      cancelled = true;
-      if (localStream) {
-        localStream.getTracks().forEach((track) => track.stop());
-      }
-    };
-  }, [isWebcam, streamError]);
-
-  useEffect(() => {
-    // Luồng YouTube, Webcam và HTTP video chạy trực tiếp trên trình duyệt
-    if (isDirectWebStream) {
-      setStreamError(false);
-      setFps(25);
-      setLatency(camera.currentLatencyMs || 18);
-      return;
-    }
-
-    setStreamError(camera.status === "OFFLINE" || camera.status === "ERROR");
-    if (camera.status === "ONLINE") {
-      setFps(camera.currentFps || 25);
-      setLatency(camera.currentLatencyMs || 38);
-    } else {
-      setFps(0);
-      setLatency(0);
-    }
-  }, [camera.status, camera.currentFps, camera.currentLatencyMs, isDirectWebStream]);
-
-  // Tự động tạm dừng giải mã video khi thẻ camera cuộn ra ngoài màn hình (Video Wall / Grid optimization)
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        const v = videoRef.current;
-        if (!entry || !v) return;
-        if (entry.isIntersecting) {
-          v.play().catch(() => {});
-        } else {
-          v.pause();
-        }
-      },
-      { threshold: 0.15 }
-    );
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  const toggleFullscreen = async () => {
-    if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      await containerRef.current.requestFullscreen().catch(() => {});
-      setIsFullscreen(true);
-    } else {
-      await document.exitFullscreen().catch(() => {});
-      setIsFullscreen(false);
-    }
-  };
-
-  const handleRetryStream = () => {
-    setStreamError(false);
-    setFps(25);
-    setLatency(45);
-  };
+  const fps = typeof metrics?.fps === "number" ? metrics.fps : undefined;
+  const activePersons =
+    metrics?.counts?.person ?? metrics?.active_persons ?? 0;
+  const activeViolations = metrics?.active_violations ?? 0;
 
   return (
     <div
-      ref={containerRef}
-      className={`group relative flex flex-col overflow-hidden rounded-2xl border border-border/40 bg-black shadow-[4px_4px_12px_rgba(0,0,0,0.15)] transition-all ${className}`}
+      className={`group relative aspect-video w-full overflow-hidden rounded-2xl p-2 ${NM.recessed} ${className}`}
     >
-      {/* Aspect Ratio Wrapper (16:9) */}
-      <div className="relative aspect-video w-full bg-slate-950 overflow-hidden">
-        {/* YouTube Embed Stream */}
-        {youtubeEmbedUrl && !streamError ? (
-          <iframe
-            src={youtubeEmbedUrl}
-            title={camera.name}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            className="h-full w-full pointer-events-none object-cover border-0"
-          />
-        ) : camera.streamUrl && !streamError ? (
-          /* Native HTML5 or Webcam Video Element */
-          <video
-            ref={videoRef}
-            src={
-              !isWebcam &&
-              camera.streamUrl.startsWith("http") &&
-              !camera.streamUrl.includes("youtube.com") &&
-              !camera.streamUrl.includes("youtu.be")
-                ? camera.streamUrl
-                : undefined
-            }
-            autoPlay
-            playsInline
-            preload="metadata"
-            muted={isMuted}
-            loop
-            onError={() => {
-              if (
-                !camera.streamUrl.includes("youtube.com") &&
-                !camera.streamUrl.includes("youtu.be")
-              ) {
-                setStreamError(true);
-              }
-            }}
-            className="h-full w-full object-cover"
-          />
-        ) : null}
+      {/* Viewfinder 4 góc */}
+      <span className="pointer-events-none absolute left-3 top-3 z-10 h-3 w-3 rounded-tl border-l-2 border-t-2 border-primary/40" />
+      <span className="pointer-events-none absolute right-3 top-3 z-10 h-3 w-3 rounded-tr border-r-2 border-t-2 border-primary/40" />
+      <span className="pointer-events-none absolute bottom-3 left-3 z-10 h-3 w-3 rounded-bl border-b-2 border-l-2 border-primary/40" />
+      <span className="pointer-events-none absolute bottom-3 right-3 z-10 h-3 w-3 rounded-br border-b-2 border-r-2 border-primary/40" />
 
-        {/* Ambient Simulated Feed (when streamUrl is RTSP or video not native) */}
-        {!streamError && !youtubeEmbedUrl && !isWebcam && (!camera.streamUrl.startsWith("http") || camera.streamUrl.includes("youtube.com") || camera.streamUrl.includes("youtu.be")) && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/80 via-transparent to-black/50 pointer-events-none">
-            {/* Grid Scanline Overlay for Industrial CCTV look */}
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%)] bg-[length:100%_4px] opacity-20" />
-            <div className="text-center font-mono text-xs text-white/50">
-              <p>{isVietnamese ? `LUỒNG ${camera.sourceType || "CAMERA"} NỘI BỘ` : `INTERNAL ${camera.sourceType || "CAMERA"} STREAM`}</p>
-              <p className="text-[10px] text-white/30">{camera.streamUrl}</p>
-            </div>
+      {isRunning && !streamError ? (
+        <div className="relative h-full w-full overflow-hidden rounded-xl bg-foreground/[0.04]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={aiTestService.getLiveStreamUrl(liveId)}
+            alt={`AI Live Stream ${camera.name}`}
+            onError={() => setStreamError(true)}
+            className="h-full w-full object-contain"
+          />
+
+          {/* HUD góc trên trái: LIVE + Vi phạm */}
+          <div className="pointer-events-none absolute left-2.5 top-2.5 flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-2 py-0.5 font-mono text-[10px] font-extrabold uppercase tracking-wider text-accent-foreground shadow-sm">
+              <span className="h-1.5 w-1.5 animate-ping rounded-full bg-accent-foreground" />
+              LIVE
+            </span>
+            {activeViolations > 0 && (
+              <span className="rounded-lg bg-accent/90 px-2 py-0.5 font-mono text-[10px] font-extrabold text-accent-foreground shadow-sm">
+                {activeViolations} VI PHẠM
+              </span>
+            )}
           </div>
-        )}
 
-        {/* Error / Offline Overlay */}
-        {streamError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950/95 p-4 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-danger/10 text-danger shadow-inner">
-              <WifiOff className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="font-mono text-xs font-bold text-danger">
-                {camera.status === "OFFLINE"
-                  ? (isVietnamese ? "MẤT KẾT NỐI CAMERA" : "CAMERA OFFLINE")
-                  : (isVietnamese ? "LỖI KẾT NỐI LUỒNG VIDEO" : "STREAM CONNECTION ERROR")}
-              </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {isVietnamese
-                  ? `Không nhận được tín hiệu luồng ${camera.sourceType || "video"} từ ${camera.code}`
-                  : `Unable to receive ${camera.sourceType || "video"} stream from ${camera.code}`}
-              </p>
-            </div>
+          {/* HUD góc dưới trái: Thông số thật từ session.metrics */}
+          <div className="pointer-events-none absolute bottom-2.5 left-2.5 inline-flex items-center gap-2 rounded-xl border border-white/30 bg-background/85 px-2.5 py-1 font-mono text-[10px] font-bold text-foreground backdrop-blur-md">
+            <span className="text-primary">
+              {typeof fps === "number" ? `${fps.toFixed(1)} FPS` : "LIVE"}
+            </span>
+            <span className="opacity-40">•</span>
+            <span>{activePersons} người</span>
+          </div>
+
+          {/* Nút dừng nhanh góc dưới phải */}
+          {onStopLive && (
             <button
               type="button"
-              onClick={handleRetryStream}
-              className="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-border/40 bg-surface/80 px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-surface"
+              disabled={isBusy}
+              onClick={(e) => {
+                e.stopPropagation();
+                onStopLive(camera);
+              }}
+              title="Dừng AI Live Tracking"
+              className="absolute bottom-2.5 right-2.5 inline-flex cursor-pointer items-center gap-1 rounded-lg bg-background/90 px-2 py-1 font-mono text-[10px] font-bold text-accent shadow-sm backdrop-blur-md transition hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
             >
-              <RefreshCw className="h-3.5 w-3.5" />
-              <span>{isVietnamese ? "Thử kết nối lại" : "Retry Connection"}</span>
+              <Square className="size-2.5 fill-current" />
+              <span>Dừng</span>
             </button>
-          </div>
-        )}
-
-        {/* Top Badges (Live, FPS, Latency) */}
-        <div className="absolute left-2.5 top-2.5 right-2.5 flex items-center justify-between pointer-events-none">
-          <div className="flex items-center gap-1.5">
-            <span
-              className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider ${
-                !streamError
-                  ? "bg-emerald-500/80 text-white shadow-[0_0_8px_rgba(16,185,129,0.5)]"
-                  : "bg-danger/80 text-white"
+          )}
+        </div>
+      ) : (
+        /* Khay chờ radar đúc nổi chuẩn LiveStreamPanel */
+        <div className="flex h-full w-full flex-col items-center justify-center gap-3 rounded-xl px-4 text-center">
+          <div
+            className={`flex items-center justify-center rounded-full ${NM.extruded} ${
+              compact ? "h-11 w-11" : "h-14 w-14"
+            }`}
+          >
+            <div
+              className={`flex items-center justify-center rounded-full bg-primary/10 text-primary ${
+                compact ? "h-7 w-7" : "h-9 w-9"
               }`}
             >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  !streamError ? "bg-white animate-pulse" : "bg-white/60"
+              <Radio
+                className={`${compact ? "size-3.5" : "size-4"} ${
+                  isInitializing || isBusy ? "animate-pulse" : ""
                 }`}
               />
-              {!streamError ? "LIVE" : "OFFLINE"}
-            </span>
-
-            <span className="rounded-md bg-black/60 backdrop-blur-sm px-2 py-0.5 font-mono text-[10px] text-white/90">
-              {camera.code}
-            </span>
+            </div>
           </div>
 
-          {!streamError && (
-            <div className="flex items-center gap-1.5 font-mono text-[10px] text-white/80">
-              <span className="rounded-md bg-black/60 backdrop-blur-sm px-1.5 py-0.5">
-                {fps} FPS
-              </span>
-              <span className="rounded-md bg-black/60 backdrop-blur-sm px-1.5 py-0.5 flex items-center gap-1">
-                <Wifi className="h-3 w-3 text-emerald-400" />
-                {latency}ms
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Bottom Overlay Info & Controls */}
-        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-gradient-to-t from-black/90 via-black/40 to-transparent p-2.5 opacity-90 transition-opacity group-hover:opacity-100">
-          <div className="truncate pr-2">
-            <p className="truncate text-xs font-semibold text-white">
-              {camera.name}
+          <div className="max-w-xs space-y-0.5">
+            <p className="text-xs font-extrabold text-foreground">
+              {isInitializing || isBusy
+                ? "Đang khởi tạo AI Live..."
+                : streamError
+                  ? "Luồng MJPEG vừa tạm ngắt"
+                  : "Chế độ chờ (Chưa chạy AI Live)"}
             </p>
-            <p className="truncate text-[10px] text-white/60">
-              {camera.location || camera.siteName || (isVietnamese ? "Khu vực giám sát" : "Surveillance Zone")}
-            </p>
+            {!compact && (
+              <p className="truncate font-mono text-[10px] text-muted-foreground">
+                {camera.streamUrl || "Chưa gắn streamUrl"}
+              </p>
+            )}
           </div>
 
-          {showControls && (
-            <div className="flex items-center gap-1 text-white">
-              {onSnapshot && (
-                <button
-                  type="button"
-                  onClick={() => onSnapshot(camera)}
-                  title={isVietnamese ? "Chụp ảnh khung hình" : "Snapshot Frame"}
-                  className="rounded-lg p-1.5 hover:bg-white/20 transition"
-                >
-                  <Camera className="h-4 w-4" />
-                </button>
-              )}
-
-              {onPing && (
-                <button
-                  type="button"
-                  onClick={() => onPing(camera)}
-                  title={isVietnamese ? "Đo ping camera" : "Ping Test"}
-                  className="rounded-lg p-1.5 hover:bg-white/20 transition"
-                >
-                  <Activity className="h-4 w-4" />
-                </button>
-              )}
-
-              {onOpenRoi && (
-                <button
-                  type="button"
-                  onClick={() => onOpenRoi(camera)}
-                  title={isVietnamese ? "Cấu hình AI ROI" : "Configure AI ROI"}
-                  className="rounded-lg p-1.5 hover:bg-white/20 transition"
-                >
-                  <Sliders className="h-4 w-4" />
-                </button>
-              )}
-
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {onStartLive && !isInitializing && (
               <button
                 type="button"
-                onClick={() => setIsMuted(!isMuted)}
-                title={isMuted ? (isVietnamese ? "Bật âm thanh" : "Unmute") : (isVietnamese ? "Tắt âm thanh" : "Mute")}
-                className="rounded-lg p-1.5 hover:bg-white/20 transition"
+                disabled={isBusy}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setStreamError(false);
+                  onStartLive(camera);
+                }}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-[11px] font-extrabold text-primary-foreground shadow-[4px_4px_10px_rgba(0,0,0,0.16)] transition hover:brightness-105 disabled:opacity-50"
               >
-                {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                <Play className="size-3 fill-current" />
+                <span>{isBusy ? "Đang bật..." : "Bật AI Live"}</span>
               </button>
+            )}
 
-              <button
-                type="button"
-                onClick={toggleFullscreen}
-                title={isFullscreen ? (isVietnamese ? "Thu nhỏ" : "Exit Fullscreen") : (isVietnamese ? "Toàn màn hình" : "Fullscreen")}
-                className="rounded-lg p-1.5 hover:bg-white/20 transition"
-              >
-                {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-              </button>
-            </div>
-          )}
+            <Link
+              href={`/cameras/${camera.id}`}
+              className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-bold text-foreground hover:text-primary ${NM.tactileBtn}`}
+            >
+              <span>Mở Studio</span>
+            </Link>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
-}
+});

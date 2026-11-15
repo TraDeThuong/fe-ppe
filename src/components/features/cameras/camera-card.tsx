@@ -1,227 +1,244 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import {
   Activity,
   ArrowUpRight,
   Building2,
-  CheckCircle2,
   Edit2,
+  Layers,
   Play,
-  ShieldAlert,
-  Sliders,
+  Square,
   Trash2,
-  Wifi,
 } from "lucide-react";
+import { NM } from "@/components/features/ai-test/nm-styles";
+import { useCan } from "@/hooks/use-can";
 import { CameraVideoPlayer } from "./camera-video-player";
-import { useLocale } from "@/providers/locale-provider";
-import { useEntityLookup } from "@/hooks/use-entity-lookup";
+import type { LiveSessionInfo } from "@/types/ai-test.types";
 import type { CameraItem } from "@/types";
 
 export interface CameraCardProps {
   camera: CameraItem;
-  onViewLive: (camera: CameraItem) => void;
-  onPing: (camera: CameraItem) => void;
-  onConfigureRoi: (camera: CameraItem) => void;
+  siteName?: string;
+  liveSession?: LiveSessionInfo;
+  isBusy?: boolean;
+  onStartLive?: (camera: CameraItem) => void;
+  onStopLive?: (camera: CameraItem) => void;
   onEdit: (camera: CameraItem) => void;
   onDelete: (camera: CameraItem) => void;
-  onSnapshot?: (camera: CameraItem) => void;
+  onHealthCheck: (camera: CameraItem) => void;
 }
 
-export function CameraCard({
+export const CameraCard = memo(function CameraCard({
   camera,
-  onViewLive,
-  onPing,
-  onConfigureRoi,
+  siteName,
+  liveSession,
+  isBusy = false,
+  onStartLive,
+  onStopLive,
   onEdit,
   onDelete,
-  onSnapshot,
+  onHealthCheck,
 }: CameraCardProps) {
-  const { t, locale } = useLocale();
-  const isVietnamese = locale === "vi-VN";
-  const { getSiteName } = useEntityLookup();
-  const siteName = camera.siteName || (camera.siteId ? getSiteName(camera.siteId) : undefined);
+  const canManage = useCan()("PPE_CAMERA_MANAGE");
   const isOnline = camera.status === "ONLINE";
+  const isLiveRunning = liveSession?.status === "running";
 
-  const hasRoi = Boolean(
-    (camera.config?.roiPolygon && camera.config.roiPolygon.length >= 3) ||
-    ((camera.config as any)?.roi_polygon && Array.isArray((camera.config as any).roi_polygon) && (camera.config as any).roi_polygon.length >= 3)
-  );
+  const metrics = liveSession?.metrics;
+  const fpsDisplay =
+    isLiveRunning && typeof metrics?.fps === "number"
+      ? `${metrics.fps.toFixed(1)}`
+      : "--";
+  const personsDisplay = isLiveRunning
+    ? (metrics?.counts?.person ?? metrics?.active_persons ?? 0)
+    : "--";
+  const violationsDisplay = isLiveRunning ? (metrics?.active_violations ?? 0) : "--";
 
   return (
-    <div className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-surface shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[8px_14px_24px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)] dark:border-white/10 dark:shadow-[4px_4px_10px_rgba(0,0,0,0.4)]">
-      {/* Video Preview */}
-      <div className="relative p-3 pb-1">
-        <div className="overflow-hidden rounded-xl border border-border/40 bg-black shadow-[inset_1px_1px_3px_rgba(0,0,0,0.5)]">
-          <CameraVideoPlayer
-            camera={camera}
-            showControls={false}
-            onSnapshot={onSnapshot}
-          />
+    <article
+      className={`group flex flex-col justify-between gap-4 rounded-[26px] p-4 sm:p-5 transition-all duration-200 hover:-translate-y-0.5 ${NM.chassis}`}
+    >
+      {/* Header: Camera Code + Name + DB & AI Status Pills */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-lg bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-extrabold text-primary">
+              {camera.code}
+            </span>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-extrabold ${
+                isOnline
+                  ? "bg-primary/15 text-primary"
+                  : "bg-foreground/10 text-muted-foreground"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isOnline ? "bg-primary" : "bg-muted-foreground/50"
+                }`}
+              />
+              {camera.status}
+            </span>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-extrabold ${
+                isLiveRunning
+                  ? "bg-accent/15 text-accent"
+                  : "bg-foreground/[0.06] text-muted-foreground"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isLiveRunning ? "animate-pulse bg-accent" : "bg-muted-foreground/40"
+                }`}
+              />
+              {isLiveRunning ? "AI LIVE" : "IDLE"}
+            </span>
+          </div>
+
+          <Link
+            href={`/cameras/${camera.id}`}
+            className="block truncate text-sm font-extrabold tracking-tight text-foreground transition-colors hover:text-primary sm:text-base"
+          >
+            {camera.name}
+          </Link>
+
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-muted-foreground">
+            <span className="inline-flex items-center gap-1 truncate">
+              <Building2 className="size-3 shrink-0 text-primary" />
+              <span className="truncate">{siteName || camera.siteName || "Chưa gán site"}</span>
+            </span>
+            {camera.zoneName && (
+              <>
+                <span className="opacity-40">•</span>
+                <span className="inline-flex items-center gap-1 truncate">
+                  <Layers className="size-3 shrink-0 text-accent" />
+                  <span className="truncate">{camera.zoneName}</span>
+                </span>
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Live Status Overlay Tag */}
-        <div className="absolute top-5 right-5 flex items-center gap-1.5">
-          <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold backdrop-blur-md shadow-sm ${
-              isOnline
-                ? "bg-primary/90 text-white"
-                : "bg-danger/90 text-white"
+        <Link
+          href={`/cameras/${camera.id}`}
+          title="Mở Live Monitor Studio"
+          className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-primary ${NM.tactileBtn}`}
+        >
+          <ArrowUpRight className="size-4" />
+        </Link>
+      </div>
+
+      {/* Center: MJPEG Live AI Viewport or Standby */}
+      <CameraVideoPlayer
+        camera={camera}
+        liveSession={liveSession}
+        isBusy={isBusy}
+        onStartLive={onStartLive}
+        onStopLive={onStopLive}
+      />
+
+      {/* Recessed Telemetry Row: Real AI metrics when running */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className={`rounded-xl px-2.5 py-2 text-center ${NM.recessed}`}>
+          <div className="font-mono text-sm font-black text-foreground">
+            {fpsDisplay}
+          </div>
+          <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+            Live FPS
+          </div>
+        </div>
+
+        <div className={`rounded-xl px-2.5 py-2 text-center ${NM.recessed}`}>
+          <div className="font-mono text-sm font-black text-primary">
+            {personsDisplay}
+          </div>
+          <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+            Người
+          </div>
+        </div>
+
+        <div className={`rounded-xl px-2.5 py-2 text-center ${NM.recessed}`}>
+          <div
+            className={`font-mono text-sm font-black ${
+              typeof violationsDisplay === "number" && violationsDisplay > 0
+                ? "text-accent"
+                : "text-foreground"
             }`}
           >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                isOnline ? "bg-white animate-pulse" : "bg-white"
-              }`}
-            />
-            {camera.status}
-          </span>
+            {violationsDisplay}
+          </div>
+          <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+            Vi phạm
+          </div>
         </div>
       </div>
 
-      {/* Info Section */}
-      <div className="space-y-3 px-4 pb-4 pt-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <Link
-              href={`/cameras/${camera.id}`}
-              className="font-bold text-sm text-foreground line-clamp-1 hover:text-primary transition hover:underline"
-              title={isVietnamese ? "Mở Camera AI Intelligence Studio" : "Open Camera AI Intelligence Studio"}
+      {/* Footer Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-foreground/[0.06] pt-3">
+        <div className="flex items-center gap-1.5">
+          {isLiveRunning ? (
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => onStopLive?.(camera)}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-accent disabled:opacity-50 ${NM.tactileBtn}`}
             >
-              {camera.name}
-            </Link>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-              <span className="font-mono font-semibold text-primary">
-                {camera.code}
-              </span>
-              <span>•</span>
-              {camera.siteId ? (
-                <Link
-                  href={`/sites/${camera.siteId}`}
-                  className="inline-flex items-center gap-1 font-medium text-foreground hover:text-primary transition hover:underline"
-                  title={isVietnamese ? "Mở trung tâm điều hành công trường này" : "Open site operations center"}
-                >
-                  <Building2 className="h-3 w-3 text-primary shrink-0" />
-                  <span className="line-clamp-1">{siteName || (isVietnamese ? "Công trường" : "Site")}</span>
-                </Link>
-              ) : (
-                <span className="line-clamp-1">{siteName || (isVietnamese ? "Công trường" : "Site")}</span>
-              )}
-              {camera.location && (
-                <>
-                  <span>•</span>
-                  <span className="line-clamp-1">{camera.location}</span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Specs & ROI Status */}
-        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-lg bg-surface-elevated/70 px-2 py-0.5 font-mono text-[10px] shadow-[inset_1px_1px_2px_var(--shadow-dark)]">
-              {camera.sourceType}
-            </span>
-            <span className="rounded-lg bg-surface-elevated/70 px-2 py-0.5 font-mono text-[10px] shadow-[inset_1px_1px_2px_var(--shadow-dark)]">
-              {camera.config?.resolution || "1080p"}
-            </span>
-            <span className="rounded-lg bg-surface-elevated/70 px-2 py-0.5 font-mono text-[10px] shadow-[inset_1px_1px_2px_var(--shadow-dark)]">
-              {camera.config?.captureFps || 25} FPS
-            </span>
-          </div>
-
-          {/* AI ROI Status Indicator */}
-          {hasRoi ? (
-            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="h-2.5 w-2.5" />
-              ROI
-            </span>
+              <Square className="size-3 fill-current" />
+              <span>Dừng AI</span>
+            </button>
           ) : (
             <button
               type="button"
-              onClick={() => onConfigureRoi(camera)}
-              className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600 hover:bg-amber-500/20 transition dark:text-amber-400"
-              title={isVietnamese ? "Chưa thiết lập vùng quét AI ROI" : "No AI ROI zone configured"}
+              disabled={isBusy}
+              onClick={() => onStartLive?.(camera)}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-xs font-extrabold text-primary-foreground shadow-sm transition hover:brightness-105 disabled:opacity-50"
             >
-              <Sliders className="h-2.5 w-2.5" />
-              {isVietnamese ? "Cần ROI" : "Set ROI"}
+              <Play className="size-3 fill-current" />
+              <span>{isBusy ? "Đang bật..." : "Bật AI Live"}</span>
             </button>
           )}
 
-          {/* Incident Shortcut */}
           <Link
-            href={`/incidents?cameraId=${camera.id}&cameraCode=${camera.code}`}
-            className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-600 hover:bg-amber-500/20 transition hover:underline dark:text-amber-400"
-            title={isVietnamese ? `Xem danh sách các sự cố do ${camera.code} phát hiện` : `View incidents detected by ${camera.code}`}
+            href={`/cameras/${camera.id}`}
+            className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold text-foreground hover:text-primary ${NM.tactileBtn}`}
           >
-            <ShieldAlert className="h-3 w-3 shrink-0" />
-            <span>{isVietnamese ? "Sự cố" : "Alerts"}</span>
+            <span>Chi tiết</span>
           </Link>
         </div>
 
-        {/* Action Row */}
-        <div className="flex items-center justify-between border-t border-border/30 pt-3">
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => onPing(camera)}
-              title={isVietnamese ? "Đo ping kiểm tra kết nối" : "Ping test camera stream"}
-              className="rounded-xl p-2 text-muted-foreground hover:bg-surface-elevated hover:text-foreground transition shadow-[inset_1px_1px_2px_transparent] active:shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
-            >
-              <Activity className="h-4 w-4" />
-            </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => onHealthCheck(camera)}
+            title="Kiểm tra kết nối (Ping)"
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-primary ${NM.tactileBtn}`}
+          >
+            <Activity className="size-3.5" />
+          </button>
 
-            <button
-              type="button"
-              onClick={() => onConfigureRoi(camera)}
-              title={isVietnamese ? "Cấu hình AI ROI" : "Configure AI ROI"}
-              className="rounded-xl p-2 text-muted-foreground hover:bg-surface-elevated hover:text-foreground transition shadow-[inset_1px_1px_2px_transparent] active:shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
-            >
-              <Sliders className="h-4 w-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onEdit(camera)}
-              title={isVietnamese ? "Chỉnh sửa thông số camera" : "Edit camera parameters"}
-              className="rounded-xl p-2 text-muted-foreground hover:bg-surface-elevated hover:text-foreground transition shadow-[inset_1px_1px_2px_transparent] active:shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
-            >
-              <Edit2 className="h-4 w-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onDelete(camera)}
-              title={isVietnamese ? "Xóa camera" : "Delete camera"}
-              className="rounded-xl p-2 text-danger/80 hover:bg-danger/10 hover:text-danger transition shadow-[inset_1px_1px_2px_transparent] active:shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => onViewLive(camera)}
-              className="inline-flex items-center gap-1 rounded-xl border border-border/50 bg-background px-2.5 py-1.5 text-xs font-semibold text-foreground shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] transition hover:text-primary hover:-translate-y-0.5 active:translate-y-0"
-              title={isVietnamese ? "Mở Video Wall phát trực tiếp" : "Open live Video Wall"}
-            >
-              <Play className="h-3 w-3 text-primary fill-primary" />
-              <span>{isVietnamese ? "Live" : "Live"}</span>
-            </button>
-
-            <Link
-              href={`/cameras/${camera.id}`}
-              className="inline-flex items-center gap-1 rounded-xl bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/20"
-              title={isVietnamese ? "Mở trang chi tiết Camera AI Intelligence Studio" : "Open Camera AI Intelligence Studio"}
-            >
-              <span>{isVietnamese ? "Chi tiết" : "Detail"}</span>
-              <ArrowUpRight className="h-3 w-3" />
-            </Link>
-          </div>
+          {canManage && (
+            <>
+              <button
+                type="button"
+                onClick={() => onEdit(camera)}
+                title="Chỉnh sửa Camera"
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-foreground hover:text-primary ${NM.tactileBtn}`}
+              >
+                <Edit2 className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(camera)}
+                title="Xóa Camera"
+                className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-accent ${NM.tactileBtn}`}
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </>
+          )}
         </div>
       </div>
-    </div>
+    </article>
   );
-}
+});

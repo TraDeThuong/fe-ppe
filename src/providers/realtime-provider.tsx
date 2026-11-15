@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { RealtimeContext, type PpeAlertEvent } from "@/contexts/RealtimeContext";
 import { env } from "@/config/env";
@@ -102,8 +102,13 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     };
   }, [status]);
 
+  const contextValue = useMemo(
+    () => ({ isConnected, lastAlert }),
+    [isConnected, lastAlert],
+  );
+
   return (
-    <RealtimeContext.Provider value={{ isConnected, lastAlert }}>
+    <RealtimeContext.Provider value={contextValue}>
       {children}
     </RealtimeContext.Provider>
   );

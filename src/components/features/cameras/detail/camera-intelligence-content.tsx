@@ -2,2104 +2,787 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Camera } from "lucide-react";
+import toast from "react-hot-toast";
+import { NM } from "@/components/features/ai-test/nm-styles";
+import { normalizeLiveEvidences } from "@/components/features/ai-test/ai-test-utils";
+import { EvidenceGalleryPanel } from "@/components/features/ai-test/evidence-gallery-panel";
+import { EvidenceLightboxModal } from "@/components/features/ai-test/evidence-lightbox-modal";
 import {
-  Activity,
-  ArrowLeft,
-  Building2,
-  Camera,
-  Cctv,
-  CheckCircle2,
-  Cpu,
-  Download,
-  Layers,
-  MapPin,
-  Radio,
-  RefreshCw,
-  Scan,
-  ShieldAlert,
-  ShieldCheck,
-  Sliders,
-  Sparkles,
-  Wifi,
-  X,
-  Zap,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { useCameraDetail } from "@/hooks/cameras";
-import { useTableState } from "@/hooks/use-table-state";
-import { useIncidents } from "@/hooks/incidents";
-import { useSiteSafetyConfig } from "@/hooks/sites";
+  CameraHealthDialog,
+  EditCameraModal,
+} from "@/components/features/cameras";
+import {
+  buildCameraHotConfigPayload,
+  buildCameraStartPayload,
+  canAutoStartCameraSource,
+  deriveLiveDefaultsFromConfig,
+  mergeCameraEvidences,
+  normalizeIncidentEvidences,
+  resolveCameraSourceIssue,
+  toSafeLiveCameraId,
+} from "@/components/features/cameras/camera-live-helpers";
+import {
+  useCameraConfig,
+  useCameraDetail,
+  useCameraLiveSessions,
+  useUpdateCamera,
+  useUpdateCameraConfig,
+} from "@/hooks/cameras";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
-import { cameraService } from "@/services/camera.service";
-import { siteService } from "@/services/site.service";
+import { useCan } from "@/hooks/use-can";
+import { aiTestService } from "@/services/ai-test.service";
 import { incidentService } from "@/services/incident.service";
-import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
-import { notificationKeys } from "@/hooks/notifications/notification.query-keys";
-import { useQueryClient } from "@tanstack/react-query";
-import { toast as hotToast } from "react-hot-toast";
-import { toast } from "@/lib/toast";
-import { useLocale } from "@/providers/locale-provider";
-import { CameraHealthDialog } from "../camera-health-dialog";
-import { CameraRoiDrawer } from "../camera-roi-drawer";
-import { AiInspectionModal } from "./ai-inspection-modal";
-import { CameraAiInspectorCard } from "./camera-ai-inspector-card";
-import { CameraIntelligencePlayer, getYouTubeEmbedUrl } from "./camera-intelligence-player";
-import { CameraIntelligenceSidebar } from "./camera-intelligence-sidebar";
-import { CameraTelemetryTables } from "./camera-telemetry-tables";
-import { generateLiveFrameEntry } from "./live-tracking-engine";
-import type {
-  AiInspectionConfig,
-  ComputedPersonTrack,
-  FrameLogEntry,
-  StreamMetadata,
-  StreamType,
-  ViolationEvent,
-} from "./types";
+import { Loader } from "@/components/ui/loader";
+import { CameraIncidentsDeviceTab } from "./camera-incidents-device-tab";
+import { CameraLiveControlDeck } from "./camera-live-control-deck";
+import { CameraLiveTelemetry } from "./camera-live-telemetry";
+import { CameraLiveViewport } from "./camera-live-viewport";
+import {
+  CameraStudioHeader,
+  type CameraStudioTab,
+} from "./camera-studio-header";
+import type { EvidenceItem, LiveStatsResponse } from "@/types/ai-test.types";
+import type { UpdateCameraPayload } from "@/types";
 
 export interface CameraIntelligenceContentProps {
   cameraId: string;
 }
 
+function getEvidenceKey(item: {
+  event_id?: string;
+  evidence_id?: string;
+  id?: string;
+  filename?: string;
+}): string | undefined {
+  return item.event_id ?? item.evidence_id ?? item.id ?? item.filename;
+}
+
+function areEvidenceArraysUnchanged<
+  T extends { event_id?: string; evidence_id?: string; id?: string; filename?: string },
+>(prev: T[] | undefined, next: T[] | undefined): boolean {
+  if (prev === next) return true;
+  if (!prev || !next || prev.length !== next.length) return false;
+  if (prev.length === 0) return true;
+  const lastPrev = getEvidenceKey(prev[prev.length - 1]);
+  const lastNext = getEvidenceKey(next[next.length - 1]);
+  return lastPrev !== undefined && lastPrev === lastNext;
+}
+
+function mergePolledStats(
+  prev: LiveStatsResponse | null,
+  next: LiveStatsResponse,
+): LiveStatsResponse {
+  if (!prev) return next;
+  const sameViolations = areEvidenceArraysUnchanged(
+    prev.recent_violations,
+    next.recent_violations,
+  );
+  const sameEvidences = areEvidenceArraysUnchanged(
+    prev.evidences,
+    next.evidences,
+  );
+  if (!sameViolations && !sameEvidences) return next;
+  return {
+    ...next,
+    recent_violations: sameViolations
+      ? prev.recent_violations
+      : next.recent_violations,
+    evidences: sameEvidences ? prev.evidences : next.evidences,
+  };
+}
+
 export function CameraIntelligenceContent({
   cameraId,
 }: CameraIntelligenceContentProps) {
-  const router = useRouter();
-  const { locale } = useLocale();
-  const isVietnamese = locale === "vi-VN";
-  const { getSiteName, getZoneName } = useEntityLookup();
+  const canManage = useCan()("PPE_CAMERA_MANAGE");
+  const { getSiteName } = useEntityLookup();
 
-  // 1. Lấy dữ liệu Camera thực tế từ Database / Camera Service
-  const { data: camera, isLoading: isCameraLoading } = useCameraDetail(cameraId);
-
-  const incidentsTable = useTableState([{ id: "detectedAt", desc: true }], cameraId);
-
-  // 2. Lấy dữ liệu sự cố vi phạm THỰC TẾ từ Backend API theo cameraId này
   const {
-    data: incidentsResult,
-    isLoading: isIncidentsLoading,
-    isFetching: incidentsFetching,
-    error: incidentsError,
-    refetch: refetchIncidents,
-  } = useIncidents({
+    data: camera,
+    isLoading: cameraLoading,
+    refetch: refetchCamera,
+  } = useCameraDetail(cameraId);
+
+  const { data: cameraConfig, refetch: refetchConfig } = useCameraConfig(
     cameraId,
-    page: incidentsTable.pagination.pageIndex + 1,
-    limit: incidentsTable.pagination.pageSize,
-    sortBy: "detectedAt",
-    sortOrder: "desc",
-  });
-  const realIncidents = useMemo(() => incidentsResult?.items || [], [incidentsResult]);
+    Boolean(cameraId),
+  );
 
-  // 3. Lấy cấu hình quy tắc an toàn của Site trực thuộc để camera áp dụng đồng bộ
-  const siteId = camera?.siteId || "";
-  const { data: siteSafetyConfig } = useSiteSafetyConfig(siteId, Boolean(siteId));
-  const siteName = camera?.siteName || getSiteName(siteId) || (isVietnamese ? "Công Trường Xây Dựng" : "Construction Site");
-  const zoneName = camera?.zoneName || getZoneName(siteId, camera?.zoneId) || (isVietnamese ? "Khu vực chung" : "General Zone");
+  const updateCameraMutation = useUpdateCamera();
+  const updateConfigMutation = useUpdateCameraConfig();
 
-  // Nguồn video gốc từ camera DB hoặc tùy chọn ghi đè tạm thời (Upload file / Đổi URL / Webcam)
-  const cameraStreamUrl = camera?.streamUrl || "";
-  const [analyzedVideoUrl, setAnalyzedVideoUrl] = useState<string | null>(null);
+  const {
+    engineOnline,
+    engineError,
+    models,
+    videos: liveVideos,
+    getSessionForCamera,
+    refreshAll: refreshAiEngine,
+  } = useCameraLiveSessions({ enabled: true, pollIntervalMs: 3000 });
 
-  const defaultStreamUrl = useMemo(() => {
-    if (analyzedVideoUrl) return analyzedVideoUrl;
-    if (cameraStreamUrl) return cameraStreamUrl;
-    return "";
-  }, [analyzedVideoUrl, cameraStreamUrl]);
-
-  const [customStreamUrl, setCustomStreamUrl] = useState<string | null>(null);
-  const effectiveStreamUrl = customStreamUrl || defaultStreamUrl;
-
-  // Dữ liệu nhật ký AI Tracking thực tế (từ các job YOLOv11 + ByteTrack)
-  const [realLogData, setRealLogData] = useState<{
-    meta?: any;
-    frames: FrameLogEntry[];
-  } | null>(null);
-
-  // Reset toàn bộ state khi chuyển giữa các camera để chống hiển thị nhầm video camera khác
-  useEffect(() => {
-    setCustomStreamUrl(null);
-    setAnalyzedVideoUrl(null);
-    setRealLogData(null);
-    setLiveElapsedSec(0);
-    setCapturedSnapshotUrl(null);
-    setLiveSessionId(null);
-    setLiveSessionState(null);
-    setSessionViolations([]);
-  }, [cameraId]);
-
-  // Trạng thái Phiên Live AI Engine (Look-Ahead Pre-Buffer trên port 8000)
-  const [liveSessionId, setLiveSessionId] = useState<string | null>(null);
-  const [liveSessionState, setLiveSessionState] = useState<any | null>(null);
-
-  // 4. Phân tích loại luồng & tỷ lệ khung hình thực tế của Video
-  const streamMetadata = useMemo<StreamMetadata>(() => {
-    const url = effectiveStreamUrl.trim();
-    const { isShorts, youtubeId } = getYouTubeEmbedUrl(url);
-
-    // Ưu tiên kích thước và tỷ lệ từ file log AI thật (đã được đo đạc chuẩn xác)
-    if (realLogData?.meta?.viewBox || realLogData?.meta?.size) {
-      const box = realLogData.meta.viewBox || realLogData.meta.size;
-      if (Array.isArray(box) && box.length === 2 && box[0] > 0 && box[1] > 0) {
-        const [w, h] = box;
-        const vertical = Boolean(realLogData.meta.isVertical ?? h > w);
-        return {
-          streamType: url.includes("shorts") ? "youtube_shorts" : youtubeId ? "youtube_video" : "html5_video",
-          isVertical: vertical,
-          videoWidth: w,
-          videoHeight: h,
-          youtubeId,
-          aspectRatioLabel: `${w} × ${h} (${vertical ? "Dọc" : "Ngang"} YOLOv11 AI)`,
-          sourceUrl: url,
-          fps: realLogData.meta.fps || 25,
-        };
-      }
-    }
-
-    // Ưu tiên kích thước thực tế từ Look-Ahead Live AI Engine nếu đã có
-    if (liveSessionState && Array.isArray(liveSessionState.size) && liveSessionState.size.length === 2) {
-      const [w, h] = liveSessionState.size;
-      const vertical = Boolean(liveSessionState.is_vertical ?? h > w);
-      return {
-        streamType: url.toLowerCase().includes("webcam")
-          ? "webcam"
-          : isShorts
-          ? "youtube_shorts"
-          : youtubeId
-          ? "youtube_video"
-          : "rtsp",
-        isVertical: vertical,
-        videoWidth: w || 1280,
-        videoHeight: h || 720,
-        youtubeId,
-        aspectRatioLabel: `${w} × ${h} (AI Frame-Locked ${Math.round(liveSessionState.fps || 25)} FPS)`,
-        sourceUrl: url,
-        fps: liveSessionState.fps || 25,
-      };
-    }
-
-    let streamType: StreamType = "rtsp";
-    let isVertical = isShorts;
-    let videoWidth = isShorts ? 720 : 1280;
-    let videoHeight = isShorts ? 1280 : 720;
-    let fps = 25;
-    let aspectRatioLabel = isShorts ? "720 × 1280 (9:16 Shorts Dọc)" : "1280 × 720 (16:9 Video)";
-
-    if (isShorts) {
-      streamType = "youtube_shorts";
-      isVertical = true;
-      videoWidth = 720;
-      videoHeight = 1280;
-      aspectRatioLabel = "720 × 1280 (9:16 Shorts Dọc)";
-    } else if (youtubeId) {
-      streamType = "youtube_video";
-      isVertical = false;
-      videoWidth = 1280;
-      videoHeight = 720;
-      aspectRatioLabel = "1280 × 720 (16:9 YouTube)";
-    } else if (url.toLowerCase().includes("webcam")) {
-      streamType = "webcam";
-      isVertical = false;
-      videoWidth = 1280;
-      videoHeight = 720;
-      aspectRatioLabel = "1280 × 720 (Webcam Live)";
-    } else if (
-      url.endsWith(".mp4") ||
-      url.endsWith(".webm") ||
-      url.startsWith("blob:") ||
-      url.includes("/videos/")
-    ) {
-      streamType = "html5_video";
-      isVertical = false;
-      videoWidth = 1280;
-      videoHeight = 720;
-      aspectRatioLabel = "1280 × 720 (HTML5 MP4 Native)";
-    }
-
-    return {
-      streamType,
-      isVertical,
-      videoWidth,
-      videoHeight,
-      youtubeId,
-      aspectRatioLabel,
-      sourceUrl: url,
-      fps,
-    };
-  }, [effectiveStreamUrl, liveSessionState, realLogData]);
-
-  // 5. Trạng thái cấu hình tham số AI riêng cho camera (tích hợp Modal AI Inspection)
-  const [aiConfig, setAiConfig] = useState<AiInspectionConfig>(() => {
-    const defaults: AiInspectionConfig = {
-      confidenceThreshold: 0.8,
-      confirmationDuration: 3.0,
-      cooldownDuration: 30,
-      enableNoHelmet: true,
-      enableNoVest: true,
-      enableRestrictedArea: true,
-      modelVersionId: "models/best.pt",
-      processFps: 25,
-    };
-    if (typeof window !== "undefined") {
-      try {
-        const raw = localStorage.getItem(`ppe_camera_ai_config_${cameraId}`);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (
-            parsed.modelVersionId === "models/yolo11s-best.pt" ||
-            parsed.modelVersionId === "yolo11s-ppe-best"
-          ) {
-            parsed.modelVersionId = "models/best.pt";
-          }
-          return { ...defaults, ...parsed };
-        }
-      } catch {
-        // ignore localStorage parse error
-      }
-    }
-    return defaults;
+  const {
+    data: incidentsData,
+    isLoading: incidentsLoading,
+    refetch: refetchIncidents,
+  } = useQuery({
+    queryKey: ["camera-detail-incidents", cameraId],
+    queryFn: () =>
+      incidentService.getIncidents({ cameraId, limit: 30, sortOrder: "desc" }),
+    enabled: Boolean(cameraId),
+    staleTime: 15_000,
   });
 
-  // 5b. Danh sách vùng cấm nguy hiểm có hiệu lực cho camera này
-  const [effectiveRestrictedAreas, setEffectiveRestrictedAreas] = useState<any[]>([]);
+  const incidents = useMemo(() => incidentsData?.items ?? [], [incidentsData]);
 
-  // Helper ánh xạ modelVersionId sang đường dẫn file .pt thực tế trong cấu trúc Đa Model
-  const resolveModelPath = (modelVersionId?: string): string => {
-    if (!modelVersionId) return "models/best.pt";
-    if (
-      modelVersionId === "models/yolo11s-best.pt" ||
-      modelVersionId === "yolo11s-ppe-best" ||
-      modelVersionId === "yolo11m-ppe-finetune" ||
-      modelVersionId === "best.pt" ||
-      modelVersionId === "0192e210-0000-7000-8000-000000000001"
-    ) {
-      return "models/best.pt";
-    }
-    if (modelVersionId.endsWith(".pt")) return modelVersionId;
-    return "models/best.pt";
-  };
+  const [activeTab, setActiveTab] = useState<CameraStudioTab>("live");
+  const [overrideSource, setOverrideSource] = useState<string>("");
+  const [overrideHighlightTick, setOverrideHighlightTick] = useState<number>(0);
+  const [selectedModel, setSelectedModel] = useState<string>("");
 
-  // Nạp cấu hình hiệu lực từ Backend (Site Service) kết hợp localStorage
+  const [targetFps, setTargetFps] = useState<number>(25);
+  const [aiFps, setAiFps] = useState<number>(15);
+  const [confirmHelmetSec, setConfirmHelmetSec] = useState<number>(2.0);
+  const [confirmVestSec, setConfirmVestSec] = useState<number>(4.0);
+
+  const [enableNoHelmet, setEnableNoHelmet] = useState<boolean>(true);
+  const [enableNoVest, setEnableNoVest] = useState<boolean>(true);
+  const [enableRestrictedArea, setEnableRestrictedArea] = useState<boolean>(true);
+  const [enableSceneCut, setEnableSceneCut] = useState<boolean>(true);
+  const [configHydrated, setConfigHydrated] = useState<boolean>(false);
+
+  const [stats, setStats] = useState<LiveStatsResponse | null>(null);
+  const [statsCheckedFor, setStatsCheckedFor] = useState<string | null>(null);
+  const [streamNonce, setStreamNonce] = useState<number>(() => Date.now());
+  const [isStarting, setIsStarting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isApplyingConfig, setIsApplyingConfig] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
+
+  const [pingOpen, setPingOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [lightbox, setLightbox] = useState<{
+    open: boolean;
+    items: EvidenceItem[];
+    index: number;
+  }>({ open: false, items: [], index: 0 });
+
+  const autoStartedForRef = useRef<string | null>(null);
+  const userStoppedRef = useRef<boolean>(false);
+  const prevViolationsCountRef = useRef<number | null>(null);
+
+  const liveCameraId = useMemo(
+    () => (camera ? toSafeLiveCameraId(camera) : toSafeLiveCameraId(cameraId)),
+    [camera, cameraId],
+  );
+
+  // Sync default AI model
   useEffect(() => {
+    if (models.length === 0) return;
+    if (!models.some((m) => m.path === selectedModel)) {
+      const def = models.find((m) => m.is_default) ?? models[0];
+      setSelectedModel(def.path);
+    }
+  }, [models, selectedModel]);
+
+  // Hydrate live defaults from CameraConfigItem once
+  useEffect(() => {
+    if (!cameraConfig || configHydrated) return;
+    const defaults = deriveLiveDefaultsFromConfig(cameraConfig);
+    setTargetFps(defaults.targetFps);
+    setAiFps(defaults.aiFps);
+    setEnableNoHelmet(defaults.enableNoHelmet);
+    setEnableNoVest(defaults.enableNoVest);
+    setEnableRestrictedArea(defaults.enableRestrictedArea);
+    setEnableSceneCut(defaults.enableSceneCut);
+    setConfigHydrated(true);
+  }, [cameraConfig, configHydrated]);
+
+  const runningSession = useMemo(
+    () => (camera ? getSessionForCamera(camera) : undefined),
+    [camera, getSessionForCamera],
+  );
+
+  const dbRunnableSource = useMemo(() => {
+    if (!camera) return "";
+    if (!canAutoStartCameraSource(camera, liveVideos)) return "";
+    if (String(camera.sourceType).toUpperCase() === "WEBCAM") {
+      const trimmed = (camera.streamUrl ?? "").trim();
+      return /^[0-9]$/.test(trimmed) ? trimmed : "0";
+    }
+    return (camera.streamUrl ?? "").trim();
+  }, [camera, liveVideos]);
+
+  const effectiveSource = useMemo(() => {
+    if (overrideSource.trim()) return overrideSource.trim();
+    if (runningSession?.status === "running" && runningSession.source) {
+      return runningSession.source;
+    }
+    return dbRunnableSource;
+  }, [dbRunnableSource, overrideSource, runningSession]);
+
+  const sourceNote = useMemo(() => {
+    if (!camera) return null;
+    if (overrideSource.trim() || runningSession?.status === "running") {
+      return null;
+    }
+    return resolveCameraSourceIssue(camera, liveVideos);
+  }, [camera, liveVideos, overrideSource, runningSession]);
+
+  // Sync FPS from an already-running session
+  useEffect(() => {
+    if (!runningSession || runningSession.status !== "running") return;
+    if (typeof runningSession.target_fps === "number") {
+      setTargetFps(runningSession.target_fps);
+    }
+    if (typeof runningSession.ai_fps === "number") {
+      setAiFps(runningSession.ai_fps);
+    }
+  }, [runningSession]);
+
+  // Poll GET /api/live/{liveCameraId}/stats every 800ms (continuous tracking)
+  useEffect(() => {
+    if (!liveCameraId) return;
     let cancelled = false;
 
-    async function loadEffectiveConfig() {
+    const poll = async () => {
       try {
-        const effective = await siteService.getEffectiveSafetyConfig({
-          cameraId,
-          siteId: siteId || undefined,
-        });
-
-        if (!cancelled && effective) {
-          if (Array.isArray(effective.restrictedAreas)) {
-            setEffectiveRestrictedAreas(effective.restrictedAreas);
-          }
-          setAiConfig((prev) => ({
-            ...prev,
-            confidenceThreshold:
-              effective.confidenceThreshold ?? prev.confidenceThreshold,
-            confirmationDuration:
-              effective.confirmationDuration ?? prev.confirmationDuration,
-            cooldownDuration:
-              effective.cooldownDuration ?? prev.cooldownDuration,
-            enableNoHelmet:
-              effective.rules?.enableNoHelmet ?? prev.enableNoHelmet,
-            enableNoVest:
-              effective.rules?.enableNoVest ?? prev.enableNoVest,
-            enableRestrictedArea:
-              effective.rules?.enableRestrictedArea ?? prev.enableRestrictedArea,
-            modelVersionId:
-              effective.modelVersion?.modelPath ||
-              resolveModelPath(prev.modelVersionId),
-            processFps:
-              effective.captureFps ?? camera?.config?.captureFps ?? prev.processFps,
-          }));
+        const data = await aiTestService.getLiveStats(liveCameraId);
+        if (!cancelled) {
+          setStats((prev) => mergePolledStats(prev, data));
         }
       } catch {
-        // Fallback sang localStorage hoặc siteSafetyConfig nếu API effective chưa phản hồi
-        let savedLocal: Partial<AiInspectionConfig> = {};
-        try {
-          const raw = localStorage.getItem(`ppe_camera_ai_config_${cameraId}`);
-          if (raw) savedLocal = JSON.parse(raw);
-        } catch {
-          // ignore
-        }
         if (!cancelled) {
-          setAiConfig((prev) => ({
-            ...prev,
-            confidenceThreshold:
-              savedLocal.confidenceThreshold ?? prev.confidenceThreshold,
-            confirmationDuration:
-              savedLocal.confirmationDuration ??
-              siteSafetyConfig?.confirmationDuration ??
-              prev.confirmationDuration,
-            cooldownDuration:
-              savedLocal.cooldownDuration ??
-              siteSafetyConfig?.cooldownDuration ??
-              prev.cooldownDuration,
-            enableNoHelmet:
-              savedLocal.enableNoHelmet ??
-              siteSafetyConfig?.enableNoHelmet ??
-              prev.enableNoHelmet,
-            enableNoVest:
-              savedLocal.enableNoVest ??
-              siteSafetyConfig?.enableNoVest ??
-              prev.enableNoVest,
-            enableRestrictedArea:
-              savedLocal.enableRestrictedArea ??
-              siteSafetyConfig?.enableRestrictedArea ??
-              prev.enableRestrictedArea,
-            modelVersionId: resolveModelPath(
-              savedLocal.modelVersionId || prev.modelVersionId
-            ),
-            processFps:
-              savedLocal.processFps ??
-              camera?.config?.captureFps ??
-              prev.processFps,
-          }));
+          setStats((prev) =>
+            prev && prev.status === "running"
+              ? { ...prev, status: "stopped" }
+              : prev,
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setStatsCheckedFor((prev) =>
+            prev === liveCameraId ? prev : liveCameraId,
+          );
         }
       }
-    }
+    };
 
-    if (cameraId) {
-      loadEffectiveConfig();
-    }
+    void poll();
+    const timer = window.setInterval(() => {
+      void poll();
+    }, 800);
 
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
-  }, [cameraId, siteId, siteSafetyConfig, camera?.config?.captureFps]);
+  }, [liveCameraId]);
 
-  // 6. Trạng thái điều khiển Real-time AI Tracking & Modals
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
-  const [showBbox, setShowBbox] = useState<boolean>(true);
-  const [liveElapsedSec, setLiveElapsedSec] = useState<number>(0);
-  const [aiModalOpen, setAiModalOpen] = useState<boolean>(false);
-  const [healthModalOpen, setHealthModalOpen] = useState<boolean>(false);
-  const [roiDrawerOpen, setRoiDrawerOpen] = useState<boolean>(false);
-  const [capturedSnapshotUrl, setCapturedSnapshotUrl] = useState<string | null>(null);
-  const [lightboxEvidenceUrl, setLightboxEvidenceUrl] = useState<string | null>(null);
-  // Danh sách sự kiện vi phạm tích lũy trong toàn bộ phiên xem (không bị xóa khi video loop lại)
-  const [sessionViolations, setSessionViolations] = useState<ViolationEvent[]>([]);
-
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-
-  // Vòng lặp đồng bộ thời gian phát dự phòng khi không dùng thẻ <video> native
-  useEffect(() => {
-    if (!isPlaying) return;
-
-    const isNativeVideo =
-      effectiveStreamUrl.endsWith(".mp4") ||
-      effectiveStreamUrl.endsWith(".webm") ||
-      effectiveStreamUrl.startsWith("blob:") ||
-      effectiveStreamUrl.startsWith("/videos/");
-
-    if (isNativeVideo || liveSessionId) return;
-
-    const interval = setInterval(() => {
-      setLiveElapsedSec((prev) => prev + 0.04);
-    }, 40);
-    return () => clearInterval(interval);
-  }, [isPlaying, effectiveStreamUrl, liveSessionId]);
-
-  useEffect(() => {
-    let active = true;
-
-    const safeId = cameraId ? cameraId.replace(/[^a-zA-Z0-9_-]/g, "") : "";
-    const shortId = safeId ? safeId.slice(0, 8) : "";
-    const rawStreamLower = (cameraStreamUrl || "").toLowerCase();
-
-    // Danh sách ứng viên (logUrl, videoUrl) ưu tiên khớp chính xác ID camera hoặc nguồn video chuẩn
-    const candidates: Array<{ logUrl: string; videoUrl: string }> = [];
-    if (safeId) {
-      candidates.push({
-        logUrl: `/data/camera-${safeId}-log.json`,
-        videoUrl: `/videos/cameras/camera-${safeId}.mp4`,
-      });
-    }
-    if (shortId && shortId !== safeId) {
-      candidates.push({
-        logUrl: `/data/camera-${shortId}-log.json`,
-        videoUrl: `/videos/cameras/camera-${shortId}.mp4`,
-      });
-    }
-
-    const inferLogMeta = (frames: FrameLogEntry[], rawMeta?: any) => {
-      if (rawMeta?.size && Array.isArray(rawMeta.size) && rawMeta.size.length === 2) {
-        return rawMeta;
-      }
-      let maxX = 0;
-      let maxY = 0;
-      for (const fr of frames.slice(0, 120)) {
-        for (const det of fr.detections || []) {
-          if (Array.isArray(det.bbox) && det.bbox.length === 4) {
-            if (det.bbox[2] > maxX) maxX = det.bbox[2];
-            if (det.bbox[3] > maxY) maxY = det.bbox[3];
-          }
+  const handleStartStream = useCallback(
+    async (nextOverride?: string, options?: { silent?: boolean }) => {
+      if (!camera) return;
+      const sourceToRun = (nextOverride ?? effectiveSource).trim();
+      if (!sourceToRun) {
+        if (!options?.silent) {
+          toast.error(
+            "Camera chưa có nguồn AI khả dụng trực tiếp — hãy gắn Nguồn Override trong Tab 03.",
+          );
         }
-      }
-      let inferredSize: [number, number] = [1280, 720];
-      if (maxY > 1280 && maxX <= 1080) {
-        inferredSize = [1080, 1920];
-      } else if (maxY > 1280 && maxX <= 900) {
-        inferredSize = [900, 1596];
-      } else if (maxY > 720 && maxX <= 720) {
-        inferredSize = [720, 1280];
-      } else if (maxY > 640 && maxX <= 480) {
-        inferredSize = [480, 854];
-      } else if (maxY <= 640 && maxX <= 360 && maxY > maxX) {
-        inferredSize = [360, 640];
-      }
-      const lastT = frames[frames.length - 1]?.t || 10;
-      const inferredFps = lastT > 0 ? Math.round(frames.length / lastT) || 25 : 25;
-      return {
-        ...rawMeta,
-        size: inferredSize,
-        viewBox: inferredSize,
-        isVertical: inferredSize[1] > inferredSize[0],
-        fps: rawMeta?.fps || inferredFps,
-      };
-    };
-
-    const loadCandidateAt = async (idx: number) => {
-      if (!active || idx >= candidates.length) {
-        if (active) setRealLogData(null);
         return;
       }
-      const cand = candidates[idx];
+
+      userStoppedRef.current = false;
+      setIsStarting(true);
       try {
-        const res = await fetch(cand.logUrl);
-        if (!res.ok) {
-          await loadCandidateAt(idx + 1);
-          return;
-        }
-        const data = await res.json();
-        const frames: FrameLogEntry[] = Array.isArray(data) ? data : data?.frames;
-        if (active && Array.isArray(frames) && frames.length > 0) {
-          const normalizedMeta = inferLogMeta(frames, data?.meta);
-          setRealLogData({ frames, meta: normalizedMeta });
-          setAnalyzedVideoUrl(cand.videoUrl);
-        } else {
-          await loadCandidateAt(idx + 1);
-        }
-      } catch {
-        await loadCandidateAt(idx + 1);
-      }
-    };
-
-    if (candidates.length > 0) {
-      loadCandidateAt(0);
-    } else {
-      setRealLogData(null);
-    }
-
-    return () => {
-      active = false;
-    };
-  }, [cameraId, cameraStreamUrl]);
-
-  // Bộ tính toán Pipeline an toàn thời gian thực ĐỘNG (chỉ làm fallback khi port 8000 tắt)
-  const liveTrackingData = useMemo(() => {
-    return generateLiveFrameEntry({
-      elapsedSec: liveElapsedSec,
-      cameraCode: camera?.code || "CAM-01",
-      cameraId,
-      siteName,
-      safetyConfig: {
-        ...aiConfig,
-        locale,
-      },
-      streamMetadata,
-      customSnapshotUrl: capturedSnapshotUrl,
-    });
-  }, [
-    liveElapsedSec,
-    camera?.code,
-    cameraId,
-    siteName,
-    aiConfig,
-    locale,
-    streamMetadata,
-    capturedSnapshotUrl,
-  ]);
-
-  // Tiền xử lý danh sách vi phạm và tracks công nhân từ file log AI để tối ưu hiệu năng
-  const { fullViolations, fullPersonTracks } = useMemo(() => {
-    if (!realLogData?.frames || realLogData.frames.length === 0) {
-      return { fullViolations: [], fullPersonTracks: [] };
-    }
-    const allViolations: ViolationEvent[] = [];
-    const trackMap = new Map<number, ComputedPersonTrack>();
-
-    for (const f of realLogData.frames) {
-      if (f.violations && f.violations.length > 0) {
-        for (const v of f.violations) {
-          if (!allViolations.some((x) => x.event_id === v.event_id)) {
-            const matchedEv =
-              f.evidence?.find((e) => e.event_id === v.event_id) || f.evidence?.[0];
-            const rawEvPath = v.evidence_path || matchedEv?.path;
-            const rawRefPath =
-              v.reference_path ||
-              matchedEv?.reference_path ||
-              (rawEvPath?.startsWith("/api/jobs/live/evidence/")
-                ? rawEvPath.replace(/\.jpg$/i, "_ref.jpg")
-                : undefined);
-            allViolations.push({
-              ...v,
-              frame: v.frame || f.frame,
-              evidence_path: rawEvPath,
-              reference_path: rawRefPath,
-            });
-          }
-        }
-      }
-      for (const p of f.persons || []) {
-        if (!trackMap.has(p.track_id)) {
-          trackMap.set(p.track_id, {
-            id: p.track_id,
-            frames: [],
-            okFrames: [],
-            noHelmetFrames: new Set<number>(),
-            noVestFrames: new Set<number>(),
-            unknownCount: 0,
-          });
-        }
-        const trk = trackMap.get(p.track_id)!;
-        trk.frames.push(f.frame);
-        if (p.status === "COMPLIANT") {
-          trk.okFrames.push(f.frame);
-        } else if (
-          p.violations?.includes("no_helmet") ||
-          p.violations?.includes("NO_HELMET")
-        ) {
-          trk.noHelmetFrames.add(f.frame);
-        } else if (
-          p.violations?.includes("no_safety_vest") ||
-          p.violations?.includes("NO_VEST")
-        ) {
-          trk.noVestFrames.add(f.frame);
-        }
-      }
-    }
-
-    return {
-      fullViolations: allViolations,
-      fullPersonTracks: Array.from(trackMap.values()).sort((a, b) => a.id - b.id),
-    };
-  }, [realLogData]);
-
-  // Đồng bộ Bounding Box & Telemetry chuẩn xác 100% theo từng frame
-  const resolvedTrackingData = useMemo(() => {
-    const isUsingLocalAnalyzedVideo =
-      !customStreamUrl && Boolean(analyzedVideoUrl && realLogData?.frames?.length);
-
-    // 1. Khi phát thẻ <video> MP4 cục bộ có sẵn file Log AI chuẩn:
-    // Đồng bộ trực tiếp với currentTime của thẻ <video> để khớp 100% từng miligiây (0ms drift)
-    if (isUsingLocalAnalyzedVideo && realLogData?.frames && realLogData.frames.length > 0) {
-      const frames = realLogData.frames;
-      const totalDuration = frames[frames.length - 1].t || 10.08;
-      const loopedTime = totalDuration > 0 ? liveElapsedSec % totalDuration : 0;
-
-      // Tìm frame có timestamp t gần nhất bằng Binary Search
-      let low = 0;
-      let high = frames.length - 1;
-      let bestIdx = 0;
-      while (low <= high) {
-        const mid = Math.floor((low + high) / 2);
-        if (frames[mid].t <= loopedTime) {
-          bestIdx = mid;
-          low = mid + 1;
-        } else {
-          high = mid - 1;
-        }
-      }
-      const rawFrame = frames[bestIdx];
-
-      // Nếu tắt xử lý AI (processingEnabled === false), trả về khung hình trống không vẽ box
-      if (camera?.config?.processingEnabled === false) {
-        return {
-          entry: {
-            ...rawFrame,
-            detections: [],
-            persons: [],
-            associations: [],
-            confirmations: [],
-          },
-          violations: [],
-          personTracks: [],
-          isRealAiLog: true,
-        };
-      }
-
-      const currentViolations = fullViolations.filter((v) => v.frame <= rawFrame.frame);
-
-      return {
-        entry: rawFrame,
-        violations: currentViolations,
-        personTracks: fullPersonTracks.length > 0 ? fullPersonTracks : liveTrackingData.personTracks,
-        isRealAiLog: true,
-      };
-    }
-
-    // 2. Dữ liệu thời gian thực từ Live AI Engine (qua proxy /api/ai-test/live)
-    if (liveSessionId && liveSessionState) {
-      const liveFps = liveSessionState.metrics?.fps || liveSessionState.fps || 25;
-      const liveEntry: FrameLogEntry = liveSessionState.entry || {
-        frame: liveSessionState.current_frame || 0,
-        t: Number(((liveSessionState.current_frame || 0) / liveFps).toFixed(2)),
-        detections: [],
-        summary: {
-          person: liveSessionState.metrics?.active_persons ?? 0,
-          helmet: 0,
-          safety_vest: 0,
-          tracks: liveSessionState.metrics?.active_persons ?? 0,
-        },
-        events: [],
-        persons: [],
-        confirmations: [],
-        violations: [],
-        evidence: [],
-      };
-
-      const mappedTracks: ComputedPersonTrack[] = Array.isArray(liveSessionState.person_tracks)
-        ? liveSessionState.person_tracks.map((t: any) => ({
-            id: t.id,
-            frames: Array.isArray(t.frames) ? t.frames : [],
-            okFrames: Array.isArray(t.okFrames) ? t.okFrames : [],
-            noHelmetFrames: new Set<number>(Array.isArray(t.noHelmetFrames) ? t.noHelmetFrames : []),
-            noVestFrames: new Set<number>(Array.isArray(t.noVestFrames) ? t.noVestFrames : []),
-            unknownCount: t.unknownCount || 0,
-          }))
-        : [];
-
-      const rawLiveViolations = Array.isArray(liveSessionState.recent_violations)
-        ? liveSessionState.recent_violations
-        : Array.isArray(liveSessionState.violations)
-        ? liveSessionState.violations
-        : [];
-
-      const mappedViolations: ViolationEvent[] = rawLiveViolations.map((v: any) => ({
-        event_id: v.event_id,
-        camera_id: v.camera_id || liveSessionId,
-        person: v.person ?? v.person_id ?? v.canonical_person_id ?? 0,
-        canonical_person: v.canonical_person ?? v.canonical_person_id,
-        violation_type: v.violation_type || "no_helmet",
-        start_t: v.start_t ?? 0,
-        confirmed_t: v.confirmed_t ?? v.start_t ?? 0,
-        duration_s: v.duration_s ?? 0,
-        frame: v.frame ?? 0,
-        evidence_path: v.evidence_path ?? v.snapshot_url,
-        reference_path: v.reference_path ?? v.reference_snapshot_url,
-        reference_type: v.reference_type,
-        dispatched_via: v.dispatched_via ?? null,
-        box: v.box,
-      }));
-
-      return {
-        entry: liveEntry,
-        violations: mappedViolations,
-        personTracks: mappedTracks,
-        isRealAiLog: true,
-      };
-    }
-
-    // 3. Nếu đang xem một Job đã xử lý sẵn với customStreamUrl
-    if (realLogData?.frames && realLogData.frames.length > 0) {
-      const frames = realLogData.frames;
-      const totalDuration = frames[frames.length - 1].t || 10.08;
-      const loopedTime = totalDuration > 0 ? liveElapsedSec % totalDuration : 0;
-
-      let low = 0;
-      let high = frames.length - 1;
-      let bestIdx = 0;
-      while (low <= high) {
-        const mid = Math.floor((low + high) / 2);
-        if (frames[mid].t <= loopedTime) {
-          bestIdx = mid;
-          low = mid + 1;
-        } else {
-          high = mid - 1;
-        }
-      }
-      const frame = frames[bestIdx];
-      const currentViolations = fullViolations.filter((v) => v.frame <= frame.frame);
-
-      return {
-        entry: frame,
-        violations: currentViolations,
-        personTracks: fullPersonTracks.length > 0 ? fullPersonTracks : liveTrackingData.personTracks,
-        isRealAiLog: true,
-      };
-    }
-
-    // 4. Nếu chưa có log AI thực tế hoặc đang chạy phân tích, KHÔNG sinh box hay vi phạm giả lập
-    return {
-      entry: null,
-      violations: [],
-      personTracks: [],
-      isRealAiLog: false,
-    };
-  }, [
-    customStreamUrl,
-    analyzedVideoUrl,
-    liveSessionId,
-    liveSessionState,
-    realLogData,
-    liveElapsedSec,
-    fullViolations,
-    fullPersonTracks,
-    liveTrackingData,
-    camera?.config?.processingEnabled,
-  ]);
-
-  // Tên hiển thị mô hình AI trên HUD Video Player, Sidebar & Telemetry
-  const activeModelDisplayName = useMemo(() => {
-    const id = resolveModelPath(aiConfig.modelVersionId);
-    if (id.includes("best.pt")) {
-      return "YOLOv11s-PPE (best.pt)";
-    }
-    const cleanFileName = id.replace(/^models\//, "");
-    return `YOLO-PPE (${cleanFileName})`;
-  }, [aiConfig.modelVersionId]);
-
-  // Danh sách job tĩnh (không gọi port 8000)
-  const [availableAiJobs] = useState<
-    Array<{
-      job_id: string;
-      source: string;
-      total_frames: number;
-      fps: number;
-      model?: string;
-    }>
-  >([]);
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [isLoadingAiJob] = useState<boolean>(false);
-
-  const handleSelectAiJob = async (jobId: string) => {
-    if (!jobId) {
-      setSelectedJobId(null);
-      setCustomStreamUrl(null);
-      setLiveElapsedSec(0);
-      setSessionViolations([]);
-    }
-  };
-
-  const queryClient = useQueryClient();
-  const [autoAlertEnabled, setAutoAlertEnabled] = useState(true);
-  const [isSimulating, setIsSimulating] = useState(false);
-  const lastAutoIncidentTimeRef = useRef<number>(0);
-  const knownViolationsRef = useRef<Set<string>>(new Set());
-
-  /**
-   * Chụp khung hình thực tế từ thẻ <video> hiện tại và vẽ chính xác các Bounding Box AI thực tế
-   * từ `resolvedTrackingData.entry.detections` (tuyệt đối không dùng tọa độ giả lập cố định).
-   */
-  const captureCurrentVideoFrame = useCallback(
-    (annotate: boolean = true, forceViolationHighlight: boolean = false): string | null => {
-      try {
-        const v =
-          videoRef.current && videoRef.current.videoWidth && videoRef.current.videoHeight
-            ? videoRef.current
-            : typeof document !== "undefined"
-            ? document.querySelector<HTMLVideoElement>('video[data-webcam-video="true"]')
-            : null;
-
-        if (!v || !v.videoWidth || !v.videoHeight) {
-          return null;
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = v.videoWidth;
-        canvas.height = v.videoHeight;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return null;
-
-        // 1. Vẽ frame video gốc
-        ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
-
-        // 2. Nếu annotate=true: Vẽ trực tiếp các detections thực tế từ frame AI hiện tại lên canvas
-        if (annotate) {
-          const entryDets = resolvedTrackingData.entry?.detections || [];
-          const entryPersons = resolvedTrackingData.entry?.persons || [];
-          const personMap = new Map(entryPersons.map((p) => [p.track_id, p]));
-
-          // Xác định hệ tọa độ gốc của các detections
-          const [coordW, coordH] =
-            !customStreamUrl && analyzedVideoUrl && realLogData?.meta?.size
-              ? realLogData.meta.size
-              : liveSessionState?.size && liveSessionState.size.length === 2
-              ? liveSessionState.size
-              : [
-                  streamMetadata.videoWidth || canvas.width,
-                  streamMetadata.videoHeight || canvas.height,
-                ];
-
-          const scaleX = coordW > 0 ? canvas.width / coordW : 1;
-          const scaleY = coordH > 0 ? canvas.height / coordH : 1;
-
-          // Vẽ vùng ROI Polygon nếu có
-          const roiPoly = camera?.config?.roiPolygon;
-          if (Array.isArray(roiPoly) && roiPoly.length >= 3) {
-            ctx.save();
-            ctx.beginPath();
-            roiPoly.forEach((pt, idx) => {
-              const px = (pt.x <= 1 && pt.y <= 1 ? pt.x * coordW : pt.x) * scaleX;
-              const py = (pt.x <= 1 && pt.y <= 1 ? pt.y * coordH : pt.y) * scaleY;
-              if (idx === 0) ctx.moveTo(px, py);
-              else ctx.lineTo(px, py);
-            });
-            ctx.closePath();
-            ctx.fillStyle = "rgba(6, 182, 212, 0.08)";
-            ctx.fill();
-            ctx.strokeStyle = "#06b6d4";
-            ctx.lineWidth = Math.max(2, Math.round(canvas.width / 500));
-            ctx.setLineDash([8, 5]);
-            ctx.stroke();
-            ctx.restore();
-          }
-
-          // Vẽ các vùng cấm nguy hiểm Restricted Area (nếu bật enableRestrictedArea)
-          if (aiConfig.enableRestrictedArea && Array.isArray(effectiveRestrictedAreas) && effectiveRestrictedAreas.length > 0) {
-            effectiveRestrictedAreas.forEach((area: any) => {
-              const boundary = area?.boundary;
-              if (Array.isArray(boundary) && boundary.length >= 3) {
-                ctx.save();
-                ctx.beginPath();
-                boundary.forEach((pt: any, idx: number) => {
-                  const px = (pt.x <= 1 && pt.y <= 1 ? pt.x * coordW : pt.x) * scaleX;
-                  const py = (pt.y <= 1 && pt.y <= 1 ? pt.y * coordH : pt.y) * scaleY;
-                  if (idx === 0) ctx.moveTo(px, py);
-                  else ctx.lineTo(px, py);
-                });
-                ctx.closePath();
-                ctx.fillStyle = "rgba(239, 68, 68, 0.16)";
-                ctx.fill();
-                ctx.strokeStyle = "#ef4444";
-                ctx.lineWidth = Math.max(2, Math.round(canvas.width / 450));
-                ctx.setLineDash([6, 4]);
-                ctx.stroke();
-
-                // Nhãn cảnh báo vùng nguy hiểm
-                const firstPt = boundary[0];
-                if (firstPt) {
-                  const labelX = (firstPt.x <= 1 && firstPt.y <= 1 ? firstPt.x * coordW : firstPt.x) * scaleX;
-                  const labelY = (firstPt.y <= 1 && firstPt.y <= 1 ? firstPt.y * coordH : firstPt.y) * scaleY;
-                  ctx.fillStyle = "#ef4444";
-                  ctx.font = "bold 11px sans-serif";
-                  ctx.fillText(`🚨 ${area.name || "VÙNG CẤM NGUY HIỂM"}`, labelX + 6, Math.max(16, labelY - 6));
-                }
-                ctx.restore();
-              }
-            });
-          }
-
-          // Nếu đang chụp ảnh cho Sự cố (forceViolationHighlight) mà frame hiện tại chưa có người ở trạng thái CONFIRMED_VIOLATION,
-          // chọn person đầu tiên được AI phát hiện thực tế trong frame để tô đỏ đúng vị trí của họ.
-          const hasConfirmedInFrame = entryPersons.some(
-            (p) => p.status === "CONFIRMED_VIOLATION" || p.status === "VIOLATION" || p.status === "VIOLATION_CANDIDATE"
-          );
-          const fallbackViolatorTrackId =
-            forceViolationHighlight && !hasConfirmedInFrame
-              ? entryDets.find((d) => d.class_name === "person")?.track_id
-              : undefined;
-
-          for (const det of entryDets) {
-            if (!Array.isArray(det.bbox) || det.bbox.length !== 4) continue;
-            const [x1, y1, x2, y2] = det.bbox;
-            const bx = x1 * scaleX;
-            const by = y1 * scaleY;
-            const bw = Math.max(6, (x2 - x1) * scaleX);
-            const bh = Math.max(6, (y2 - y1) * scaleY);
-
-            const pState =
-              det.class_name === "person" && typeof det.track_id === "number"
-                ? personMap.get(det.track_id)
-                : undefined;
-
-            const isViolating =
-              pState?.status === "CONFIRMED_VIOLATION" ||
-              pState?.status === "VIOLATION" ||
-              (forceViolationHighlight &&
-                det.class_name === "person" &&
-                det.track_id !== undefined &&
-                det.track_id === fallbackViolatorTrackId);
-            const isCandidate = !isViolating && pState?.status === "VIOLATION_CANDIDATE";
-
-            let strokeColor = "#10b981";
-            let fillColor = "rgba(16, 185, 129, 0.10)";
-            let labelText = "";
-            const confPct = `${Math.round((det.confidence || 0.95) * 100)}%`;
-
-            if (det.class_name === "person") {
-              if (isViolating) {
-                strokeColor = "#f43f5e";
-                fillColor = "rgba(244, 63, 94, 0.18)";
-                const vTypes = (pState?.violations || [])
-                  .map((v) => {
-                    const lower = v.toLowerCase();
-                    if (lower.includes("helmet")) return isVietnamese ? "THIẾU MŨ" : "NO HELMET";
-                    if (lower.includes("vest")) return isVietnamese ? "THIẾU ÁO" : "NO VEST";
-                    return v.toUpperCase();
-                  })
-                  .join(" + ");
-                labelText = `WORKER #${det.track_id ?? 1} • ${
-                  isVietnamese ? "VI PHẠM" : "VIOLATION"
-                }${vTypes ? `: ${vTypes}` : ""} (${confPct})`;
-              } else if (isCandidate) {
-                strokeColor = "#f59e0b";
-                fillColor = "rgba(245, 158, 11, 0.14)";
-                labelText = `WORKER #${det.track_id ?? 1} • ${
-                  isVietnamese ? "ĐANG ĐẾM (3s)" : "EVALUATING"
-                } (${confPct})`;
-              } else {
-                strokeColor = "#10b981";
-                fillColor = "rgba(16, 185, 129, 0.10)";
-                labelText = `WORKER #${det.track_id ?? 1} • ${
-                  isVietnamese ? "ĐỦ BẢO HỘ" : "COMPLIANT"
-                } (${confPct})`;
-              }
-            } else if (det.class_name === "helmet") {
-              strokeColor = "#0ea5e9";
-              fillColor = "rgba(14, 165, 233, 0.10)";
-              labelText = `#${det.track_id ?? 1} ${isVietnamese ? "MŨ BẢO HỘ" : "HARD HAT"} (${confPct})`;
-            } else if (det.class_name === "safety_vest") {
-              strokeColor = "#a855f7";
-              fillColor = "rgba(168, 85, 247, 0.10)";
-              labelText = `#${det.track_id ?? 1} ${isVietnamese ? "ÁO PHẢN QUANG" : "SAFETY VEST"} (${confPct})`;
-            } else {
-              strokeColor = "#06b6d4";
-              fillColor = "rgba(6, 182, 212, 0.10)";
-              labelText = `${det.class_name.toUpperCase()} (${confPct})`;
-            }
-
-            // 2.1 Nền bán trong suốt & viền mảnh
-            ctx.fillStyle = fillColor;
-            ctx.fillRect(bx, by, bw, bh);
-
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = Math.max(1.5, Math.round(canvas.width / 500));
-            ctx.strokeRect(bx, by, bw, bh);
-
-            // 2.2 Thước ngắm 4 góc (L-Brackets)
-            const cl = Math.min(bw * 0.22, bh * 0.22, Math.max(12, canvas.width / 42));
-            ctx.lineWidth = Math.max(2.5, Math.round(canvas.width / 280));
-            ctx.lineCap = "round";
-            ctx.lineJoin = "round";
-            ctx.beginPath();
-            ctx.moveTo(bx, by + cl); ctx.lineTo(bx, by); ctx.lineTo(bx + cl, by);
-            ctx.moveTo(bx + bw - cl, by); ctx.lineTo(bx + bw, by); ctx.lineTo(bx + bw, by + cl);
-            ctx.moveTo(bx, by + bh - cl); ctx.lineTo(bx, by + bh); ctx.lineTo(bx + cl, by + bh);
-            ctx.moveTo(bx + bw - cl, by + bh); ctx.lineTo(bx + bw, by + bh); ctx.lineTo(bx + bw, by + bh - cl);
-            ctx.stroke();
-
-            // 2.3 Tia laser quét ngang nếu đang vi phạm
-            if (isViolating) {
-              const scanY = by + bh * 0.28;
-              ctx.strokeStyle = "rgba(244, 63, 94, 0.9)";
-              ctx.lineWidth = Math.max(1.5, Math.round(canvas.width / 520));
-              ctx.beginPath();
-              ctx.moveTo(bx + 4, scanY);
-              ctx.lineTo(bx + bw - 4, scanY);
-              ctx.stroke();
-            }
-
-            // 2.4 Nhãn HUD
-            const fontSize = Math.max(11, Math.min(18, Math.round(canvas.width / 62)));
-            ctx.font = `bold ${fontSize}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
-            const textMetrics = ctx.measureText(labelText);
-            const bannerW = textMetrics.width + 18;
-            const bannerH = fontSize + 10;
-            const bannerY = by > bannerH + 6 ? by - bannerH - 4 : by + 4;
-            const bannerX = Math.max(4, Math.min(canvas.width - bannerW - 4, bx));
-
-            ctx.fillStyle = "rgba(10, 15, 29, 0.92)";
-            ctx.fillRect(bannerX, bannerY, bannerW, bannerH);
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = 1.2;
-            ctx.strokeRect(bannerX, bannerY, bannerW, bannerH);
-            ctx.fillStyle = strokeColor;
-            ctx.fillRect(bannerX, bannerY, 4, bannerH);
-            ctx.fillStyle = "#ffffff";
-            ctx.textBaseline = "middle";
-            ctx.fillText(labelText, bannerX + 10, bannerY + bannerH / 2);
-          }
-        }
-
-        return canvas.toDataURL("image/jpeg", 0.95);
-      } catch {
-        return null;
-      }
-    },
-    [
-      resolvedTrackingData.entry,
-      customStreamUrl,
-      analyzedVideoUrl,
-      realLogData?.meta?.size,
-      liveSessionState?.size,
-      streamMetadata.videoWidth,
-      streamMetadata.videoHeight,
-      camera?.config?.roiPolygon,
-      isVietnamese,
-    ]
-  );
-
-  /**
-   * Kích hoạt sự cố trực tiếp từ luồng Camera/YouTube/Webcam (Tạo Incident thật vào DB + Hú còi + Bung Toast 10s)
-   */
-  const triggerLiveIncidentAlert = useCallback(
-    async (customPayload?: { violationType?: string; description?: string }) => {
-      try {
-        setIsSimulating(true);
-        const vType = customPayload?.violationType || "NO_HELMET";
-        const sev = vType === "NO_HELMET" ? "CRITICAL" : "HIGH";
-
-        // 1. Trích xuất ảnh bằng chứng AI thực tế ngay tại frame hiện tại của Camera/Video stream
-        const safeCamStr = (cameraId || camera?.id || camera?.code || "").toLowerCase();
-        const latestViol =
-          resolvedTrackingData.violations[resolvedTrackingData.violations.length - 1];
-
-        const freshAnnotatedFrame = captureCurrentVideoFrame(true, true);
-        const freshRawFrame = captureCurrentVideoFrame(false, false);
-
-        // Ưu tiên số 1: Ảnh bằng chứng vi phạm thực tế từ AI Service hoặc snapshot trực tiếp từ video
-        const actualEvidenceUrl =
-          latestViol?.evidence_path ||
-          capturedSnapshotUrl ||
-          freshAnnotatedFrame ||
-          resolvedTrackingData.entry?.evidence?.[0]?.path ||
-          camera?.snapshotUrl ||
-          null;
-
-        // 1b. Trích xuất Ảnh Đối Chứng (Reference Snapshot: từ AI Service hoặc frame gốc)
-        const derivedLiveRefPath =
-          latestViol?.reference_path ||
-          resolvedTrackingData.entry?.evidence?.[0]?.reference_path ||
-          (latestViol?.evidence_path?.startsWith("/api/jobs/live/evidence/") ||
-          latestViol?.evidence_path?.startsWith("/api/live/evidence/")
-            ? latestViol.evidence_path.replace(/\.jpg$/i, "_ref.jpg")
-            : null);
-
-        const actualReferenceUrl =
-          latestViol?.reference_path ||
-          freshRawFrame ||
-          derivedLiveRefPath ||
-          (streamMetadata?.youtubeId ? `https://img.youtube.com/vi/${streamMetadata.youtubeId}/hqdefault.jpg` : null) ||
-          camera?.snapshotUrl ||
-          null;
-
-        // Trích xuất tọa độ Bounding Box thực tế từ AI Service (Ưu tiên box [0..1] chuẩn hóa từ latestViol)
-        let realViolationBox: { x: number; y: number; width: number; height: number; label: string; confidence: number } | null = null;
-        if (latestViol?.box && typeof latestViol.box.x === "number") {
-          const rawBox = latestViol.box;
-          realViolationBox = {
-            x: Number((rawBox.x <= 1 ? rawBox.x * 100 : rawBox.x).toFixed(1)),
-            y: Number((rawBox.y <= 1 ? rawBox.y * 100 : rawBox.y).toFixed(1)),
-            width: Number((rawBox.width <= 1 ? rawBox.width * 100 : rawBox.width).toFixed(1)),
-            height: Number((rawBox.height <= 1 ? rawBox.height * 100 : rawBox.height).toFixed(1)),
-            label: rawBox.label || vType,
-            confidence: Number((rawBox.confidence || 0.96).toFixed(2)),
-          };
-        } else {
-          const entryDets = resolvedTrackingData.entry?.detections || [];
-          const entryPersons = resolvedTrackingData.entry?.persons || [];
-          
-          // Tìm person đang bị đánh dấu vi phạm trong frame
-          const violatorTrack = entryPersons.find((p) => p.status === "CONFIRMED_VIOLATION" || p.status === "VIOLATION_CANDIDATE") || entryPersons[0];
-          const violatorDet = violatorTrack
-            ? entryDets.find((d) => d.class_name === "person" && d.track_id === violatorTrack.track_id)
-            : entryDets.find((d) => d.class_name === "person");
-
-          if (violatorDet && violatorDet.bbox) {
-            const [bx1, by1, bx2, by2] = violatorDet.bbox;
-            const [coordW, coordH] =
-              !customStreamUrl && analyzedVideoUrl && realLogData?.meta?.size
-                ? realLogData.meta.size
-                : liveSessionState?.size && liveSessionState.size.length === 2
-                ? liveSessionState.size
-                : [
-                    streamMetadata.videoWidth || (streamMetadata.isVertical ? 720 : 1280),
-                    streamMetadata.videoHeight || (streamMetadata.isVertical ? 1280 : 720),
-                  ];
-            realViolationBox = {
-              x: Number(((bx1 / coordW) * 100).toFixed(1)),
-              y: Number(((by1 / coordH) * 100).toFixed(1)),
-              width: Number((((bx2 - bx1) / coordW) * 100).toFixed(1)),
-              height: Number((((by2 - by1) / coordH) * 100).toFixed(1)),
-              label: vType,
-              confidence: Number((violatorDet.confidence || 0.96).toFixed(2)),
-            };
-          }
-        }
-
-        // 2. Sử dụng siteId và cameraId thực tế từ camera hiện hành
-        const effectiveCameraId = camera?.id || cameraId;
-        const effectiveSiteId = camera?.siteId || siteId;
-
-        // 3. Tạo Incident thực sự vào CSDL qua API
-        const newIncident = await incidentService.createIncident({
-          siteId: effectiveSiteId,
-          cameraId: effectiveCameraId,
-          violationType: vType,
-          severity: sev,
-          detectedAt: new Date().toISOString(),
-          description:
-            customPayload?.description ||
-            (isVietnamese
-              ? `AI Camera quét phát hiện công nhân vi phạm ${vType === "NO_HELMET" ? "Không đội mũ bảo hộ" : "Không mặc áo phản quang"} tại ${siteName}.`
-              : `AI Camera detected safety violation (${vType}) at ${siteName}.`),
+        const payload = buildCameraStartPayload(camera, {
+          source: sourceToRun,
+          model: selectedModel || null,
+          targetFps,
+          aiFps,
+          confirmHelmetSec,
+          confirmVestSec,
+          enableNoHelmet,
+          enableNoVest,
+          enableRestrictedArea,
+          enableSceneCut,
         });
-
-        const createdId = newIncident?.id || (newIncident as any)?.data?.id || (newIncident as any)?.incidentId;
-        if (!createdId) {
-          throw new Error("Không nhận được mã ID sự cố từ máy chủ");
+        await aiTestService.startLiveStream(payload);
+        setStreamNonce(Date.now());
+        const fresh = await aiTestService
+          .getLiveStats(liveCameraId)
+          .catch(() => null);
+        if (fresh) setStats(fresh);
+        void refreshAiEngine();
+        if (!options?.silent) {
+          toast.success(`Đã bật Live AI Tracking cho ${liveCameraId}`);
         }
-
-        // 4. Lưu ảnh bằng chứng thực tế, ảnh đối chứng & tọa độ Bounding Box vào Client-side Cache
-        if (typeof window !== "undefined") {
-          try {
-            if (actualEvidenceUrl) {
-              sessionStorage.setItem(`ppe_incident_evidence_${createdId}`, actualEvidenceUrl);
-              sessionStorage.setItem(`ppe_camera_evidence_${effectiveCameraId}`, actualEvidenceUrl);
-            }
-            if (actualReferenceUrl) {
-              sessionStorage.setItem(`ppe_incident_ref_evidence_${createdId}`, actualReferenceUrl);
-              sessionStorage.setItem(`ppe_camera_ref_evidence_${effectiveCameraId}`, actualReferenceUrl);
-            }
-            if (realViolationBox) {
-              sessionStorage.setItem(`ppe_incident_box_${createdId}`, JSON.stringify(realViolationBox));
-            }
-          } catch {
-            // Không làm gián đoạn nếu storage quota đầy
-          }
-        }
-
-        // 5. Đẩy tệp ảnh bằng chứng (SNAPSHOT) và ảnh đối chứng (REFERENCE_SNAPSHOT) lên Object Storage (MinIO) qua direct-upload
-        if (actualEvidenceUrl || actualReferenceUrl) {
-          (async () => {
-            const fetchImageBlob = async (targetUrl?: string | null): Promise<Blob | null> => {
-              if (!targetUrl) return null;
-              try {
-                let fetchUrl = targetUrl;
-                if (targetUrl.startsWith("/api/live/")) {
-                  fetchUrl = `/api/ai-test${targetUrl}`;
-                }
-                if (fetchUrl.startsWith("/") && typeof window !== "undefined") {
-                  fetchUrl = `${window.location.origin}${fetchUrl}`;
-                }
-                if (
-                  fetchUrl.startsWith("data:") ||
-                  fetchUrl.startsWith("http://") ||
-                  fetchUrl.startsWith("https://")
-                ) {
-                  const res = await fetch(fetchUrl);
-                  if (res.ok) {
-                    return await res.blob();
-                  }
-                }
-              } catch {
-                // ignore individual fetch error
-              }
-              return null;
-            };
-
-            try {
-              const [snapBlob, refBlob] = await Promise.all([
-                fetchImageBlob(actualEvidenceUrl),
-                fetchImageBlob(actualReferenceUrl),
-              ]);
-
-              const uploadTasks: Promise<unknown>[] = [];
-
-              const isEvidencePreAnnotated = Boolean(
-                actualEvidenceUrl?.includes("/api/jobs/live/evidence/") ||
-                actualEvidenceUrl?.includes("/api/live/evidence/") ||
-                actualEvidenceUrl?.includes("bbox=1") ||
-                actualEvidenceUrl?.includes("annotated") ||
-                actualEvidenceUrl?.includes("-evidence")
-              );
-              const snapFileName = isEvidencePreAnnotated
-                ? `snapshot_annotated_${createdId.slice(0, 8)}.jpg`
-                : `snapshot_${createdId.slice(0, 8)}.jpg`;
-
-              if (snapBlob) {
-                uploadTasks.push(
-                  incidentService.uploadEvidenceDirect({
-                    incidentId: createdId,
-                    cameraId: effectiveCameraId,
-                    evidenceType: "SNAPSHOT",
-                    file: snapBlob,
-                    fileName: snapFileName,
-                    aiDetections: realViolationBox
-                      ? {
-                          violations: [
-                            {
-                              box: realViolationBox,
-                            },
-                          ],
-                        }
-                      : undefined,
-                  })
-                );
-              }
-
-              if (refBlob) {
-                uploadTasks.push(
-                  incidentService.uploadEvidenceDirect({
-                    incidentId: createdId,
-                    cameraId: effectiveCameraId,
-                    evidenceType: "REFERENCE_SNAPSHOT",
-                    file: refBlob,
-                    fileName: `reference_${createdId.slice(0, 8)}.jpg`,
-                  })
-                );
-              }
-
-              if (uploadTasks.length > 0) {
-                await Promise.allSettled(uploadTasks);
-                queryClient.invalidateQueries({ queryKey: incidentKeys.detail(createdId) });
-                queryClient.invalidateQueries({ queryKey: incidentKeys.all });
-              }
-            } catch (upErr) {
-              console.warn("[CameraIntelligenceContent] Lưu tệp bằng chứng vào MinIO ngầm:", upErr);
-            }
-          })();
-        }
-
-        // 6. Làm mới danh sách sự cố và số đếm thông báo trên toàn hệ thống
-        // (Thông báo Toast cảnh báo và còi Siren sẽ do NotificationBell toàn cục xử lý qua SSE)
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: incidentKeys.all }),
-          queryClient.invalidateQueries({ queryKey: notificationKeys.all }),
-        ]);
-      } catch (err: any) {
-        console.error("[CameraIntelligenceContent] Lỗi khi tạo sự cố trực tiếp:", err);
-        hotToast.error(
-          isVietnamese
-            ? `Không thể tạo sự cố trên máy chủ: ${err?.message || "Vui lòng thử lại"}`
-            : `Failed to create incident: ${err?.message || "Please retry"}`
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Không thể khởi chạy Live Stream",
         );
       } finally {
-        setIsSimulating(false);
+        setIsStarting(false);
       }
     },
     [
+      aiFps,
       camera,
-      cameraId,
-      capturedSnapshotUrl,
-      isVietnamese,
-      queryClient,
-      siteName,
-      streamMetadata?.youtubeId,
-    ]
+      confirmHelmetSec,
+      confirmVestSec,
+      effectiveSource,
+      enableNoHelmet,
+      enableNoVest,
+      enableRestrictedArea,
+      enableSceneCut,
+      liveCameraId,
+      refreshAiEngine,
+      selectedModel,
+      targetFps,
+    ],
   );
 
-  // Tích lũy vi phạm theo phiên xem thực tế: khi AI phát hiện vi phạm mới thì chèn thêm dòng,
-  // khi video lặp (loop về 0s) thì KHÔNG bị xóa và không bị nhân đôi.
+  // Auto-Start AI Live once on entering /cameras/[id] if DB camera source is directly runnable
   useEffect(() => {
-    const liveItems = resolvedTrackingData.violations;
-    if (!liveItems || liveItems.length === 0 || !resolvedTrackingData.isRealAiLog) return;
+    if (!camera || !engineOnline) return;
+    if (statsCheckedFor !== liveCameraId) return;
+    if (autoStartedForRef.current === camera.id) return;
 
-    const newItems = liveItems.filter((v) => !knownViolationsRef.current.has(v.event_id));
-    if (newItems.length === 0) return;
-
-    for (const item of newItems) {
-      knownViolationsRef.current.add(item.event_id);
+    if (stats?.status === "running" || runningSession?.status === "running") {
+      autoStartedForRef.current = camera.id;
+      return;
     }
 
-    setSessionViolations((prev) => {
-      const merged = [...newItems, ...prev];
-      return merged.sort((a, b) => (b.frame ?? 0) - (a.frame ?? 0));
-    });
+    if (userStoppedRef.current) return;
 
-    // Khi phát hiện vi phạm mới và đang bật chế độ quét tự động cảnh báo:
-    // Nếu AI Service đã tự dispatch (dispatched_via.method !== "disabled"), bỏ qua tạo trùng ở FE.
-    if (autoAlertEnabled) {
-      const firstNew = newItems[0];
-      const dispatchMethod =
-        typeof firstNew.dispatched_via === "string"
-          ? firstNew.dispatched_via
-          : firstNew.dispatched_via?.method;
-      if (dispatchMethod && dispatchMethod !== "disabled") {
-        return;
-      }
-      const now = Date.now();
-      // Giãn cách Cooldown 30s giữa các lần tự động bắn sự cố để chống spam CSDL
-      if (now - lastAutoIncidentTimeRef.current >= 30000) {
-        lastAutoIncidentTimeRef.current = now;
-        const upperType = firstNew.violation_type?.toUpperCase() || "";
-        const vType = upperType.includes("HELMET")
-          ? "NO_HELMET"
-          : upperType.includes("RESTRICTED")
-          ? "RESTRICTED_AREA"
-          : "NO_VEST";
-        triggerLiveIncidentAlert({
-          violationType: vType,
-          description: `AI Camera quét luồng video phát hiện công nhân #${firstNew.person || "N/A"} vi phạm ${vType} tại frame #${firstNew.frame || 0}.`,
-        });
-      }
+    autoStartedForRef.current = camera.id;
+    if (dbRunnableSource) {
+      void handleStartStream(dbRunnableSource, { silent: true });
     }
-  }, [resolvedTrackingData.violations, autoAlertEnabled, triggerLiveIncidentAlert]);
+  }, [
+    camera,
+    dbRunnableSource,
+    engineOnline,
+    handleStartStream,
+    liveCameraId,
+    runningSession?.status,
+    stats?.status,
+    statsCheckedFor,
+  ]);
 
-  const handleResetSessionLog = useCallback(() => {
-    knownViolationsRef.current.clear();
-    setSessionViolations([]);
-  }, []);
-
-  const handleSeekToFrame = useCallback((targetFrame: number) => {
-    const fps = streamMetadata.fps || aiConfig.processFps || 25;
-    const targetSec = Math.max(0, (targetFrame - 1) / fps);
-    setLiveElapsedSec(targetSec);
-    if (videoRef.current) {
-      videoRef.current.currentTime = targetSec;
+  // Auto-refresh DB Incidents whenever Live AI confirms a new violation
+  useEffect(() => {
+    const count = stats?.recent_violations?.length ?? 0;
+    const prev = prevViolationsCountRef.current;
+    prevViolationsCountRef.current = count;
+    if (prev !== null && count > prev) {
+      const timer = window.setTimeout(() => {
+        void refetchIncidents();
+      }, 1200);
+      return () => window.clearTimeout(timer);
     }
-  }, [streamMetadata.fps, aiConfig.processFps]);
+  }, [refetchIncidents, stats?.recent_violations?.length]);
 
-  const handleViewSnapshot = useCallback((url: string) => {
-    setLightboxEvidenceUrl(url);
-  }, []);
+  const recentViolations = stats?.recent_violations;
+  const rawEvidences = stats?.evidences;
 
-  const handleOpenRoiDrawer = useCallback(() => {
-    setRoiDrawerOpen(true);
-  }, []);
+  const liveEvidences = useMemo(
+    () =>
+      normalizeLiveEvidences(
+        liveCameraId,
+        recentViolations || rawEvidences
+          ? ({
+              camera_id: liveCameraId,
+              recent_violations: recentViolations,
+              evidences: rawEvidences,
+            } satisfies LiveStatsResponse)
+          : undefined,
+      ),
+    [liveCameraId, rawEvidences, recentViolations],
+  );
 
-  const handleOpenHealthDialog = useCallback(() => {
-    setHealthModalOpen(true);
-  }, []);
+  const dbEvidences = useMemo(
+    () => normalizeIncidentEvidences(camera?.code ?? liveCameraId, incidents),
+    [camera?.code, incidents, liveCameraId],
+  );
 
-  const handleOpenAiModal = useCallback(() => {
-    setAiModalOpen(true);
-  }, []);
+  const combinedEvidences = useMemo(
+    () => mergeCameraEvidences(liveEvidences, dbEvidences),
+    [liveEvidences, dbEvidences],
+  );
 
-  const resolveLiveSourceForAi = useCallback((rawUrl?: string | null): string | null => {
-    const trimmed = (rawUrl || "").trim();
-    if (!trimmed) return null;
-    if (/^webcam(?::\d+)?$/i.test(trimmed) || trimmed.toLowerCase().includes("webcam")) {
-      const match = trimmed.match(/(\d+)$/);
-      return match ? match[1] : "0";
-    }
-    const jobMatch = trimmed.match(/\/api\/(?:ai-test\/)?jobs\/([a-f0-9]{6,64})\b/i);
-    if (jobMatch?.[1]) {
-      return jobMatch[1];
-    }
-    if (
-      /^rtsps?:\/\//i.test(trimmed) ||
-      /(?:youtube\.com|youtu\.be)\//i.test(trimmed)
-    ) {
-      return trimmed;
-    }
-    return null;
-  }, []);
-
-  const buildPixelRoiPolygons = useCallback((): [number, number][][] | undefined => {
-    const roiPoly = camera?.config?.roiPolygon;
-    if (!Array.isArray(roiPoly) || roiPoly.length < 3) return undefined;
-    const frameW = streamMetadata.videoWidth || 1280;
-    const frameH = streamMetadata.videoHeight || 720;
-    const pts = roiPoly
-      .slice(0, 32)
-      .map((pt): [number, number] => {
-        const isNormalized = pt.x <= 1 && pt.y <= 1;
-        return [
-          Math.round(isNormalized ? pt.x * frameW : pt.x),
-          Math.round(isNormalized ? pt.y * frameH : pt.y),
-        ];
-      });
-    return pts.length >= 3 ? [pts] : undefined;
-  }, [camera?.config?.roiPolygon, streamMetadata.videoWidth, streamMetadata.videoHeight]);
-
-  // Khởi động và kết nối Live AI Engine qua Next.js proxy (/api/ai-test/live)
-  const connectLiveSession = useCallback(
-    async (forceRestart: boolean = false) => {
-      if (!cameraId || !effectiveStreamUrl) return;
-      const resolvedSource = resolveLiveSourceForAi(effectiveStreamUrl);
-      if (!resolvedSource) {
-        setLiveSessionId(null);
-        setLiveSessionState(null);
-        return;
-      }
-
-      const safeCamId = cameraId.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 64) || "CAM-01";
-      const targetFps = Math.min(60, Math.max(1, Number(camera?.config?.captureFps || aiConfig.processFps || 25)));
-      const aiFps = Math.min(targetFps, 15);
-      const modelFile = resolveModelPath(aiConfig.modelVersionId).replace(/^models\//, "");
-
+  const handleUploadOverrideStream = useCallback(
+    async (file: File) => {
+      setIsUploading(true);
       try {
-        if (forceRestart && liveSessionId) {
-          await fetch(`/api/ai-test/live/${liveSessionId}/stop`, { method: "POST" }).catch(() => {});
-        }
-
-        const res = await fetch("/api/ai-test/live/start", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            camera_id: safeCamId,
-            source: resolvedSource,
-            model: modelFile,
-            target_fps: targetFps,
-            ai_fps: aiFps,
-            roi_polygons: buildPixelRoiPolygons(),
-            confirmation_duration_s: Math.min(30, Math.max(0.5, Number(aiConfig.confirmationDuration || 2.0))),
-            enable_no_helmet: Boolean(aiConfig.enableNoHelmet),
-            enable_no_vest: Boolean(aiConfig.enableNoVest),
-            enable_restricted_area: Boolean(aiConfig.enableRestrictedArea ?? true),
-            enable_scene_cut: true,
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const activeId = data.camera_id || safeCamId;
-          setLiveSessionId(activeId);
-          setLiveSessionState((prev: any) => ({
-            ...(prev || {}),
-            status: data.status || "starting",
-            fps: data.target_fps || targetFps,
-          }));
-        }
-      } catch (err) {
-        console.warn("[Live AI] Không kết nối được AI Service qua /api/ai-test/live:", err);
+        const uploaded = await aiTestService.uploadVideo(file);
+        const uploadedSource =
+          uploaded.filename ||
+          uploaded.path ||
+          uploaded.video_name ||
+          file.name;
+        setOverrideSource(uploadedSource);
+        setActiveTab("live");
+        await handleStartStream(uploadedSource);
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Upload & stream thất bại",
+        );
+      } finally {
+        setIsUploading(false);
       }
     },
-    [
-      cameraId,
-      effectiveStreamUrl,
-      aiConfig,
-      liveSessionId,
-      camera?.config?.captureFps,
-      resolveLiveSourceForAi,
-      buildPixelRoiPolygons,
-    ]
+    [handleStartStream],
   );
 
-  // Tự động kết nối hoặc cập nhật nóng Live AI Stream khi mở camera hoặc thay đổi nguồn phát
-  useEffect(() => {
-    if (!cameraId || !effectiveStreamUrl) return;
-    connectLiveSession(false);
-  }, [cameraId, effectiveStreamUrl, connectLiveSession]);
+  const handleApplyOverrideStream = useCallback(
+    async (nextSource: string) => {
+      const cleaned = nextSource.trim();
+      if (!cleaned) return;
+      setOverrideSource(cleaned);
+      setActiveTab("live");
+      await handleStartStream(cleaned);
+    },
+    [handleStartStream],
+  );
 
-  // Polling /stats mỗi 1s đồng bộ Telemetry & vi phạm từ AI Service; dọn dẹp /stop khi đổi camera/unmount
-  useEffect(() => {
-    if (!liveSessionId) return;
-
-    let active = true;
-    let pollTimer: ReturnType<typeof setInterval> | null = null;
-
-    const fetchStats = async () => {
-      if (!active) return;
-      try {
-        const res = await fetch(`/api/ai-test/live/${liveSessionId}/stats`);
-        if (res.status === 404) {
-          if (pollTimer) {
-            clearInterval(pollTimer);
-            pollTimer = null;
-          }
-          return;
-        }
-        if (res.ok) {
-          const stats = await res.json();
-          if (!active) return;
-          setLiveSessionState((prev: any) => ({
-            ...(prev || {}),
-            ...stats,
-            fps: stats.metrics?.fps ?? stats.metrics?.target_fps ?? prev?.fps ?? 25,
-            latency_ms: stats.metrics?.inference_latency_ms ?? prev?.latency_ms,
-          }));
-          if (stats?.status === "error" || stats?.status === "stopped") {
-            if (pollTimer) {
-              clearInterval(pollTimer);
-              pollTimer = null;
-            }
-          }
-        }
-      } catch {
-        // ignore transient polling failure
-      }
-    };
-
-    void fetchStats();
-    pollTimer = setInterval(fetchStats, 1000);
-
-    return () => {
-      active = false;
-      if (pollTimer) {
-        clearInterval(pollTimer);
-      }
-      void fetch(`/api/ai-test/live/${liveSessionId}/stop`, { method: "POST" }).catch(() => {});
-    };
-  }, [liveSessionId]);
-
-  // Handlers
-  const handleTogglePlay = () => {
-    setIsPlaying((prev) => !prev);
-  };
-
-  const handleToggleBbox = () => {
-    setShowBbox((prev) => !prev);
-  };
-
-  const handleSyncPlaying = (playing: boolean) => {
-    setIsPlaying(playing);
-  };
-
-  const lastSyncTimeRef = useRef<number>(0);
-  const handleSyncTime = useCallback((timeSec: number) => {
-    // Điều tiết cập nhật state thời gian ở mức ~30Hz (33ms) để đồng bộ khung hình mượt mà
-    if (timeSec < lastSyncTimeRef.current || Math.abs(timeSec - lastSyncTimeRef.current) >= 0.033) {
-      lastSyncTimeRef.current = timeSec;
-      setLiveElapsedSec(timeSec);
+  const handleHotConfig = useCallback(async () => {
+    setIsApplyingConfig(true);
+    try {
+      const payload = buildCameraHotConfigPayload({
+        targetFps,
+        aiFps,
+        confirmHelmetSec,
+        confirmVestSec,
+        enableNoHelmet,
+        enableNoVest,
+        enableRestrictedArea,
+        enableSceneCut,
+      });
+      await aiTestService.updateLiveConfig(liveCameraId, payload);
+      toast.success(`Đã áp dụng Hot Config cho ${liveCameraId}`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Không thể cập nhật Hot Config",
+      );
+    } finally {
+      setIsApplyingConfig(false);
     }
+  }, [
+    aiFps,
+    confirmHelmetSec,
+    confirmVestSec,
+    enableNoHelmet,
+    enableNoVest,
+    enableRestrictedArea,
+    enableSceneCut,
+    liveCameraId,
+    targetFps,
+  ]);
+
+  const handleStopStream = useCallback(async () => {
+    userStoppedRef.current = true;
+    setIsStopping(true);
+    try {
+      await aiTestService.stopLiveStream(liveCameraId);
+      setStats((prev) => (prev ? { ...prev, status: "stopped" } : prev));
+      void refreshAiEngine();
+      toast.success(`Đã dừng Live Tracking ${liveCameraId}`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Không thể dừng Live Stream",
+      );
+    } finally {
+      setIsStopping(false);
+    }
+  }, [liveCameraId, refreshAiEngine]);
+
+  const handleSaveToDb = useCallback(async () => {
+    if (!camera) return;
+    await updateConfigMutation.mutateAsync({
+      cameraId: camera.id,
+      payload: {
+        captureFps: Math.min(60, Math.max(1, Math.round(targetFps))),
+        processingEnabled:
+          enableNoHelmet || enableNoVest || enableRestrictedArea,
+      },
+    });
+  }, [
+    camera,
+    enableNoHelmet,
+    enableNoVest,
+    enableRestrictedArea,
+    targetFps,
+    updateConfigMutation,
+  ]);
+
+  const handleOpenLightbox = useCallback(
+    (items: EvidenceItem[], index: number) => {
+      setLightbox({
+        open: true,
+        items,
+        index: Math.max(0, Math.min(index, items.length - 1)),
+      });
+    },
+    [],
+  );
+
+  const handleEditCamera = async (id: string, payload: UpdateCameraPayload) => {
+    await updateCameraMutation.mutateAsync({ id, payload });
+  };
+
+  const handleJumpToOverrideTab = useCallback(() => {
+    setOverrideHighlightTick((n) => n + 1);
+    setActiveTab("incidents");
   }, []);
 
-  const handleSaveAiConfig = async (newConfig: AiInspectionConfig) => {
-    setAiConfig(newConfig);
+  const handleOpenGalleryTab = useCallback(() => {
+    setActiveTab("gallery");
+  }, []);
 
-    // 1. Lưu bền vững vào localStorage riêng cho camera này (bao gồm model .pt & processFps)
-    try {
-      localStorage.setItem(`ppe_camera_ai_config_${cameraId}`, JSON.stringify(newConfig));
-    } catch {
-      // ignore storage errors
-    }
+  const handleOpenLiveTab = useCallback(() => {
+    setActiveTab("live");
+  }, []);
 
-    // 2. Lưu cấu hình an toàn riêng cho Camera xuống Backend (Site Service) & Camera Hardware Config
-    if (cameraId) {
-      const candidateModelId = newConfig.modelVersionId?.trim();
-      const isSafeDbModelId =
-        Boolean(candidateModelId) &&
-        !candidateModelId!.includes("/") &&
-        candidateModelId !== "0192e210-0000-7000-8000-000000000001" &&
-        /^[a-zA-Z0-9._-]+$/.test(candidateModelId!);
+  const handleStartDefaultStream = useCallback(() => {
+    void handleStartStream();
+  }, [handleStartStream]);
 
-      siteService
-        .updateCameraSafetyConfig(cameraId, {
-          confidenceThreshold: newConfig.confidenceThreshold,
-          confirmationDuration: newConfig.confirmationDuration,
-          cooldownDuration: newConfig.cooldownDuration,
-          enableNoHelmet: newConfig.enableNoHelmet,
-          enableNoVest: newConfig.enableNoVest,
-          enableRestrictedArea: newConfig.enableRestrictedArea,
-          ...(isSafeDbModelId ? { modelVersionId: candidateModelId } : {}),
-        })
-        .catch(() => {});
-    }
+  const handleHotConfigClick = useCallback(() => {
+    void handleHotConfig();
+  }, [handleHotConfig]);
 
-    if (cameraId && newConfig.processFps) {
-      cameraService
-        .updateCameraConfig(cameraId, {
-          captureFps: newConfig.processFps,
-        })
-        .catch(() => {});
-    }
+  const handleStopStreamClick = useCallback(() => {
+    void handleStopStream();
+  }, [handleStopStream]);
 
-    // Cập nhật nóng cấu hình lên phiên Live AI đang chạy hoặc khởi động lại nếu cần
-    if (liveSessionId) {
-      const targetFps = Math.min(60, Math.max(1, Number(newConfig.processFps || 25)));
-      fetch(`/api/ai-test/live/${liveSessionId}/config`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          target_fps: targetFps,
-          ai_fps: Math.min(targetFps, 15),
-          roi_polygons: buildPixelRoiPolygons(),
-          confirmation_duration_s: Math.min(30, Math.max(0.5, Number(newConfig.confirmationDuration || 2.0))),
-          enable_no_helmet: Boolean(newConfig.enableNoHelmet),
-          enable_no_vest: Boolean(newConfig.enableNoVest),
-          enable_restricted_area: Boolean(newConfig.enableRestrictedArea),
-        }),
-      })
-        .then((r) => {
-          if (!r.ok) connectLiveSession(false);
-        })
-        .catch(() => connectLiveSession(false));
-    } else {
-      connectLiveSession(false);
-    }
+  const handleSaveToDbClick = useCallback(() => {
+    void handleSaveToDb();
+  }, [handleSaveToDb]);
 
-    toast.success(
-      isVietnamese
-        ? `Đã lưu & áp dụng cấu hình AI mới (${resolveModelPath(newConfig.modelVersionId).replace(/^models\//, "")}, Conf ${(newConfig.confidenceThreshold * 100).toFixed(0)}%) cho Camera ${camera?.code || cameraId}!`
-        : `Saved & applied new AI config (${resolveModelPath(newConfig.modelVersionId).replace(/^models\//, "")}, Conf ${(newConfig.confidenceThreshold * 100).toFixed(0)}%) to Camera ${camera?.code || cameraId}!`
-    );
-  };
+  const handleRefreshIncidents = useCallback(() => {
+    void refetchIncidents();
+  }, [refetchIncidents]);
 
-  const handleSnapshotCapture = (dataUrl?: string | null, isRealCanvas?: boolean) => {
-    const latestViol =
-      resolvedTrackingData.violations[resolvedTrackingData.violations.length - 1];
+  const handleApplyOverrideClick = useCallback(
+    (next: string) => {
+      void handleApplyOverrideStream(next);
+    },
+    [handleApplyOverrideStream],
+  );
 
-    // Ưu tiên snapshot thực tế vẽ đúng detections AI
-    const freshAnnotated = isRealCanvas ? dataUrl : captureCurrentVideoFrame(true, false);
-    const finalUrl =
-      freshAnnotated ||
-      dataUrl ||
-      latestViol?.evidence_path ||
-      resolvedTrackingData.entry?.evidence?.[0]?.path ||
-      camera?.snapshotUrl ||
-      null;
+  const handleUploadOverrideClick = useCallback(
+    (file: File) => {
+      void handleUploadOverrideStream(file);
+    },
+    [handleUploadOverrideStream],
+  );
 
-    if (!finalUrl) return;
+  const handleClearOverride = useCallback(() => {
+    setOverrideSource("");
+    toast.success("Đã khôi phục nguồn theo hồ sơ Camera DB");
+  }, []);
 
-    setCapturedSnapshotUrl(finalUrl);
-    setLightboxEvidenceUrl(finalUrl);
-
-    // ── TỰ ĐỘNG TẢI FILE ẢNH .JPG VỀ MÁY TÍNH CỦA NGƯỜI DÙNG ──
-    try {
-      const now = new Date();
-      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-      const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, "");
-      const camCodeClean = (camera?.code || cameraId || "CAM").replace(/[^a-zA-Z0-9_-]/g, "_");
-      const filename = `snapshot_${camCodeClean}_${dateStr}_${timeStr}.jpg`;
-
-      if (finalUrl.startsWith("data:") || finalUrl.startsWith("blob:")) {
-        const link = document.createElement("a");
-        link.href = finalUrl;
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      } else {
-        fetch(finalUrl)
-          .then((res) => {
-            if (!res.ok) throw new Error("Fetch failed");
-            return res.blob();
-          })
-          .then((blob) => {
-            const blobUrl = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = blobUrl;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-          })
-          .catch(() => {
-            const link = document.createElement("a");
-            link.href = finalUrl;
-            link.download = filename;
-            link.target = "_blank";
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          });
-      }
-    } catch (err) {
-      console.error("Lỗi tự động tải snapshot:", err);
-    }
-
-    toast.success(
-      isVietnamese
-        ? `Đã chụp và tải ảnh snapshot (${camera?.code || cameraId}) về máy tính!`
-        : `Snapshot for ${camera?.code || cameraId} captured and downloaded!`
-    );
-  };
-
-  const handleChangeVideoSource = (newUrl: string) => {
-    setCustomStreamUrl(newUrl);
-    setCapturedSnapshotUrl(null);
-    setLiveElapsedSec(0);
-    toast.success(
-      isVietnamese
-        ? "Đã nạp video kiểm tra mới vào Camera Studio!"
-        : "Loaded new inspection video into Camera Studio!"
-    );
-  };
-
-  const isOnline = camera?.status === "ONLINE";
-
-  return (
-    <div className="space-y-5">
-      {/* ── HEADER THANH ĐIỀU HƯỚNG TINH GỌN & HIỂN THỊ DỮ LIỆU CAMERA THỰC TẾ ── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => router.push("/cameras")}
-            className="h-10 w-10 p-0 rounded-2xl shrink-0 border-border/40 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]"
-            title={isVietnamese ? "Quay lại danh sách camera" : "Back to cameras"}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Mã Camera */}
-              <span className="font-mono text-xs font-bold text-primary bg-primary/10 border border-primary/25 rounded-lg px-2 py-0.5">
-                {camera?.code || cameraId}
-              </span>
-
-              {/* Trạng thái kết nối thực tế từ DB */}
-              <Badge variant={isOnline ? "success" : "danger"} size="sm">
-                <span
-                  className={`h-1.5 w-1.5 rounded-full mr-1 ${
-                    isOnline ? "bg-emerald-500 animate-pulse" : "bg-rose-500"
-                  }`}
-                />
-                {camera?.status || "ONLINE"}
-              </Badge>
-
-              {/* Vị trí / Khu vực */}
-              {(camera?.location || camera?.zoneName) && (
-                <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
-                  <MapPin className="h-3 w-3 text-muted-foreground" />
-                  <span>{camera.location || camera.zoneName}</span>
-                </span>
-              )}
-
-              {/* Công trường */}
-              {camera?.siteId && (
-                <Link
-                  href={`/sites/${camera.siteId}`}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border/40 bg-surface px-2 py-0.5 text-[11px] font-semibold text-muted-foreground hover:text-primary transition hover:underline shadow-sm"
-                  title={
-                    isVietnamese
-                      ? `Mở trung tâm điều hành công trường ${siteName}`
-                      : `Open operations center for site ${siteName}`
-                  }
-                >
-                  <Building2 className="h-3 w-3 text-primary" />
-                  <span>{siteName}</span>
-                </Link>
-              )}
-            </div>
-
-            <h1 className="mt-1 text-lg sm:text-xl font-extrabold tracking-tight text-foreground flex items-center gap-2">
-              <Cctv className="h-5 w-5 text-primary" />
-              <span>{camera?.name || (isVietnamese ? "Camera Giám Sát An Toàn" : "Safety Surveillance Camera")}</span>
-            </h1>
-          </div>
+  if (cameraLoading) {
+    return (
+      <div className="mx-auto flex min-h-[420px] max-w-[1600px] items-center justify-center">
+        <div className={`rounded-3xl p-8 ${NM.chassis}`}>
+          <Loader size="lg" showLabel label="Đang tải hồ sơ Camera Studio..." />
         </div>
+      </div>
+    );
+  }
 
-        {/* Action Header: Nhóm các nút tác vụ kiểm tra camera */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Nút Ping kiểm tra đường truyền thực tế */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setHealthModalOpen(true)}
-            className="gap-1.5 rounded-xl text-xs font-semibold border-border/40 hover:bg-surface-elevated transition shadow-sm"
-            title={isVietnamese ? "Kiểm tra độ trễ mạng và ping camera" : "Ping check camera health"}
+  if (!camera) {
+    return (
+      <div className="mx-auto flex min-h-[420px] max-w-[1600px] items-center justify-center">
+        <div
+          className={`max-w-md space-y-4 rounded-[28px] p-8 text-center ${NM.chassis}`}
+        >
+          <div
+            className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl text-accent ${NM.recessed}`}
           >
-            <Activity className="h-4 w-4 text-emerald-500" />
-            <span>{isVietnamese ? "Kiểm Tra Mạng" : "Ping Health"}</span>
-          </Button>
-
-          {/* Nút Cấu hình vùng an toàn ROI */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setRoiDrawerOpen(true)}
-            className="gap-1.5 rounded-xl text-xs font-semibold border-border/40 hover:bg-surface-elevated transition shadow-sm"
-            title={isVietnamese ? "Vẽ vùng cảnh báo an toàn ROI trên camera" : "Draw ROI safety boundary"}
-          >
-            <Scan className="h-4 w-4 text-primary" />
-            <span>{isVietnamese ? "Vùng ROI" : "ROI Zone"}</span>
-          </Button>
-
-          {/* Nút Cấu hình AI */}
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setAiModalOpen(true)}
-            className="gap-1.5 rounded-xl text-xs font-bold shadow-nm-sm hover:shadow-nm transition"
-            title={
-              isVietnamese
-                ? "Mở Modal tinh chỉnh ngưỡng tin cậy và kiểm tra AI trên video này"
-                : "Open AI inspection modal to tune thresholds and test on this video"
-            }
-          >
-            <Cpu className="h-4 w-4" />
-            <span>{isVietnamese ? "Cấu Hình AI" : "AI Config"}</span>
-          </Button>
-
-          {/* Nút Bắn thử sự cố mẫu thời gian thực để test thông báo & còi hú */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => triggerLiveIncidentAlert()}
-            disabled={isSimulating}
-            className="gap-1.5 rounded-xl text-xs font-bold border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 transition shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] active:shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
-            title={
-              isVietnamese
-                ? "Bắn thử sự cố vi phạm mẫu để kiểm tra còi hú Siren, Toast 10s và điều hướng"
-                : "Simulate safety violation incident to test Siren sound, 10s Toast, and navigation"
-            }
-          >
-            <ShieldAlert className={`h-4 w-4 text-rose-500 ${isSimulating ? "animate-spin" : "animate-pulse"}`} />
-            <span>{isVietnamese ? "Bắn Thử Sự Cố" : "Simulate Alert"}</span>
-          </Button>
-
-          {/* Toggle Bật/Tắt Cảnh báo Tự động khi quét thấy vi phạm trên video/webcam */}
-          <button
-            type="button"
-            onClick={() => setAutoAlertEnabled((v) => !v)}
-            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition shadow-sm ${
-              autoAlertEnabled
-                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                : "border-border/40 bg-muted/30 text-muted-foreground"
-            }`}
-            title={
-              autoAlertEnabled
-                ? isVietnamese
-                  ? "Đang BẬT tự động tạo sự cố và hú còi khi video quét thấy vi phạm (Bấm để tắt)"
-                  : "Auto Alert ON (Click to disable)"
-                : isVietnamese
-                  ? "Đang TẮT tự động tạo sự cố khi quét video (Bấm để bật)"
-                  : "Auto Alert OFF (Click to enable)"
-            }
-          >
-            <span
-              className={`h-2 w-2 rounded-full ${
-                autoAlertEnabled ? "bg-emerald-500 animate-ping" : "bg-muted-foreground"
-              }`}
-            />
-            <span>
-              {autoAlertEnabled
-                ? isVietnamese
-                  ? "Quét Tự Động: BẬT"
-                  : "Live Scan: ON"
-                : isVietnamese
-                  ? "Quét Tự Động: TẮT"
-                  : "Live Scan: OFF"}
-            </span>
-          </button>
-
-          {/* Link sang trang sự cố thực tế của camera này */}
+            <Camera className="size-6" />
+          </div>
+          <h2 className="text-lg font-extrabold text-foreground">
+            Không tìm thấy thiết bị Camera
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Camera có thể đã bị xóa hoặc bạn không có quyền truy cập vào công
+            trường này.
+          </p>
           <Link
-            href={`/incidents?cameraId=${cameraId}&cameraCode=${camera?.code || cameraId}`}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-500/20 transition shadow-sm dark:text-amber-400"
-            title={
-              isVietnamese
-                ? "Xem danh sách sự cố vi phạm do camera này phát hiện"
-                : "View violation incidents detected by this camera"
-            }
+            href="/cameras"
+            className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold text-primary ${NM.tactileBtn}`}
           >
-            <ShieldAlert className="h-4 w-4" />
-            <span>
-              {isVietnamese ? "Sự Cố Đã Lưu" : "Stored Incidents"} ({realIncidents.length})
-            </span>
+            <ArrowLeft className="size-3.5" />
+            <span>Quay lại danh sách Camera</span>
           </Link>
         </div>
       </div>
+    );
+  }
 
-      {/* ── BỐ CỤC 2 CỘT CÂN ĐỐI: VIDEO CHÍNH (68%) & BẢNG ĐIỀU HÀNH TRỰC TIẾP (32%) ── */}
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12 lg:items-stretch">
-        {/* CỘT TRÁI (8 / 12 phần): TRÌNH PHÁT VIDEO CHÍNH & CÁC CARD THEO DÕI AI (CÓ THANH NAVIGATION TRÊN ĐẦU) */}
-        <div className="lg:col-span-8 xl:col-span-8 space-y-5">
-          <CameraIntelligencePlayer
-            videoSrc={effectiveStreamUrl}
-            currentEntry={resolvedTrackingData.entry}
-            isPlaying={isPlaying}
-            showBbox={showBbox}
-            videoRef={videoRef}
-            onTogglePlay={handleTogglePlay}
-            onToggleBbox={handleToggleBbox}
-            onSnapshot={handleSnapshotCapture}
-            onOpenAiModal={() => setAiModalOpen(true)}
-            onChangeVideoSource={handleChangeVideoSource}
-            onSyncPlaying={handleSyncPlaying}
-            onSyncTime={handleSyncTime}
-            streamMetadata={streamMetadata}
-            cameraName={camera?.name}
-            cameraCode={camera?.code || cameraId}
-            siteName={siteName}
-            activeModelName={activeModelDisplayName}
-            cameraStatus={camera?.status || "ONLINE"}
-            currentFps={camera?.currentFps}
-            currentLatencyMs={camera?.currentLatencyMs}
-            cameraLocation={camera?.location || camera?.zoneName}
-            cameraStreamUrl={cameraStreamUrl}
-            liveSessionId={liveSessionId}
-            liveSessionStatus={liveSessionState?.status}
-            bufferProgress={liveSessionState?.buffer_progress}
-            bufferedFramesCount={liveSessionState?.buffered_frames}
-            loopCached={liveSessionState?.loop_cached}
-            onLiveStateUpdate={setLiveSessionState}
-            isRealAiLog={resolvedTrackingData.isRealAiLog}
-            onStartAutoAnalyze={() => connectLiveSession(true)}
-            roiPolygon={camera?.config?.roiPolygon ?? null}
-          />
+  const activeModelName =
+    models.find((m) => m.path === selectedModel)?.name ??
+    (selectedModel || "best");
+  const isRunning = stats?.status === "running";
 
-        </div>
-
-        {/* CỘT PHẢI (4 / 12 phần): BẢNG ĐIỀU HÀNH AN TOÀN TRỰC TIẾP (UNIFIED PANEL) */}
-        <div className="lg:col-span-4 lg:flex xl:col-span-4">
-          <CameraIntelligenceSidebar
-            currentEntry={resolvedTrackingData.entry}
-            allViolations={resolvedTrackingData.violations}
-            personTracks={resolvedTrackingData.personTracks}
-            cameraId={cameraId}
-            cameraCode={camera?.code || cameraId}
-            siteName={siteName}
-            streamMetadata={streamMetadata}
-            safetyConfig={aiConfig}
-            activeModelName={activeModelDisplayName}
-            onSnapshot={() => handleSnapshotCapture(null)}
-            onViewSnapshot={handleViewSnapshot}
-            onSeekToFrame={handleSeekToFrame}
-            cameraStatus={camera?.status || "ONLINE"}
-            realIncidentsCount={incidentsResult?.meta?.total ?? realIncidents.length}
-            totalFrames={liveSessionState?.total_frames || realLogData?.frames?.length}
-          />
-        </div>
-      </div>
-
-      {/* Inspector dùng toàn bộ chiều rộng để bảng theo dõi và navigation không bị nén bởi cột video. */}
-      <CameraAiInspectorCard
-        currentEntry={resolvedTrackingData.entry}
-        personTracks={resolvedTrackingData.personTracks}
-        allViolations={sessionViolations.length > 0 ? sessionViolations : resolvedTrackingData.violations}
-        onSeekToFrame={handleSeekToFrame}
-        fps={streamMetadata.fps || aiConfig.processFps || 25}
-        totalFrames={liveSessionState?.total_frames || realLogData?.frames?.length || 500}
-        availableJobs={availableAiJobs}
-        selectedJobId={selectedJobId}
-        onSelectJob={handleSelectAiJob}
-        isLoadingJob={isLoadingAiJob}
-      />
-
-      {/* ── PHÂN VÙNG DƯỚI: TRUNG TÂM CHẨN ĐOÁN & LỊCH SỬ SỰ CỐ CỦA CAMERA (DỮ LIỆU THẬT TỪ BACKEND) ── */}
-      <CameraTelemetryTables
-        cameraId={cameraId}
+  return (
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-10">
+      {/* Studio Header */}
+      <CameraStudioHeader
         camera={camera}
-        siteName={siteName}
-        zoneName={zoneName}
-        safetyConfig={aiConfig}
-        activeModelName={activeModelDisplayName}
-        realIncidents={realIncidents}
-        incidentsTableState={{ ...incidentsTable, manualPagination: true, manualSorting: true, manualFiltering: true, rowCount: incidentsResult?.meta?.total ?? realIncidents.length, pageCount: incidentsResult?.meta?.totalPages ?? 1, fetching: incidentsFetching, error: incidentsError, onRetry: () => { void refetchIncidents(); } }}
-        totalIncidents={incidentsResult?.meta?.total}
-        isIncidentsLoading={isIncidentsLoading}
-        fps={streamMetadata.fps || aiConfig.processFps || camera?.streams?.[0]?.fps || 25}
-        resolution={streamMetadata.aspectRatioLabel || camera?.streams?.[0]?.resolution}
-        streamType={streamMetadata.streamType}
-        liveViolations={sessionViolations}
-        onSeekToFrame={handleSeekToFrame}
-        onViewSnapshot={handleViewSnapshot}
-        onOpenRoiDrawer={handleOpenRoiDrawer}
-        onOpenHealthDialog={handleOpenHealthDialog}
-        onOpenAiModal={handleOpenAiModal}
-        onResetSessionLog={handleResetSessionLog}
+        siteName={camera.siteName || getSiteName(camera.siteId)}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        engineOnline={engineOnline}
+        engineError={engineError}
+        liveStatus={stats?.status}
+        models={models}
+        activeModelName={activeModelName}
+        galleryCount={combinedEvidences.length}
+        incidentsCount={incidents.length}
+        isRefreshing={incidentsLoading}
+        canManage={canManage}
+        onRefreshAll={() => {
+          void Promise.all([
+            refetchCamera(),
+            refetchConfig(),
+            refetchIncidents(),
+            refreshAiEngine(),
+          ]);
+        }}
+        onOpenPing={() => setPingOpen(true)}
+        onOpenEdit={() => setEditOpen(true)}
       />
 
-      {/* ── MODAL KIỂM TRA SỨC KHOẺ / PING CAMERA ── */}
-      <CameraHealthDialog
-        open={healthModalOpen}
-        onOpenChange={setHealthModalOpen}
-        camera={camera || null}
-      />
+      {/* Tab 01: Live AI Monitor */}
+      <section className={activeTab === "live" ? "space-y-6" : "hidden"}>
+        <CameraLiveControlDeck
+          liveCameraId={liveCameraId}
+          sourceTypeLabel={camera.sourceType || "RTSP"}
+          activeSource={effectiveSource || camera.streamUrl || ""}
+          isUsingOverride={Boolean(overrideSource.trim())}
+          isRunning={isRunning}
+          canStart={Boolean(effectiveSource)}
+          models={models}
+          sourceNote={sourceNote}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+          targetFps={targetFps}
+          onTargetFpsChange={setTargetFps}
+          aiFps={aiFps}
+          onAiFpsChange={setAiFps}
+          confirmHelmetSec={confirmHelmetSec}
+          onConfirmHelmetSecChange={setConfirmHelmetSec}
+          confirmVestSec={confirmVestSec}
+          onConfirmVestSecChange={setConfirmVestSec}
+          enableNoHelmet={enableNoHelmet}
+          onEnableNoHelmetChange={setEnableNoHelmet}
+          enableNoVest={enableNoVest}
+          onEnableNoVestChange={setEnableNoVest}
+          enableRestrictedArea={enableRestrictedArea}
+          onEnableRestrictedAreaChange={setEnableRestrictedArea}
+          enableSceneCut={enableSceneCut}
+          onEnableSceneCutChange={setEnableSceneCut}
+          isStarting={isStarting}
+          isApplyingConfig={isApplyingConfig}
+          isStopping={isStopping}
+          isSavingDb={updateConfigMutation.isPending}
+          canManageCamera={canManage}
+          onStartStream={handleStartDefaultStream}
+          onHotConfig={handleHotConfigClick}
+          onStopStream={handleStopStreamClick}
+          onSaveToDb={handleSaveToDbClick}
+          onOpenDeviceTab={handleJumpToOverrideTab}
+        />
 
-      {/* ── DRAWER VẼ VÙNG CẢNH BÁO AN TOÀN ROI ── */}
-      <CameraRoiDrawer
-        open={roiDrawerOpen}
-        onOpenChange={setRoiDrawerOpen}
-        camera={camera || null}
-      />
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12">
+          <CameraLiveViewport
+            liveCameraId={liveCameraId}
+            cameraName={camera.name}
+            cameraStreamUrl={overrideSource.trim() || camera.streamUrl}
+            sourceErrorReason={sourceNote}
+            stats={stats}
+            streamNonce={streamNonce}
+            isStarting={isStarting}
+            canStart={Boolean(effectiveSource)}
+            onStartStream={handleStartDefaultStream}
+            onReloadStream={() => setStreamNonce(Date.now())}
+            onOpenDeviceTab={handleJumpToOverrideTab}
+          />
 
-      {/* ── MODAL CẤU HÌNH & TINH CHỈNH THAM SỐ AI ── */}
-      <AiInspectionModal
-        open={aiModalOpen}
-        onOpenChange={setAiModalOpen}
-        config={aiConfig}
-        onSaveConfig={handleSaveAiConfig}
-        cameraCode={camera?.code || cameraId}
-        streamMetadata={streamMetadata}
-      />
-
-      {/* ── LIGHTBOX MODAL PHÓNG TO ẢNH BẰNG CHỨNG ── */}
-      {lightboxEvidenceUrl && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/85 backdrop-blur-sm p-3 sm:p-4 animate-in fade-in"
-          onClick={() => setLightboxEvidenceUrl(null)}
-        >
-          <div
-            className="relative my-auto max-w-2xl w-full max-h-[calc(100dvh-1.5rem)] overflow-y-auto rounded-2xl bg-surface border border-white/20 shadow-2xl p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-border/30">
-              <div>
-                <span className="font-bold text-sm text-foreground">
-                  {isVietnamese
-                    ? "Ảnh Bằng Chứng Vi Phạm (Evidence Snapshot — VI-08)"
-                    : "Violation Evidence Snapshot (VI-08)"}
-                </span>
-                <p className="text-[11px] text-muted-foreground">
-                  Camera: {camera?.code || cameraId} • Site: {siteName}
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const now = new Date();
-                    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-                    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, "");
-                    const camCodeClean = (camera?.code || cameraId || "CAM").replace(/[^a-zA-Z0-9_-]/g, "_");
-                    const filename = `snapshot_${camCodeClean}_${dateStr}_${timeStr}.jpg`;
-
-                    if (lightboxEvidenceUrl.startsWith("data:") || lightboxEvidenceUrl.startsWith("blob:")) {
-                      const link = document.createElement("a");
-                      link.href = lightboxEvidenceUrl;
-                      link.download = filename;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    } else {
-                      fetch(lightboxEvidenceUrl)
-                        .then((res) => res.blob())
-                        .then((blob) => {
-                          const blobUrl = URL.createObjectURL(blob);
-                          const link = document.createElement("a");
-                          link.href = blobUrl;
-                          link.download = filename;
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                          setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-                        })
-                        .catch(() => {
-                          window.open(lightboxEvidenceUrl, "_blank");
-                        });
-                    }
-                  }}
-                  className="h-8 gap-1 rounded-xl text-xs font-semibold px-2.5 text-primary border-primary/30 hover:bg-primary/10"
-                  title={isVietnamese ? "Tải ảnh về máy" : "Download image"}
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{isVietnamese ? "Tải về" : "Download"}</span>
-                </Button>
-                <button
-                  type="button"
-                  onClick={() => setLightboxEvidenceUrl(null)}
-                  className="p-1.5 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-all"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-            <div className="mt-3 overflow-hidden rounded-xl bg-black border border-border/40 flex items-center justify-center min-h-[220px]">
-              <img
-                src={lightboxEvidenceUrl}
-                alt="Camera Evidence Snapshot"
-                className="w-full h-auto max-h-[70vh] object-contain mx-auto"
-                onError={(e) => {
-                  if (camera?.snapshotUrl && e.currentTarget.src !== camera.snapshotUrl) {
-                    e.currentTarget.src = camera.snapshotUrl;
-                  }
-                }}
-              />
-            </div>
-            <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>
-                {isVietnamese
-                  ? `Trích xuất từ luồng Camera ${camera?.code || cameraId}`
-                  : `Extracted from Camera stream ${camera?.code || cameraId}`}
-              </span>
-              <span className="font-mono text-emerald-500 font-semibold">MinIO S3 Evidence Synced</span>
-            </div>
-          </div>
+          <CameraLiveTelemetry
+            stats={stats}
+            galleryCount={combinedEvidences.length}
+            onOpenGallery={handleOpenGalleryTab}
+          />
         </div>
-      )}
+      </section>
+
+      {/* Tab 02: Unified Evidence Gallery (Live Session + Incident DB) */}
+      <section className={activeTab === "gallery" ? "block" : "hidden"}>
+        <EvidenceGalleryPanel
+          items={combinedEvidences}
+          hideSourceFilter
+          emptyDescription="Chưa có ảnh bằng chứng từ Phiên Live hiện tại hoặc Incident DB của camera này."
+          onInspectEvidence={handleOpenLightbox}
+          onSeekToJobTime={handleOpenLiveTab}
+        />
+      </section>
+
+      {/* Tab 03: Incidents DB + Device Specs + Embedded Ping & Health Logs + Dev Override */}
+      <section className={activeTab === "incidents" ? "block" : "hidden"}>
+        <CameraIncidentsDeviceTab
+          camera={camera}
+          config={cameraConfig}
+          incidents={incidents}
+          incidentsLoading={incidentsLoading}
+          onRefreshIncidents={handleRefreshIncidents}
+          liveVideos={liveVideos}
+          overrideSource={overrideSource}
+          isUploading={isUploading}
+          isStarting={isStarting}
+          overrideHighlightTick={overrideHighlightTick}
+          onApplyOverrideStream={handleApplyOverrideClick}
+          onUploadOverrideStream={handleUploadOverrideClick}
+          onClearOverride={handleClearOverride}
+        />
+      </section>
+
+      {/* Shared Lightbox Modal for Before / After Pairs */}
+      <EvidenceLightboxModal
+        open={lightbox.open}
+        items={lightbox.items}
+        activeIndex={lightbox.index}
+        onClose={() => setLightbox((prev) => ({ ...prev, open: false }))}
+        onChangeIndex={(nextIndex) =>
+          setLightbox((prev) => ({ ...prev, index: nextIndex }))
+        }
+        onSeekToJobTime={() => {
+          setLightbox((prev) => ({ ...prev, open: false }));
+          setActiveTab("live");
+        }}
+      />
+
+      {/* Ping & Edit Modals */}
+      <CameraHealthDialog
+        open={pingOpen}
+        onOpenChange={setPingOpen}
+        camera={camera}
+      />
+
+      <EditCameraModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        camera={camera}
+        onSubmit={handleEditCamera}
+        loading={updateCameraMutation.isPending}
+      />
     </div>
   );
 }

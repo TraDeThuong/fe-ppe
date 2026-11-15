@@ -10,6 +10,7 @@ export * from "./incidents";
 export * from "./ai-metrics";
 export * from "./reporting";
 export * from "./maintenance";
+export * from "./app-shell";
 export * from "./use-debounce";
 export * from "./use-entity-lookup";
 export * from "./cron";
