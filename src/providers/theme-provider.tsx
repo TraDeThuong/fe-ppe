@@ -7,6 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { setClientCookie } from "@/lib/cookie";
 
 export type Theme = "light" | "dark" | "system";
 
@@ -65,7 +66,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setThemeState(next);
     try {
       localStorage.setItem(THEME_STORAGE_KEY, next);
-      document.cookie = `${THEME_COOKIE_NAME}=${next}; path=/; max-age=31536000; SameSite=Lax`;
+      setClientCookie(THEME_COOKIE_NAME, next, 31536000);
     } catch {
       // Bỏ qua lỗi trong môi trường hạn chế localStorage (private browsing)
     }

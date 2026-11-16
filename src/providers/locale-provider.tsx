@@ -8,9 +8,8 @@ import {
   useMemo,
   useState,
 } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { authKeys } from "@/hooks/auth/auth.query-keys";
-import { authService } from "@/services/auth.service";
+import { usePublicConfig } from "@/hooks/auth/use-public-config";
+import { setClientCookie } from "@/lib/cookie";
 import { getConfig, SYSTEM_CONFIG_KEYS } from "@/lib/system-config";
 import viDict from "@/i18n/vi-VN.json";
 import enDict from "@/i18n/en-US.json";
@@ -62,11 +61,7 @@ const LocaleContext = createContext<LocaleContextValue>(defaultLocaleValue);
 export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
 
-  const configQuery = useQuery({
-    queryKey: authKeys.config(),
-    queryFn: () => authService.getPublicConfig(),
-    staleTime: Infinity,
-  });
+  const configQuery = usePublicConfig();
 
   // Nguồn ưu tiên 1 (đồng bộ, trước paint): user đã chọn trong localStorage
   useLayoutEffect(() => {
@@ -97,7 +92,7 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
         setLocaleState(next);
         localStorage.setItem(STORAGE_KEY, next);
         // Cookie để server components/proxy đọc được locale sau này
-        document.cookie = `${COOKIE_NAME}=${next}; path=/; max-age=31536000; SameSite=Lax`;
+        setClientCookie(COOKIE_NAME, next, 31536000);
       },
       t: (key: string, params?: Record<string, string | number>) => {
         let text = dict[key] ?? dictionaries[DEFAULT_LOCALE][key] ?? key;

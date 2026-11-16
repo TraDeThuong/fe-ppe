@@ -10,17 +10,21 @@ import "client-only";
  */
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
+let tokenGeneration = 0;
 
 export const tokenStore = {
   getAccessToken: () => accessToken,
   getRefreshToken: () => refreshToken,
+  getTokenGeneration: () => tokenGeneration,
   /** Gọi NGAY khi login/refresh thành công, trước khi retry bất kỳ request nào */
   setTokens: (access: string, refresh: string) => {
     accessToken = access;
     refreshToken = refresh;
+    tokenGeneration += 1;
   },
   clear: () => {
     accessToken = null;
     refreshToken = null;
+    tokenGeneration += 1;
   },
 };

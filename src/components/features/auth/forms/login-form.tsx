@@ -2,14 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertTriangle, Loader2, Mail } from "lucide-react";
+import { AlertTriangle, Loader2, Mail, WifiOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { Button } from "@ui/button";
 import { Checkbox, FormField, Input, PasswordInput } from "@ui/form";
+import { Skeleton } from "@/components/ui/skeleton";
 import { AuthFooterLink } from "../auth-footer-link";
+import { isLoginServerUnavailable } from "./login-server-status";
+import { releaseActionLock, tryAcquireActionLock } from "./login-action-lock";
+import { resolveSocialLoginSlotState } from "./login-social-state";
 
 import {
   handleMutationError,
@@ -29,7 +33,6 @@ import {
   saveOAuthState,
 } from "@/lib/oauth";
 import { getRememberedEmail, isRememberMe } from "@/lib/session-manager";
-import { getConfig, SYSTEM_CONFIG_KEYS } from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 import { ErrorCode, type GoogleAuthUrlParams } from "@/types";
 import {
@@ -79,10 +82,13 @@ export function LoginForm() {
   const { t } = useLocale();
   const router = useRouter();
   const turnstileRef = useRef<TurnstileFieldHandle>(null);
+  const submitLockRef = useRef(false);
+  const googleLockRef = useRef(false);
 
   const [failure, setFailure] = useState<LoginFailure>({ kind: "none" });
   const [lockout, setLockout] = useState<LockoutState | null>(null);
   const [resendToken, setResendToken] = useState<string | null>(null);
+  const [isRedirectingGoogle, setIsRedirectingGoogle] = useState(false);
 
   const schema = useMemo(
     () =>
@@ -139,6 +145,8 @@ export function LoginForm() {
       router.replace(getSafeNext());
     },
     onError: (error) => {
+      releaseActionLock(submitLockRef);
+
       // 422: lỗi theo field → gắn thẳng dưới đúng ô input
       if (error instanceof ApiError && error.status === 422 && error.errors?.length) {
         for (const fieldError of error.errors) {
@@ -186,10 +194,14 @@ export function LoginForm() {
   // Gate qua mounted-state: feature flag đến từ query async — render nút sau
   // khi hydrate để tránh mismatch server/client HTML (Next prerender).
   const [mounted, setMounted] = useState(false);
-  const { data: publicConfig } = usePublicConfig();
-  const socialLoginEnabled =
-    mounted &&
-    Boolean(getConfig(publicConfig, SYSTEM_CONFIG_KEYS.socialLoginEnabled, false));
+  const publicConfigQuery = usePublicConfig();
+  const publicConfig = publicConfigQuery.data;
+  const socialLoginSlotState = resolveSocialLoginSlotState({
+    mounted,
+    isPending: publicConfigQuery.isPending,
+    isError: publicConfigQuery.isError,
+    publicConfig,
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -203,7 +215,20 @@ export function LoginForm() {
   });
 
   function handleGoogleLogin() {
-    if (googleParams !== null) return;
+    if (
+      !tryAcquireActionLock(
+        googleLockRef,
+        googleParams !== null ||
+          isRedirectingGoogle ||
+          isSubmitting ||
+          lockoutActive ||
+          isServerUnavailable,
+      )
+    ) {
+      return;
+    }
+
+    setIsRedirectingGoogle(true);
     const state = generateOAuthState();
     saveOAuthState(state);
     if (typeof window !== "undefined") {
@@ -222,11 +247,13 @@ export function LoginForm() {
     }
   }, [googleUrl.isSuccess, googleUrl.data, googleParams]);
 
-  // Lỗi lấy URL (chưa cấu hình Google, mạng...) → toast + cho bấm lại
+  // Lỗi lấy URL (chưa cấu hình Google, mạng...) → toast + nhả khóa cho bấm lại
   useEffect(() => {
     if (googleUrl.isError && googleParams !== null) {
       handleMutationError(googleUrl.error);
       setGoogleParams(null);
+      setIsRedirectingGoogle(false);
+      releaseActionLock(googleLockRef);
     }
   }, [googleUrl.isError, googleUrl.error, googleParams]);
 
@@ -254,16 +281,104 @@ export function LoginForm() {
     );
   }
 
+  const lockoutActive = lockout !== null;
+  const maintenanceQuery = useMaintenanceStatus();
+  const maintenanceStatus = maintenanceQuery.data;
+
+  const isServerUnavailable = isLoginServerUnavailable({
+    publicConfigError: publicConfigQuery.error,
+    isPublicConfigError: publicConfigQuery.isError,
+    maintenanceError: maintenanceQuery.error,
+    isMaintenanceError: maintenanceQuery.isError,
+    maintenanceEnabled: maintenanceStatus?.enabled,
+  });
+
+  const isRetryingConnection =
+    (publicConfigQuery.isFetching && publicConfigQuery.isError) ||
+    (maintenanceQuery.isFetching && maintenanceQuery.isError);
+
+  // Đồng bộ phục hồi: nếu một trong hai endpoint phản hồi lại, kiểm tra endpoint còn lại ngay
+  useEffect(() => {
+    if (maintenanceQuery.isSuccess && publicConfigQuery.isError && !publicConfigQuery.isFetching) {
+      void publicConfigQuery.refetch();
+    }
+  }, [
+    maintenanceQuery.isSuccess,
+    publicConfigQuery.isError,
+    publicConfigQuery.isFetching,
+    publicConfigQuery.refetch,
+  ]);
+
+  useEffect(() => {
+    if (publicConfigQuery.isSuccess && maintenanceQuery.isError && !maintenanceQuery.isFetching) {
+      void maintenanceQuery.refetch();
+    }
+  }, [
+    publicConfigQuery.isSuccess,
+    maintenanceQuery.isError,
+    maintenanceQuery.isFetching,
+    maintenanceQuery.refetch,
+  ]);
+
+  function handleRetryConnection() {
+    void Promise.all([publicConfigQuery.refetch(), maintenanceQuery.refetch()]);
+  }
+
+  const isSubmitting =
+    form.formState.isSubmitting || login.isPending || isRedirectingGoogle;
+  const googleLoading = isRedirectingGoogle || googleParams !== null;
+
   function onSubmit(values: LoginFormValues) {
+    if (
+      !tryAcquireActionLock(
+        submitLockRef,
+        isServerUnavailable || lockoutActive || login.isPending || isRedirectingGoogle,
+      )
+    ) {
+      return;
+    }
     setFailure({ kind: "none" });
     login.mutate(values);
   }
 
-  const lockoutActive = lockout !== null;
-  const { data: maintenanceStatus } = useMaintenanceStatus();
-
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="flex flex-col gap-5">
+    <form
+      onSubmit={form.handleSubmit(onSubmit)}
+      noValidate
+      aria-busy={isSubmitting || googleLoading}
+      className={[
+        "flex flex-col gap-5",
+        (isSubmitting || googleLoading) && "pointer-events-none",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      {isServerUnavailable && (
+        <div
+          role="alert"
+          className="flex items-start gap-2.5 rounded-xl border border-danger/40 bg-danger/10 p-3 text-xs text-danger"
+        >
+          <WifiOff className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="flex-1 space-y-1.5">
+            <p className="font-bold">{t("login.serverUnavailableTitle")}</p>
+            <p className="leading-relaxed">{t("login.serverUnavailableMessage")}</p>
+            <button
+              type="button"
+              onClick={handleRetryConnection}
+              disabled={isRetryingConnection}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-danger/40 bg-background/70 px-2.5 py-1 text-[11px] font-semibold text-danger transition-colors hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isRetryingConnection && (
+                <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+              )}
+              {isRetryingConnection
+                ? t("login.retryingConnection")
+                : t("login.retryConnection")}
+            </button>
+          </div>
+        </div>
+      )}
+
       {maintenanceStatus?.enabled && (
         <div
           role="alert"
@@ -289,7 +404,7 @@ export function LoginForm() {
           spellCheck={false}
           placeholder={t("login.emailPlaceholder")}
           prefix={<Mail aria-hidden="true" />}
-          disabled={login.isPending}
+          disabled={isSubmitting}
           {...form.register("email")}
         />
       </FormField>
@@ -302,7 +417,7 @@ export function LoginForm() {
       >
         <PasswordInput
           placeholder={t("login.passwordPlaceholder")}
-          disabled={login.isPending}
+          disabled={isSubmitting}
           {...form.register("password")}
         />
       </FormField>
@@ -317,7 +432,7 @@ export function LoginForm() {
             size="sm"
             checked={form.watch("rememberMe")}
             onCheckedChange={(checked) => form.setValue("rememberMe", checked)}
-            disabled={login.isPending}
+            disabled={isSubmitting}
           />
           <span>{t("login.rememberMe")}</span>
         </label>
@@ -379,8 +494,12 @@ export function LoginForm() {
         </div>
       )}
 
-      <Button type="submit" className="w-full" disabled={login.isPending || lockoutActive}>
-        {login.isPending ? (
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={isSubmitting || lockoutActive || isServerUnavailable}
+      >
+        {form.formState.isSubmitting || login.isPending ? (
           <span className="inline-flex items-center gap-2">
             <Loader2 className="size-4 animate-spin" aria-hidden="true" />
             {t("login.submitting")}
@@ -390,37 +509,53 @@ export function LoginForm() {
         )}
       </Button>
 
-      {socialLoginEnabled && (
-        <>
-          <div className="flex items-center gap-3" aria-hidden="true">
-            <span className="h-px flex-1 bg-border" />
-            <span className="text-xs uppercase tracking-wider text-muted-foreground">
-              {t("login.or")}
-            </span>
-            <span className="h-px flex-1 bg-border" />
+      {/* Giữ vùng chứa cố định 76px (h-4 divider + gap-5 + h-10 button) để triệt tiêu CLS */}
+      <div className="flex min-h-[76px] flex-col gap-5" data-testid="social-login-slot">
+        {socialLoginSlotState === "loading" && (
+          <div aria-hidden="true" className="flex flex-col gap-5">
+            <div className="flex h-4 items-center gap-3">
+              <span className="h-px flex-1 bg-border/60" />
+              <Skeleton rounded="full" className="h-3 w-10" />
+              <span className="h-px flex-1 bg-border/60" />
+            </div>
+            <Skeleton rounded="xl" className="h-10 w-full" />
           </div>
+        )}
 
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            disabled={login.isPending || lockoutActive || googleParams !== null}
-            onClick={handleGoogleLogin}
-          >
-            {googleParams !== null ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                {t("login.googleRedirecting")}
+        {socialLoginSlotState === "enabled" && (
+          <>
+            <div className="flex h-4 items-center gap-3" aria-hidden="true">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-xs uppercase tracking-wider text-muted-foreground">
+                {t("login.or")}
               </span>
-            ) : (
-              <span className="inline-flex items-center gap-2">
-                <GoogleIcon />
-                {t("login.googleButton")}
-              </span>
-            )}
-          </Button>
-        </>
-      )}
+              <span className="h-px flex-1 bg-border" />
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={
+                isSubmitting || lockoutActive || googleLoading || isServerUnavailable
+              }
+              onClick={handleGoogleLogin}
+            >
+              {googleLoading ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  {t("login.googleRedirecting")}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2">
+                  <GoogleIcon />
+                  {t("login.googleButton")}
+                </span>
+              )}
+            </Button>
+          </>
+        )}
+      </div>
     </form>
   );
 }

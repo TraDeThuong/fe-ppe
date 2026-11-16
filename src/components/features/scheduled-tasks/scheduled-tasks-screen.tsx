@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CalendarClock,
   Info,
@@ -25,12 +25,15 @@ import type {
   RecentExecutionState,
   TriggerCronJobPayload,
 } from "@/types/cron.types";
+import { CronJobCardGrid } from "./cron-job-card-grid";
 import { CronJobTable } from "./cron-job-table";
 import { CronJobDialog } from "./cron-job-dialog";
 import { CronJobDetailModal } from "./cron-job-detail-modal";
 import { CronToggleConfirmDialog } from "./cron-toggle-confirm-dialog";
 import { CronKpiSummary, type CronStatKey } from "./cron-kpi-summary";
-import { CronToolbar } from "./cron-toolbar";
+import { CronToolbar, type CronViewMode } from "./cron-toolbar";
+
+const VIEW_MODE_STORAGE_KEY = "scheduled-tasks:view-mode";
 
 export function ScheduledTasksScreen() {
   const { user, status } = useAuth();
@@ -43,7 +46,28 @@ export function ScheduledTasksScreen() {
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<CronScheduleFilter>("all");
+  const [viewMode, setViewMode] = useState<CronViewMode>("table");
   const [selectedStat, setSelectedStat] = useState<CronStatKey | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+      if (saved === "table" || saved === "card") {
+        setViewMode(saved);
+      }
+    } catch {
+      // Ignore storage access errors in restricted environments.
+    }
+  }, []);
+
+  const handleViewModeChange = (nextMode: CronViewMode) => {
+    setViewMode(nextMode);
+    try {
+      window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, nextMode);
+    } catch {
+      // Ignore storage write errors in restricted environments.
+    }
+  };
 
   // Trigger modal state
   const [selection, setSelection] = useState<{
@@ -202,6 +226,26 @@ export function ScheduledTasksScreen() {
     }
   };
 
+  const taskListProps = {
+    jobs: visible,
+    allJobs: jobs,
+    recentExecutions,
+    loading: query.isPending,
+    fetching: query.isFetching,
+    error: query.error,
+    filtered: Boolean(search.trim()) || filter !== "all",
+    canManage,
+    blockedJobs,
+    onRetry: () => void refresh(),
+    onTrigger: (job: CronJobItem) => openTrigger(job),
+    onToggle: (job: CronJobItem) => openToggle(job),
+    onViewDetail: (job: CronJobItem) => setDetailJob(job),
+    onResetFilters: () => {
+      setSearch("");
+      setFilter("all");
+    },
+  };
+
   if (status !== "authenticated")
     return (
       <div className="flex min-h-80 items-center justify-center">
@@ -279,6 +323,8 @@ export function ScheduledTasksScreen() {
           onSearchChange={setSearch}
           filter={filter}
           onFilterChange={setFilter}
+          viewMode={viewMode}
+          onViewModeChange={handleViewModeChange}
           onClearFilters={() => {
             setSearch("");
             setFilter("all");
@@ -289,26 +335,12 @@ export function ScheduledTasksScreen() {
           disabledCount={disabledCount}
         />
 
-        {/* High-fidelity Table */}
-        <CronJobTable
-          jobs={visible}
-          allJobs={jobs}
-          recentExecutions={recentExecutions}
-          loading={query.isPending}
-          fetching={query.isFetching}
-          error={query.error}
-          filtered={Boolean(search.trim()) || filter !== "all"}
-          canManage={canManage}
-          blockedJobs={blockedJobs}
-          onRetry={() => void refresh()}
-          onTrigger={(job) => openTrigger(job)}
-          onToggle={(job) => openToggle(job)}
-          onViewDetail={(job) => setDetailJob(job)}
-          onResetFilters={() => {
-            setSearch("");
-            setFilter("all");
-          }}
-        />
+        {/* Task List (Table or Card Grid) */}
+        {viewMode === "card" ? (
+          <CronJobCardGrid {...taskListProps} />
+        ) : (
+          <CronJobTable {...taskListProps} />
+        )}
       </section>
 
       {/* Confirmation & Execution Dialog for Run Now */}

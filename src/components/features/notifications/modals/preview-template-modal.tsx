@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Eye, FileCode, CheckCircle, RefreshCw, Layers } from "lucide-react";
 import { SculptedModal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { usePreviewNotificationTemplate } from "@/hooks/notifications";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 import { useLocale } from "@/providers/locale-provider";
 import type { NotificationTemplateItemDto, PreviewTemplateResponse } from "@/types";
 
@@ -65,6 +66,11 @@ export function PreviewTemplateModal({
       runPreview();
     }
   }, [open, template]);
+
+  const sanitizedPreviewHtml = useMemo(
+    () => sanitizeHtml(previewData?.html),
+    [previewData?.html],
+  );
 
   if (!template) return null;
 
@@ -169,14 +175,14 @@ export function PreviewTemplateModal({
                 </div>
 
                 {/* HTML Preview nếu là email */}
-                {previewData.html && (
+                {sanitizedPreviewHtml && (
                   <div className="rounded-xl border border-border/40 bg-background p-3 shadow-[2px_2px_6px_var(--shadow-dark)]">
                     <span className="block text-[10px] font-bold uppercase text-muted-foreground mb-2">
                       {isVietnamese ? "Xem trước khung HTML Email:" : "Email HTML Preview:"}
                     </span>
                     <div
                       className="rounded-lg border border-border/30 bg-white p-4 text-slate-800 shadow-inner max-h-60 overflow-auto"
-                      dangerouslySetInnerHTML={{ __html: previewData.html }}
+                      dangerouslySetInnerHTML={{ __html: sanitizedPreviewHtml }}
                     />
                   </div>
                 )}

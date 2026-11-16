@@ -1,10 +1,11 @@
 
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 
+import { useFormField } from "../foundation/form-field";
 import { Input, type InputProps } from "../foundation/input";
 
 export interface PasswordInputProps
@@ -19,6 +20,7 @@ export interface PasswordInputProps
 
 function PasswordInput({
   ref,
+  id,
   showPasswordToggle = true,
   toggleLabel,
   disabled,
@@ -26,6 +28,9 @@ function PasswordInput({
 }: PasswordInputProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const generatedId = useId();
+  const formField = useFormField();
+  const resolvedId = id ?? formField?.id ?? `password-${generatedId}`;
 
   const effectiveToggleLabel = toggleLabel ?? {
     show: isVietnamese ? "Hiện mật khẩu" : "Show password",
@@ -37,6 +42,7 @@ function PasswordInput({
   return (
     <Input
       ref={ref}
+      id={resolvedId}
       {...props}
       type={visible ? "text" : "password"}
       disabled={disabled}
@@ -48,6 +54,7 @@ function PasswordInput({
             disabled={disabled}
             aria-label={visible ? effectiveToggleLabel.hide : effectiveToggleLabel.show}
             aria-pressed={visible}
+            aria-controls={resolvedId}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => setVisible((current) => !current)}
             className={[

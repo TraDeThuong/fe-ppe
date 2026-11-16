@@ -1,4 +1,9 @@
 import "client-only";
+import {
+  deleteClientCookie,
+  getClientCookie,
+  setClientCookie,
+} from "./cookie";
 
 export const REMEMBER_ME_KEY = "ppe_remember_me";
 export const REMEMBERED_EMAIL_KEY = "ppe_remembered_email";
@@ -8,22 +13,9 @@ export const LAST_ACTIVE_KEY = "ppe_last_active_time";
 /** Thời gian grace period (30s) khi chuyển tab hoặc mở tab mới trong cùng phiên làm việc */
 const INACTIVITY_TIMEOUT_MS = 30 * 1000;
 
-export function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-export function setCookie(name: string, value: string, maxAgeSeconds?: number) {
-  if (typeof document === "undefined") return;
-  const maxAgeStr = maxAgeSeconds !== undefined ? `; max-age=${maxAgeSeconds}` : "";
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; SameSite=Lax${maxAgeStr}`;
-}
-
-export function deleteCookie(name: string) {
-  if (typeof document === "undefined") return;
-  document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
-}
+export const getCookie = getClientCookie;
+export const setCookie = setClientCookie;
+export const deleteCookie = deleteClientCookie;
 
 /**
  * Kiểm tra xem người dùng có chọn ghi nhớ đăng nhập không.
@@ -93,6 +85,22 @@ export function recordActivity() {
   if (!isRememberMe()) {
     localStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
   }
+}
+
+/**
+ * Kiểm tra xem trình duyệt có dấu vết của một phiên đăng nhập cũ cần dọn cookie httpOnly hay không.
+ * Dùng để tránh gọi POST /auth/logout vô ích đối với khách vãng lai ở trang /login.
+ */
+export function hasStaleSessionTrace(): boolean {
+  if (typeof window === "undefined") return false;
+
+  return Boolean(
+    localStorage.getItem(REMEMBER_ME_KEY) === "true" ||
+      localStorage.getItem(LAST_ACTIVE_KEY) ||
+      sessionStorage.getItem(SESSION_ACTIVE_KEY) ||
+      getCookie(REMEMBER_ME_KEY) === "1" ||
+      getCookie(SESSION_ACTIVE_KEY) === "1",
+  );
 }
 
 /**

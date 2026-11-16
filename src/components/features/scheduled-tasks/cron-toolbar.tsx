@@ -1,18 +1,26 @@
 "use client";
 
-import { RotateCcw, Search, X } from "lucide-react";
+import { LayoutGrid, RotateCcw, Search, Table2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/form/foundation/input";
 import { Select } from "@/components/ui/form/selection-controls/select";
+import {
+  SegmentedControl,
+  type SegmentedControlOption,
+} from "@/components/ui/segmented-control";
 import { useLocale } from "@/providers/locale-provider";
 import type { CronScheduleFilter } from "@/types/cron.types";
+
+export type CronViewMode = "table" | "card";
 
 export interface CronToolbarProps {
   search: string;
   onSearchChange: (value: string) => void;
   filter: CronScheduleFilter;
   onFilterChange: (filter: CronScheduleFilter) => void;
+  viewMode: CronViewMode;
+  onViewModeChange: (mode: CronViewMode) => void;
   onClearFilters?: () => void;
   totalCount: number;
   visibleCount: number;
@@ -26,6 +34,8 @@ export function CronToolbar({
   onSearchChange,
   filter,
   onFilterChange,
+  viewMode,
+  onViewModeChange,
   onClearFilters,
   totalCount,
   visibleCount,
@@ -44,6 +54,19 @@ export function CronToolbar({
     { value: "disabled", label: t("cron.disabled") },
   ];
 
+  const viewOptions: SegmentedControlOption<CronViewMode>[] = [
+    {
+      value: "table",
+      label: t("cron.viewMode.table"),
+      icon: <Table2 className="size-3.5" aria-hidden="true" />,
+    },
+    {
+      value: "card",
+      label: t("cron.viewMode.card"),
+      icon: <LayoutGrid className="size-3.5" aria-hidden="true" />,
+    },
+  ];
+
   const handleClear = () => {
     if (onClearFilters) {
       onClearFilters();
@@ -57,9 +80,9 @@ export function CronToolbar({
     <div
       className={`flex flex-col gap-2.5 sm:gap-3 rounded-2xl border border-white/60 bg-surface/90 p-3 sm:p-4 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 dark:bg-card/80 ${className}`}
     >
-      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
         {/* Search Input */}
-        <div className="relative flex-1 sm:max-w-md">
+        <div className="relative flex-1 lg:max-w-md">
           <Input
             type="search"
             aria-label={t("cron.search")}
@@ -81,38 +104,48 @@ export function CronToolbar({
           )}
         </div>
 
-        {/* Filter Select, Reset & Counter */}
-        <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 flex-wrap">
-          <div className="w-36 sm:w-44">
-            <Select
-              ariaLabel={t("cron.filter")}
-              value={filter}
-              onValueChange={(value) => onFilterChange(value as CronScheduleFilter)}
-              options={filterOptions}
-              className="w-full text-xs"
-            />
+        {/* Filter Select, Reset, Counter & View Mode Switcher */}
+        <div className="flex items-center justify-between lg:justify-end gap-2.5 shrink-0 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="w-36 sm:w-44">
+              <Select
+                ariaLabel={t("cron.filter")}
+                value={filter}
+                onValueChange={(value) => onFilterChange(value as CronScheduleFilter)}
+                options={filterOptions}
+                className="w-full text-xs"
+              />
+            </div>
+
+            {isFiltered && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleClear}
+                className="h-9 gap-1.5 rounded-xl px-2.5 text-xs text-muted-foreground hover:text-foreground shadow-sm"
+                aria-label={t("cron.clearFilters")}
+              >
+                <RotateCcw className="size-3.5" />
+                <span className="hidden sm:inline">{t("cron.clearFilters")}</span>
+              </Button>
+            )}
+
+            <Badge
+              variant="outline"
+              size="sm"
+              className="font-mono text-[11px] px-2.5 py-1.5 shrink-0 text-muted-foreground"
+            >
+              {t("cron.showing", { count: visibleCount, total: totalCount })}
+            </Badge>
           </div>
 
-          {isFiltered && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleClear}
-              className="h-9 gap-1.5 rounded-xl px-2.5 text-xs text-muted-foreground hover:text-foreground shadow-sm"
-              aria-label={t("cron.clearFilters")}
-            >
-              <RotateCcw className="size-3.5" />
-              <span className="hidden sm:inline">{t("cron.clearFilters")}</span>
-            </Button>
-          )}
-
-          <Badge
-            variant="outline"
+          <SegmentedControl<CronViewMode>
+            options={viewOptions}
+            value={viewMode}
+            onValueChange={onViewModeChange}
+            aria-label={t("cron.viewMode.label")}
             size="sm"
-            className="font-mono text-[11px] px-2.5 py-1.5 shrink-0 text-muted-foreground"
-          >
-            {t("cron.showing", { count: visibleCount, total: totalCount })}
-          </Badge>
+          />
         </div>
       </div>
     </div>

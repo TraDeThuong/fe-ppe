@@ -11,6 +11,7 @@ import { eventBus } from "@/lib/event-bus";
 import { authKeys } from "@/hooks/auth/auth.query-keys";
 import {
   clearLoginPersistence,
+  hasStaleSessionTrace,
   isRememberMe,
   recordActivity,
   shouldRestoreSession,
@@ -27,31 +28,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus(u ? "authenticated" : "unauthenticated");
   }, []);
 
-  const handleSessionExpired = useCallback(() => {
+  const clearClientSession = useCallback(() => {
     tokenStore.clear();
     queryClient.clear();
     clearLoginPersistence();
     setUser(null);
     setStatus("unauthenticated");
+  }, []);
+
+  const handleSessionExpired = useCallback(() => {
+    clearClientSession();
     // Purge cookie httpOnly: BE không tự clear khi refresh fail, cookie cũ
     // sẽ khiến proxy bounce /login → / → /login mỗi lần tải trang.
     // Chỉ gọi ở đây (event = refresh bị BE từ chối thật sự), KHÔNG gọi ở
     // restore fail do lỗi mạng — session vẫn còn hiệu lực, F5 sau sẽ phục hồi.
     void purgeSessionCookies();
-  }, []);
+  }, [clearClientSession]);
 
   const logout = useCallback(async () => {
+    let loggedOutOnServer = false;
     try {
       await authService.logout({
         refreshToken: tokenStore.getRefreshToken() ?? undefined,
       });
+      loggedOutOnServer = true;
     } catch {
       // Phiên đã hết ở server — vẫn phải dọn sạch phía client
     } finally {
-      clearLoginPersistence();
-      handleSessionExpired();
+      clearClientSession();
+      if (!loggedOutOnServer) {
+        void purgeSessionCookies();
+      }
     }
-  }, [handleSessionExpired]);
+  }, [clearClientSession]);
 
   // Khôi phục phiên: memory trống sau reload nhưng cookie httpOnly vẫn sống.
   // fetchQuery qua react-query để dedup với useMe (Bước 6) và Strict Mode.
@@ -61,13 +70,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function restoreSession() {
       // Kiểm tra tính năng Ghi nhớ đăng nhập:
       // Nếu không tích "Ghi nhớ đăng nhập" và phiên làm việc trước đó đã kết thúc
-      // thì không tự động phục hồi phiên, purge cookies và đưa về unauthenticated.
+      // thì không tự động phục hồi phiên; chỉ purge cookie khi thực sự có dấu vết phiên cũ.
       if (!shouldRestoreSession()) {
+        const shouldPurgeCookies = hasStaleSessionTrace();
         if (!cancelled) {
           tokenStore.clear();
           setUser(null);
-          await purgeSessionCookies();
           clearLoginPersistence();
+          if (shouldPurgeCookies) {
+            await purgeSessionCookies();
+          }
           if (!cancelled) {
             setStatus("unauthenticated");
           }

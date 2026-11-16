@@ -3,7 +3,7 @@
 import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import { authService } from "@/services/auth.service";
 import { authKeys } from "./auth.query-keys";
-import type { ApiError } from "@/lib/axios";
+import { ApiError } from "@/lib/axios";
 import type { SystemPublicConfig } from "@/types";
 
 export interface UsePublicConfigOptions
@@ -25,6 +25,13 @@ export function usePublicConfig(options?: UsePublicConfigOptions) {
     queryKey: authKeys.config(),
     queryFn: () => authService.getPublicConfig(),
     staleTime: Infinity,
+    // Không retry khi mất kết nối hoàn toàn (status === 0) để UI báo offline ngay
+    retry: (failureCount, error) =>
+      error instanceof ApiError && error.status >= 500 && failureCount < 2,
+    // Chỉ thăm dò lại mỗi 10s khi đang lỗi; dừng polling ngay khi kết nối lại thành công
+    refetchInterval: (query) => (query.state.status === "error" ? 10_000 : false),
+    refetchOnWindowFocus: (query) => query.state.status === "error",
+    refetchOnReconnect: true,
     ...options,
   });
 }

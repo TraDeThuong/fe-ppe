@@ -8,7 +8,7 @@ import { LocaleProvider } from "@/providers/locale-provider";
 
 import { Modal, SculptedModal, RecessedDialog } from "../modal";
 import { Table, useTableContext } from "../table";
-import { FormField, Input, Textarea } from "../form";
+import { FormField, Input, PasswordInput, Textarea } from "../form";
 import { Card } from "../card";
 
 function wrapWithProviders(children: React.ReactNode) {
@@ -183,4 +183,49 @@ test("Card: variant interactive works properly without requiring redundant inter
 
   assert.match(html, /hover:-translate-y-1/);
   assert.match(html, /Interactive Card/);
+});
+
+/* -------------------------------------------------------------------------- */
+/*                          5. PasswordInput Tests                            */
+/* -------------------------------------------------------------------------- */
+
+test("PasswordInput: shares FormField id and connects toggle button via aria-controls", () => {
+  const ref = React.createRef<HTMLInputElement>();
+  const html = wrapWithProviders(
+    <FormField id="login-password" label="Mật khẩu">
+      <PasswordInput ref={ref} placeholder="••••••••" />
+    </FormField>,
+  );
+
+  assert.match(html, /for="login-password"/);
+  assert.match(html, /id="login-password"/);
+  assert.match(html, /type="password"/);
+  assert.match(html, /aria-controls="login-password"/);
+  assert.match(html, /aria-pressed="false"/);
+  assert.match(html, /aria-label="Hiện mật khẩu"/);
+});
+
+test("PasswordInput: generates matching id and aria-controls when standalone and prefers explicit id", () => {
+  const standaloneHtml = wrapWithProviders(<PasswordInput placeholder="Mật khẩu" />);
+  const inputIdMatch = standaloneHtml.match(/<input[^>]*\sid="([^"]+)"/);
+  assert.ok(inputIdMatch, "Expected standalone PasswordInput to render an id");
+  assert.match(
+    standaloneHtml,
+    new RegExp(`aria-controls="${inputIdMatch[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`),
+  );
+
+  const explicitHtml = wrapWithProviders(
+    <FormField id="field-password" label="Mật khẩu">
+      <PasswordInput id="explicit-password" />
+    </FormField>,
+  );
+  assert.match(explicitHtml, /id="explicit-password"/);
+  assert.match(explicitHtml, /aria-controls="explicit-password"/);
+});
+
+test("PasswordInput: renders safely without LocaleProvider using fallback locale", () => {
+  const html = renderToStaticMarkup(<PasswordInput id="no-provider-password" />);
+  assert.match(html, /id="no-provider-password"/);
+  assert.match(html, /aria-controls="no-provider-password"/);
+  assert.match(html, /aria-label="Hiện mật khẩu"/);
 });

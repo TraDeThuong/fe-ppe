@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { maintenanceService } from "@/services";
+import { ApiError } from "@/lib/axios";
 import { eventBus } from "@/lib/event-bus";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
@@ -27,7 +28,12 @@ export function useMaintenanceStatus(options?: {
   const query = useQuery<PublicMaintenanceStatus>({
     queryKey: maintenanceQueryKeys.publicStatus(),
     queryFn: () => maintenanceService.getPublicStatus(),
-    refetchInterval: options?.refetchInterval ?? 30000,
+    retry: (failureCount, error) =>
+      error instanceof ApiError && error.status >= 500 && failureCount < 2,
+    refetchInterval: (query) =>
+      options?.refetchInterval ?? (query.state.status === "error" ? 10_000 : 30_000),
+    refetchOnWindowFocus: (query) => query.state.status === "error",
+    refetchOnReconnect: true,
     staleTime: 10000,
     enabled: options?.enabled ?? true,
   });

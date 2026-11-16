@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
   AlertTriangle,
-  Clock,
   Eye,
   Play,
   Power,
@@ -12,35 +11,27 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableContent, type TableFeatureSet } from "@/components/ui/table";
+import {
+  Table,
+  TableContent,
+  TableRowActions,
+  type TableFeatureSet,
+  type TableRowAction,
+} from "@/components/ui/table";
 import {
   calculateNextRun,
   describeCronSchedule,
   detectCronConflicts,
 } from "@/lib/cron";
 import { useLocale } from "@/providers/locale-provider";
-import type {
-  CronJobItem,
-  CronJobName,
-  RecentExecutionState,
-} from "@/types/cron.types";
+import type { CronJobItem } from "@/types/cron.types";
+import {
+  CronLastRunBadge,
+  getCronJobCategoryMeta,
+  type CronJobListProps,
+} from "./cron-job-presentation";
 
-interface Props {
-  jobs: CronJobItem[];
-  allJobs?: CronJobItem[];
-  recentExecutions?: Record<string, RecentExecutionState>;
-  loading: boolean;
-  fetching: boolean;
-  error: unknown;
-  filtered: boolean;
-  canManage: boolean;
-  blockedJobs: ReadonlySet<CronJobName>;
-  onRetry: () => void;
-  onTrigger: (job: CronJobItem) => void;
-  onToggle: (job: CronJobItem) => void;
-  onViewDetail?: (job: CronJobItem) => void;
-  onResetFilters?: () => void;
-}
+export type CronJobTableProps = CronJobListProps;
 
 export function CronJobTable({
   jobs,
@@ -57,7 +48,7 @@ export function CronJobTable({
   onToggle,
   onViewDetail,
   onResetFilters,
-}: Props) {
+}: CronJobTableProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
@@ -69,23 +60,38 @@ export function CronJobTable({
         header: t("cron.table.job"),
         cell: ({ row }) => {
           const job = row.original;
+          const { Icon } = getCronJobCategoryMeta(job.name);
+          const blocked = blockedJobs.has(job.name);
+
           return (
-            <div className="space-y-1 py-1.5 min-w-48 max-w-xs sm:max-w-sm">
-              <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-start gap-3 py-1 min-w-56 max-w-sm">
+              <span
+                aria-hidden="true"
+                className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] dark:bg-primary/15 dark:shadow-[inset_1px_1px_2px_rgba(0,0,0,0.35)]"
+              >
+                <Icon className="size-4" />
+              </span>
+
+              <div className="min-w-0 space-y-1">
                 <button
                   type="button"
                   onClick={() => onViewDetail?.(job)}
-                  className="font-semibold text-foreground text-sm hover:text-primary transition-colors text-left"
+                  className="font-semibold text-foreground text-sm hover:text-primary transition-colors text-left leading-snug"
                 >
                   {t(`cron.jobs.${job.name}`)}
                 </button>
+                <p className="font-mono text-[11px] text-primary font-medium truncate">
+                  {job.name}
+                </p>
+                <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">
+                  {job.description}
+                </p>
+                {blocked && (
+                  <Badge variant="warning" size="sm" className="mt-1">
+                    {t("cron.refreshRequired")}
+                  </Badge>
+                )}
               </div>
-              <p className="font-mono text-xs text-primary font-medium">
-                {job.name}
-              </p>
-              <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">
-                {job.description}
-              </p>
             </div>
           );
         },
@@ -95,7 +101,7 @@ export function CronJobTable({
         accessorKey: "cron",
         header: t("cron.table.expression"),
         cell: ({ row }) => (
-          <code className="font-mono text-xs font-semibold text-foreground whitespace-nowrap rounded-md bg-muted/50 px-2 py-1">
+          <code className="inline-block font-mono text-xs font-semibold text-foreground whitespace-nowrap rounded-lg border border-border/40 bg-muted/50 px-2.5 py-1">
             {row.original.cron}
           </code>
         ),
@@ -116,7 +122,7 @@ export function CronJobTable({
                   title={conflict.description}
                   className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300"
                 >
-                  <AlertTriangle className="size-3" />
+                  <AlertTriangle className="size-3" aria-hidden="true" />
                   <span>{t("cron.conflictBadge")} (08:00 T2)</span>
                 </div>
               )}
@@ -138,7 +144,7 @@ export function CronJobTable({
 
           if (calculation.isPaused) {
             return (
-              <Badge variant="outline" size="sm" className="text-muted-foreground">
+              <Badge variant="outline" size="sm" className="text-muted-foreground whitespace-nowrap">
                 {calculation.formatted}
               </Badge>
             );
@@ -159,29 +165,12 @@ export function CronJobTable({
       {
         id: "lastRun",
         header: t("cron.table.lastRun"),
-        cell: ({ row }) => {
-          const job = row.original;
-          const execution = recentExecutions[job.name];
-
-          if (execution) {
-            return (
-              <Badge
-                variant={execution.success ? "success" : "danger"}
-                indicator="dot"
-                size="sm"
-                className="whitespace-nowrap"
-              >
-                {t("cron.justRan")} ({execution.durationMs}ms)
-              </Badge>
-            );
-          }
-
-          return (
-            <Badge variant="outline" size="sm" className="text-muted-foreground">
-              {t("cron.ready")}
-            </Badge>
-          );
-        },
+        cell: ({ row }) => (
+          <CronLastRunBadge
+            execution={recentExecutions[row.original.name]}
+            t={t}
+          />
+        ),
       },
       {
         id: "isEnabled",
@@ -193,6 +182,7 @@ export function CronJobTable({
             <Badge
               variant={isEnabled ? "success" : "outline"}
               indicator="dot"
+              className="whitespace-nowrap"
             >
               {t(isEnabled ? "cron.enabled" : "cron.disabled")}
             </Badge>
@@ -202,62 +192,47 @@ export function CronJobTable({
       {
         id: "actions",
         header: t("cron.table.actions"),
-        cell: ({ row }: { row: { original: CronJobItem } }) => {
+        enableSorting: false,
+        cell: ({ row }) => {
           const job = row.original;
-          const blocked = blockedJobs.has(job.name);
-          const disabled = fetching || Boolean(error) || blocked;
+          const isActionDisabled = (item: CronJobItem) =>
+            fetching || Boolean(error) || blockedJobs.has(item.name);
+
+          const actions: TableRowAction<CronJobItem>[] = [
+            {
+              id: "view-detail",
+              label: t("cron.table.viewDetail"),
+              icon: <Eye className="size-3.5" aria-hidden="true" />,
+              hidden: !onViewDetail,
+              onClick: (item) => onViewDetail?.(item),
+            },
+            {
+              id: "run-now",
+              label: t("cron.runNow"),
+              icon: <Play className="size-3.5" aria-hidden="true" />,
+              variant: "primary",
+              hidden: !canManage,
+              disabled: isActionDisabled,
+              onClick: (item) => onTrigger(item),
+            },
+            {
+              id: "toggle-schedule",
+              label: t(job.isEnabled ? "cron.disable" : "cron.enable"),
+              icon: <Power className="size-3.5" aria-hidden="true" />,
+              variant: job.isEnabled ? "danger" : "outline",
+              hidden: !canManage,
+              disabled: isActionDisabled,
+              onClick: (item) => onToggle(item),
+            },
+          ];
 
           return (
-            <div className="flex min-w-56 flex-wrap items-center gap-1.5 py-1">
-              {/* View Detail Button */}
-              {onViewDetail && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onViewDetail(job)}
-                  aria-label={`${t("cron.table.viewDetail")}: ${job.name}`}
-                  className="h-8 gap-1 rounded-xl text-xs font-semibold shadow-sm px-2"
-                >
-                  <Eye className="size-3.5 text-muted-foreground" aria-hidden="true" />
-                  <span className="hidden sm:inline">{t("cron.table.viewDetail")}</span>
-                </Button>
-              )}
-
-              {canManage && (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={disabled}
-                    onClick={() => onTrigger(job)}
-                    aria-label={`${t("cron.runNow")}: ${job.name}`}
-                    className="h-8 gap-1 rounded-xl text-xs font-semibold shadow-sm px-2"
-                  >
-                    <Play className="size-3.5 text-primary" aria-hidden="true" />
-                    <span>{t("cron.runNow")}</span>
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={disabled}
-                    onClick={() => onToggle(job)}
-                    aria-label={`${t(
-                      job.isEnabled ? "cron.disable" : "cron.enable"
-                    )}: ${job.name}`}
-                    className="h-8 gap-1 rounded-xl text-xs font-semibold px-2"
-                  >
-                    <Power className="size-3.5" aria-hidden="true" />
-                    <span>{t(job.isEnabled ? "cron.disable" : "cron.enable")}</span>
-                  </Button>
-                </>
-              )}
-
-              {blocked && (
-                <p className="w-full text-xs font-medium text-warning mt-0.5">
-                  {t("cron.refreshRequired")}
-                </p>
-              )}
+            <div className="flex justify-end">
+              <TableRowActions
+                row={row}
+                actions={actions}
+                label={`${t("cron.table.actions")}: ${job.name}`}
+              />
             </div>
           );
         },
@@ -291,6 +266,7 @@ export function CronJobTable({
         data={jobs}
         columns={columns}
         getRowId={(job) => job.name}
+        onRowClick={onViewDetail ? (row) => onViewDetail(row.original) : undefined}
         loading={loading}
         fetching={fetching}
         error={error}

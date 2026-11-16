@@ -35,6 +35,7 @@ export const AUTH_SESSION_EXPIRED_EVENT = "auth:session-expired";
 
 type RetryableConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
+  _tokenGeneration?: number;
   suppressToast?: boolean;
 };
 
@@ -49,19 +50,30 @@ const REFRESH_EXEMPT_PATHS = ["/auth/login", "/auth/refresh", "/auth/2fa/verify"
 let refreshPromise: Promise<boolean> | null = null;
 
 /** Instance trần (không interceptor) để gọi refresh/purge — tránh đệ quy vô hạn và toast thừa */
-const refreshClient = axios.create({ baseURL: env.apiBaseUrl, withCredentials: true, timeout: 15000 });
+export const refreshClient = axios.create({ baseURL: env.apiBaseUrl, withCredentials: true, timeout: 15000 });
+
+let purgePromise: Promise<void> | null = null;
 
 /**
  * Xóa cookie httpOnly (accessToken/refreshToken) khi session hết hạn thật sự.
  * BE không tự clear cookie khi refresh bị từ chối — nếu để cookie cũ, proxy
  * (lớp 1) thấy cookie và bounce /login → / → /login mỗi lần tải trang.
  * Gọi bằng client trần để không kích hoạt refresh loop và không toast.
+ * Dùng single-flight để tránh gửi trùng khi React Strict Mode double-mount.
  */
 export function purgeSessionCookies(): Promise<void> {
-  return refreshClient.post("/auth/logout", {}).then(
-    () => undefined,
-    () => undefined,
-  );
+  if (!purgePromise) {
+    purgePromise = refreshClient
+      .post("/auth/logout", {})
+      .then(
+        () => undefined,
+        () => undefined,
+      )
+      .finally(() => {
+        purgePromise = null;
+      });
+  }
+  return purgePromise;
 }
 
 async function doRefresh(): Promise<boolean> {
@@ -109,6 +121,44 @@ function parseRetryAfter(value: unknown): number | undefined {
   return undefined;
 }
 
+/** Trích xuất Bearer token đã gửi kèm trong config headers (hỗ trợ cả AxiosHeaders lẫn plain object) */
+export function extractBearerToken(
+  headers: InternalAxiosRequestConfig["headers"] | undefined,
+): string {
+  if (!headers) return "";
+  const raw =
+    typeof headers.get === "function"
+      ? headers.get("Authorization")
+      : (headers as Record<string, unknown>).Authorization ??
+        (headers as Record<string, unknown>).authorization;
+  if (typeof raw !== "string") return "";
+  return raw.replace(/^Bearer\s+/i, "").trim();
+}
+
+/**
+ * Nếu token trong tokenStore đã được một request khác làm mới sau khi request này
+ * được gửi đi (hoặc token gửi đi cũ hơn token hiện tại), trả về access token mới
+ * để retry ngay mà không gọi lại POST /auth/refresh.
+ */
+export function shouldRetryWithFreshToken(config: RetryableConfig): string | null {
+  const currentToken = tokenStore.getAccessToken();
+  if (!currentToken) return null;
+
+  const sentToken = extractBearerToken(config.headers);
+  if (sentToken && currentToken !== sentToken) {
+    return currentToken;
+  }
+
+  if (
+    config._tokenGeneration !== undefined &&
+    config._tokenGeneration !== tokenStore.getTokenGeneration()
+  ) {
+    return currentToken;
+  }
+
+  return null;
+}
+
 /** Chỉ toast lỗi kỹ thuật/toàn cục ở interceptor; lỗi nghiệp vụ để mutation tự toast */
 function shouldGlobalToast(status: number, code: string): boolean {
   if (status === 0) return true; // mất kết nối
@@ -131,6 +181,7 @@ export function createApiClient(baseURL: string): AxiosInstance {
       config.url = config.url.replace(/^\/api\/v1/, "") || "/";
     }
 
+    (config as RetryableConfig)._tokenGeneration = tokenStore.getTokenGeneration();
     const token = tokenStore.getAccessToken();
     if (token) {
       config.headers.set("Authorization", `Bearer ${token}`);
@@ -189,6 +240,13 @@ export function createApiClient(baseURL: string): AxiosInstance {
         !REFRESH_EXEMPT_PATHS.some((path) => config.url?.startsWith(path));
 
       if (shouldRefresh) {
+        const freshToken = shouldRetryWithFreshToken(config);
+        if (freshToken) {
+          config._retry = true;
+          config.headers.set("Authorization", `Bearer ${freshToken}`);
+          return client.request(config);
+        }
+
         const refreshed = await refreshTokens();
         if (refreshed) {
           config._retry = true;

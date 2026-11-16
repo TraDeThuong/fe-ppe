@@ -1,25 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  matchesRoutePrefix,
+  PROTECTED_AUTH_PREFIXES,
+  PUBLIC_AUTH_PREFIXES,
+} from "@/config/routes";
 
 // Route guard LỚP 1 (optimistic, chạy trước render): chỉ check sự hiện diện
 // cookie accessToken/refreshToken (httpOnly vẫn đọc được ở server).
 // KHÔNG verify JWT ở đây — verify thật do GET /auth/me ở client (AuthProvider).
-const PROTECTED_PREFIXES = ["/dashboard", "/change-password", "/settings"];
-// /2fa nằm trong nhóm (public): giữa luồng 2FA user CHƯA có session cookie
-// (tempToken ở sessionStorage) — nếu coi là protected, proxy sẽ đá về /login.
-// Người ĐÃ đăng nhập vào /2fa thì redirect về / là hành vi đúng.
-const PUBLIC_AUTH_PREFIXES = [
-  "/login",
-  "/register",
-  "/forgot-password",
-  "/reset-password",
-  "/verify-email",
-  "/2fa",
-  "/auth",
-];
-
-function matchesPrefix(pathname: string, prefixes: string[]): boolean {
-  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
-}
 
 // Trang xác nhận vô hiệu hóa tài khoản — user đang đăng nhập bấm link trong
 // email; không được đá về "/" dù nằm trong prefix public /verify-email
@@ -41,13 +29,13 @@ export function proxy(request: NextRequest) {
     hasRawAuthCookie && (hasRememberMe || hasActiveSession),
   );
 
-  if (matchesPrefix(pathname, PROTECTED_PREFIXES) && !hasSessionCookie) {
+  if (matchesRoutePrefix(pathname, PROTECTED_AUTH_PREFIXES) && !hasSessionCookie) {
     const next = encodeURIComponent(pathname);
     return NextResponse.redirect(new URL(`/login?next=${next}`, request.url));
   }
 
   if (
-    matchesPrefix(pathname, PUBLIC_AUTH_PREFIXES) &&
+    matchesRoutePrefix(pathname, PUBLIC_AUTH_PREFIXES) &&
     !pathname.startsWith(DEACTIVATE_CONFIRM_PREFIX) &&
     !pathname.startsWith(OAUTH_CALLBACK_PREFIX) &&
     hasSessionCookie
@@ -63,6 +51,18 @@ export const config = {
     "/dashboard/:path*",
     "/change-password/:path*",
     "/settings/:path*",
+    "/incidents/:path*",
+    "/cameras/:path*",
+    "/users/:path*",
+    "/roles/:path*",
+    "/sites/:path*",
+    "/notifications/:path*",
+    "/reports/:path*",
+    "/ai-metrics/:path*",
+    "/audit-logs/:path*",
+    "/maintenance/:path*",
+    "/system/:path*",
+    "/scheduled-tasks/:path*",
     "/login/:path*",
     "/register/:path*",
     "/forgot-password/:path*",
