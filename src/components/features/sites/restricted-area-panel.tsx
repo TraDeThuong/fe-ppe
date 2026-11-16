@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { AlertOctagon, Edit2, Plus, ShieldAlert, Sliders, Trash2 } from "lucide-react";
+import { AlertOctagon, Plus, Sliders, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RestrictedAreaDrawer } from "./restricted-area-drawer";
 import { useDeleteRestrictedArea, useRestrictedAreas } from "@/hooks/sites";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import type { RestrictedAreaItem } from "@/types";
 
@@ -15,6 +16,7 @@ export interface RestrictedAreaPanelProps {
 export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const canManage = useCan()("PPE_RESTRICTED_AREA_MANAGE");
   const { data: areas = [], isLoading } = useRestrictedAreas(siteId, Boolean(siteId));
   const deleteArea = useDeleteRestrictedArea();
 
@@ -42,15 +44,17 @@ export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
   return (
     <div className="space-y-4">
       {/* Add Trigger Button */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleOpenCreate}
-        className="flex items-center gap-1.5 text-xs w-full justify-center text-danger hover:text-danger border-danger/30 hover:bg-danger/10 shadow-sm"
-      >
-        <Plus className="h-4 w-4" />
-        <span>{t("sites.restricted.addArea")}</span>
-      </Button>
+      {canManage && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleOpenCreate}
+          className="flex items-center gap-1.5 text-xs w-full justify-center text-danger hover:text-danger border-danger/30 hover:bg-danger/10 shadow-sm"
+        >
+          <Plus className="h-4 w-4" />
+          <span>{t("sites.restricted.addArea")}</span>
+        </Button>
+      )}
 
       {/* Areas List */}
       <div className="space-y-2">
@@ -82,8 +86,14 @@ export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <p className="text-xs font-bold text-foreground truncate">{area.name}</p>
-                      <span className="rounded bg-danger/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-danger uppercase border border-danger/20">
-                        {area.severity || "CRITICAL"}
+                      <span
+                        className={`rounded px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase border ${
+                          area.status === "INACTIVE"
+                            ? "bg-muted/40 text-muted-foreground border-border/40"
+                            : "bg-danger/10 text-danger border-danger/20"
+                        }`}
+                      >
+                        {area.status || "ACTIVE"}
                       </span>
                       {hasValidBoundary ? (
                         <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -104,26 +114,28 @@ export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 shrink-0 ml-2">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenEdit(area)}
-                    title={isVietnamese ? "Vẽ lại / Sửa ranh giới vùng cấm" : "Edit danger boundary"}
-                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-danger transition"
-                  >
-                    <Sliders className="h-4 w-4" />
-                  </button>
+                {canManage && (
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEdit(area)}
+                      title={isVietnamese ? "Vẽ lại / Sửa ranh giới vùng cấm" : "Edit danger boundary"}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-danger transition"
+                    >
+                      <Sliders className="h-4 w-4" />
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(area)}
-                    disabled={deleteArea.isPending}
-                    title={isVietnamese ? "Xóa vùng cấm" : "Delete area"}
-                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-danger transition"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(area)}
+                      disabled={deleteArea.isPending}
+                      title={isVietnamese ? "Xóa vùng cấm" : "Delete area"}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-surface-elevated hover:text-danger transition"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })

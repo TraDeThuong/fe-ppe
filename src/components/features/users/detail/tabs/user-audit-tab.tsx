@@ -2,15 +2,15 @@
 
 import { useState } from "react";
 import {
-  FileText,
-  Search,
   CheckCircle2,
   AlertCircle,
-  Clock,
   Loader2,
-  Shield,
   Activity,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useAuditLogs } from "@/hooks/audit";
 import { useLocale } from "@/providers/locale-provider";
 import type { UserResponseDto } from "@/types";
@@ -24,14 +24,15 @@ export function UserAuditTab({ user }: UserAuditTabProps) {
   const isVietnamese = locale === "vi-VN";
   const [page, setPage] = useState(1);
 
-  const { data: auditData, isLoading } = useAuditLogs({
-    userId: user.id,
+  const { data: auditData, isLoading, isError, refetch } = useAuditLogs({
+    actorId: user.id,
     page,
     limit: 15,
   });
 
   const logs = auditData?.items || [];
   const meta = auditData?.meta;
+  const totalPages = meta?.totalPages ?? 1;
 
   return (
     <div className="space-y-5">
@@ -62,6 +63,19 @@ export function UserAuditTab({ user }: UserAuditTabProps) {
           <div className="flex min-h-[180px] items-center justify-center gap-2 text-muted-foreground">
             <Loader2 className="size-5 animate-spin text-primary" />
             <span className="text-xs">{isVietnamese ? "Đang tải nhật ký..." : "Loading audit log..."}</span>
+          </div>
+        ) : isError ? (
+          <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-danger/40 p-8 text-center">
+            <AlertCircle className="size-7 text-danger" />
+            <p className="text-xs text-muted-foreground">
+              {isVietnamese
+                ? "Không thể tải nhật ký kiểm toán của người dùng này."
+                : "Failed to load user audit logs."}
+            </p>
+            <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5 text-xs">
+              <RefreshCw size={13} />
+              <span>{isVietnamese ? "Thử lại" : "Retry"}</span>
+            </Button>
           </div>
         ) : logs.length === 0 ? (
           <div className="p-8 text-center rounded-xl border border-dashed border-border/60 text-muted-foreground text-xs">
@@ -104,7 +118,7 @@ export function UserAuditTab({ user }: UserAuditTabProps) {
                       </p>
 
                       <div className="flex items-center gap-3 text-[10px] text-muted-foreground font-mono mt-1">
-                        <span>IP: {log.ipAddress || "127.0.0.1"}</span>
+                        <span>IP: {log.ipAddress || (isVietnamese ? "Không rõ" : "Unknown")}</span>
                         <span>•</span>
                         <span>
                           {new Date(log.createdAt).toLocaleString(isVietnamese ? "vi-VN" : "en-US")}
@@ -115,6 +129,36 @@ export function UserAuditTab({ user }: UserAuditTabProps) {
                 </div>
               );
             })}
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-3 border-t border-border/40 text-xs">
+                <span className="text-muted-foreground font-mono">
+                  {isVietnamese ? `Trang ${page} / ${totalPages}` : `Page ${page} / ${totalPages}`}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    className="h-7 px-2.5 text-xs gap-1"
+                  >
+                    <ChevronLeft size={13} />
+                    <span>{isVietnamese ? "Trước" : "Prev"}</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    className="h-7 px-2.5 text-xs gap-1"
+                  >
+                    <span>{isVietnamese ? "Sau" : "Next"}</span>
+                    <ChevronRight size={13} />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

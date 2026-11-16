@@ -3,6 +3,7 @@
 
 import { Grid, CircleHelp } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import type { ConfusionMatrixDto } from "@/types";
 
 export interface ConfusionMatrixHeatmapProps {
@@ -111,9 +112,9 @@ export function ConfusionMatrixHeatmap({
             </p>
           </div>
 
-          <div className="flex items-center gap-1.5 rounded-lg border border-border/30 bg-surface px-2 py-1 text-[10px] font-semibold text-muted-foreground shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)]">
+          <div className="flex items-center gap-1.5 rounded-lg border border-border/30 bg-surface px-2 py-1 text-[10px] font-semibold text-muted-foreground shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] tabular-nums">
             <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-            {classes.length} classes
+            <AnimatedNumber value={classes.length} /> classes
           </div>
         </div>
 
@@ -196,11 +197,20 @@ export function ConfusionMatrixHeatmap({
                                   isDiagonal ? "text-primary" : ""
                                 }`}
                               >
-                                {val.toLocaleString()}
+                                <AnimatedNumber
+                                  value={val}
+                                  delay={(rowIdx * classes.length + colIdx) * 18}
+                                  format={(v) => v.toLocaleString()}
+                                />
                               </span>
 
                               <span className="text-[9px] font-medium tabular-nums text-muted-foreground">
-                                {pct.toFixed(1)}%
+                                <AnimatedNumber
+                                  value={pct}
+                                  decimals={1}
+                                  delay={(rowIdx * classes.length + colIdx) * 18}
+                                />
+                                %
                               </span>
                             </div>
                           </td>

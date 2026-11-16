@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useSitesCatalog } from "@/hooks/sites";
 import { useAssignUserSites } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
-import { toast } from "@/lib/toast";
+import { parseContactOfficers } from "../detail/user-detail-utils";
 import type { UserResponseDto } from "@/types";
 
 export interface AssignUserSitesModalProps {
@@ -184,6 +184,9 @@ export function AssignUserSitesModal({
           <div className="max-h-[320px] overflow-y-auto space-y-2 pr-1">
             {filteredSites.map((site) => {
               const isSelected = selectedSiteIds.includes(site.id);
+              const isContactOfficer = parseContactOfficers(site.contactOfficers).some(
+                (o) => o.userId === user.id,
+              );
               return (
                 <div
                   key={site.id}
@@ -207,13 +210,18 @@ export function AssignUserSitesModal({
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-xs font-bold text-foreground truncate">
                         {site.name}
                       </span>
                       <span className="px-1.5 py-0.2 rounded border border-border/60 bg-muted/30 font-mono text-[10px] text-muted-foreground uppercase">
                         {site.code}
                       </span>
+                      {isContactOfficer && (
+                        <span className="px-1.5 py-0.2 rounded border border-primary/30 bg-primary/10 text-primary font-mono text-[10px] font-semibold">
+                          {isVietnamese ? "Ban chỉ huy tại site" : "On-site Lead"}
+                        </span>
+                      )}
                       {site.status === "ACTIVE" ? (
                         <span className="inline-flex items-center gap-1 text-[10px] text-primary font-medium">
                           <span className="size-1.5 rounded-full bg-primary" />

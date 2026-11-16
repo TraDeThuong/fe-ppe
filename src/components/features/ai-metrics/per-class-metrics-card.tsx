@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedNumber, useAnimatedProgress } from "@/components/ui/animated-number";
 import type { PerClassMetric } from "@/types";
 
 // ============================================================================
@@ -344,6 +345,7 @@ export function PerClassMetricsCard({
 
   const clampPercent = (value: number) =>
     Math.min(100, Math.max(0, Number.isFinite(value) ? value * 100 : 0));
+  const barSweep = useAnimatedProgress(100, { enabled: !loading && rawList.length > 0 });
 
   const getTierInfo = (f1: number) => {
     if (f1 >= 0.88) {
@@ -463,7 +465,9 @@ export function PerClassMetricsCard({
             {/* Badge tổng số phân lớp */}
             <div className="flex items-center gap-1.5 rounded-xl border border-border/40 bg-surface px-2.5 py-1.5 text-xs font-bold text-foreground shadow-[2px_3px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              <span className="tabular-nums">{rawList.length}</span>
+              <span className="tabular-nums">
+                <AnimatedNumber value={rawList.length} />
+              </span>
               <span className="text-[11px] font-medium text-muted-foreground">
                 {t("aiMetrics.perClass.class")}
               </span>
@@ -496,25 +500,28 @@ export function PerClassMetricsCard({
             <div className="text-center">
               <p className="text-[10px] font-semibold text-muted-foreground">Macro F1</p>
               <p className="text-xs font-black text-foreground tabular-nums sm:text-sm">
-                {(macroStats.avgF1 * 100).toFixed(1)}%
+                <AnimatedNumber value={macroStats.avgF1 * 100} decimals={1} />%
               </p>
             </div>
             <div className="text-center border-l border-border/30">
               <p className="text-[10px] font-semibold text-muted-foreground">Precision</p>
               <p className="text-xs font-black text-foreground tabular-nums sm:text-sm">
-                {(macroStats.avgPrecision * 100).toFixed(1)}%
+                <AnimatedNumber value={macroStats.avgPrecision * 100} decimals={1} />%
               </p>
             </div>
             <div className="text-center border-l border-border/30">
               <p className="text-[10px] font-semibold text-muted-foreground">Recall</p>
               <p className="text-xs font-black text-foreground tabular-nums sm:text-sm">
-                {(macroStats.avgRecall * 100).toFixed(1)}%
+                <AnimatedNumber value={macroStats.avgRecall * 100} decimals={1} />%
               </p>
             </div>
             <div className="text-center border-l border-border/30">
               <p className="text-[10px] font-semibold text-muted-foreground">{isVi ? "Tổng mẫu" : "Samples"}</p>
               <p className="text-xs font-black text-foreground tabular-nums sm:text-sm">
-                {macroStats.totalSamples.toLocaleString()}
+                <AnimatedNumber
+                  value={macroStats.totalSamples}
+                  format={(v) => v.toLocaleString()}
+                />
               </p>
             </div>
           </div>
@@ -725,7 +732,11 @@ export function PerClassMetricsCard({
                       {tier.label}
                     </span>
                     <p className="text-[11px] font-extrabold tabular-nums text-foreground">
-                      {item.sampleCount.toLocaleString()}{" "}
+                      <AnimatedNumber
+                        value={item.sampleCount}
+                        delay={index * 45}
+                        format={(v) => v.toLocaleString()}
+                      />{" "}
                       <span className="text-[10px] font-medium text-muted-foreground">
                         ({sampleRatio}%)
                       </span>
@@ -743,14 +754,18 @@ export function PerClassMetricsCard({
                           {t("aiMetrics.perClass.precision")}
                         </span>
                         <span className="text-[13px] font-extrabold leading-none tracking-tight text-foreground tabular-nums sm:text-[14px]">
-                          {percentPrecision.toFixed(1)}
+                          <AnimatedNumber
+                            value={percentPrecision}
+                            decimals={1}
+                            delay={index * 45}
+                          />
                           <span className="ml-0.5 text-[9px] font-bold text-muted-foreground">%</span>
                         </span>
                       </div>
                       <div className="relative h-[6px] overflow-hidden rounded-full border border-border/20 bg-background/80 shadow-[inset_2px_2px_4px_var(--shadow-dark)]">
                         <div
-                          className="relative h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
-                          style={{ width: `${percentPrecision}%` }}
+                          className="relative h-full rounded-full bg-primary transition-[width] duration-700 ease-out animate-live-shimmer"
+                          style={{ width: `${percentPrecision * (barSweep / 100)}%` }}
                         >
                           {percentPrecision > 10 && (
                             <span className="absolute inset-x-1 top-[1px] h-px rounded-full bg-white/60" />
@@ -766,14 +781,18 @@ export function PerClassMetricsCard({
                           {t("aiMetrics.perClass.recall")}
                         </span>
                         <span className="text-[13px] font-extrabold leading-none tracking-tight text-foreground tabular-nums sm:text-[14px]">
-                          {percentRecall.toFixed(1)}
+                          <AnimatedNumber
+                            value={percentRecall}
+                            decimals={1}
+                            delay={index * 45}
+                          />
                           <span className="ml-0.5 text-[9px] font-bold text-muted-foreground">%</span>
                         </span>
                       </div>
                       <div className="relative h-[6px] overflow-hidden rounded-full border border-border/20 bg-background/80 shadow-[inset_2px_2px_4px_var(--shadow-dark)]">
                         <div
-                          className="relative h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
-                          style={{ width: `${percentRecall}%` }}
+                          className="relative h-full rounded-full bg-primary transition-[width] duration-700 ease-out animate-live-shimmer"
+                          style={{ width: `${percentRecall * (barSweep / 100)}%` }}
                         >
                           {percentRecall > 10 && (
                             <span className="absolute inset-x-1 top-[1px] h-px rounded-full bg-white/60" />
@@ -789,14 +808,18 @@ export function PerClassMetricsCard({
                           {t("aiMetrics.perClass.f1")}
                         </span>
                         <span className="text-[13px] font-black leading-none tracking-tight text-foreground tabular-nums sm:text-[14px]">
-                          {percentF1.toFixed(1)}
+                          <AnimatedNumber
+                            value={percentF1}
+                            decimals={1}
+                            delay={index * 45}
+                          />
                           <span className="ml-0.5 text-[9px] font-bold text-muted-foreground">%</span>
                         </span>
                       </div>
                       <div className="relative h-[6px] overflow-hidden rounded-full border border-border/20 bg-background/80 shadow-[inset_2px_2px_4px_var(--shadow-dark)]">
                         <div
-                          className={`relative h-full rounded-full ${tier.fillColor} transition-[width] duration-700 ease-out`}
-                          style={{ width: `${percentF1}%` }}
+                          className={`relative h-full rounded-full ${tier.fillColor} transition-[width] duration-700 ease-out animate-live-shimmer`}
+                          style={{ width: `${percentF1 * (barSweep / 100)}%` }}
                         >
                           {percentF1 > 10 && (
                             <span className="absolute inset-x-1 top-[1px] h-px rounded-full bg-white/60" />

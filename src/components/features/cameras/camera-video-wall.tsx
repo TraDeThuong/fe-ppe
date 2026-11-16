@@ -12,6 +12,7 @@ export interface CameraVideoWallProps {
   cameras: CameraItem[];
   layout: "1x1" | "2x2" | "3x3";
   getSessionForCamera: (camera: CameraItem) => LiveSessionInfo | undefined;
+  productionMode?: boolean;
   startingCameraId?: string | null;
   onStartLive: (camera: CameraItem) => void;
   onStopLive: (camera: CameraItem) => void;
@@ -21,6 +22,7 @@ export const CameraVideoWall = memo(function CameraVideoWall({
   cameras,
   layout,
   getSessionForCamera,
+  productionMode = false,
   startingCameraId,
   onStartLive,
   onStopLive,
@@ -105,6 +107,7 @@ export const CameraVideoWall = memo(function CameraVideoWall({
             <CameraVideoPlayer
               camera={camera}
               liveSession={session}
+              productionMode={productionMode}
               isBusy={startingCameraId === camera.id}
               onStartLive={onStartLive}
               onStopLive={onStopLive}

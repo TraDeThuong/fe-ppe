@@ -22,6 +22,11 @@ export interface CameraFleetHeaderProps {
   onViewModeChange: (mode: CameraFleetViewMode) => void;
   engineOnline: boolean;
   engineError: string | null;
+  productionMode?: boolean;
+  autoSyncEnabled?: boolean;
+  maxSessions?: number;
+  isSyncingLive?: boolean;
+  onTriggerSync?: () => void;
   models: ModelInfo[];
   totalCameras: number;
   runningSessionsCount: number;
@@ -36,6 +41,11 @@ export function CameraFleetHeader({
   onViewModeChange,
   engineOnline,
   engineError,
+  productionMode = false,
+  autoSyncEnabled = false,
+  maxSessions,
+  isSyncingLive = false,
+  onTriggerSync,
   models,
   totalCameras,
   runningSessionsCount,
@@ -145,8 +155,19 @@ export function CameraFleetHeader({
                         : "bg-muted-foreground/40"
                     }`}
                   />
-                  {runningSessionsCount} luồng đang AI Tracking
+                  {typeof maxSessions === "number"
+                    ? `${runningSessionsCount}/${maxSessions} luồng AI`
+                    : `${runningSessionsCount} luồng đang AI Tracking`}
                 </span>
+
+                {productionMode && autoSyncEnabled && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-xs font-semibold text-primary ${NM.recessed}`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                    Auto-Sync 24/7
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -183,6 +204,21 @@ export function CameraFleetHeader({
                   </div>
                 </div>
               </div>
+            )}
+
+            {onTriggerSync && (
+              <button
+                type="button"
+                onClick={onTriggerSync}
+                disabled={isSyncingLive || !engineOnline}
+                title="Kích hoạt đồng bộ ngay toàn bộ camera ONLINE từ Camera Service"
+                className={`inline-flex h-14 shrink-0 items-center gap-2 rounded-2xl px-4 text-xs font-bold uppercase tracking-wider text-primary disabled:opacity-50 ${NM.tactileBtn}`}
+              >
+                <RefreshCw
+                  className={`size-4 ${isSyncingLive ? "animate-spin" : ""}`}
+                />
+                <span>{isSyncingLive ? "Đang sync..." : "Sync 24/7"}</span>
+              </button>
             )}
 
             <button

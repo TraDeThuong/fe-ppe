@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Clock, Flame, Moon, ShieldCheck, Sunrise, Sunset } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import type { DashboardAnalytics } from "@/types/dashboard.types";
 import { DashboardPanel } from "../dashboard-data-state";
 import {
@@ -279,7 +280,15 @@ export function DashboardHourlyRiskChart({
                               : "text-muted-foreground"
                         }`}
                       >
-                        {count > 0 ? number.format(count) : ""}
+                        {count > 0 ? (
+                          <AnimatedNumber
+                            value={count}
+                            delay={hour * 14}
+                            format={(v) => number.format(v)}
+                          />
+                        ) : (
+                          ""
+                        )}
                       </span>
 
                       {/* Bar track + column */}
@@ -295,14 +304,17 @@ export function DashboardHourlyRiskChart({
                         <div
                           role="img"
                           aria-label={`${String(hour).padStart(2, "0")}:00: ${count}`}
-                          className={`relative w-full max-w-[20px] rounded-t-md transition-all duration-300 ${
+                          className={`animate-bar-rise relative w-full max-w-[20px] rounded-t-md transition-all duration-300 ${
                             isPeak
                               ? "bg-gradient-to-t from-accent/80 to-accent shadow-[0_2px_8px_rgba(255,177,98,0.35)]"
                               : isHovered
                                 ? "bg-gradient-to-t from-primary/80 to-primary shadow-[0_2px_8px_rgba(163,81,57,0.3)]"
                                 : "bg-gradient-to-t from-primary/65 to-primary/90"
                           }`}
-                          style={{ height: `${barHeight}px` }}
+                          style={{
+                            height: `${barHeight}px`,
+                            animationDelay: `${hour * 14}ms`,
+                          }}
                         />
                       </div>
 
@@ -339,7 +351,10 @@ export function DashboardHourlyRiskChart({
                 {t("dashboard.charts.total")}
               </p>
               <p className="mt-1 text-2xl font-black tracking-tight tabular-nums text-foreground">
-                {number.format(analytics.total)}
+                <AnimatedNumber
+                  value={analytics.total}
+                  format={(v) => number.format(v)}
+                />
               </p>
               <p className="mt-0.5 text-[10px] font-medium text-muted-foreground">
                 {t("dashboard.charts.incidents")}
@@ -355,8 +370,11 @@ export function DashboardHourlyRiskChart({
                   ? `${String(peakHour).padStart(2, "0")}:00`
                   : "--:--"}
               </p>
-              <p className="mt-0.5 text-[10px] font-medium text-muted-foreground">
-                {number.format(peakHour >= 0 ? max : 0)}{" "}
+              <p className="mt-0.5 text-[10px] font-medium text-muted-foreground tabular-nums">
+                <AnimatedNumber
+                  value={peakHour >= 0 ? max : 0}
+                  format={(v) => number.format(v)}
+                />{" "}
                 {t("dashboard.charts.incidents")}
               </p>
             </div>
@@ -424,17 +442,20 @@ export function DashboardHourlyRiskChart({
                               isHighest ? "text-accent" : "text-foreground"
                             }`}
                           >
-                            {number.format(shift.value)}
+                            <AnimatedNumber
+                              value={shift.value}
+                              format={(v) => number.format(v)}
+                            />
                           </span>
-                          <span className="ml-1.5 font-mono text-[10px] font-semibold text-muted-foreground">
-                            ({percentage}%)
+                          <span className="ml-1.5 font-mono text-[10px] font-semibold tabular-nums text-muted-foreground">
+                            (<AnimatedNumber value={percentage} />%)
                           </span>
                         </div>
                       </div>
 
                       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-background/80 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] dark:bg-background/60">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${
+                          className={`h-full rounded-full transition-all duration-500 animate-live-shimmer ${
                             isHighest ? "bg-accent" : "bg-primary/75"
                           }`}
                           style={{
@@ -461,8 +482,8 @@ export function DashboardHourlyRiskChart({
                           isHighest ? "text-accent" : "text-primary"
                         }`}
                       />
-                      <span className="font-mono text-[9px] font-semibold text-muted-foreground">
-                        {percentage}%
+                      <span className="font-mono text-[9px] font-semibold tabular-nums text-muted-foreground">
+                        <AnimatedNumber value={percentage} />%
                       </span>
                     </div>
 
@@ -476,7 +497,10 @@ export function DashboardHourlyRiskChart({
                           isHighest ? "text-accent" : "text-foreground"
                         }`}
                       >
-                        {number.format(shift.value)}
+                        <AnimatedNumber
+                          value={shift.value}
+                          format={(v) => number.format(v)}
+                        />
                       </span>
                       <span className="font-mono text-[9px] text-muted-foreground">
                         {shift.time}
@@ -485,7 +509,7 @@ export function DashboardHourlyRiskChart({
 
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-background/80 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] dark:bg-background/60">
                       <div
-                        className={`h-full rounded-full transition-all duration-500 ${
+                        className={`h-full rounded-full transition-all duration-500 animate-live-shimmer ${
                           isHighest ? "bg-accent" : "bg-primary/75"
                         }`}
                         style={{

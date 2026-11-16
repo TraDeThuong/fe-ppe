@@ -1,14 +1,33 @@
+import { ensureFreshAccessToken } from "@/lib/axios";
+import { tokenStore } from "@/lib/token";
 import type {
   JobMeta,
   JobSummary,
   LiveConfigPayload,
+  LiveRuntimeConfigPatchPayload,
+  LiveRuntimeConfigResponse,
   LiveSessionInfo,
   LiveStartPayload,
   LiveStatsResponse,
+  LiveSyncTriggerResponse,
   LiveVideoItem,
   ModelInfo,
   UploadJobResponse,
 } from "@/types/ai-test.types";
+
+export class AiServiceHttpError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "AiServiceHttpError";
+    this.status = status;
+  }
+}
+
+export function isAiEndpointNotFoundError(error: unknown): boolean {
+  return error instanceof AiServiceHttpError && error.status === 404;
+}
 
 async function parseErrorMessage(response: Response): Promise<string> {
   try {
@@ -34,14 +53,43 @@ async function parseErrorMessage(response: Response): Promise<string> {
   }
 }
 
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    cache: "no-store",
-    ...init,
-  });
-  if (!response.ok) {
-    throw new Error(await parseErrorMessage(response));
+function buildAuthorizedHeaders(initHeaders?: HeadersInit): Headers {
+  const headers = new Headers(initHeaders);
+  if (!headers.has("Authorization")) {
+    const token = tokenStore.getAccessToken();
+    if (token) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
   }
+  return headers;
+}
+
+async function authorizedFetch(url: string, init?: RequestInit): Promise<Response> {
+  const doFetch = () =>
+    fetch(url, {
+      cache: "no-store",
+      credentials: "include",
+      ...init,
+      headers: buildAuthorizedHeaders(init?.headers),
+    });
+
+  let response = await doFetch();
+  // Đồng bộ cơ chế single-flight refresh khi JWT trên Cookie/Memory vừa hết hạn
+  if (response.status === 401) {
+    const refreshed = await ensureFreshAccessToken().catch(() => false);
+    if (refreshed) {
+      response = await doFetch();
+    }
+  }
+
+  if (!response.ok) {
+    throw new AiServiceHttpError(response.status, await parseErrorMessage(response));
+  }
+  return response;
+}
+
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await authorizedFetch(url, init);
   return (await response.json()) as T;
 }
 
@@ -108,12 +156,7 @@ export const aiTestService = {
   },
 
   async getJobLogText(jobId: string): Promise<string> {
-    const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/log`, {
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      throw new Error(await parseErrorMessage(response));
-    }
+    const response = await authorizedFetch(`/api/jobs/${encodeURIComponent(jobId)}/log`);
     return response.text();
   },
 
@@ -163,12 +206,47 @@ export const aiTestService = {
     );
   },
 
+  async listLiveSessionsWithMeta(): Promise<{
+    sessions: LiveSessionInfo[];
+    maxSessions: number | null;
+  }> {
+    const response = await authorizedFetch("/api/live/sessions");
+    const headerVal = response.headers.get("X-Live-Max-Sessions");
+    const parsedMax = headerVal ? Number(headerVal) : NaN;
+    const maxSessions =
+      Number.isFinite(parsedMax) && parsedMax > 0 ? parsedMax : null;
+    const raw = (await response.json()) as LiveSessionInfo[] | { sessions?: LiveSessionInfo[] };
+    const sessions = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.sessions)
+        ? raw.sessions
+        : [];
+    return { sessions, maxSessions };
+  },
+
   async listLiveSessions(): Promise<LiveSessionInfo[]> {
-    const raw = await requestJson<LiveSessionInfo[] | { sessions?: LiveSessionInfo[] }>(
-      "/api/live/sessions",
-    );
-    if (Array.isArray(raw)) return raw;
-    return Array.isArray(raw?.sessions) ? raw.sessions : [];
+    const { sessions } = await this.listLiveSessionsWithMeta();
+    return sessions;
+  },
+
+  async getLiveRuntimeConfig(): Promise<LiveRuntimeConfigResponse> {
+    return requestJson<LiveRuntimeConfigResponse>("/api/live/config");
+  },
+
+  async updateLiveRuntimeConfig(
+    payload: LiveRuntimeConfigPatchPayload,
+  ): Promise<{ status: string; max_sessions: number; sync?: unknown }> {
+    return requestJson("/api/live/config", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async triggerLiveSync(): Promise<LiveSyncTriggerResponse> {
+    return requestJson<LiveSyncTriggerResponse>("/api/live/sync", {
+      method: "POST",
+    });
   },
 
   getLiveStreamUrl(cameraId: string, cacheBust?: number): string {

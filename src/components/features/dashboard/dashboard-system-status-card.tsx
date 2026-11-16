@@ -30,6 +30,10 @@ import {
   getServiceImpactGuidance,
 } from "@/lib/system-health-guidance";
 import { useLocale } from "@/providers/locale-provider";
+import {
+  AnimatedMetricValue,
+  AnimatedNumber,
+} from "@/components/ui/animated-number";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import type {
@@ -283,8 +287,8 @@ export function DashboardSystemStatusCard({
           >
             <OverallIcon className="size-3.5 shrink-0" />
             <span>{t(overallMeta.overallKey)}</span>
-            <span className="rounded-full bg-background px-1.5 py-0.2 font-mono text-[10px] opacity-90">
-              {health.healthyCount}/{health.totalServices}
+            <span className="rounded-full bg-background px-1.5 py-0.2 font-mono text-[10px] tabular-nums opacity-90">
+              <AnimatedMetricValue value={`${health.healthyCount}/${health.totalServices}`} />
             </span>
           </div>
         )}
@@ -433,7 +437,7 @@ export function DashboardSystemStatusCard({
               >
                 <span>{tab.label}</span>
                 <span
-                  className={`rounded-full px-1.5 py-0.2 font-mono text-[10px] font-extrabold ${
+                  className={`rounded-full px-1.5 py-0.2 font-mono text-[10px] font-extrabold tabular-nums ${
                     tab.tone === "issue"
                       ? "bg-danger/15 text-danger"
                       : active
@@ -441,7 +445,7 @@ export function DashboardSystemStatusCard({
                         : "bg-accent text-accent-foreground"
                   }`}
                 >
-                  {tab.count}
+                  <AnimatedNumber value={tab.count} />
                 </span>
               </button>
             );
@@ -588,7 +592,7 @@ export function DashboardSystemStatusCard({
                         )}
                       </div>
                       <span className="min-w-[44px] text-right font-mono text-[11px] font-extrabold tabular-nums text-foreground">
-                        {formatServiceLatencyLabel(svc)}
+                        <AnimatedMetricValue value={formatServiceLatencyLabel(svc)} />
                       </span>
                     </div>
                   </div>
@@ -757,12 +761,16 @@ export function DashboardSystemStatusCard({
       >
         <Activity className="size-3.5" strokeWidth={2.4} />
       </div>
-      <span className="font-semibold text-foreground/85">
-        {health
-          ? `${health.healthyCount}/${health.totalServices} · TB ${Math.round(
-              health.averageLatencyMs,
-            )}ms`
-          : "--"}
+      <span className="font-semibold text-foreground/85 tabular-nums">
+        {health ? (
+          <>
+            <AnimatedNumber value={health.healthyCount} />/
+            <AnimatedNumber value={health.totalServices} /> · TB{" "}
+            <AnimatedNumber value={Math.round(health.averageLatencyMs)} />ms
+          </>
+        ) : (
+          "--"
+        )}
       </span>
       <span className="hidden opacity-40 sm:inline">•</span>
       <span className="hidden sm:inline">

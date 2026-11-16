@@ -12,7 +12,7 @@ export function useGenerateReport() {
   return useMutation({
     mutationFn: (dto: GenerateReportDto) => reportingService.generateReport(dto),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: reportingKeys.history() });
+      queryClient.invalidateQueries({ queryKey: reportingKeys.historyAll() });
       toast.success(
         `Đã tạo báo cáo "${data.fileName || "Tài liệu mới"}" thành công và đang tự động tải về máy!`
       );

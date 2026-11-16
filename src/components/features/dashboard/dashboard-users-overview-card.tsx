@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Users, ShieldCheck, Lock, UserCheck, ArrowRight, Shield } from "lucide-react";
 import { useUserSummary } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedNumber, useAnimatedProgress } from "@/components/ui/animated-number";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Loader } from "@/components/ui/loader";
 
@@ -23,6 +24,8 @@ export function DashboardUsersOverviewCard({ className = "" }: DashboardUsersOve
 
   const activePercent = total > 0 ? Math.round((active / total) * 100) : 0;
   const twoFactorPercent = total > 0 ? Math.round((twoFactor / total) * 100) : 0;
+  const animatedActivePercent = useAnimatedProgress(activePercent, { enabled: !isLoading });
+  const animatedTwoFactorPercent = useAnimatedProgress(twoFactorPercent, { enabled: !isLoading });
 
   return (
     <div
@@ -57,8 +60,8 @@ export function DashboardUsersOverviewCard({ className = "" }: DashboardUsersOve
           </div>
 
           {/* Tổng số user: Dạng huy hiệu khắc chìm (Recessed Pill) */}
-          <span className="inline-flex shrink-0 items-center rounded-full bg-background px-3 py-1 font-mono text-[11px] font-extrabold text-primary shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
-            {total} {t("nav.users").toLowerCase()}
+          <span className="inline-flex shrink-0 items-center rounded-full bg-background px-3 py-1 font-mono text-[11px] font-extrabold tabular-nums text-primary shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+            <AnimatedNumber value={total} /> {t("nav.users").toLowerCase()}
           </span>
         </div>
 
@@ -104,17 +107,17 @@ export function DashboardUsersOverviewCard({ className = "" }: DashboardUsersOve
                     </span>
                     <span>{t("dashboard.usersCard.active")}</span>
                   </div>
-                  <span className="font-mono text-[11px] font-extrabold text-foreground">
-                    {active}/{total}{" "}
-                    <span className="text-primary">({activePercent}%)</span>
+                  <span className="font-mono text-[11px] font-extrabold tabular-nums text-foreground">
+                    <AnimatedNumber value={active} />/<AnimatedNumber value={total} />{" "}
+                    <span className="text-primary">(<AnimatedNumber value={activePercent} />%)</span>
                   </span>
                 </div>
 
                 {/* Rãnh thanh tiến trình khắc chìm (Recessed Groove Track) */}
                 <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-background p-[2px] shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
                   <div
-                    className="h-full rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.45)] transition-all duration-500"
-                    style={{ width: `${activePercent}%` }}
+                    className="h-full rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.45)] transition-all duration-700 animate-live-shimmer"
+                    style={{ width: `${animatedActivePercent}%` }}
                   />
                 </div>
               </div>
@@ -128,10 +131,10 @@ export function DashboardUsersOverviewCard({ className = "" }: DashboardUsersOve
                     </span>
                     <span>{t("dashboard.usersCard.twoFactor")}</span>
                   </div>
-                  <span className="font-mono text-[11px] font-extrabold text-foreground">
-                    {twoFactor}/{total}{" "}
+                  <span className="font-mono text-[11px] font-extrabold tabular-nums text-foreground">
+                    <AnimatedNumber value={twoFactor} />/<AnimatedNumber value={total} />{" "}
                     <span className="text-muted-foreground">
-                      ({twoFactorPercent}%)
+                      (<AnimatedNumber value={twoFactorPercent} />%)
                     </span>
                   </span>
                 </div>
@@ -139,8 +142,8 @@ export function DashboardUsersOverviewCard({ className = "" }: DashboardUsersOve
                 {/* Rãnh thanh tiến trình khắc chìm dùng tông Accent */}
                 <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-background p-[2px] shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
                   <div
-                    className="h-full rounded-full bg-accent-foreground/80 transition-all duration-500"
-                    style={{ width: `${twoFactorPercent}%` }}
+                    className="h-full rounded-full bg-accent-foreground/80 transition-all duration-700 animate-live-shimmer"
+                    style={{ width: `${animatedTwoFactorPercent}%` }}
                   />
                 </div>
               </div>
@@ -159,10 +162,10 @@ export function DashboardUsersOverviewCard({ className = "" }: DashboardUsersOve
                 </div>
 
                 <span
-                  className={`rounded-full bg-background px-2.5 py-0.5 font-mono text-[11px] font-extrabold shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] ${locked > 0 ? "text-danger" : "text-foreground"
+                  className={`rounded-full bg-background px-2.5 py-0.5 font-mono text-[11px] font-extrabold tabular-nums shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] ${locked > 0 ? "text-danger" : "text-foreground"
                     }`}
                 >
-                  {locked} tài khoản
+                  <AnimatedNumber value={locked} /> tài khoản
                 </span>
               </div>
             </div>

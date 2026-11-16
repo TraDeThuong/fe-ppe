@@ -103,10 +103,16 @@ export function isSupportedLiveSource(
 }
 
 /**
- * Detects RTSP credentials masked by camera-service (`maskStreamCredentials`: `:***@`).
+ * Detects RTSP credentials masked by camera-service (`maskStreamCredentials`: `:***@` or URL-encoded `%2A%2A%2A`).
  */
 export function hasMaskedCredentials(raw?: string | null): boolean {
-  return Boolean(raw && raw.includes(":***@"));
+  if (!raw) return false;
+  return raw.includes(":***@") || raw.includes("***") || raw.toUpperCase().includes("%2A%2A%2A");
+}
+
+export interface LiveSourceModeOptions {
+  /** Production 24/7 AI server (`app/server.py`) hỗ trợ tra cứu M2M RTSP gốc khi URL bị mask `:***@`. */
+  productionMode?: boolean;
 }
 
 /**
@@ -155,14 +161,18 @@ export function getYouTubeEmbedUrl(raw?: string | null): string | null {
 }
 
 /**
- * Checks whether a camera DB record has a direct, non-masked source ready for auto-start.
+ * Checks whether a camera DB record has a direct, non-masked source ready for auto-start
+ * (or masked RTSP when running against Production 24/7 AI Server with M2M internal lookup).
  */
 export function canAutoStartCameraSource(
   camera: Pick<CameraItem, "sourceType" | "streamUrl">,
   uploadedVideos: LiveVideoItem[] = [],
+  options: LiveSourceModeOptions = {},
 ): boolean {
   const dbUrl = (camera.streamUrl ?? "").trim();
-  if (hasMaskedCredentials(dbUrl)) return false;
+  if (hasMaskedCredentials(dbUrl)) {
+    return Boolean(options.productionMode) && isSupportedLiveSource(dbUrl, uploadedVideos);
+  }
   if (String(camera.sourceType).toUpperCase() === "WEBCAM") {
     return !dbUrl || /^[0-9]$/.test(dbUrl);
   }
@@ -175,6 +185,7 @@ export function canAutoStartCameraSource(
 export function resolveCameraSourceIssue(
   camera: Pick<CameraItem, "sourceType" | "streamUrl">,
   uploadedVideos: LiveVideoItem[] = [],
+  options: LiveSourceModeOptions = {},
 ): string | null {
   const dbUrl = (camera.streamUrl ?? "").trim();
   const isWebcamType = String(camera.sourceType).toUpperCase() === "WEBCAM";
@@ -188,6 +199,9 @@ export function resolveCameraSourceIssue(
   }
 
   if (hasMaskedCredentials(dbUrl)) {
+    if (options.productionMode && isSupportedLiveSource(dbUrl, uploadedVideos)) {
+      return null;
+    }
     return "URL RTSP từ Camera Service đang bị ẩn mật khẩu (:***@) nên AI Engine chưa thể tự đăng nhập. Mở Tab 03 → Nguồn Override để nhập RTSP đầy đủ hoặc chọn video test.";
   }
 
@@ -211,6 +225,7 @@ export interface InitialCameraSourceResolution {
 export function resolveInitialCameraSource(
   camera: CameraItem,
   uploadedVideos: LiveVideoItem[] = [],
+  options: LiveSourceModeOptions = {},
 ): InitialCameraSourceResolution {
   const dbUrl = (camera.streamUrl ?? "").trim();
   const isWebcamType = String(camera.sourceType).toUpperCase() === "WEBCAM";
@@ -224,7 +239,10 @@ export function resolveInitialCameraSource(
     };
   }
 
-  if (!hasMaskedCredentials(dbUrl) && isSupportedLiveSource(dbUrl, uploadedVideos)) {
+  if (
+    (!hasMaskedCredentials(dbUrl) || options.productionMode) &&
+    isSupportedLiveSource(dbUrl, uploadedVideos)
+  ) {
     return {
       source: dbUrl,
       usesFallbackServerVideo: false,
@@ -232,7 +250,7 @@ export function resolveInitialCameraSource(
     };
   }
 
-  const issue = resolveCameraSourceIssue(camera, uploadedVideos);
+  const issue = resolveCameraSourceIssue(camera, uploadedVideos, options);
 
   if (uploadedVideos.length > 0) {
     return {
@@ -251,7 +269,7 @@ export function resolveInitialCameraSource(
   };
 }
 
-export interface AutoStartSelectionOptions {
+export interface AutoStartSelectionOptions extends LiveSourceModeOptions {
   maxTotalSessions?: number;
   attemptedIds?: ReadonlySet<string>;
 }
@@ -273,7 +291,7 @@ export function selectAutoStartCandidates(
   let activeCount = 0;
   for (const s of sessions) {
     sessionMap.set(s.camera_id, s);
-    if (s.status === "running" || s.status === "initializing") {
+    if (s.status === "running" || s.status === "initializing" || s.status === "reconnecting") {
       activeCount++;
     }
   }
@@ -291,12 +309,12 @@ export function selectAutoStartCandidates(
     const existing = findSessionForCamera(sessionMap, camera);
     if (
       existing &&
-      (existing.status === "running" || existing.status === "initializing")
+      (existing.status === "running" || existing.status === "initializing" || existing.status === "reconnecting")
     ) {
       continue;
     }
 
-    if (!canAutoStartCameraSource(camera, [...uploadedVideos])) continue;
+    if (!canAutoStartCameraSource(camera, [...uploadedVideos], options)) continue;
     candidates.push(camera);
   }
 
@@ -305,6 +323,7 @@ export function selectAutoStartCandidates(
 
 export interface CameraLiveFormValues {
   source: string;
+  cameraUuid?: string | null;
   model?: string | null;
   targetFps: number;
   aiFps: number;
@@ -350,14 +369,18 @@ export function deriveLiveDefaultsFromConfig(
 
 /**
  * Builds strict `LiveStartPayload` adhering to BE `ConfigDict(extra="forbid")`.
+ * In Production 24/7 mode, sends `camera_uuid` and omits masked `source` so AI Server
+ * performs M2M internal lookup against Camera Service.
  */
 export function buildCameraStartPayload(
   camera: Pick<CameraItem, "id" | "code"> | string,
   values: CameraLiveFormValues,
+  options: LiveSourceModeOptions = {},
 ): LiveStartPayload {
-  return {
+  const trimmedSource = values.source.trim();
+  const base: LiveStartPayload = {
     camera_id: toSafeLiveCameraId(camera),
-    source: values.source.trim(),
+    source: trimmedSource,
     model: values.model ? values.model : undefined,
     target_fps: clampFps(values.targetFps, 25),
     ai_fps: clampFps(values.aiFps, 15),
@@ -368,6 +391,19 @@ export function buildCameraStartPayload(
     enable_restricted_area: values.enableRestrictedArea,
     enable_scene_cut: values.enableSceneCut,
   };
+
+  if (options.productionMode) {
+    const camUuid =
+      values.cameraUuid ?? (typeof camera === "object" ? camera.id : undefined);
+    if (camUuid) {
+      base.camera_uuid = camUuid;
+    }
+    if (!trimmedSource || hasMaskedCredentials(trimmedSource)) {
+      delete base.source;
+    }
+  }
+
+  return base;
 }
 
 /**

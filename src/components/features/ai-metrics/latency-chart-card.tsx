@@ -4,6 +4,7 @@
 import { Activity, Clock, Gauge, TrendingDown, TrendingUp } from "lucide-react";
 import { useId } from "react";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedNumber, useAnimatedProgress } from "@/components/ui/animated-number";
 import type { LatencyDataPoint } from "@/types";
 
 export interface LatencyChartCardProps {
@@ -81,6 +82,7 @@ export function LatencyChartCard({
   const highestLatency = hasData
     ? Math.max(...history.map((point) => point.latencyMs))
     : 0;
+  const barSweep = useAnimatedProgress(100, { enabled: hasData });
 
   const shellShadow =
     "shadow-[0_2px_0_rgba(255,255,255,0.8)_inset,0_-2px_0_rgba(0,0,0,0.025)_inset,8px_10px_18px_var(--shadow-dark),-8px_-8px_18px_var(--shadow-light)]";
@@ -171,8 +173,14 @@ export function LatencyChartCard({
               </p>
             </div>
 
-            <div className="rounded-lg border border-primary/20 bg-primary/[0.08] px-2.5 py-1.5 text-[10px] font-extrabold text-primary shadow-[0_1px_0_rgba(255,255,255,0.7)_inset,2px_2px_4px_var(--shadow-dark)]">
-              {hasData ? `${history.length} samples` : "No data"}
+            <div className="rounded-lg border border-primary/20 bg-primary/[0.08] px-2.5 py-1.5 text-[10px] font-extrabold text-primary shadow-[0_1px_0_rgba(255,255,255,0.7)_inset,2px_2px_4px_var(--shadow-dark)] tabular-nums">
+              {hasData ? (
+                <>
+                  <AnimatedNumber value={history.length} /> samples
+                </>
+              ) : (
+                "No data"
+              )}
             </div>
           </div>
 
@@ -287,6 +295,7 @@ export function LatencyChartCard({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     filter={`url(#${gradientId}-shadow)`}
+                    className="animate-svg-draw"
                   />
 
                   {/* Raised data points */}
@@ -370,17 +379,24 @@ export function LatencyChartCard({
 
         {/* KPI cards */}
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          {stats.map((stat) => {
+          {stats.map((stat, statIdx) => {
             const Icon = stat.icon;
+            const numericStat = Number(stat.value);
+            const targetWidth = stat.accent
+              ? (highestLatency / Math.max(maxVal, 1)) * 100
+              : stat.unit === "FPS"
+                ? Math.min(100, (avgFps / 60) * 100)
+                : Math.min(100, (numericStat / 100) * 100);
 
             return (
               <div
                 key={stat.label}
-                className="group relative overflow-hidden rounded-[17px] border border-border/40 bg-surface p-3 transition-transform duration-200 hover:-translate-y-0.5 sm:p-3.5"
                 style={{
+                  animationDelay: `${statIdx * 60}ms`,
                   boxShadow:
                     "0 1px 0 rgba(255,255,255,0.8) inset, 0 -1px 0 rgba(0,0,0,0.02) inset, 4px 5px 10px var(--shadow-dark), -4px -4px 10px var(--shadow-light)",
                 }}
+                className="animate-stat-enter group relative overflow-hidden rounded-[17px] border border-border/40 bg-surface p-3 transition-transform duration-200 hover:-translate-y-0.5 sm:p-3.5"
               >
                 <div
                   aria-hidden="true"
@@ -403,7 +419,11 @@ export function LatencyChartCard({
 
                 <div className="mt-3 flex items-baseline gap-1">
                   <span className="text-[22px] font-extrabold leading-none tracking-[-0.055em] text-foreground tabular-nums sm:text-[25px]">
-                    {stat.value}
+                    <AnimatedNumber
+                      value={Number.isFinite(numericStat) ? numericStat : 0}
+                      decimals={1}
+                      delay={statIdx * 60}
+                    />
                   </span>
                   <span className="text-[10px] font-bold text-muted-foreground">
                     {stat.unit}
@@ -416,15 +436,11 @@ export function LatencyChartCard({
 
                 <div className="mt-3 h-[5px] overflow-hidden rounded-full bg-background/80 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)]">
                   <div
-                    className={`h-full rounded-full ${
+                    className={`h-full rounded-full transition-all duration-700 animate-live-shimmer ${
                       stat.accent ? "bg-accent" : "bg-primary"
                     }`}
                     style={{
-                      width: stat.accent
-                        ? `${(highestLatency / Math.max(maxVal, 1)) * 100}%`
-                        : stat.unit === "FPS"
-                          ? `${Math.min(100, (avgFps / 60) * 100)}%`
-                          : `${Math.min(100, (Number(stat.value) / 100) * 100)}%`,
+                      width: `${Math.max(0, Math.min(100, targetWidth * (barSweep / 100)))}%`,
                       boxShadow:
                         "0 1px 0 rgba(255,255,255,0.5) inset",
                     }}

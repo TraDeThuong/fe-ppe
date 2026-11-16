@@ -59,6 +59,7 @@ export interface ReportStatsDetailPanelProps {
   incidents?: IncidentItem[];
   onClose: () => void;
   onGenerateReport?: (template?: ReportTemplateDto) => void;
+  onViewHistory?: () => void;
 }
 
 export function ReportStatsDetailPanel({
@@ -72,6 +73,7 @@ export function ReportStatsDetailPanel({
   incidents = [],
   onClose,
   onGenerateReport,
+  onViewHistory,
 }: ReportStatsDetailPanelProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -116,18 +118,39 @@ export function ReportStatsDetailPanel({
     }));
   }, [history, getSiteName, isVietnamese]);
 
-  // Real breakdown by severity from real incidents or distribution
+  // Real breakdown by severity: ưu tiên summary.severityBreakdown từ BE (chứa SLA & MTTR thực tế từng mức độ)
   const severityRows = useMemo(() => {
-    const counts: Record<string, { total: number; resolved: number }> = {
-      CRITICAL: { total: 0, resolved: 0 },
-      HIGH: { total: 0, resolved: 0 },
-      MEDIUM: { total: 0, resolved: 0 },
-      LOW: { total: 0, resolved: 0 },
+    const beSeverity = summary?.severityBreakdown;
+    const hasBeCounts = Boolean(
+      beSeverity &&
+        (["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).some(
+          (lvl) => (beSeverity[lvl]?.count ?? 0) > 0
+        )
+    );
+
+    const counts: Record<
+      string,
+      { total: number; resolved: number; targetSlaMinutes?: number; actualMttrMinutes?: number }
+    > = {
+      CRITICAL: { total: 0, resolved: 0, targetSlaMinutes: beSeverity?.CRITICAL?.targetSlaMinutes ?? 15, actualMttrMinutes: beSeverity?.CRITICAL?.actualMttrMinutes },
+      HIGH: { total: 0, resolved: 0, targetSlaMinutes: beSeverity?.HIGH?.targetSlaMinutes ?? 30, actualMttrMinutes: beSeverity?.HIGH?.actualMttrMinutes },
+      MEDIUM: { total: 0, resolved: 0, targetSlaMinutes: beSeverity?.MEDIUM?.targetSlaMinutes ?? 60, actualMttrMinutes: beSeverity?.MEDIUM?.actualMttrMinutes },
+      LOW: { total: 0, resolved: 0, targetSlaMinutes: beSeverity?.LOW?.targetSlaMinutes ?? 120, actualMttrMinutes: beSeverity?.LOW?.actualMttrMinutes },
     };
 
-    if (incidents.length > 0) {
+    if (hasBeCounts && beSeverity) {
+      for (const lvl of ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const) {
+        counts[lvl] = {
+          total: beSeverity[lvl]?.count ?? 0,
+          resolved: beSeverity[lvl]?.resolved ?? 0,
+          targetSlaMinutes: beSeverity[lvl]?.targetSlaMinutes ?? counts[lvl].targetSlaMinutes,
+          actualMttrMinutes: beSeverity[lvl]?.actualMttrMinutes ?? 0,
+        };
+      }
+    } else if (incidents.length > 0) {
       for (const inc of incidents) {
-        const sev = (inc.severity || "HIGH").toUpperCase();
+        const rawSev = (inc.severity || "HIGH").toUpperCase();
+        const sev = rawSev === "NORMAL" ? "MEDIUM" : rawSev;
         if (counts[sev]) {
           counts[sev].total += 1;
           if (inc.status === "RESOLVED" || inc.status === "CLOSED") {
@@ -141,17 +164,25 @@ export function ReportStatsDetailPanel({
         if (sb) {
           counts.CRITICAL.total += sb.CRITICAL || 0;
           counts.HIGH.total += sb.HIGH || 0;
-          counts.MEDIUM.total += sb.MEDIUM || 0;
+          counts.MEDIUM.total += (sb.MEDIUM || 0) + (sb.NORMAL || 0);
           counts.LOW.total += sb.LOW || 0;
         }
       }
     }
 
+    const formatSlaTarget = (minutes: number) => {
+      if (minutes >= 60 && minutes % 60 === 0) {
+        const hrs = minutes / 60;
+        return isVietnamese ? `< ${hrs} giờ` : `< ${hrs} hr${hrs > 1 ? "s" : ""}`;
+      }
+      return isVietnamese ? `< ${minutes} phút` : `< ${minutes} mins`;
+    };
+
     const meta = [
       {
         level: "CRITICAL",
         description: isVietnamese ? "Khẩn cấp" : "Critical",
-        sla: isVietnamese ? "< 30 phút" : "< 30 mins",
+        defaultSlaMinutes: 15,
         bar: "bg-rose-500/80",
         text: "text-rose-600 dark:text-rose-400",
         dot: "bg-rose-500",
@@ -159,7 +190,7 @@ export function ReportStatsDetailPanel({
       {
         level: "HIGH",
         description: isVietnamese ? "Nghiêm trọng" : "High Severity",
-        sla: isVietnamese ? "< 1.5 giờ" : "< 1.5 hrs",
+        defaultSlaMinutes: 30,
         bar: "bg-amber-500/80",
         text: "text-amber-600 dark:text-amber-400",
         dot: "bg-amber-500",
@@ -167,7 +198,7 @@ export function ReportStatsDetailPanel({
       {
         level: "MEDIUM",
         description: isVietnamese ? "Trung bình" : "Medium Severity",
-        sla: isVietnamese ? "< 3 giờ" : "< 3 hrs",
+        defaultSlaMinutes: 60,
         bar: "bg-primary/80",
         text: "text-primary",
         dot: "bg-primary",
@@ -175,7 +206,7 @@ export function ReportStatsDetailPanel({
       {
         level: "LOW",
         description: isVietnamese ? "Nhắc nhở nhẹ" : "Low / Advisory",
-        sla: isVietnamese ? "< 6 giờ" : "< 6 hrs",
+        defaultSlaMinutes: 120,
         bar: "bg-emerald-500/80",
         text: "text-emerald-600 dark:text-emerald-400",
         dot: "bg-emerald-500",
@@ -185,12 +216,18 @@ export function ReportStatsDetailPanel({
     return meta.map((m) => {
       const c = counts[m.level] || { total: 0, resolved: 0 };
       const percent = c.total > 0 ? Math.round((c.resolved / c.total) * 100) : 0;
+      const slaMinutes = c.targetSlaMinutes ?? m.defaultSlaMinutes;
+      const actualMin = c.actualMttrMinutes ?? 0;
       return {
         ...m,
+        sla: formatSlaTarget(slaMinutes),
         total: c.total,
         resolved: c.resolved,
         percent,
-        avg: `${c.total} ${isVietnamese ? "vụ" : "cases"}`,
+        avg:
+          actualMin > 0
+            ? `${actualMin} ${isVietnamese ? "phút" : "m"}`
+            : `${c.total} ${isVietnamese ? "vụ" : "cases"}`,
         status:
           c.total === 0
             ? isVietnamese
@@ -199,7 +236,7 @@ export function ReportStatsDetailPanel({
             : `${c.resolved}/${c.total} ${isVietnamese ? "đã xử lý" : "resolved"}`,
       };
     });
-  }, [incidents, distribution, isVietnamese]);
+  }, [summary?.severityBreakdown, incidents, distribution, isVietnamese]);
 
   // Real export format counts from history
   const reportExportStats = useMemo(() => {
@@ -1479,6 +1516,7 @@ export function ReportStatsDetailPanel({
                   <button
                     type="button"
                     onClick={() => {
+                      onViewHistory?.();
                       const tableElem = document.getElementById(
                         "reports-history-section"
                       );

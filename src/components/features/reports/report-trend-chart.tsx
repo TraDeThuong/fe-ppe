@@ -7,21 +7,36 @@ import {
   AlertTriangle,
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
   LineChart,
   TrendingUp,
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedNumber, useAnimatedProgress } from "@/components/ui/animated-number";
 import type { TrendItemDto } from "@/types";
+
+export type TrendGroupBy = "DAY" | "WEEK" | "MONTH";
 
 export interface ReportTrendChartProps {
   trends?: TrendItemDto[];
   loading?: boolean;
+  dateRangeLabel?: string;
+  groupBy?: TrendGroupBy;
+  onGroupByChange?: (groupBy: TrendGroupBy) => void;
 }
 
-type Period = "7" | "30" | "90" | "all";
-
 function formatTrendDate(dateStr: string, locale: string) {
+  // BE SEC-37 weekly format: YYYY-Www (e.g., 2026-W44)
+  const weekMatch = dateStr.match(/^(\d{4})-W(\d{2})$/);
+  if (weekMatch) {
+    return locale === "vi-VN" ? `T${weekMatch[2]}` : `W${weekMatch[2]}`;
+  }
+
+  // BE monthly format: YYYY-MM
+  const monthMatch = dateStr.match(/^(\d{4})-(\d{2})$/);
+  if (monthMatch) {
+    return `${monthMatch[2]}/${monthMatch[1].slice(-2)}`;
+  }
+
   const date = new Date(`${dateStr}T00:00:00`);
 
   if (Number.isNaN(date.getTime())) return dateStr;
@@ -46,32 +61,25 @@ function getLabelInterval(total: number) {
 export function ReportTrendChart({
   trends = [],
   loading = false,
+  dateRangeLabel,
+  groupBy = "DAY",
+  onGroupByChange,
 }: ReportTrendChartProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  const [period, setPeriod] = useState<Period>("30");
   const [activePoint, setActivePoint] = useState<number | null>(null);
 
-  const periodOptions: {
-    value: Period;
-    label: string;
-  }[] = [
-    { value: "7", label: isVietnamese ? "7 ngày" : "7 days" },
-    { value: "30", label: isVietnamese ? "30 ngày" : "30 days" },
-    { value: "90", label: isVietnamese ? "90 ngày" : "90 days" },
-    { value: "all", label: isVietnamese ? "Tất cả" : "All time" },
+  const groupOptions: { value: TrendGroupBy; label: string }[] = [
+    { value: "DAY", label: t("reports.charts.groupDay") },
+    { value: "WEEK", label: t("reports.charts.groupWeek") },
+    { value: "MONTH", label: t("reports.charts.groupMonth") },
   ];
 
-  const filteredTrends = useMemo(() => {
-    const sorted = [...trends].sort((a, b) =>
-      a.date.localeCompare(b.date)
-    );
-
-    if (period === "all") return sorted;
-
-    return sorted.slice(-Number(period));
-  }, [trends, period]);
+  const filteredTrends = useMemo(
+    () => [...trends].sort((a, b) => a.date.localeCompare(b.date)),
+    [trends]
+  );
 
   const totalViolations = filteredTrends.reduce(
     (sum, item) => sum + item.trueViolations,
@@ -87,6 +95,9 @@ export function ReportTrendChart({
     totalViolations > 0
       ? Math.min(100, Math.round((totalResolved / totalViolations) * 100))
       : 0;
+  const animatedResolutionRate = useAnimatedProgress(resolutionRate, {
+    enabled: !loading,
+  });
 
   const maxVal = Math.max(
     ...filteredTrends.map((item) =>
@@ -189,47 +200,40 @@ export function ReportTrendChart({
                 {t("reports.charts.trendsTitle")}
               </h3>
               <p className="mt-0.5 text-[10px] font-medium text-muted-foreground">
-                {isVietnamese
-                  ? "Phân tích xu hướng vi phạm và xử lý"
-                  : "Violation and resolution analytics"}
+                {t("reports.charts.trendsDesc")}
               </p>
             </div>
           </div>
 
-          {/* PERIOD FILTER */}
-          <div
-            className="
-              flex w-full items-center gap-1 rounded-xl p-1
-              bg-background/70
-              shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]
-              sm:w-fit
-            "
-          >
-            {periodOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => {
-                  setPeriod(option.value);
-                  setActivePoint(null);
-                }}
-                className={`
-                  flex-1 whitespace-nowrap rounded-lg px-2.5 py-1.5
-                  text-[10px] font-bold transition-all duration-200
-                  sm:flex-none
-                  ${
-                    period === option.value
-                      ? `
-                        bg-surface text-primary
-                        shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]
-                      `
-                      : "text-muted-foreground hover:text-foreground"
-                  }
-                `}
-              >
-                {option.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            {onGroupByChange && (
+              <div className="flex items-center gap-1 rounded-xl bg-background/70 p-1 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+                {groupOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      onGroupByChange(opt.value);
+                      setActivePoint(null);
+                    }}
+                    className={`rounded-lg px-2.5 py-1 text-[10px] font-bold transition-all duration-200 ${
+                      groupBy === opt.value
+                        ? "bg-surface text-primary shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {dateRangeLabel && (
+              <div className="inline-flex w-fit items-center gap-1.5 rounded-xl bg-background/70 px-3 py-1.5 text-[10px] font-semibold text-muted-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+                <CalendarDays className="h-3.5 w-3.5 text-primary" />
+                <span className="tabular-nums">{dateRangeLabel}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -254,7 +258,7 @@ export function ReportTrendChart({
             </div>
             <div className="mt-1.5 flex items-baseline gap-1.5">
               <span className="text-xl font-black tabular-nums text-rose-500">
-                {totalViolations}
+                <AnimatedNumber value={totalViolations} />
               </span>
               <span className="text-[9px] font-semibold text-muted-foreground">
                 {isVietnamese ? "vi phạm" : "incidents"}
@@ -280,7 +284,7 @@ export function ReportTrendChart({
             </div>
             <div className="mt-1.5 flex items-baseline gap-1.5">
               <span className="text-xl font-black tabular-nums text-emerald-500">
-                {totalResolved}
+                <AnimatedNumber value={totalResolved} />
               </span>
               <span className="text-[9px] font-semibold text-muted-foreground">
                 {isVietnamese ? "sự cố" : "incidents"}
@@ -305,12 +309,12 @@ export function ReportTrendChart({
             </div>
             <div className="mt-1.5 flex items-center justify-between gap-3">
               <span className="text-xl font-black tabular-nums text-primary">
-                {resolutionRate}%
+                <AnimatedNumber value={resolutionRate} />%
               </span>
               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-background shadow-[inset_1px_1px_3px_var(--shadow-dark)]">
                 <div
-                  className="h-full rounded-full bg-primary transition-all duration-500"
-                  style={{ width: `${resolutionRate}%` }}
+                  className="h-full rounded-full bg-primary transition-all duration-700 animate-live-shimmer"
+                  style={{ width: `${animatedResolutionRate}%` }}
                 />
               </div>
             </div>
@@ -331,7 +335,17 @@ export function ReportTrendChart({
             <div className="flex items-center gap-2">
               <CalendarDays size={13} className="text-muted-foreground" />
               <span className="text-[10px] font-bold text-muted-foreground">
-                {isVietnamese ? "Diễn biến theo ngày" : "Daily trend"}
+                {groupBy === "WEEK"
+                  ? isVietnamese
+                    ? "Diễn biến theo tuần"
+                    : "Weekly trend"
+                  : groupBy === "MONTH"
+                    ? isVietnamese
+                      ? "Diễn biến theo tháng"
+                      : "Monthly trend"
+                    : isVietnamese
+                      ? "Diễn biến theo ngày"
+                      : "Daily trend"}
               </span>
             </div>
 
@@ -448,6 +462,7 @@ export function ReportTrendChart({
                       strokeWidth="3"
                       strokeLinecap="round"
                       strokeLinejoin="round"
+                      className="animate-svg-draw"
                     />
                     <path
                       d={resolvedPath}
@@ -456,6 +471,7 @@ export function ReportTrendChart({
                       strokeWidth="3"
                       strokeLinecap="round"
                       strokeLinejoin="round"
+                      className="animate-svg-draw"
                     />
                   </>
                 )}
@@ -599,14 +615,32 @@ export function ReportTrendChart({
             <div className="flex items-center gap-2">
               <Activity size={13} className="text-primary" />
               <span className="text-[10px] font-medium text-muted-foreground">
-                {isVietnamese
-                  ? `${filteredTrends.length} ngày thống kê`
-                  : `${filteredTrends.length} data points`}
+                {groupBy === "WEEK"
+                  ? isVietnamese
+                    ? `${filteredTrends.length} tuần thống kê`
+                    : `${filteredTrends.length} weeks`
+                  : groupBy === "MONTH"
+                    ? isVietnamese
+                      ? `${filteredTrends.length} tháng thống kê`
+                      : `${filteredTrends.length} months`
+                    : isVietnamese
+                      ? `${filteredTrends.length} ngày thống kê`
+                      : `${filteredTrends.length} data points`}
               </span>
             </div>
 
             <span className="text-[10px] font-semibold text-muted-foreground">
-              {isVietnamese ? "Dữ liệu theo ngày" : "Daily data"}
+              {groupBy === "WEEK"
+                ? isVietnamese
+                  ? "Dữ liệu theo tuần ISO"
+                  : "ISO weekly data"
+                : groupBy === "MONTH"
+                  ? isVietnamese
+                    ? "Dữ liệu theo tháng"
+                    : "Monthly data"
+                  : isVietnamese
+                    ? "Dữ liệu theo ngày"
+                    : "Daily data"}
             </span>
           </div>
         )}

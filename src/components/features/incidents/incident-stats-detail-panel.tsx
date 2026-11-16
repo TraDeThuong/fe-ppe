@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
@@ -638,8 +639,8 @@ export function IncidentStatsDetailPanel({
               <span className="text-[10px] sm:text-[11px] font-bold text-danger uppercase block truncate">
                 {t("incidents.severity.critical")}
               </span>
-              <span className="text-base sm:text-lg font-black text-danger font-mono">
-                {severityStats.critical}
+              <span className="text-base sm:text-lg font-black text-danger font-mono tabular-nums">
+                <AnimatedNumber value={severityStats.critical} />
               </span>
             </div>
 
@@ -647,8 +648,8 @@ export function IncidentStatsDetailPanel({
               <span className="text-[10px] sm:text-[11px] font-bold text-warning uppercase block truncate">
                 {t("incidents.severity.high")}
               </span>
-              <span className="text-base sm:text-lg font-black text-warning font-mono">
-                {severityStats.high}
+              <span className="text-base sm:text-lg font-black text-warning font-mono tabular-nums">
+                <AnimatedNumber value={severityStats.high} />
               </span>
             </div>
 
@@ -656,8 +657,8 @@ export function IncidentStatsDetailPanel({
               <span className="text-[10px] sm:text-[11px] font-bold text-primary uppercase block truncate">
                 {t("incidents.severity.medium")}
               </span>
-              <span className="text-base sm:text-lg font-black text-primary font-mono">
-                {severityStats.medium}
+              <span className="text-base sm:text-lg font-black text-primary font-mono tabular-nums">
+                <AnimatedNumber value={severityStats.medium} />
               </span>
             </div>
 
@@ -665,8 +666,8 @@ export function IncidentStatsDetailPanel({
               <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase block truncate">
                 {t("incidents.severity.low")}
               </span>
-              <span className="text-base sm:text-lg font-black text-muted-foreground font-mono">
-                {severityStats.low}
+              <span className="text-base sm:text-lg font-black text-muted-foreground font-mono tabular-nums">
+                <AnimatedNumber value={severityStats.low} />
               </span>
             </div>
           </div>
@@ -803,8 +804,8 @@ export function IncidentStatsDetailPanel({
               <span className="text-[10px] sm:text-[11px] font-bold text-success uppercase block">
                 {isVietnamese ? "Tổng sự cố đã khắc phục" : "Total Remediated"}
               </span>
-              <span className="text-xl sm:text-2xl font-black text-success font-mono">
-                {resolvedCount}
+              <span className="text-xl sm:text-2xl font-black text-success font-mono tabular-nums">
+                <AnimatedNumber value={resolvedCount} />
               </span>
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 {isVietnamese ? "Đã nghiệm thu hiện trường" : "Field-verified solutions"}
@@ -815,8 +816,8 @@ export function IncidentStatsDetailPanel({
               <span className="text-[10px] sm:text-[11px] font-bold text-primary uppercase block">
                 {isVietnamese ? "Tỷ lệ khắc phục an toàn" : "Safety Resolution Rate"}
               </span>
-              <span className="text-xl sm:text-2xl font-black text-primary font-mono">
-                {resolutionRate}%
+              <span className="text-xl sm:text-2xl font-black text-primary font-mono tabular-nums">
+                <AnimatedNumber value={resolutionRate} />%
               </span>
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 {isVietnamese ? "Trên tổng số hồ sơ đã mở" : "Of all opened incidents"}
@@ -827,8 +828,8 @@ export function IncidentStatsDetailPanel({
               <span className="text-[10px] sm:text-[11px] font-bold text-muted-foreground uppercase block">
                 {isVietnamese ? "Cảnh báo ảo loại trừ" : "False Alarms Filtered"}
               </span>
-              <span className="text-xl sm:text-2xl font-black text-foreground font-mono">
-                {statusStats.dismissed}
+              <span className="text-xl sm:text-2xl font-black text-foreground font-mono tabular-nums">
+                <AnimatedNumber value={statusStats.dismissed} />
               </span>
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 {isVietnamese ? "Đã thẩm duyệt bác bỏ" : "Dismissed after AI check"}

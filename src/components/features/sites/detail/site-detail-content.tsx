@@ -1,33 +1,49 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { GenerateReportModal } from "@/components/features/reports";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRealtime } from "@/contexts/RealtimeContext";
 import { useSite } from "@/contexts/SiteContext";
 import { useCameraStatusCounts } from "@/hooks/cameras";
-import { useIncidentStatusCounts } from "@/hooks/incidents";
+import { incidentKeys, useIncidentStatusCounts } from "@/hooks/incidents";
 import {
-  useSiteDetail,
-  useUpdateSite,
-  useSiteZones,
+  reportingKeys,
+  useGenerateReport,
+  useReportSummary,
+  useReportTemplates,
+} from "@/hooks/reporting";
+import {
+  useArchiveSite,
+  useDeleteSite,
   useRestrictedAreas,
+  useSiteDetail,
+  useSiteZones,
+  useUpdateSite,
 } from "@/hooks/sites";
-import { useReportSummary } from "@/hooks/reporting";
+import { useCan } from "@/hooks/use-can";
+import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
+import { reportingService } from "@/services/reporting.service";
+import { DeleteSiteDialog } from "../delete-site-dialog";
 import { EditSiteModal } from "../edit-site-modal";
-import { SiteZonesDrawer } from "../site-zones-drawer";
+import { resolveDisplayOfficers, syncSiteOfficersAccess } from "../site-helpers";
 import { SiteSafetyConfigModal } from "../site-safety-config-modal";
+import { SiteZonesDrawer } from "../site-zones-drawer";
 import { SiteDetailHero } from "./site-detail-hero";
 import { SiteDetailKpiBar } from "./site-detail-kpi-bar";
 import { SiteDetailTabs, type SiteDetailTabKey } from "./site-detail-tabs";
-import { SiteLiveCamerasTab } from "./tabs/site-live-cameras-tab";
-import { SiteIncidentsTab } from "./tabs/site-incidents-tab";
-import { SiteSpatialZonesTab } from "./tabs/site-spatial-zones-tab";
-import { SiteSafetyRulesTab } from "./tabs/site-safety-rules-tab";
 import { SiteAnalyticsTab } from "./tabs/site-analytics-tab";
+import { SiteIncidentsTab } from "./tabs/site-incidents-tab";
+import { SiteLiveCamerasTab } from "./tabs/site-live-cameras-tab";
 import { SitePersonnelTab } from "./tabs/site-personnel-tab";
-import type { UpdateSitePayload } from "@/types";
+import { SiteSafetyRulesTab } from "./tabs/site-safety-rules-tab";
+import { SiteSpatialZonesTab } from "./tabs/site-spatial-zones-tab";
+import type { GenerateReportDto, UpdateSitePayload } from "@/types";
 
 export type { SiteDetailTabKey };
 
@@ -35,87 +51,117 @@ export interface SiteDetailContentProps {
   siteId: string;
 }
 
+function resolveTab(tabStr: string | null): SiteDetailTabKey {
+  if (!tabStr) return "cameras";
+  if (tabStr === "live-cameras" || tabStr === "cameras") return "cameras";
+  if (tabStr === "incidents") return "incidents";
+  if (tabStr === "zones") return "zones";
+  if (tabStr === "safety-rules" || tabStr === "rules") return "safety-rules";
+  if (tabStr === "analytics") return "analytics";
+  if (tabStr === "personnel") return "personnel";
+  return "cameras";
+}
+
 export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { t } = useLocale();
+  const queryClient = useQueryClient();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
+  const { user: currentUser } = useAuth();
+  const { lastAlert } = useRealtime();
   const { setSiteId } = useSite();
+  const can = useCan();
 
-  const resolveTab = (tabStr: string | null): SiteDetailTabKey => {
-    if (!tabStr) return "cameras";
-    if (tabStr === "live-cameras" || tabStr === "cameras") return "cameras";
-    if (tabStr === "incidents") return "incidents";
-    if (tabStr === "zones") return "zones";
-    if (tabStr === "safety-rules" || tabStr === "rules") return "safety-rules";
-    if (tabStr === "analytics") return "analytics";
-    if (tabStr === "personnel") return "personnel";
-    return "cameras";
-  };
+  const canReadZones = can("PPE_ZONE_READ");
+  const canReadRestricted = can("PPE_RESTRICTED_AREA_READ");
+  const canReadCameras = can("PPE_CAMERA_READ");
+  const canReadIncidents = can("PPE_INCIDENT_READ");
+  const canReadReporting = can("PPE_REPORTING_READ");
+  const canManageSite = can("PPE_SITE_MANAGE");
+  const canManageZones = can("PPE_ZONE_MANAGE") || can("PPE_RESTRICTED_AREA_MANAGE");
+  const canManageSafety = can("PPE_SAFETY_CONFIG_MANAGE");
+  const canExportReport = can("PPE_REPORTING_EXPORT");
+  const isAdmin = currentUser?.role === "ADMIN" || currentUser?.role === "SUPER_ADMIN";
 
-  // Active Tab synchronized with URL
-  const [activeTab, setActiveTab] = useState<SiteDetailTabKey>(resolveTab(searchParams.get("tab")));
+  // Active Tab synchronized with URL (including back-navigation to no ?tab=)
+  const [activeTab, setActiveTab] = useState<SiteDetailTabKey>(() =>
+    resolveTab(searchParams.get("tab")),
+  );
 
   useEffect(() => {
-    const t = searchParams.get("tab");
-    if (t) {
-      setActiveTab(resolveTab(t));
-    }
+    setActiveTab(resolveTab(searchParams.get("tab")));
   }, [searchParams]);
 
   // Modals / Drawers state
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [zonesDrawerOpen, setZonesDrawerOpen] = useState(false);
   const [safetyDrawerOpen, setSafetyDrawerOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   // Fetch Site Detail
   const { data: site, isLoading, error } = useSiteDetail(siteId);
 
-  // Live Zones and Danger Areas
-  const { data: zonesData = [] } = useSiteZones(siteId);
-  const { data: restrictedAreasData = [] } = useRestrictedAreas(siteId);
+  // Live Zones & Danger Areas (gated by RBAC)
+  const zonesQuery = useSiteZones(siteId, canReadZones);
+  const restrictedQuery = useRestrictedAreas(siteId, canReadRestricted);
+  const zonesData = zonesQuery.data ?? [];
+  const restrictedAreasData = restrictedQuery.data ?? [];
 
-  const zoneCount =
-    zonesData.length || site?.zoneCount || site?.zones?.length || site?._count?.zones || 0;
-  const restrictedCount =
-    restrictedAreasData.length ||
-    site?.restrictedAreaCount ||
-    site?.restrictedAreas?.length ||
-    site?._count?.restrictedAreas ||
-    0;
+  const zoneCount = zonesQuery.isSuccess
+    ? zonesData.length
+    : (site?.zoneCount ?? site?.zones?.length ?? site?._count?.zones ?? 0);
+  const restrictedCount = restrictedQuery.isSuccess
+    ? restrictedAreasData.length
+    : (site?.restrictedAreaCount ??
+      site?.restrictedAreas?.length ??
+      site?._count?.restrictedAreas ??
+      0);
 
   // Fetch camera counts via lightweight status-counts endpoint
-  const { data: cameraCounts } = useCameraStatusCounts(siteId);
+  const { data: cameraCounts } = useCameraStatusCounts(siteId, {
+    enabled: canReadCameras,
+  });
   const cameraCount = cameraCounts?.total ?? site?.cameraCount ?? 0;
   const onlineCameraCount = cameraCounts?.online ?? 0;
 
   // Fetch pending incident count via lightweight status-counts endpoint
-  const { data: incidentCounts } = useIncidentStatusCounts({ siteId });
+  const { data: incidentCounts } = useIncidentStatusCounts(
+    { siteId },
+    { enabled: canReadIncidents },
+  );
   const pendingIncidentsCount = incidentCounts?.pendingReview ?? 0;
 
   // Fetch site-specific safety report summary for Compliance Rate
-  const { data: reportSummary } = useReportSummary({ siteId });
+  const { data: reportSummary } = useReportSummary(
+    { siteId },
+    { enabled: canReadReporting },
+  );
   const complianceRate =
-    reportSummary && reportSummary.complianceRate > 0
+    reportSummary && reportSummary.totalIncidents > 0
       ? reportSummary.complianceRate
       : 100;
 
-  // Safely compute officers count for Tab badge
-  const officersCount = useMemo(() => {
-    if (!site?.contactOfficers) return site?.contactPerson ? 1 : 0;
-    if (Array.isArray(site.contactOfficers)) return site.contactOfficers.length;
-    if (typeof site.contactOfficers === "string") {
-      try {
-        const parsed = JSON.parse(site.contactOfficers);
-        return Array.isArray(parsed) ? parsed.length : 0;
-      } catch {
-        return site?.contactPerson ? 1 : 0;
-      }
-    }
-    return site?.contactPerson ? 1 : 0;
-  }, [site?.contactOfficers, site?.contactPerson]);
+  // Templates & report generation for Hero "Export Report"
+  const { data: reportTemplates = [] } = useReportTemplates({
+    enabled: canExportReport && exportModalOpen,
+  });
+  const generateReportMutation = useGenerateReport();
 
-  // Update site mutation
+  // Safely compute officers count matching Hero & Personnel tab
+  const officersCount = useMemo(() => {
+    if (!site) return 0;
+    return resolveDisplayOfficers(
+      site,
+      isVietnamese ? "Cán bộ phụ trách" : "Officer in Charge",
+    ).length;
+  }, [site, isVietnamese]);
+
+  // Mutations
   const updateSiteMutation = useUpdateSite();
+  const archiveSiteMutation = useArchiveSite();
+  const deleteSiteMutation = useDeleteSite();
 
   // Synchronize Global Site Context when viewing this site
   useEffect(() => {
@@ -124,10 +170,79 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
     }
   }, [siteId, setSiteId]);
 
+  // Real-time SSE invalidation for incidents & KPI summary on this site
+  useEffect(() => {
+    if (!lastAlert) return;
+    if (
+      lastAlert.type !== "notification:ppe_violation" &&
+      lastAlert.type !== "notification:new"
+    ) {
+      return;
+    }
+    const payload = lastAlert.data as Record<string, unknown> | null;
+    const alertSiteId = payload?.siteId as string | undefined;
+    if (alertSiteId && alertSiteId !== siteId) return;
+
+    void queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: incidentKeys.statusCountsRoot() });
+    void queryClient.invalidateQueries({ queryKey: reportingKeys.all });
+  }, [lastAlert, siteId, queryClient]);
+
   const handleUpdateSite = async (id: string, payload: UpdateSitePayload) => {
     await updateSiteMutation.mutateAsync({ id, payload });
+    await syncSiteOfficersAccess(id, payload.contactOfficers, isAdmin);
     setEditModalOpen(false);
   };
+
+  const handleArchiveSite = async () => {
+    if (!site) return;
+    await archiveSiteMutation.mutateAsync({ id: site.id, name: site.name });
+  };
+
+  const handleDeleteSite = async (id: string, name?: string) => {
+    await deleteSiteMutation.mutateAsync({ id, name });
+    router.push("/sites");
+  };
+
+  const handleExportSubmit = async (dto: GenerateReportDto) => {
+    const generated = await generateReportMutation.mutateAsync(dto);
+    try {
+      await reportingService.downloadReportFile(generated);
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : isVietnamese
+            ? "Đã tạo báo cáo nhưng chưa thể tự tải file xuống."
+            : "Report generated, but file download failed.",
+      );
+    }
+  };
+
+  const handleNavigateTab = useCallback(
+    (
+      nextTab: SiteDetailTabKey,
+      extraParams?: { zoneId?: string | null; cameraId?: string | null },
+    ) => {
+      setActiveTab(nextTab);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", nextTab);
+      if (extraParams && "zoneId" in extraParams) {
+        if (extraParams.zoneId) params.set("zoneId", extraParams.zoneId);
+        else params.delete("zoneId");
+      } else if (nextTab !== "cameras" && nextTab !== "incidents") {
+        params.delete("zoneId");
+      }
+      if (extraParams && "cameraId" in extraParams) {
+        if (extraParams.cameraId) params.set("cameraId", extraParams.cameraId);
+        else params.delete("cameraId");
+      } else if (nextTab !== "incidents") {
+        params.delete("cameraId");
+      }
+      router.replace(`/sites/${siteId}?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams, siteId],
+  );
 
   // Loading Skeleton State
   if (isLoading) {
@@ -170,12 +285,8 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
     );
   }
 
-  const handleTabChange = (nextTab: SiteDetailTabKey) => {
-    setActiveTab(nextTab);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", nextTab);
-    router.replace(`/sites/${siteId}?${params.toString()}`, { scroll: false });
-  };
+  const urlZoneId = searchParams.get("zoneId") || undefined;
+  const urlCameraId = searchParams.get("cameraId") || undefined;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -185,7 +296,17 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
         onEdit={() => setEditModalOpen(true)}
         onManageZones={() => setZonesDrawerOpen(true)}
         onSafetyConfig={() => setSafetyDrawerOpen(true)}
-        onViewPersonnel={() => handleTabChange("personnel")}
+        onExportReport={() => setExportModalOpen(true)}
+        onViewPersonnel={() => handleNavigateTab("personnel")}
+        onArchive={handleArchiveSite}
+        onDelete={() => setDeleteDialogOpen(true)}
+        canEdit={canManageSite}
+        canManageZones={canManageZones}
+        canSafetyConfig={canManageSafety}
+        canExportReport={canExportReport}
+        canArchive={canManageSite}
+        canDelete={canManageSite}
+        archivePending={archiveSiteMutation.isPending}
       />
 
       {/* 2. Bento Quick KPI Console */}
@@ -197,13 +318,13 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
         complianceRate={complianceRate}
         zoneCount={zoneCount}
         restrictedCount={restrictedCount}
-        onSelectTab={(tab) => handleTabChange(tab as SiteDetailTabKey)}
+        onSelectTab={(tab) => handleNavigateTab(tab as SiteDetailTabKey)}
       />
 
       {/* 3. Neumorphic Segmented Control Navigation */}
       <SiteDetailTabs
         activeTab={activeTab}
-        onTabChange={handleTabChange}
+        onTabChange={(tab) => handleNavigateTab(tab)}
         cameraCount={cameraCount}
         pendingIncidentsCount={pendingIncidentsCount}
         zoneCount={zoneCount}
@@ -212,12 +333,35 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
 
       {/* 4. Active Tab Content Pane */}
       <div className="transition-all duration-200">
-        {activeTab === "cameras" && <SiteLiveCamerasTab site={site} />}
-        {activeTab === "incidents" && <SiteIncidentsTab site={site} />}
-        {activeTab === "zones" && <SiteSpatialZonesTab site={site} />}
+        {activeTab === "cameras" && (
+          <SiteLiveCamerasTab site={site} initialZoneId={urlZoneId} />
+        )}
+        {activeTab === "incidents" && (
+          <SiteIncidentsTab
+            site={site}
+            initialZoneId={urlZoneId}
+            initialCameraId={urlCameraId}
+          />
+        )}
+        {activeTab === "zones" && (
+          <SiteSpatialZonesTab
+            site={site}
+            onViewZoneCameras={(zoneId) =>
+              handleNavigateTab("cameras", { zoneId })
+            }
+            onViewZoneIncidents={(zoneId) =>
+              handleNavigateTab("incidents", { zoneId })
+            }
+          />
+        )}
         {activeTab === "safety-rules" && <SiteSafetyRulesTab site={site} />}
         {activeTab === "analytics" && <SiteAnalyticsTab site={site} />}
-        {activeTab === "personnel" && <SitePersonnelTab site={site} />}
+        {activeTab === "personnel" && (
+          <SitePersonnelTab
+            site={site}
+            onEditSite={canManageSite ? () => setEditModalOpen(true) : undefined}
+          />
+        )}
       </div>
 
       {/* Modals & Drawers */}
@@ -239,6 +383,24 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
         open={safetyDrawerOpen}
         onOpenChange={setSafetyDrawerOpen}
         site={site}
+      />
+
+      <DeleteSiteDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        site={site}
+        onConfirm={handleDeleteSite}
+        loading={deleteSiteMutation.isPending}
+      />
+
+      <GenerateReportModal
+        open={exportModalOpen}
+        onOpenChange={setExportModalOpen}
+        templates={reportTemplates}
+        sites={[site]}
+        defaultSiteId={site.id}
+        onSubmit={handleExportSubmit}
+        loading={generateReportMutation.isPending}
       />
     </div>
   );

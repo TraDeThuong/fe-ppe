@@ -4,9 +4,6 @@ import {
   Laptop,
   Smartphone,
   LogOut,
-  Clock,
-  MapPin,
-  ShieldAlert,
   Loader2,
   Trash2,
 } from "lucide-react";
@@ -16,6 +13,7 @@ import {
   useRevokeUserSession,
   useRevokeAllUserSessions,
   useUserDevices,
+  useDeleteUserDevice,
 } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
 import type { UserResponseDto } from "@/types";
@@ -33,6 +31,7 @@ export function UserSessionsTab({ user }: UserSessionsTabProps) {
 
   const revokeSessionMutation = useRevokeUserSession();
   const revokeAllSessionsMutation = useRevokeAllUserSessions();
+  const deleteDeviceMutation = useDeleteUserDevice();
 
   const handleRevoke = async (sessionId: string) => {
     try {
@@ -53,20 +52,38 @@ export function UserSessionsTab({ user }: UserSessionsTabProps) {
     }
   };
 
+  const handleDeleteDevice = async (deviceId: string) => {
+    try {
+      await deleteDeviceMutation.mutateAsync({
+        userId: user.id,
+        deviceId,
+      });
+    } catch {
+      // Handled by toast
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* 1. Active Sessions Panel */}
-      <div className="rounded-2xl border border-white/80 dark:border-white/5 bg-background dark:bg-card p-5 sm:p-6 shadow-[6px_6px_14px_var(--shadow-dark),-5px_-5px_14px_rgba(255,255,255,0.9)] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.4),-2px_-2px_6px_rgba(255,255,255,0.02)] space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-border/40">
-          <div className="flex items-center gap-2">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
-              <Laptop size={16} />
-            </span>
-            <div>
-              <h3 className="font-bold text-sm text-foreground">
-                {isVietnamese ? "Phiên Đăng Nhập Đang Hoạt Động" : "Active Sessions"}
+      <div className="space-y-4 rounded-[26px] bg-background p-5 sm:p-6 shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)]">
+        {/* Header không đường kẻ ngang */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            {/* Icon Box 2 tầng: Vỏ lồi + Lõi lõm */}
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-[13px] bg-background text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+              <div className="flex size-7.5 items-center justify-center rounded-[9px] bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+                <Laptop size={16} strokeWidth={2.3} />
+              </div>
+            </div>
+
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-black tracking-tight text-foreground sm:text-base">
+                {isVietnamese
+                  ? "Phiên Đăng Nhập Đang Hoạt Động"
+                  : "Active Sessions"}
               </h3>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                 {isVietnamese
                   ? `Hiện có ${sessions.length} phiên đang kết nối với tài khoản này`
                   : `${sessions.length} sessions currently active`}
@@ -75,136 +92,224 @@ export function UserSessionsTab({ user }: UserSessionsTabProps) {
           </div>
 
           {sessions.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
+            <button
+              type="button"
               onClick={handleRevokeAll}
               disabled={revokeAllSessionsMutation.isPending}
-              className="text-xs h-8 text-danger border-danger/30 hover:bg-danger/10 gap-1.5"
+              className="inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-full bg-background px-3.5 text-xs font-bold text-danger shadow-[3.5px_3.5px_8px_var(--shadow-dark),-3.5px_-3.5px_8px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[5px_5px_10px_var(--shadow-dark),-5px_-5px_10px_var(--shadow-light)] active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] disabled:opacity-50"
             >
-              <LogOut size={13} />
-              <span>{isVietnamese ? "Đăng xuất tất cả phiên" : "Revoke All Sessions"}</span>
-            </Button>
+              <LogOut size={13} strokeWidth={2.4} />
+              <span>
+                {isVietnamese
+                  ? "Đăng xuất tất cả phiên"
+                  : "Revoke All Sessions"}
+              </span>
+            </button>
           )}
         </div>
 
-        {isLoadingSessions ? (
-          <div className="flex min-h-[160px] items-center justify-center gap-2 text-muted-foreground">
-            <Loader2 className="size-5 animate-spin text-primary" />
-            <span className="text-xs">{isVietnamese ? "Đang tải phiên làm việc..." : "Loading sessions..."}</span>
-          </div>
-        ) : sessions.length === 0 ? (
-          <div className="p-8 text-center rounded-xl border border-dashed border-border/60 text-muted-foreground text-xs">
-            {isVietnamese ? "Không có phiên làm việc nào đang hoạt động." : "No active sessions found."}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {sessions.map((session) => (
-              <div
-                key={session.id}
-                className="p-3.5 rounded-xl border border-border/50 bg-background shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] flex items-center justify-between gap-4"
-              >
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Laptop size={17} />
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-foreground truncate">
-                        {session.userAgent || (isVietnamese ? "Trình duyệt không xác định" : "Unknown Browser")}
-                      </span>
+        {/* Khay lõm chứa danh sách phiên đăng nhập */}
+        <div className="rounded-[20px] bg-background p-3 sm:p-3.5 shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)]">
+          {isLoadingSessions ? (
+            <div className="flex min-h-[160px] items-center justify-center gap-2.5 text-muted-foreground">
+              <Loader2 className="size-5 animate-spin text-primary" />
+              <span className="text-xs font-medium">
+                {isVietnamese
+                  ? "Đang tải phiên làm việc..."
+                  : "Loading sessions..."}
+              </span>
+            </div>
+          ) : sessions.length === 0 ? (
+            <div className="py-8 text-center text-xs font-medium text-muted-foreground">
+              {isVietnamese
+                ? "Không có phiên làm việc nào đang hoạt động."
+                : "No active sessions found."}
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {sessions.map((session) => (
+                <div
+                  key={session.id}
+                  className={[
+                    "group flex items-center justify-between gap-4 rounded-[15px] bg-background p-3.5 transition-all duration-200",
+                    session.isCurrent
+                      ? "ring-1 ring-primary/35 shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]"
+                      : "shadow-[3.5px_3.5px_8px_var(--shadow-dark),-3.5px_-3.5px_8px_var(--shadow-light)] hover:-translate-y-[1px] hover:shadow-[5px_5px_10px_var(--shadow-dark),-5px_-5px_10px_var(--shadow-light)]",
+                  ].join(" ")}
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-3.5">
+                    {/* Icon thiết bị trong hốc lõm */}
+                    <div
+                      className={`relative flex size-10 shrink-0 items-center justify-center rounded-xl bg-background shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] ${session.isCurrent
+                          ? "text-primary"
+                          : "text-muted-foreground"
+                        }`}
+                    >
+                      <Laptop size={17} strokeWidth={2.2} />
                       {session.isCurrent && (
-                        <span className="px-1.5 py-0.2 rounded bg-primary/20 text-primary font-mono text-[10px] font-bold">
-                          {isVietnamese ? "Hiện tại" : "Current"}
-                        </span>
+                        <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary))]" />
                       )}
                     </div>
-                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground font-mono mt-1">
-                      <span>IP: {session.ipAddress || "127.0.0.1"}</span>
-                      <span>•</span>
-                      <span>
-                        {new Date(session.createdAt).toLocaleDateString(
-                          isVietnamese ? "vi-VN" : "en-US",
+
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-xs font-extrabold text-foreground sm:text-[13px]">
+                          {session.deviceName ||
+                            session.userAgent ||
+                            (isVietnamese
+                              ? "Trình duyệt không xác định"
+                              : "Unknown Browser")}
+                        </span>
+
+                        {session.isCurrent && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-background px-2.5 py-0.5 font-mono text-[10px] font-extrabold text-primary shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]">
+                            <span className="size-1.5 rounded-full bg-primary" />
+                            {isVietnamese ? "Hiện tại" : "Current"}
+                          </span>
                         )}
-                      </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] text-muted-foreground">
+                        <span className="rounded-md bg-background px-2 py-0.5 text-[10px] font-semibold shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]">
+                          IP: {session.ipAddress || (isVietnamese ? "Không rõ" : "Unknown")}
+                        </span>
+                        <span className="opacity-40">•</span>
+                        <span>
+                          {isVietnamese ? "Tạo: " : "Created: "}
+                          {new Date(session.createdAt).toLocaleDateString(
+                            isVietnamese ? "vi-VN" : "en-US",
+                          )}
+                        </span>
+                        {session.expiresAt && (
+                          <>
+                            <span className="opacity-40">•</span>
+                            <span>
+                              {isVietnamese ? "Hết hạn: " : "Expires: "}
+                              {new Date(session.expiresAt).toLocaleDateString(
+                                isVietnamese ? "vi-VN" : "en-US",
+                              )}
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {!session.isCurrent && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRevoke(session.id)}
-                    disabled={revokeSessionMutation.isPending}
-                    className="text-xs h-7 px-2 text-danger hover:text-danger hover:bg-danger/10 gap-1 shrink-0"
-                    title={isVietnamese ? "Đóng phiên này" : "Revoke session"}
-                  >
-                    <Trash2 size={12} />
-                    <span>{isVietnamese ? "Thu hồi" : "Revoke"}</span>
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                  {!session.isCurrent && (
+                    <button
+                      type="button"
+                      onClick={() => handleRevoke(session.id)}
+                      disabled={revokeSessionMutation.isPending}
+                      className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-background px-3 text-xs font-bold text-danger shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)] active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] disabled:opacity-50"
+                      title={isVietnamese ? "Đóng phiên này" : "Revoke session"}
+                    >
+                      <Trash2 size={12} strokeWidth={2.4} />
+                      <span>{isVietnamese ? "Thu hồi" : "Revoke"}</span>
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 2. Registered Devices Panel */}
-      <div className="rounded-2xl border border-white/80 dark:border-white/5 bg-background dark:bg-card p-5 sm:p-6 shadow-[6px_6px_14px_var(--shadow-dark),-5px_-5px_14px_rgba(255,255,255,0.9)] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.4),-2px_-2px_6px_rgba(255,255,255,0.02)] space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-border/40">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-accent/10 text-accent border border-accent/20">
-            <Smartphone size={16} />
-          </span>
-          <div>
-            <h3 className="font-bold text-sm text-foreground">
-              {isVietnamese ? "Thiết Bị Tin Cậy Đã Đăng Ký" : "Registered Devices"}
-            </h3>
-            <p className="text-[11px] text-muted-foreground">
-              {isVietnamese
-                ? "Lịch sử các thiết bị mà tài khoản này từng sử dụng"
-                : "Hardware devices recognized by the authentication provider"}
-            </p>
+      <div className="space-y-4 rounded-[26px] bg-background p-5 sm:p-6 shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)]">
+        {/* Header không đường kẻ ngang */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-[13px] bg-background text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+              <div className="flex size-7.5 items-center justify-center rounded-[9px] bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+                <Smartphone size={16} strokeWidth={2.3} />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-black tracking-tight text-foreground sm:text-base">
+                {isVietnamese
+                  ? "Thiết Bị Tin Cậy Đã Đăng Ký"
+                  : "Registered Devices"}
+              </h3>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                {isVietnamese
+                  ? "Lịch sử các thiết bị mà tài khoản này từng sử dụng"
+                  : "Hardware devices recognized by the authentication provider"}
+              </p>
+            </div>
           </div>
+
+          <span className="rounded-full bg-background px-3 py-1 font-mono text-xs font-extrabold text-primary shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+            {devices.length} {isVietnamese ? "thiết bị" : "devices"}
+          </span>
         </div>
 
-        {isLoadingDevices ? (
-          <div className="flex min-h-[140px] items-center justify-center gap-2 text-muted-foreground">
-            <Loader2 className="size-5 animate-spin text-primary" />
-            <span className="text-xs">{isVietnamese ? "Đang tải thiết bị..." : "Loading devices..."}</span>
-          </div>
-        ) : devices.length === 0 ? (
-          <div className="p-8 text-center rounded-xl border border-dashed border-border/60 text-muted-foreground text-xs">
-            {isVietnamese ? "Chưa có thiết bị nào được lưu." : "No registered devices found."}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {devices.map((device) => (
-              <div
-                key={device.id}
-                className="p-3.5 rounded-xl border border-border/50 bg-background shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] flex items-center gap-3"
-              >
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
-                  <Smartphone size={17} />
+        {/* Khay lõm chứa lưới thiết bị */}
+        <div className="rounded-[20px] bg-background p-3 sm:p-3.5 shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)]">
+          {isLoadingDevices ? (
+            <div className="flex min-h-[140px] items-center justify-center gap-2.5 text-muted-foreground">
+              <Loader2 className="size-5 animate-spin text-primary" />
+              <span className="text-xs font-medium">
+                {isVietnamese ? "Đang tải thiết bị..." : "Loading devices..."}
+              </span>
+            </div>
+          ) : devices.length === 0 ? (
+            <div className="py-8 text-center text-xs font-medium text-muted-foreground">
+              {isVietnamese
+                ? "Chưa có thiết bị nào được lưu."
+                : "No registered devices found."}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {devices.map((device) => (
+                <div
+                  key={device.id}
+                  className="group flex items-center justify-between gap-3.5 rounded-[15px] bg-background p-3.5 shadow-[3.5px_3.5px_8px_var(--shadow-dark),-3.5px_-3.5px_8px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-[1px] hover:shadow-[5px_5px_10px_var(--shadow-dark),-5px_-5px_10px_var(--shadow-light)]"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-3.5">
+                    {/* Icon nằm trong hốc lõm */}
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-background text-accent-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] transition-colors group-hover:text-primary">
+                      <Smartphone size={17} strokeWidth={2.2} />
+                    </div>
+
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="truncate text-xs font-extrabold text-foreground sm:text-[13px]">
+                        {device.deviceName ||
+                          (isVietnamese
+                            ? "Thiết bị không định danh"
+                            : "Generic Device")}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] text-muted-foreground">
+                        <span className="rounded-md bg-background px-2 py-0.5 font-semibold shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]">
+                          IP: {device.ipAddress || "-"}
+                        </span>
+                        <span className="opacity-40">•</span>
+                        <span>
+                          {device.lastLoginAt
+                            ? new Date(device.lastLoginAt).toLocaleDateString(
+                              isVietnamese ? "vi-VN" : "en-US",
+                            )
+                            : "-"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteDevice(device.id)}
+                    disabled={deleteDeviceMutation.isPending}
+                    className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-background text-danger shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)] active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] disabled:opacity-50"
+                    title={isVietnamese ? "Xóa thiết bị tin cậy" : "Remove trusted device"}
+                  >
+                    <Trash2 size={13} strokeWidth={2.3} />
+                  </button>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-foreground truncate">
-                    {device.deviceName || (isVietnamese ? "Thiết bị không định danh" : "Generic Device")}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground font-mono mt-0.5">
-                    IP: {device.ipAddress || "-"} •{" "}
-                    {device.lastLoginAt
-                      ? new Date(device.lastLoginAt).toLocaleDateString(
-                          isVietnamese ? "vi-VN" : "en-US",
-                        )
-                      : "-"}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -4,15 +4,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BarChart3,
-  Cpu,
   FilePlus2,
+  FileText,
+  History,
+  LayoutTemplate,
   RefreshCw,
-  ShieldAlert,
 } from "lucide-react";
 import { useTableState } from "@/hooks/use-table-state";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
 import { reportingService } from "@/services/reporting.service";
 import {
@@ -20,13 +22,12 @@ import {
   ReportFilterToolbar,
   ReportTrendChart,
   ReportViolationDonut,
-  ReportCameraRanking,
   ReportTemplateCards,
   ReportHistoryTable,
   GenerateReportModal,
   ReportPreviewModal,
-  ReportAiPerformance,
   type ReportStatKey,
+  type TrendGroupBy,
 } from "@/components/features/reports";
 import {
   useReportSummary,
@@ -38,7 +39,6 @@ import {
   useGenerateReport,
   useIncidents,
   useEntityLookup,
-  useAiPerformanceStats,
 } from "@/hooks";
 import type {
   CameraStatDto,
@@ -70,6 +70,24 @@ const URL_TO_STAT: Record<string, ReportStatKey> = {
   reportsCount: "reportsCount",
 };
 
+const MAX_DATE_RANGE_DAYS = 90;
+
+function getIsoWeekKey(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const dayNr = (target.getUTCDay() + 6) % 7;
+  target.setUTCDate(target.getUTCDate() - dayNr + 3);
+  const firstThursday = target.valueOf();
+  target.setUTCMonth(0, 1);
+  if (target.getUTCDay() !== 4) {
+    target.setUTCMonth(0, 1 + (((4 - target.getUTCDay()) + 7) % 7));
+  }
+  const weekNum = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
+  const weekYear = new Date(firstThursday).getUTCFullYear();
+  return `${weekYear}-W${String(weekNum).padStart(2, "0")}`;
+}
+
 function computeDateRange(period: string): { startDate: string; endDate: string } {
   const now = new Date();
   const endDate = now.toISOString().slice(0, 10);
@@ -83,6 +101,7 @@ function computeDateRange(period: string): { startDate: string; endDate: string 
 
 export default function ReportsContent() {
   const { t } = useLocale();
+  const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -112,11 +131,10 @@ export default function ReportsContent() {
     () => new Date().toISOString().slice(0, 10)
   );
 
-  // Tab State: "violations" | "aiPerformance"
-  const [activeTab, setActiveTab] = useState<"violations" | "aiPerformance">("violations");
-
   const [historyType, setHistoryType] = useState("");
   const [historyStatus, setHistoryStatus] = useState("");
+  const [exportsView, setExportsView] = useState<"history" | "templates">("history");
+  const [trendGroupBy, setTrendGroupBy] = useState<TrendGroupBy>("DAY");
   const historyTable = useTableState([], `${selectedSiteId}:${historyType}:${historyStatus}`);
 
   const { startDate, endDate } = useMemo(() => {
@@ -128,6 +146,29 @@ export default function ReportsContent() {
     }
     return computeDateRange(period);
   }, [period, customStartDate, customEndDate]);
+
+  const rangeError = useMemo(() => {
+    if (!startDate || !endDate) return null;
+    if (startDate > endDate) {
+      return t("reports.toolbar.invalidRange");
+    }
+    const diffDays =
+      (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000;
+    if (diffDays > MAX_DATE_RANGE_DAYS) {
+      return t("reports.toolbar.rangeExceeds90");
+    }
+    return null;
+  }, [startDate, endDate, t]);
+
+  const isDateRangeValid = !rangeError;
+
+  const activeDateRangeLabel = useMemo(() => {
+    const fmt = (iso: string) => {
+      const [y, m, d] = iso.split("-");
+      return y && m && d ? `${d}/${m}/${y}` : iso;
+    };
+    return startDate === endDate ? fmt(startDate) : `${fmt(startDate)} – ${fmt(endDate)}`;
+  }, [startDate, endDate]);
 
   const filterParams: ReportingFilterParams = useMemo(
     () => ({
@@ -147,25 +188,27 @@ export default function ReportsContent() {
     isLoading: isSummaryLoading,
     refetch: refetchSummary,
     isRefetching: isSummaryRefetching,
-  } = useReportSummary(filterParams);
+  } = useReportSummary(filterParams, { enabled: isDateRangeValid });
 
   const {
     data: rawTrends = [],
     isLoading: isTrendsLoading,
     refetch: refetchTrends,
-  } = useViolationTrends(filterParams);
+  } = useViolationTrends(
+    { ...filterParams, groupBy: trendGroupBy },
+    { enabled: isDateRangeValid }
+  );
 
   const {
     data: rawDistribution = [],
     isLoading: isDistributionLoading,
     refetch: refetchDistribution,
-  } = useViolationDistribution(filterParams);
+  } = useViolationDistribution(filterParams, { enabled: isDateRangeValid });
 
   const {
     data: rawCameraRankings = [],
-    isLoading: isRankingsLoading,
     refetch: refetchRankings,
-  } = useCameraRankings({ ...filterParams, limit: 5 });
+  } = useCameraRankings({ ...filterParams, limit: 5 }, { enabled: isDateRangeValid });
 
   const {
     data: templates = [],
@@ -185,13 +228,6 @@ export default function ReportsContent() {
     status: historyStatus || undefined,
     siteId: selectedSiteId || undefined,
   });
-
-  // AI Performance Telemetry Query
-  const {
-    data: aiStats = [],
-    isLoading: isAiStatsLoading,
-    refetch: refetchAiStats,
-  } = useAiPerformanceStats(filterParams);
 
   // Live Incidents Query (đảm bảo luôn đồng bộ với ppe_incident_db thực tế)
   const {
@@ -223,8 +259,54 @@ export default function ReportsContent() {
   }, [rawSummary, filteredIncidents.length]);
 
   const summary: StatisticsSummaryDto = useMemo(() => {
+    // Tính MTTR bổ sung từ severityBreakdown hoặc filteredIncidents khi BE trả 0
+    let fallbackMttrHours = 0;
+    const sb = rawSummary?.severityBreakdown;
+    if (sb) {
+      let weightedMinutes = 0;
+      let totalResolvedWithMttr = 0;
+      for (const lvl of ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const) {
+        const entry = sb[lvl];
+        if (entry && entry.actualMttrMinutes > 0 && entry.resolved > 0) {
+          weightedMinutes += entry.actualMttrMinutes * entry.resolved;
+          totalResolvedWithMttr += entry.resolved;
+        }
+      }
+      if (totalResolvedWithMttr > 0) {
+        fallbackMttrHours = Number((weightedMinutes / totalResolvedWithMttr / 60).toFixed(2));
+      }
+    }
+
+    if (fallbackMttrHours === 0 && filteredIncidents.length > 0) {
+      let totalResolveHours = 0;
+      let resolvedWithTimestamp = 0;
+      for (const inc of filteredIncidents) {
+        const st = String(inc.status || "").toUpperCase();
+        if (st === "RESOLVED" || st === "CLOSED") {
+          const endTs = inc.resolvedAt || inc.updatedAt;
+          if (inc.detectedAt && endTs) {
+            const diffHours =
+              (new Date(endTs).getTime() - new Date(inc.detectedAt).getTime()) / 3600000;
+            if (diffHours > 0) {
+              totalResolveHours += diffHours;
+              resolvedWithTimestamp++;
+            }
+          }
+        }
+      }
+      if (resolvedWithTimestamp > 0) {
+        fallbackMttrHours = Number((totalResolveHours / resolvedWithTimestamp).toFixed(2));
+      }
+    }
+
     if (isRollupAuthoritative && rawSummary) {
-      return rawSummary;
+      return {
+        ...rawSummary,
+        meanTimeToResolveHours:
+          rawSummary.meanTimeToResolveHours > 0
+            ? rawSummary.meanTimeToResolveHours
+            : fallbackMttrHours,
+      };
     }
 
     const totalIncidents = filteredIncidents.length;
@@ -232,27 +314,19 @@ export default function ReportsContent() {
     let resolvedIncidents = 0;
     let falseAlarms = 0;
     let trueViolations = 0;
-    let totalResolveHours = 0;
-    let resolvedWithTimestamp = 0;
 
     for (const inc of filteredIncidents) {
-      if (inc.status === "RESOLVED" || inc.status === "CLOSED") {
-        resolvedIncidents++;
+      const status = String(inc.status || "").toUpperCase();
+      if (status === "PENDING_REVIEW") {
+        openIncidents++;
+      } else if (status === "CONFIRMED") {
         trueViolations++;
-        if (inc.detectedAt && inc.resolvedAt) {
-          const diffHours =
-            (new Date(inc.resolvedAt).getTime() - new Date(inc.detectedAt).getTime()) /
-            3600000;
-          if (diffHours > 0) {
-            totalResolveHours += diffHours;
-            resolvedWithTimestamp++;
-          }
-        }
-      } else if (inc.status === "DISMISSED") {
+      } else if (status === "DISMISSED") {
         falseAlarms++;
+      } else if (status === "RESOLVED" || status === "CLOSED") {
+        resolvedIncidents++;
       } else {
         openIncidents++;
-        trueViolations++;
       }
     }
 
@@ -261,18 +335,16 @@ export default function ReportsContent() {
       reviewedCount > 0
         ? Number(((falseAlarms / reviewedCount) * 100).toFixed(2))
         : 0;
+    // SEC-26: đồng bộ công thức tuyến tính với BE (bỏ hệ số 1.5)
     const complianceRate =
       totalIncidents > 0
         ? Number(
-          Math.max(
-            0,
-            100 - (trueViolations / (totalIncidents * 1.5 || 1)) * 100
-          ).toFixed(2)
-        )
+            Math.max(0, 100 - (trueViolations / totalIncidents) * 100).toFixed(2)
+          )
         : 100;
     const meanTimeToResolveHours =
-      resolvedWithTimestamp > 0
-        ? Number((totalResolveHours / resolvedWithTimestamp).toFixed(1))
+      fallbackMttrHours > 0
+        ? fallbackMttrHours
         : rawSummary?.meanTimeToResolveHours ?? 0;
 
     return {
@@ -286,18 +358,25 @@ export default function ReportsContent() {
       meanTimeToResolveHours,
       periodStart: startDate,
       periodEnd: endDate,
+      severityBreakdown: rawSummary?.severityBreakdown,
     };
   }, [isRollupAuthoritative, rawSummary, filteredIncidents, startDate, endDate]);
 
-  // Reconcile Trends
+  // Reconcile Trends (hỗ trợ gom nhóm DAY / WEEK / MONTH đồng bộ BE)
   const trends: TrendItemDto[] = useMemo(() => {
     if (isRollupAuthoritative && rawTrends.length > 0) return rawTrends;
     if (filteredIncidents.length === 0) return rawTrends;
 
     const map = new Map<string, TrendItemDto>();
     for (const inc of filteredIncidents) {
-      const dateKey = (inc.detectedAt || inc.createdAt || "").slice(0, 10);
-      if (!dateKey) continue;
+      const rawDateKey = (inc.detectedAt || inc.createdAt || "").slice(0, 10);
+      if (!rawDateKey) continue;
+      const dateKey =
+        trendGroupBy === "WEEK"
+          ? getIsoWeekKey(rawDateKey)
+          : trendGroupBy === "MONTH"
+            ? rawDateKey.slice(0, 7)
+            : rawDateKey;
       const existing = map.get(dateKey) || {
         date: dateKey,
         totalIncidents: 0,
@@ -317,7 +396,7 @@ export default function ReportsContent() {
       map.set(dateKey, existing);
     }
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [isRollupAuthoritative, rawTrends, filteredIncidents]);
+  }, [isRollupAuthoritative, rawTrends, filteredIncidents, trendGroupBy]);
 
   // Reconcile Violation Distribution
   const distribution: ViolationTypeStatDto[] = useMemo(() => {
@@ -480,7 +559,6 @@ export default function ReportsContent() {
     refetchTemplates();
     refetchHistory();
     refetchIncidents();
-    refetchAiStats();
   };
 
   const isRefetching = isSummaryRefetching;
@@ -534,147 +612,191 @@ export default function ReportsContent() {
         sites={sites}
         incidents={filteredIncidents}
         onGenerateReport={(tpl) => handleOpenGenerate(tpl)}
+        onViewHistory={() => setExportsView("history")}
       />
 
-      {/* Filter Toolbar with Custom Date Range */}
-      <ReportFilterToolbar
-        sites={sites}
-        selectedSiteId={selectedSiteId}
-        onSiteChange={setSelectedSiteId}
-        period={period}
-        onPeriodChange={setPeriod}
-        startDate={customStartDate}
-        endDate={customEndDate}
-        onStartDateChange={setCustomStartDate}
-        onEndDateChange={setCustomEndDate}
-        onGenerateClick={() => handleOpenGenerate()}
-        onRefresh={handleRefreshAll}
-        loading={isRefetching}
-      />
-
-      {/* Neumorphic Navigation Tabs: Safety Violations vs AI Model Performance */}
-      <div className="flex items-center gap-2 border-b border-border/40 pb-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab("violations")}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
-            activeTab === "violations"
-              ? "bg-primary text-primary-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.15)]"
-              : "bg-surface text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <ShieldAlert className="h-4 w-4" />
-          <span>{t("reports.tabs.violations")}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("aiPerformance")}
-          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
-            activeTab === "aiPerformance"
-              ? "bg-primary text-primary-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.15)]"
-              : "bg-surface text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Cpu className="h-4 w-4" />
-          <span>{t("reports.tabs.aiPerformance")}</span>
-        </button>
-      </div>
-
-      {/* Tab 1: Safety Violations Analytics */}
-      {activeTab === "violations" && (
-        <div className="space-y-6">
-          {/* 2-Column: Trends Line Chart (Left: 8 cols) & Violation Donut (Right: 4 cols) */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
-            <div className="flex flex-col lg:col-span-8">
-              <ReportTrendChart
-                trends={trends}
-                loading={isTrendsLoading && isIncidentsLoading}
-              />
+      {/* ===================================================================== */}
+      {/* SECTION 1: THỐNG KÊ & PHÂN TÍCH AN TOÀN (Safety Analytics)            */}
+      {/* ===================================================================== */}
+      <section className="space-y-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface text-primary shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]">
+              <BarChart3 className="h-4 w-4" />
             </div>
-            <div className="flex flex-col lg:col-span-4">
-              <ReportViolationDonut
-                distribution={distribution}
-                loading={isDistributionLoading && isIncidentsLoading}
-              />
+            <div>
+              <h2 className="text-sm font-extrabold tracking-tight text-foreground sm:text-base">
+                {t("reports.sections.analyticsTitle")}
+              </h2>
+              <p className="text-[11px] text-muted-foreground">
+                {t("reports.sections.analyticsDesc")}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Filter Toolbar (Scope & Timeframe for Analytics) */}
+        <ReportFilterToolbar
+          sites={sites}
+          selectedSiteId={selectedSiteId}
+          onSiteChange={setSelectedSiteId}
+          period={period}
+          onPeriodChange={setPeriod}
+          startDate={customStartDate}
+          endDate={customEndDate}
+          activeDateRangeLabel={activeDateRangeLabel}
+          rangeError={rangeError}
+          onStartDateChange={setCustomStartDate}
+          onEndDateChange={setCustomEndDate}
+        />
+
+        {/* 2-Column Analytics Charts: Trends (8 cols) & Violation Breakdown (4 cols) */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
+          <div className="flex flex-col lg:col-span-8">
+            <ReportTrendChart
+              trends={trends}
+              loading={isTrendsLoading && isIncidentsLoading}
+              dateRangeLabel={activeDateRangeLabel}
+              groupBy={trendGroupBy}
+              onGroupByChange={setTrendGroupBy}
+            />
+          </div>
+          <div className="flex flex-col lg:col-span-4">
+            <ReportViolationDonut
+              distribution={distribution}
+              loading={isDistributionLoading && isIncidentsLoading}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ===================================================================== */}
+      {/* SECTION 2: BÁO CÁO & XUẤT TÀI LIỆU (Reports & Exports)               */}
+      {/* ===================================================================== */}
+      <section
+        id="reports-history-section"
+        className="space-y-4 border-t border-border/40 pt-6"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface text-primary shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]">
+              <FileText className="h-4 w-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-extrabold tracking-tight text-foreground sm:text-base">
+                {t("reports.sections.exportsTitle")}
+              </h2>
+              <p className="text-[11px] text-muted-foreground">
+                {t("reports.sections.exportsDesc")}
+              </p>
             </div>
           </div>
 
-          {/* Camera Hotspot Risk Rankings */}
-          <ReportCameraRanking
-            rankings={cameraRankings}
-            loading={isRankingsLoading && isIncidentsLoading}
-          />
+          {/* Segmented Switch: Lịch sử Xuất Báo cáo | Mẫu Báo cáo Tiêu chuẩn */}
+          <div className="flex w-full items-center gap-1 rounded-xl bg-background/75 p-1 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:w-fit">
+            <button
+              type="button"
+              onClick={() => setExportsView("history")}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 sm:flex-none ${
+                exportsView === "history"
+                  ? "bg-surface text-primary shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <History className="h-3.5 w-3.5" />
+              <span>{t("reports.sections.tabHistory")}</span>
+              <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums text-primary">
+                {historyResult?.meta?.total ?? history.length}
+              </span>
+            </button>
 
-          {/* Standardized Report Templates Cards */}
+            <button
+              type="button"
+              onClick={() => setExportsView("templates")}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 sm:flex-none ${
+                exportsView === "templates"
+                  ? "bg-surface text-primary shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <LayoutTemplate className="h-3.5 w-3.5" />
+              <span>{t("reports.sections.tabTemplates")}</span>
+              <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums text-muted-foreground">
+                {templates.length}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {exportsView === "history" ? (
+          <ReportHistoryTable
+            history={history}
+            loading={isHistoryLoading}
+            onPreview={handleOpenPreview}
+            currentUserId={user?.id}
+            isAdmin={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
+            toolbarFilters={
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={historyType}
+                  onChange={(e) => setHistoryType(e.target.value)}
+                  aria-label={t("reports.history.type")}
+                  className="h-9 rounded-xl border border-border/40 bg-background px-2.5 text-xs font-semibold text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] focus:border-primary focus:outline-none"
+                >
+                  <option value="">
+                    {t("reports.history.type")}: {t("table.all")}
+                  </option>
+                  {[
+                    "DAILY",
+                    "WEEKLY",
+                    "MONTHLY",
+                    "VIOLATION_SUMMARY",
+                    "AI_PERFORMANCE",
+                  ].map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={historyStatus}
+                  onChange={(e) => setHistoryStatus(e.target.value)}
+                  aria-label={t("reports.history.status")}
+                  className="h-9 rounded-xl border border-border/40 bg-background px-2.5 text-xs font-semibold text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] focus:border-primary focus:outline-none"
+                >
+                  <option value="">
+                    {t("reports.history.status")}: {t("table.all")}
+                  </option>
+                  {["PENDING", "PROCESSING", "COMPLETED", "FAILED"].map(
+                    (value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    )
+                  )}
+                </select>
+              </div>
+            }
+            tableState={{
+              ...historyTable,
+              rowCount: historyResult?.meta?.total ?? history.length,
+              pageCount: historyResult?.meta?.totalPages ?? 1,
+              fetching: isHistoryFetching,
+              error: historyError,
+              onRetry: () => {
+                void refetchHistory();
+              },
+            }}
+          />
+        ) : (
           <ReportTemplateCards
             templates={templates}
+            hideHeader
             onSelectTemplate={(tpl) => handleOpenGenerate(tpl)}
           />
-        </div>
-      )}
-
-      {/* Tab 2: AI Model Performance & Telemetry */}
-      {activeTab === "aiPerformance" && (
-        <ReportAiPerformance stats={aiStats} loading={isAiStatsLoading} />
-      )}
-
-      {/* Export History & Queue Table with Preview Action */}
-      <div id="reports-history-section">
-        <ReportHistoryTable
-          history={history}
-          loading={isHistoryLoading}
-          onPreview={handleOpenPreview}
-          tableState={{
-            ...historyTable,
-            rowCount: historyResult?.meta?.total ?? history.length,
-            pageCount: historyResult?.meta?.totalPages ?? 1,
-            fetching: isHistoryFetching,
-            error: historyError,
-            onRetry: () => {
-              void refetchHistory();
-            },
-            toolbar: (
-              <div className="flex flex-wrap gap-3">
-                <label className="text-xs">
-                  {t("reports.history.type")}
-                  <select
-                    value={historyType}
-                    onChange={(e) => setHistoryType(e.target.value)}
-                    className="ml-2 rounded-xl border border-border bg-background p-2"
-                  >
-                    <option value="">{t("table.all")}</option>
-                    {[
-                      "DAILY",
-                      "WEEKLY",
-                      "MONTHLY",
-                      "VIOLATION_SUMMARY",
-                      "AI_PERFORMANCE",
-                    ].map((value) => (
-                      <option key={value}>{value}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-xs">
-                  {t("reports.history.status")}
-                  <select
-                    value={historyStatus}
-                    onChange={(e) => setHistoryStatus(e.target.value)}
-                    className="ml-2 rounded-xl border border-border bg-background p-2"
-                  >
-                    <option value="">{t("table.all")}</option>
-                    {["PENDING", "PROCESSING", "COMPLETED", "FAILED"].map(
-                      (value) => (
-                        <option key={value}>{value}</option>
-                      )
-                    )}
-                  </select>
-                </label>
-              </div>
-            ),
-          }}
-        />
-      </div>
+        )}
+      </section>
 
       {/* Generate Report Modal */}
       <GenerateReportModal

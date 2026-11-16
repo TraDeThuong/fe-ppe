@@ -20,7 +20,10 @@ import { Input, Switch } from "@/components/ui/form";
 import { Select, type SelectOption } from "@/components/ui/form/selection-controls/select";
 import { Loader } from "@/components/ui/loader";
 import { useLocale } from "@/providers/locale-provider";
-import { aiTestService } from "@/services/ai-test.service";
+import {
+  aiTestService,
+  isAiEndpointNotFoundError,
+} from "@/services/ai-test.service";
 import {
   formatTimeSec,
   formatViolationLabel,
@@ -38,6 +41,8 @@ import type {
 
 export interface LiveStreamPanelProps {
   models: ModelInfo[];
+  maxSessions?: number | null;
+  offlineUploadSupported?: boolean;
   activeCameraId: string | null;
   onActiveCameraChange: (cameraId: string | null) => void;
   onLiveEvidencesChange: (items: EvidenceItem[]) => void;
@@ -47,6 +52,8 @@ export interface LiveStreamPanelProps {
 
 export function LiveStreamPanel({
   models,
+  maxSessions = null,
+  offlineUploadSupported = true,
   activeCameraId,
   onActiveCameraChange,
   onLiveEvidencesChange,
@@ -268,7 +275,13 @@ export function LiveStreamPanel({
       setSource(uploadedSource);
       await handleStartStream(uploadedSource);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("aiTest.live.toasts.uploadFailed"));
+      if (isAiEndpointNotFoundError(error)) {
+        toast.error(
+          "AI Production Server (24/7) không hỗ trợ upload video offline — hãy dùng video có sẵn trên server, RTSP hoặc YouTube.",
+        );
+      } else {
+        toast.error(error instanceof Error ? error.message : t("aiTest.live.toasts.uploadFailed"));
+      }
     } finally {
       setIsUploading(false);
     }
@@ -390,8 +403,13 @@ export function LiveStreamPanel({
 
               <button
                 type="button"
-                disabled={isUploading || isStarting}
+                disabled={isUploading || isStarting || !offlineUploadSupported}
                 onClick={() => fileInputRef.current?.click()}
+                title={
+                  !offlineUploadSupported
+                    ? "Endpoint /api/upload chỉ khả dụng ở chế độ test-ui/server.py sandbox"
+                    : undefined
+                }
                 className="group inline-flex items-center gap-2 rounded-xl bg-background px-3.5 py-2 text-xs font-bold text-foreground shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.75)] dark:shadow-[4px_4px_8px_rgba(0,0,0,0.45),-3px_-3px_6px_rgba(255,255,255,0.03)] hover:text-primary active:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.14),inset_-3px_-3px_6px_rgba(255,255,255,0.7)] border border-white/50 dark:border-white/[0.05] transition-all duration-200 disabled:pointer-events-none disabled:opacity-45 cursor-pointer"
               >
                 <Upload className="size-3.5 text-accent transition-transform duration-200 group-hover:-translate-y-0.5" />
@@ -739,7 +757,9 @@ export function LiveStreamPanel({
                   <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-accent">
                     {t("aiTest.live.moduleSessionsTitle")}
                     <span className="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[10px] text-primary">
-                      {sessions.length}
+                      {typeof maxSessions === "number"
+                        ? `${sessions.length}/${maxSessions}`
+                        : sessions.length}
                     </span>
                   </span>
 

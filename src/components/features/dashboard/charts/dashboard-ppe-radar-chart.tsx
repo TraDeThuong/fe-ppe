@@ -10,6 +10,7 @@ import {
   Shirt,
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import type { DashboardGroup } from "@/types/dashboard.types";
 import { DashboardPanel } from "../dashboard-data-state";
 
@@ -124,7 +125,7 @@ export function DashboardPpeRadarChart({
         <div className="inline-flex items-center gap-1.5 rounded-xl border border-border/40 bg-background/70 px-3 py-1.5 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] dark:border-white/[0.06] dark:bg-background/40 dark:shadow-none">
           <span className="size-2 rounded-full bg-primary" />
           <span className="text-xs font-extrabold tabular-nums text-foreground">
-            {number.format(total)}
+            <AnimatedNumber value={total} format={(v) => number.format(v)} />
           </span>
           <span className="text-[11px] font-medium text-muted-foreground">
             {t("dashboard.charts.incidents")}
@@ -210,6 +211,7 @@ export function DashboardPpeRadarChart({
                   stroke="var(--primary)"
                   strokeWidth="2.2"
                   strokeLinejoin="round"
+                  className="animate-radar-expand"
                 />
 
                 {/* Vertex Markers */}
@@ -267,7 +269,7 @@ export function DashboardPpeRadarChart({
                   fill="currentColor"
                   className="text-[13px] font-extrabold tabular-nums"
                 >
-                  {number.format(total)}
+                  <AnimatedNumber value={total} format={(v) => number.format(v)} />
                 </text>
 
                 {/* Axis Labels */}
@@ -354,7 +356,7 @@ export function DashboardPpeRadarChart({
                       </div>
 
                       <span className="shrink-0 text-sm font-extrabold tabular-nums text-foreground">
-                        {number.format(row.count)}
+                        <AnimatedNumber value={row.count} format={(v) => number.format(v)} />
                         <span className="ml-1 text-[10px] font-medium text-muted-foreground">
                           {t("dashboard.charts.incidents")}
                         </span>
@@ -363,7 +365,7 @@ export function DashboardPpeRadarChart({
 
                     <div className="h-2 overflow-hidden rounded-full border border-border/25 bg-background/90 shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] dark:border-white/[0.05] dark:bg-background/60 dark:shadow-none">
                       <div
-                        className="h-full rounded-full transition-all duration-500 ease-out"
+                        className="h-full rounded-full transition-all duration-500 ease-out animate-live-shimmer"
                         style={{
                           width: `${ratioWidth}%`,
                           background: meta.barColor,
@@ -381,7 +383,7 @@ export function DashboardPpeRadarChart({
                 {t("dashboard.charts.total")}
               </span>
               <span className="text-lg font-black tabular-nums text-primary">
-                {number.format(total)}
+                <AnimatedNumber value={total} format={(v) => number.format(v)} />
               </span>
             </div>
           </div>

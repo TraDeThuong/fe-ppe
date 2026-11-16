@@ -306,7 +306,7 @@ export function UserDetailModal({
                       </div>
                       <div className="min-w-0">
                         <p className="font-semibold text-foreground text-xs truncate">
-                          {s.userAgent || (isVietnamese ? "Thiết bị không xác định" : "Unknown Device")}
+                          {s.deviceName || s.userAgent || (isVietnamese ? "Thiết bị không xác định" : "Unknown Device")}
                         </p>
                         <p className="text-[11px] text-muted-foreground flex items-center gap-2">
                           <span>IP: {s.ipAddress || (isVietnamese ? "Ẩn" : "Hidden")}</span>

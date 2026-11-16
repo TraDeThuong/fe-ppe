@@ -3,6 +3,7 @@
 import { CheckCircle2, Clock, Hourglass, ShieldAlert, ShieldCheck } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedMetricValue, AnimatedNumber } from "@/components/ui/animated-number";
 import type { DashboardAnalytics } from "@/types/dashboard.types";
 import { DashboardPanel } from "../dashboard-data-state";
 import {
@@ -168,7 +169,7 @@ export function DashboardSeveritySlaChart({
               MTTR:
             </span>
             <span className="font-mono text-xs font-extrabold tabular-nums text-foreground">
-              {formatMttr(analytics.mttrMinutes)}
+              <AnimatedMetricValue value={formatMttr(analytics.mttrMinutes)} />
             </span>
           </div>
           <DashboardChartExplainButton
@@ -192,7 +193,7 @@ export function DashboardSeveritySlaChart({
               backlogCount > 0 ? "text-warning" : "text-foreground"
             }`}
           >
-            {number.format(backlogCount)}
+            <AnimatedNumber value={backlogCount} format={(v) => number.format(v)} />
           </p>
           <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
             {t("dashboard.status.pending")} + {t("dashboard.status.confirmed")}
@@ -205,10 +206,10 @@ export function DashboardSeveritySlaChart({
             <span className="truncate">{t("dashboard.status.resolved")}</span>
           </div>
           <p className="mt-1 text-xl font-black tracking-tight tabular-nums text-primary">
-            {number.format(resolvedCount)}
+            <AnimatedNumber value={resolvedCount} format={(v) => number.format(v)} />
           </p>
-          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-            / {number.format(analytics.total)} {t("dashboard.charts.incidents")}
+          <p className="mt-0.5 truncate text-[10px] text-muted-foreground tabular-nums">
+            / <AnimatedNumber value={analytics.total} format={(v) => number.format(v)} /> {t("dashboard.charts.incidents")}
           </p>
         </div>
 
@@ -218,10 +219,10 @@ export function DashboardSeveritySlaChart({
             <span className="truncate">MTTR</span>
           </div>
           <p className="mt-1 text-xl font-black tracking-tight tabular-nums text-foreground">
-            {formatMttr(analytics.mttrMinutes)}
+            <AnimatedMetricValue value={formatMttr(analytics.mttrMinutes)} />
           </p>
-          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
-            {number.format(analytics.resolutionSamples)}{" "}
+          <p className="mt-0.5 truncate text-[10px] text-muted-foreground tabular-nums">
+            <AnimatedNumber value={analytics.resolutionSamples} format={(v) => number.format(v)} />{" "}
             {t("dashboard.charts.samples")}
           </p>
         </div>
@@ -329,14 +330,14 @@ export function DashboardSeveritySlaChart({
                       </span>
                       {hasIncidents && (
                         <span className="rounded-md bg-background/80 px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums text-muted-foreground dark:bg-white/[0.06]">
-                          {sharePercent}%
+                          <AnimatedNumber value={sharePercent} />%
                         </span>
                       )}
                     </div>
 
                     <div className="flex items-center gap-2.5">
                       <span className="text-sm font-black tabular-nums text-foreground">
-                        {number.format(row.count)}{" "}
+                        <AnimatedNumber value={row.count} format={(v) => number.format(v)} />{" "}
                         <span className="text-[10px] font-medium text-muted-foreground">
                           {t("dashboard.charts.incidents")}
                         </span>
@@ -352,7 +353,7 @@ export function DashboardSeveritySlaChart({
                         }`}
                       >
                         <Clock className="size-2.5" />
-                        {formatMttr(row.mttrMinutes)}
+                        <AnimatedMetricValue value={formatMttr(row.mttrMinutes)} />
                       </span>
                     </div>
                   </div>

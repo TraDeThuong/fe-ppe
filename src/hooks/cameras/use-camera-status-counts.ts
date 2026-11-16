@@ -31,19 +31,31 @@ async function fetchCameraStatusCounts(
     }
 
     // Fallback khi backend /cameras/status-counts chưa khả dụng hoặc trả 422
-    const offlinePage = await cameraService.getCameras(
-      {
-        siteId: siteId || undefined,
-        status: "OFFLINE",
-        page: 1,
-        limit: 1,
-      },
-      { signal },
-    );
-    const offline = offlinePage.meta?.total ?? offlinePage.items.length;
+    const [allPage, onlinePage] = await Promise.all([
+      cameraService.getCameras(
+        {
+          siteId: siteId || undefined,
+          page: 1,
+          limit: 1,
+        },
+        { signal },
+      ),
+      cameraService.getCameras(
+        {
+          siteId: siteId || undefined,
+          status: "ONLINE",
+          page: 1,
+          limit: 1,
+        },
+        { signal },
+      ),
+    ]);
+    const total = allPage.meta?.total ?? allPage.items.length;
+    const online = onlinePage.meta?.total ?? onlinePage.items.length;
+    const offline = Math.max(0, total - online);
     return {
-      total: offline,
-      online: 0,
+      total,
+      online,
       offline,
     };
   }

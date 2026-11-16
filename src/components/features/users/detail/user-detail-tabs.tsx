@@ -26,6 +26,7 @@ export interface UserDetailTabsProps {
   incidentsCount?: number;
   pendingIncidentsCount?: number;
   completionRate?: number;
+  performanceTier?: string;
   className?: string;
 }
 
@@ -35,7 +36,8 @@ export function UserDetailTabs({
   sitesCount = 0,
   incidentsCount = 0,
   pendingIncidentsCount = 0,
-  completionRate = 100,
+  completionRate = 0,
+  performanceTier = "UNRATED",
   className = "",
 }: UserDetailTabsProps) {
   const { locale } = useLocale();
@@ -65,7 +67,10 @@ export function UserDetailTabs({
         key: "performance" as UserDetailTabKey,
         label: isVietnamese ? "Đánh giá quá trình làm việc" : "Performance Assessment",
         icon: Award,
-        badge: `${completionRate}%`,
+        badge:
+          incidentsCount > 0 && performanceTier !== "UNRATED"
+            ? `${completionRate}%`
+            : "—",
       },
       {
         key: "sessions" as UserDetailTabKey,
@@ -78,7 +83,7 @@ export function UserDetailTabs({
         icon: Activity,
       },
     ],
-    [sitesCount, incidentsCount, pendingIncidentsCount, completionRate, isVietnamese],
+    [sitesCount, incidentsCount, pendingIncidentsCount, completionRate, performanceTier, isVietnamese],
   );
 
   return (

@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedMetricValue, AnimatedNumber } from "@/components/ui/animated-number";
 import type { AuditLogItem, AuditSummaryDto } from "@/types";
 import { AuditActionBadge } from "./audit-action-badge";
 
@@ -509,8 +510,8 @@ export function AuditStatsDetailPanel({
               <span className="text-xs font-semibold text-muted-foreground">
                 {isVietnamese ? "Lượt thẩm duyệt sự cố PPE" : "PPE Incident Reviews"}
               </span>
-              <p className="text-xl font-black text-foreground font-mono mt-1">
-                {incidentReviewsCount}
+              <p className="text-xl font-black text-foreground font-mono tabular-nums mt-1">
+                <AnimatedNumber value={incidentReviewsCount} />
               </p>
               <p className="text-[10px] text-muted-foreground mt-0.5">
                 {isVietnamese
@@ -642,12 +643,12 @@ export function AuditStatsDetailPanel({
               <span className="text-xs font-semibold text-muted-foreground">
                 {isVietnamese ? "Tỷ lệ tác vụ thành công" : "Task Success Rate"}
               </span>
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1">
-                {successRateLabel}
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums mt-1">
+                <AnimatedMetricValue value={successRateLabel} />
               </p>
               <div className="mt-2 h-1.5 w-full rounded-full bg-muted/60 overflow-hidden">
                 <div
-                  className="h-full bg-emerald-500 rounded-full"
+                  className="h-full bg-emerald-500 rounded-full transition-all duration-700 animate-live-shimmer"
                   style={{ width: `${Math.min(100, successRateValue)}%` }}
                 />
               </div>
@@ -657,8 +658,8 @@ export function AuditStatsDetailPanel({
               <span className="text-xs font-semibold text-muted-foreground">
                 {isVietnamese ? "Thao tác bị từ chối / Lỗi" : "Denied / Failed Operations"}
               </span>
-              <p className="text-2xl font-black text-danger font-mono mt-1">
-                {failedLogs.length}
+              <p className="text-2xl font-black text-danger font-mono tabular-nums mt-1">
+                <AnimatedNumber value={failedLogs.length} />
               </p>
               <p className="text-[10px] text-muted-foreground mt-1">
                 {isVietnamese

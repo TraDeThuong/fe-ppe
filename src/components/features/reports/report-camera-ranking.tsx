@@ -9,6 +9,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import type { CameraStatDto } from "@/types";
 
@@ -93,7 +94,7 @@ export function ReportCameraRanking({
         >
           <Camera size={14} className="text-accent" />
           <span className="text-sm font-extrabold tabular-nums text-primary">
-            {rankings.length}
+            <AnimatedNumber value={rankings.length} />
           </span>
           <span className="text-[10px] font-medium text-muted-foreground">
             {isVietnamese ? "Camera" : "Cameras"}
@@ -201,7 +202,11 @@ export function ReportCameraRanking({
                     {/* Total violations */}
                     <div className="shrink-0 text-right">
                       <p className="text-base font-extrabold leading-none tabular-nums text-primary">
-                        {item.totalViolations.toLocaleString()}
+                        <AnimatedNumber
+                          value={item.totalViolations}
+                          delay={idx * 45}
+                          format={(v) => v.toLocaleString()}
+                        />
                       </p>
                       <p className="mt-1 text-[9px] text-muted-foreground">
                         {isVietnamese ? "Vi phạm" : "Cases"}
@@ -218,8 +223,8 @@ export function ReportCameraRanking({
                       />
                       <span className="truncate text-[10px] text-muted-foreground">
                         {isVietnamese ? "Xác nhận" : "Confirmed"}
-                        <span className="ml-1 font-bold text-foreground">
-                          {item.confirmedCount}
+                        <span className="ml-1 font-bold tabular-nums text-foreground">
+                          <AnimatedNumber value={item.confirmedCount} delay={idx * 45} />
                         </span>
                       </span>
                     </div>
@@ -229,11 +234,12 @@ export function ReportCameraRanking({
                         size={11}
                         className="text-emerald-500"
                       />
-                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                        {resolvePct}%
+                      <span className="text-[10px] font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                        <AnimatedNumber value={resolvePct} delay={idx * 45} />%
                       </span>
-                      <span className="text-[9px] text-muted-foreground">
-                        ({item.resolvedCount}/{item.totalViolations})
+                      <span className="text-[9px] text-muted-foreground tabular-nums">
+                        (<AnimatedNumber value={item.resolvedCount} delay={idx * 45} />/
+                        <AnimatedNumber value={item.totalViolations} delay={idx * 45} />)
                       </span>
                     </div>
                   </div>
@@ -255,8 +261,8 @@ export function ReportCameraRanking({
 
             <span className="text-[10px] font-semibold text-muted-foreground">
               {isVietnamese ? "Tổng" : "Total"}:
-              <span className="ml-1 text-primary">
-                {rankings.length}
+              <span className="ml-1 font-bold tabular-nums text-primary">
+                <AnimatedNumber value={rankings.length} />
               </span>
             </span>
           </div>

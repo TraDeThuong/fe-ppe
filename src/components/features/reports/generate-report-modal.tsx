@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { FileSpreadsheet, FileText, Loader2, Send } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { FileCode2, FileSpreadsheet, FileText, Loader2, Send } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
-import type { GenerateReportDto, ReportFileType, ReportTemplateDto, SiteItem } from "@/types";
+import type { GenerateReportDto, ReportTemplateDto, SiteItem } from "@/types";
 
 export interface GenerateReportModalProps {
   open: boolean;
@@ -45,12 +45,16 @@ export function GenerateReportModal({
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
+  const activeTemplates = useMemo(
+    () => templates.filter((tpl) => !tpl.status || tpl.status.toUpperCase() === "ACTIVE"),
+    [templates]
+  );
+
   const [templateId, setTemplateId] = useState(
-    selectedTemplate?.id || templates[0]?.id || ""
+    selectedTemplate?.id || activeTemplates[0]?.id || ""
   );
   const [siteId, setSiteId] = useState(defaultSiteId || sites[0]?.id || "");
   const [reportType, setReportType] = useState("DAILY");
-  const [format, setFormat] = useState<ReportFileType>("PDF");
   const [startDate, setStartDate] = useState(
     new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0]
   );
@@ -58,17 +62,23 @@ export function GenerateReportModal({
     new Date().toISOString().split("T")[0]
   );
 
+  const currentTemplate = useMemo(
+    () => templates.find((tpl) => tpl.id === templateId) || null,
+    [templates, templateId]
+  );
+  const resolvedFormat = (currentTemplate?.fileType || "PDF").toUpperCase();
+
   useEffect(() => {
     if (open) {
-      const targetTpl = selectedTemplate || templates[0] || null;
+      const targetTpl =
+        (selectedTemplate && (!selectedTemplate.status || selectedTemplate.status.toUpperCase() === "ACTIVE")
+          ? selectedTemplate
+          : activeTemplates[0]) || null;
       if (targetTpl) {
         setTemplateId(targetTpl.id);
         setReportType(inferReportTypeFromCode(targetTpl.code));
-        if (targetTpl.fileType === "EXCEL" || targetTpl.fileType === "CSV") {
-          setFormat("EXCEL");
-        } else {
-          setFormat("PDF");
-        }
+      } else {
+        setTemplateId("");
       }
       if (defaultSiteId) {
         setSiteId(defaultSiteId);
@@ -82,18 +92,13 @@ export function GenerateReportModal({
         setEndDate(defaultEndDate);
       }
     }
-  }, [open, selectedTemplate, templates, defaultSiteId, sites, siteId, defaultStartDate, defaultEndDate]);
+  }, [open, selectedTemplate, activeTemplates, defaultSiteId, sites, siteId, defaultStartDate, defaultEndDate]);
 
   const handleTemplateChange = (id: string) => {
     setTemplateId(id);
     const found = templates.find((tpl) => tpl.id === id);
     if (found) {
       setReportType(inferReportTypeFromCode(found.code));
-      if (found.fileType === "EXCEL" || found.fileType === "CSV") {
-        setFormat("EXCEL");
-      } else {
-        setFormat("PDF");
-      }
     }
   };
 
@@ -164,11 +169,15 @@ export function GenerateReportModal({
                 {isVietnamese ? "Chưa có mẫu báo cáo" : "No templates available"}
               </option>
             )}
-            {templates.map((tpl) => (
-              <option key={tpl.id} value={tpl.id}>
-                {tpl.name} ({tpl.fileType})
-              </option>
-            ))}
+            {templates.map((tpl) => {
+              const isInactive =
+                Boolean(tpl.status) && tpl.status.toUpperCase() !== "ACTIVE";
+              return (
+                <option key={tpl.id} value={tpl.id} disabled={isInactive}>
+                  {tpl.name} ({tpl.fileType}){isInactive ? ` — ${t("reports.templates.inactiveBadge")}` : ""}
+                </option>
+              );
+            })}
           </select>
         </div>
 
@@ -190,37 +199,27 @@ export function GenerateReportModal({
           </select>
         </div>
 
-        {/* Format Select */}
+        {/* Output Format (Read-only, determined by selected template per BE SEC-35) */}
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-[var(--neu-text-primary)]">
             {t("reports.generate.format")}
           </label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setFormat("PDF")}
-              className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-semibold transition-all ${
-                format === "PDF"
-                  ? "border-primary bg-primary/10 text-primary shadow-sm"
-                  : "border-[var(--neu-border)] bg-[var(--neu-surface)] text-[var(--neu-text-secondary)]"
-              }`}
-            >
-              <FileText className="h-4 w-4" />
-              <span>{isVietnamese ? "Tài liệu PDF" : "PDF Document"}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFormat("EXCEL")}
-              className={`flex items-center justify-center gap-2 p-3 rounded-xl border text-sm font-semibold transition-all ${
-                format === "EXCEL"
-                  ? "border-primary bg-primary/10 text-primary shadow-sm"
-                  : "border-[var(--neu-border)] bg-[var(--neu-surface)] text-[var(--neu-text-secondary)]"
-              }`}
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              <span>{isVietnamese ? "Bảng Excel (XLSX)" : "Excel Spreadsheet (XLSX)"}</span>
-            </button>
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-[var(--neu-border)] bg-[var(--neu-inset)] px-3.5 py-2.5">
+            <div className="flex items-center gap-2.5">
+              {resolvedFormat === "EXCEL" || resolvedFormat === "CSV" ? (
+                <FileSpreadsheet className="h-4 w-4 text-primary shrink-0" />
+              ) : resolvedFormat === "JSON" ? (
+                <FileCode2 className="h-4 w-4 text-primary shrink-0" />
+              ) : (
+                <FileText className="h-4 w-4 text-primary shrink-0" />
+              )}
+              <span className="text-xs text-[var(--neu-text-secondary)]">
+                {t("reports.generate.formatByTemplate")}
+              </span>
+            </div>
+            <span className="shrink-0 rounded-lg bg-primary/10 px-2.5 py-1 text-[11px] font-extrabold tracking-wider text-primary">
+              {resolvedFormat}
+            </span>
           </div>
         </div>
 

@@ -21,10 +21,12 @@ export interface UserDetailKpiBarProps {
   assignedSitesCount: number;
   totalIncidents: number;
   resolvedIncidents: number;
+  dismissedIncidents?: number;
   pendingIncidents: number;
   resolutionRate: number;
   mttrHours: number;
   slaComplianceRate: number;
+  hasSlaData?: boolean;
   performanceTier:
     | "EXCELLENT"
     | "GOOD"
@@ -40,10 +42,12 @@ export function UserDetailKpiBar({
   assignedSitesCount,
   totalIncidents,
   resolvedIncidents,
+  dismissedIncidents = 0,
   pendingIncidents,
   resolutionRate,
   mttrHours,
   slaComplianceRate,
+  hasSlaData = false,
   performanceTier,
   onSelectTab,
   loading = false,
@@ -61,6 +65,7 @@ export function UserDetailKpiBar({
       case "UNRATED":
         return isVietnamese ? "Chưa đánh giá" : "Unrated";
       case "AVERAGE":
+        return isVietnamese ? "Trung bình" : "Average";
       case "NEEDS_IMPROVEMENT":
         return isVietnamese ? "Cần cải thiện" : "Needs Improvement";
       default:
@@ -363,15 +368,19 @@ export function UserDetailKpiBar({
             <p className="mt-2 text-[9px] font-medium text-muted-foreground">
               {totalIncidents === 0
                 ? isVietnamese
-                  ? "Chưa có sự cố được phân công"
-                  : "No assigned incidents yet"
+                  ? "Chưa có sự cố liên quan"
+                  : "No correlated incidents yet"
                 : pendingIncidents > 0
                   ? isVietnamese
-                    ? `${pendingIncidents} vụ việc cần tiếp tục theo dõi`
-                    : `${pendingIncidents} cases require follow-up`
-                  : isVietnamese
-                    ? "Tất cả sự cố đã được xử lý"
-                    : "All incidents resolved"}
+                    ? `${pendingIncidents} vụ việc cần tiếp tục theo dõi${dismissedIncidents > 0 ? ` (${dismissedIncidents} đã bác bỏ)` : ""}`
+                    : `${pendingIncidents} cases require follow-up${dismissedIncidents > 0 ? ` (${dismissedIncidents} dismissed)` : ""}`
+                  : dismissedIncidents > 0
+                    ? isVietnamese
+                      ? `Đã hoàn tất (${dismissedIncidents} vụ đã bác bỏ)`
+                      : `Completed (${dismissedIncidents} dismissed)`
+                    : isVietnamese
+                      ? "Tất cả sự cố đã được xử lý"
+                      : "All incidents resolved"}
             </p>
           </div>
         </div>
@@ -436,19 +445,25 @@ export function UserDetailKpiBar({
               ) : (
                 <p className="mt-2 flex items-baseline gap-1">
                   <span className={`${metricValue} text-primary`}>
-                    {slaComplianceRate}%
+                    {hasSlaData ? `${slaComplianceRate}%` : "—"}
                   </span>
                 </p>
               )}
 
               <p className="mt-1 text-[9px] font-medium text-muted-foreground">
-                {isVietnamese ? "Tỷ lệ tuân thủ" : "Compliance rate"}
+                {hasSlaData
+                  ? isVietnamese
+                    ? "Tỷ lệ tuân thủ"
+                    : "Compliance rate"
+                  : isVietnamese
+                    ? "Chưa có dữ liệu"
+                    : "No SLA data"}
               </p>
             </div>
           </div>
 
           {/* Rating summary */}
-          <div className={`${insetSurface} mt-auto mt-4 p-3.5`}>
+          <div className={`${insetSurface} mt-auto p-3.5`}>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
                 <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">

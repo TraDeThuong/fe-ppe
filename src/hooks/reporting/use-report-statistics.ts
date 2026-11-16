@@ -4,7 +4,6 @@ import { useQuery } from "@tanstack/react-query";
 import { reportingService } from "@/services/reporting.service";
 import { reportingKeys } from "./reporting.query-keys";
 import type {
-  AiPerformanceStatDto,
   CameraStatDto,
   DashboardKpiDto,
   HourlyRiskResponseDto,
@@ -55,34 +54,38 @@ export function useReportSummary(
   });
 }
 
-export function useViolationTrends(params?: ReportingFilterParams) {
+export function useViolationTrends(
+  params?: ReportingFilterParams,
+  options?: { enabled?: boolean },
+) {
   return useQuery<TrendItemDto[]>({
     queryKey: reportingKeys.trends(params),
     queryFn: () => reportingService.getTrends(params),
     staleTime: 30 * 1000,
+    enabled: options?.enabled ?? true,
   });
 }
 
-export function useViolationDistribution(params?: ReportingFilterParams) {
+export function useViolationDistribution(
+  params?: ReportingFilterParams,
+  options?: { enabled?: boolean },
+) {
   return useQuery<ViolationTypeStatDto[]>({
     queryKey: reportingKeys.distribution(params),
     queryFn: () => reportingService.getViolationDistribution(params),
     staleTime: 30 * 1000,
+    enabled: options?.enabled ?? true,
   });
 }
 
-export function useCameraRankings(params?: ReportingFilterParams & { limit?: number }) {
+export function useCameraRankings(
+  params?: ReportingFilterParams & { limit?: number },
+  options?: { enabled?: boolean },
+) {
   return useQuery<CameraStatDto[]>({
     queryKey: reportingKeys.rankings(params),
     queryFn: () => reportingService.getCameraRankings(params),
     staleTime: 30 * 1000,
-  });
-}
-
-export function useAiPerformanceStats(params?: ReportingFilterParams) {
-  return useQuery<AiPerformanceStatDto[]>({
-    queryKey: reportingKeys.aiPerformance(params),
-    queryFn: () => reportingService.getAiPerformance(params),
-    staleTime: 30 * 1000,
+    enabled: options?.enabled ?? true,
   });
 }

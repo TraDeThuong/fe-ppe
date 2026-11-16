@@ -12,6 +12,11 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import {
+  AnimatedMetricValue,
+  AnimatedNumber,
+  useAnimatedProgress,
+} from "@/components/ui/animated-number";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export interface DashboardKpiRibbonProps {
@@ -90,6 +95,9 @@ function KpiTile({
   index,
 }: KpiTileProps) {
   const style = TONE_STYLES[tone];
+  const animatedProgress = useAnimatedProgress(progress ?? 0, {
+    enabled: typeof progress === "number" && !loading,
+  });
 
   return (
     <div
@@ -107,7 +115,7 @@ function KpiTile({
           : undefined
       }
       className={[
-        "group relative flex min-w-0 flex-col",
+        "animate-stat-enter group relative flex min-w-0 flex-col",
         "rounded-[20px] p-3.5 sm:p-4",
         "border border-white/80 dark:border-white/[0.06]",
         "bg-background dark:bg-card/70",
@@ -175,13 +183,13 @@ function KpiTile({
           ) : (
             <span
               className={[
-                "min-w-0 truncate font-mono",
+                "min-w-0 truncate font-mono tabular-nums",
                 "text-[27px] font-black leading-none tracking-[-0.055em]",
                 "sm:text-[30px]",
                 style.value,
               ].join(" ")}
             >
-              {value}
+              <AnimatedMetricValue value={value} />
             </span>
           )}
         </div>
@@ -193,17 +201,17 @@ function KpiTile({
           <div className="space-y-2">
             <div className="h-2 overflow-hidden rounded-full bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)] dark:bg-black/30">
               <div
-                className={`h-full rounded-full ${style.indicator} transition-all duration-700`}
+                className={`h-full rounded-full ${style.indicator} transition-all duration-700 animate-live-shimmer`}
                 style={{
-                  width: `${Math.min(100, Math.max(0, progress))}%`,
+                  width: `${animatedProgress}%`,
                 }}
               />
             </div>
 
             <div className="flex items-center justify-between gap-2 text-[10px] font-medium text-muted-foreground">
               <span className="truncate">{progressLabel}</span>
-              <span className="font-mono font-bold text-foreground">
-                {progress}%
+              <span className="font-mono font-bold tabular-nums text-foreground">
+                <AnimatedNumber value={progress} />%
               </span>
             </div>
           </div>

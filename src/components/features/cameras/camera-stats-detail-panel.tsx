@@ -17,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NM } from "@/components/features/ai-test/nm-styles";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import { findSessionForCamera, toSafeLiveCameraId } from "./camera-live-helpers";
 import type { LiveSessionInfo } from "@/types/ai-test.types";
 import type { CameraItem } from "@/types";
@@ -258,26 +259,26 @@ export function CameraStatsDetailPanel({
             <div className="grid grid-cols-2 gap-2.5 text-xs">
               <div className={`rounded-xl p-2.5 ${NM.extruded}`}>
                 <span className="text-[10px] text-muted-foreground">ONLINE</span>
-                <p className="mt-0.5 font-mono text-base font-black text-emerald-500">
-                  {dbBreakdown.online}
+                <p className="mt-0.5 font-mono text-base font-black tabular-nums text-emerald-500">
+                  <AnimatedNumber value={dbBreakdown.online} />
                 </p>
               </div>
               <div className={`rounded-xl p-2.5 ${NM.extruded}`}>
                 <span className="text-[10px] text-muted-foreground">OFFLINE</span>
-                <p className="mt-0.5 font-mono text-base font-black text-muted-foreground">
-                  {dbBreakdown.offline}
+                <p className="mt-0.5 font-mono text-base font-black tabular-nums text-muted-foreground">
+                  <AnimatedNumber value={dbBreakdown.offline} />
                 </p>
               </div>
               <div className={`rounded-xl p-2.5 ${NM.extruded}`}>
                 <span className="text-[10px] text-muted-foreground">BẢO TRÌ</span>
-                <p className="mt-0.5 font-mono text-base font-black text-amber-500">
-                  {dbBreakdown.maintenance}
+                <p className="mt-0.5 font-mono text-base font-black tabular-nums text-amber-500">
+                  <AnimatedNumber value={dbBreakdown.maintenance} />
                 </p>
               </div>
               <div className={`rounded-xl p-2.5 ${NM.extruded}`}>
                 <span className="text-[10px] text-muted-foreground">LỖI</span>
-                <p className="mt-0.5 font-mono text-base font-black text-danger">
-                  {dbBreakdown.error}
+                <p className="mt-0.5 font-mono text-base font-black tabular-nums text-danger">
+                  <AnimatedNumber value={dbBreakdown.error} />
                 </p>
               </div>
             </div>
@@ -529,20 +530,20 @@ export function CameraStatsDetailPanel({
             <div className="grid grid-cols-3 gap-2 text-center text-xs">
               <div className={`rounded-xl p-2.5 ${NM.extruded}`}>
                 <span className="text-[10px] text-muted-foreground">Người</span>
-                <p className="mt-0.5 font-mono text-lg font-black text-foreground">
-                  {violationSummary.totalPersons}
+                <p className="mt-0.5 font-mono text-lg font-black tabular-nums text-foreground">
+                  <AnimatedNumber value={violationSummary.totalPersons} />
                 </p>
               </div>
               <div className={`rounded-xl p-2.5 ${NM.extruded}`}>
                 <span className="text-[10px] text-muted-foreground">Mũ BHL</span>
-                <p className="mt-0.5 font-mono text-lg font-black text-primary">
-                  {violationSummary.totalHelmets}
+                <p className="mt-0.5 font-mono text-lg font-black tabular-nums text-primary">
+                  <AnimatedNumber value={violationSummary.totalHelmets} />
                 </p>
               </div>
               <div className={`rounded-xl p-2.5 ${NM.extruded}`}>
                 <span className="text-[10px] text-muted-foreground">Áo PQ</span>
-                <p className="mt-0.5 font-mono text-lg font-black text-accent">
-                  {violationSummary.totalVests}
+                <p className="mt-0.5 font-mono text-lg font-black tabular-nums text-accent">
+                  <AnimatedNumber value={violationSummary.totalVests} />
                 </p>
               </div>
             </div>

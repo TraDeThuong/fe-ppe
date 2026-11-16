@@ -52,6 +52,7 @@ type InspectorSubTab = "associations" | "violations" | "evidences";
 export interface OfflinePlayerPanelProps {
   models: ModelInfo[];
   jobs: JobSummary[];
+  offlineJobsSupported?: boolean;
   onRefreshJobs: () => Promise<void>;
   activeJobId: string | null;
   onActiveJobChange: (jobId: string | null) => void;
@@ -74,6 +75,7 @@ const JOB_STATUS_BADGE: Record<
 export function OfflinePlayerPanel({
   models,
   jobs,
+  offlineJobsSupported = true,
   onRefreshJobs,
   activeJobId,
   onActiveJobChange,
@@ -322,7 +324,20 @@ export function OfflinePlayerPanel({
     runningJobStatus?.status === "running" || runningJobStatus?.status === "queued";
 
   return (
-    <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12">
+    <div className="space-y-4">
+      {!offlineJobsSupported && (
+        <div className="rounded-2xl border border-accent/25 bg-accent/10 px-4 py-3 text-xs text-foreground">
+          <strong className="font-bold text-accent">
+            AI Engine đang chạy chế độ Production 24/7 (`app/server.py`):
+          </strong>{" "}
+          chỉ bật các API Live Stream, Models và Auto-Sync. Để dùng tab Offline Video Player (upload &amp; xử lý MP4 offline), hãy chạy sandbox{" "}
+          <code className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-[11px] font-semibold">
+            python -m test-ui.server
+          </code>
+          .
+        </div>
+      )}
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12">
       {/* Left Sidebar: Upload, Parameters, Running Progress, Jobs Queue */}
       {/* Left Sidebar: Upload, Parameters, Running Progress, Jobs Queue */}
       <aside className="space-y-6 xl:col-span-4">
@@ -1191,6 +1206,7 @@ export function OfflinePlayerPanel({
             )}
           </div>
         </section>
+      </div>
       </div>
     </div>
   );

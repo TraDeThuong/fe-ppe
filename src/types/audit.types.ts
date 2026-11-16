@@ -47,6 +47,7 @@ export interface AuditSummaryDto {
 export interface AuditLogQueryParams {
   page?: number;
   limit?: number;
+  actorId?: string;
   userId?: string;
   category?: string;
   action?: string;

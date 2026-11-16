@@ -1,88 +1,44 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Building2,
   Search,
   ExternalLink,
   ShieldCheck,
   Phone,
-  Calendar,
   MapPin,
   Plus,
   Trash2,
-  Users,
-  CheckCircle2,
-  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
 import { useAssignUserSites } from "@/hooks/users";
 import { toast } from "@/lib/toast";
+import { getSiteRoleDetails } from "../user-detail-utils";
 import type { UserResponseDto, SiteItem } from "@/types";
 
 export interface UserSitesTabProps {
   user: UserResponseDto;
   userSites: SiteItem[];
   allSites: SiteItem[];
+  explicitSiteIdSet?: Set<string>;
+  contactOfficerSiteIdSet?: Set<string>;
   onOpenAssignSites: () => void;
 }
 
 export function UserSitesTab({
   user,
   userSites,
-  allSites,
+  explicitSiteIdSet,
+  contactOfficerSiteIdSet,
   onOpenAssignSites,
 }: UserSitesTabProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const [search, setSearch] = useState("");
   const assignSitesMutation = useAssignUserSites();
-
-  const roleName = user.role?.name || "USER";
-
-  // Resolve on-site role title helper
-  const getSiteRoleDetails = (site: SiteItem) => {
-    let roleTitle = "";
-    let isSpecific = false;
-    let contactPhones: string[] = [];
-
-    if (site.contactOfficers) {
-      const officers = Array.isArray(site.contactOfficers)
-        ? site.contactOfficers
-        : typeof site.contactOfficers === "string"
-          ? JSON.parse(site.contactOfficers || "[]")
-          : [];
-
-      const matched = officers.find(
-        (o: any) =>
-          (user.fullName && o.name && o.name.toLowerCase().includes(user.fullName.toLowerCase())) ||
-          (user.phoneNumber && Array.isArray(o.phones) && o.phones.includes(user.phoneNumber)),
-      );
-
-      if (matched) {
-        roleTitle = matched.roleTitle || "";
-        isSpecific = Boolean(matched.roleTitle);
-        contactPhones = matched.phones || [];
-      }
-    }
-
-    if (!roleTitle) {
-      if (roleName === "ADMIN" || roleName === "SUPER_ADMIN") {
-        roleTitle = isVietnamese ? "Quản trị viên toàn quyền hệ thống" : "Full System Administrator";
-      } else if (roleName === "SAFETY_MANAGER") {
-        roleTitle = isVietnamese ? "Chỉ huy trưởng an toàn công trường" : "Site Safety Manager";
-      } else if (roleName === "SAFETY_OFFICER") {
-        roleTitle = isVietnamese ? "Cán bộ giám sát an toàn PPE" : "Safety Officer";
-      } else if (roleName === "SUPERVISOR") {
-        roleTitle = isVietnamese ? "Giám sát viên hiện trường" : "Field Supervisor";
-      } else {
-        roleTitle = isVietnamese ? "Nhân sự an toàn công trường" : "Site Safety Personnel";
-      }
-    }
-
-    return { roleTitle, isSpecific, contactPhones };
-  };
 
   const filteredSites = useMemo(() => {
     if (!search.trim()) return userSites;
@@ -176,8 +132,16 @@ export function UserSitesTab({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredSites.map((site) => {
-            const { roleTitle, isSpecific, contactPhones } = getSiteRoleDetails(site);
+            const { roleTitle, isSpecific, contactPhones } = getSiteRoleDetails(
+              site,
+              user,
+              isVietnamese,
+            );
             const isSiteActive = site.status === "ACTIVE";
+            const isExplicitlyAssigned = explicitSiteIdSet
+              ? explicitSiteIdSet.has(site.id)
+              : (user.siteIds || []).includes(site.id);
+            const isFromContactOfficers = contactOfficerSiteIdSet?.has(site.id) ?? false;
 
             return (
               <div
@@ -187,9 +151,16 @@ export function UserSitesTab({
                 <div>
                   {/* Top: Site Code & Status */}
                   <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="px-2 py-0.5 rounded-lg border border-border/60 bg-muted/40 font-mono text-[11px] font-bold text-muted-foreground uppercase">
-                      {site.code}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="px-2 py-0.5 rounded-lg border border-border/60 bg-muted/40 font-mono text-[11px] font-bold text-muted-foreground uppercase">
+                        {site.code}
+                      </span>
+                      {!isExplicitlyAssigned && isFromContactOfficers && (
+                        <span className="px-2 py-0.5 rounded-lg border border-accent/30 bg-accent/10 text-accent text-[10px] font-bold">
+                          {isVietnamese ? "Gán qua Ban chỉ huy" : "Via Site Command"}
+                        </span>
+                      )}
+                    </div>
                     <span
                       className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded-lg border ${
                         isSiteActive
@@ -228,7 +199,7 @@ export function UserSitesTab({
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
                       {isVietnamese ? "Chức vụ tại công trường này" : "Position at this site"}
                     </span>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <ShieldCheck size={16} className="text-primary shrink-0" />
                       <span className="text-xs font-bold text-foreground">
                         {roleTitle}
@@ -254,25 +225,31 @@ export function UserSitesTab({
 
                 {/* Bottom Card Actions */}
                 <div className="pt-3 border-t border-border/40 flex items-center justify-between gap-2">
-                  <a
+                  <Link
                     href={`/sites/${site.id}`}
                     className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
                   >
                     <span>{isVietnamese ? "Xem chi tiết công trường" : "View Site Profile"}</span>
                     <ExternalLink size={12} />
-                  </a>
+                  </Link>
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemoveSite(site.id, site.name)}
-                    disabled={assignSitesMutation.isPending}
-                    className="text-xs h-7 px-2 text-danger hover:text-danger hover:bg-danger/10 gap-1"
-                    title={isVietnamese ? "Rút quyền khỏi công trường này" : "Remove assignment"}
-                  >
-                    <Trash2 size={12} />
-                    <span>{isVietnamese ? "Rút quyền" : "Unassign"}</span>
-                  </Button>
+                  {isExplicitlyAssigned ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveSite(site.id, site.name)}
+                      disabled={assignSitesMutation.isPending}
+                      className="text-xs h-7 px-2 text-danger hover:text-danger hover:bg-danger/10 gap-1"
+                      title={isVietnamese ? "Rút quyền khỏi công trường này" : "Remove assignment"}
+                    >
+                      <Trash2 size={12} />
+                      <span>{isVietnamese ? "Rút quyền" : "Unassign"}</span>
+                    </Button>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground">
+                      {isVietnamese ? "Chỉnh sửa tại trang site" : "Manage in site profile"}
+                    </span>
+                  )}
                 </div>
               </div>
             );

@@ -111,6 +111,11 @@ function refreshTokens(): Promise<boolean> {
   return refreshPromise;
 }
 
+/** Dùng chung cơ chế single-flight refresh token cho các client fetch ngoài Axios (vd: aiTestService). */
+export function ensureFreshAccessToken(): Promise<boolean> {
+  return refreshTokens();
+}
+
 // ── Helper ─────────────────────────────────────────────────────────────
 
 function parseRetryAfter(value: unknown): number | undefined {

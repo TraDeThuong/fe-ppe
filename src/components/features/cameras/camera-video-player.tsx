@@ -17,6 +17,7 @@ import type { CameraItem } from "@/types";
 export interface CameraVideoPlayerProps {
   camera: CameraItem;
   liveSession?: LiveSessionInfo;
+  productionMode?: boolean;
   isBusy?: boolean;
   onStartLive?: (camera: CameraItem) => void;
   onStopLive?: (camera: CameraItem) => void;
@@ -31,6 +32,7 @@ export interface CameraVideoPlayerProps {
 export const CameraVideoPlayer = memo(function CameraVideoPlayer({
   camera,
   liveSession,
+  productionMode = false,
   isBusy = false,
   onStartLive,
   onStopLive,
@@ -58,6 +60,13 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
   const liveId = toSafeLiveCameraId(camera);
   const isRunning = liveSession?.status === "running";
   const isInitializing = liveSession?.status === "initializing";
+  const isReconnecting = liveSession?.status === "reconnecting";
+
+  useEffect(() => {
+    if (isRunning) {
+      setStreamError(false);
+    }
+  }, [camera.id, isRunning]);
   const metrics = liveSession?.metrics;
 
   const fps = typeof metrics?.fps === "number" ? metrics.fps : undefined;
@@ -78,20 +87,26 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
   const isDbOnline = camera.status === "ONLINE";
 
   const standbyHeading =
-    isInitializing || isBusy
-      ? "Đang khởi tạo luồng Live..."
-      : streamError
-        ? "Luồng MJPEG vừa tạm ngắt"
-        : !isDbOnline
-          ? `Camera đang ${camera.status}`
-          : isMaskedRtsp
-            ? "RTSP đang ẩn mật khẩu (:***@)"
-            : "Chế độ chờ (Chưa chạy AI Live)";
+    isReconnecting
+      ? `Đang tự kết nối lại (${liveSession?.reconnect_count ?? 1})...`
+      : isInitializing || isBusy
+        ? "Đang khởi tạo luồng Live..."
+        : streamError
+          ? "Luồng MJPEG vừa tạm ngắt"
+          : !isDbOnline
+            ? `Camera đang ${camera.status}`
+            : isMaskedRtsp
+              ? productionMode
+                ? "RTSP bảo mật (M2M sẵn sàng)"
+                : "RTSP đang ẩn mật khẩu (:***@)"
+              : "Chế độ chờ (Chưa chạy AI Live)";
 
   const standbySubtext = !isDbOnline
     ? "Thiết bị hiện không ở trạng thái ONLINE để phát tự động."
     : isMaskedRtsp
-      ? "Backend đang che mật khẩu RTSP — mở Studio để nhập nguồn hoặc xem hướng dẫn BE."
+      ? productionMode
+        ? "AI Engine tự tra cứu luồng RTSP gốc nội bộ qua M2M token khi khởi chạy."
+        : "Backend đang che mật khẩu RTSP — mở Studio để nhập nguồn hoặc xem hướng dẫn BE."
       : camera.streamUrl || "Chưa gắn streamUrl";
 
   return (

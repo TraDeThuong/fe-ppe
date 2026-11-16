@@ -21,6 +21,7 @@ import { CronJobDetailModal } from "@/components/features/scheduled-tasks/cron-j
 import { CronJobDialog } from "@/components/features/scheduled-tasks/cron-job-dialog";
 import { getCronJobCategoryMeta } from "@/components/features/scheduled-tasks/cron-job-presentation";
 import { CronToggleConfirmDialog } from "@/components/features/scheduled-tasks/cron-toggle-confirm-dialog";
+import { AnimatedMetricValue, AnimatedNumber } from "@/components/ui/animated-number";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AuthContext } from "@/contexts/AuthContext";
 import { useCronJobs, useCronMutations } from "@/hooks/cron/use-cron";
@@ -407,10 +408,12 @@ export function DashboardCronMiniCard({
                   />
                 </span>
                 <span>
-                  {t("dashboard.cronCard.autoEnabledCount", {
-                    enabled: enabledCount,
-                    total: jobList.length,
-                  })}
+                  <AnimatedMetricValue
+                    value={t("dashboard.cronCard.autoEnabledCount", {
+                      enabled: enabledCount,
+                      total: jobList.length,
+                    })}
+                  />
                 </span>
               </span>
             )}
@@ -444,9 +447,13 @@ export function DashboardCronMiniCard({
                 <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   {t("dashboard.cronCard.summaryEnabled")}
                 </span>
-                <span className="mt-1 block font-mono text-base font-black text-foreground sm:text-lg">
-                  <span className="text-primary">{enabledCount}</span>
-                  <span className="text-muted-foreground/60">/{jobList.length}</span>
+                <span className="mt-1 block font-mono text-base font-black tabular-nums text-foreground sm:text-lg">
+                  <span className="text-primary">
+                    <AnimatedNumber value={enabledCount} />
+                  </span>
+                  <span className="text-muted-foreground/60">
+                    /<AnimatedNumber value={jobList.length} />
+                  </span>
                 </span>
               </div>
               <div

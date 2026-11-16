@@ -167,7 +167,7 @@ export const systemService = {
         code: "ai-service",
         port: 8000,
         path: "/api/system/health-probe?target=ai",
-        displayEndpoint: "/api/models (:8000)",
+        displayEndpoint: "/health (:8000)",
         type: "SERVICE",
         probeTarget: "ai",
       },

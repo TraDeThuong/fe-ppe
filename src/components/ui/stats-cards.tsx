@@ -15,6 +15,11 @@ import {
 } from "lucide-react";
 import { Typography } from "./typography";
 import { Skeleton } from "./skeleton";
+import {
+  AnimatedMetricValue,
+  AnimatedNumber,
+  useAnimatedProgress,
+} from "./animated-number";
 import { useLocale } from "@/providers/locale-provider";
 
 // ============================================================
@@ -247,6 +252,9 @@ export function ClassicStatsCard({
     typeof progress === "number"
       ? Math.max(0, Math.min(100, progress))
       : undefined;
+  const animatedProgress = useAnimatedProgress(safeProgress ?? 0, {
+    enabled: safeProgress !== undefined && !loading && animate,
+  });
 
   const rootStyle: React.CSSProperties = {
     background: "var(--background)",
@@ -290,7 +298,7 @@ export function ClassicStatsCard({
             className={cn("mt-2 font-bold tracking-tight tabular-nums break-words transition-colors duration-300", dimension.value)}
             style={{ color: accent }}
           >
-            {value}
+            {animate && !loading ? <AnimatedMetricValue value={value} /> : value}
           </div>
         </div>
 
@@ -342,7 +350,17 @@ export function ClassicStatsCard({
               {progressLabel ?? (isVietnamese ? "Tiến độ" : "Progress")}
             </span>
             <span className="text-xs font-bold tabular-nums" style={{ color: accent }}>
-              {safeProgress}%
+              {animate && !loading ? (
+                <>
+                  <AnimatedNumber
+                    value={safeProgress}
+                    decimals={Number.isInteger(safeProgress) ? 0 : 1}
+                  />
+                  %
+                </>
+              ) : (
+                `${safeProgress}%`
+              )}
             </span>
           </div>
           <div
@@ -353,9 +371,9 @@ export function ClassicStatsCard({
             }}
           >
             <div
-              className={cn("h-full rounded-full transition-all duration-700 ease-out", animate && "animate-in")}
+              className={cn("h-full rounded-full transition-all duration-700 ease-out", animate && "animate-in animate-live-shimmer")}
               style={{
-                width: `${safeProgress}%`,
+                width: `${animatedProgress}%`,
                 background: accent,
               }}
             />
@@ -369,6 +387,7 @@ export function ClassicStatsCard({
 
   const rootClass = cn(
     "group relative isolate overflow-hidden rounded-2xl transition-[box-shadow,transform] duration-300",
+    animate && "animate-stat-enter",
     dimension.padding,
     borderClass,
     hover && "hover:-translate-y-1 hover:shadow-lg",
@@ -404,6 +423,7 @@ export function SoftExtrudedStatsCard({
   progressLabel,
   tone = "primary",
   loading = false,
+  animate = true,
   className = "",
   footer,
   onClick,
@@ -412,12 +432,16 @@ export function SoftExtrudedStatsCard({
   const isVietnamese = useIsVietnamese();
   const accent = tones[tone];
   const safeProgress = typeof progress === "number" ? Math.max(0, Math.min(100, progress)) : undefined;
+  const animatedProgress = useAnimatedProgress(safeProgress ?? 0, {
+    enabled: safeProgress !== undefined && !loading && animate,
+  });
 
   return (
     <div
       onClick={onClick}
       className={cn(
         "group relative overflow-hidden rounded-[18px] sm:rounded-[24px] border border-white/60 bg-background p-3 sm:p-5",
+        animate && "animate-stat-enter",
         "shadow-[5px_5px_12px_var(--shadow-dark),-5px_-5px_12px_var(--shadow-light)] sm:shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)]",
         "transition-all duration-300 hover:-translate-y-0.5 sm:hover:-translate-y-1 hover:shadow-[8px_12px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]",
         "dark:border-white/10",
@@ -447,8 +471,8 @@ export function SoftExtrudedStatsCard({
           {loading ? (
             <Skeleton className="my-1 h-7 sm:h-8 w-16 sm:w-24 rounded-lg" />
           ) : (
-            <p className="mt-0.5 sm:mt-1 text-xl sm:text-3xl font-extrabold tracking-tight text-foreground font-mono">
-              {value}
+            <p className="mt-0.5 sm:mt-1 text-xl sm:text-3xl font-extrabold tracking-tight text-foreground font-mono tabular-nums">
+              {animate ? <AnimatedMetricValue value={value} /> : value}
             </p>
           )}
         </div>
@@ -470,14 +494,27 @@ export function SoftExtrudedStatsCard({
             <span className="text-[10px] sm:text-[11px] text-muted-foreground font-medium">
               {progressLabel ?? (isVietnamese ? "Tiến độ" : "Progress")}
             </span>
-            <span className="text-[10px] sm:text-[11px] font-bold" style={{ color: accent }}>
-              {safeProgress}%
+            <span className="text-[10px] sm:text-[11px] font-bold tabular-nums" style={{ color: accent }}>
+              {animate && !loading ? (
+                <>
+                  <AnimatedNumber
+                    value={safeProgress}
+                    decimals={Number.isInteger(safeProgress) ? 0 : 1}
+                  />
+                  %
+                </>
+              ) : (
+                `${safeProgress}%`
+              )}
             </span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)]">
             <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${safeProgress}%`, backgroundColor: accent }}
+              className={cn(
+                "h-full rounded-full transition-all duration-700 ease-out",
+                animate && "animate-live-shimmer",
+              )}
+              style={{ width: `${animatedProgress}%`, backgroundColor: accent }}
             />
           </div>
         </div>
@@ -517,6 +554,7 @@ export function DeepElevationStatsCard({
   progressLabel,
   tone = "primary",
   loading = false,
+  animate = true,
   className = "",
   footer,
   onClick,
@@ -525,12 +563,16 @@ export function DeepElevationStatsCard({
   const isVietnamese = useIsVietnamese();
   const accent = tones[tone];
   const safeProgress = typeof progress === "number" ? Math.max(0, Math.min(100, progress)) : undefined;
+  const animatedProgress = useAnimatedProgress(safeProgress ?? 0, {
+    enabled: safeProgress !== undefined && !loading && animate,
+  });
 
   return (
     <div
       onClick={onClick}
       className={cn(
         "group relative overflow-hidden rounded-[26px] border border-white/80 bg-background p-6",
+        animate && "animate-stat-enter",
         "shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)]",
         "transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)]",
         "dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)]",
@@ -575,9 +617,9 @@ export function DeepElevationStatsCard({
           <Typography
             variant="embossed"
             as="div"
-            className="text-4xl sm:text-5xl font-black tracking-tight !text-foreground font-mono"
+            className="text-4xl sm:text-5xl font-black tracking-tight !text-foreground font-mono tabular-nums"
           >
-            {value}
+            {animate ? <AnimatedMetricValue value={value} /> : value}
           </Typography>
         )}
       </div>
@@ -587,15 +629,28 @@ export function DeepElevationStatsCard({
         <div className="mt-4 rounded-2xl border border-[var(--shadow-dark)]/25 bg-background/70 p-3 shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)]">
           <div className="mb-2 flex items-center justify-between text-xs font-bold">
             <span className="text-muted-foreground">{progressLabel ?? (isVietnamese ? "Tiến độ" : "Progress")}</span>
-            <span className="font-extrabold" style={{ color: accent }}>
-              {safeProgress}%
+            <span className="font-extrabold tabular-nums" style={{ color: accent }}>
+              {animate && !loading ? (
+                <>
+                  <AnimatedNumber
+                    value={safeProgress}
+                    decimals={Number.isInteger(safeProgress) ? 0 : 1}
+                  />
+                  %
+                </>
+              ) : (
+                `${safeProgress}%`
+              )}
             </span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-background shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]">
             <div
-              className="h-full rounded-full transition-all duration-700"
+              className={cn(
+                "h-full rounded-full transition-all duration-700",
+                animate && "animate-live-shimmer",
+              )}
               style={{
-                width: `${safeProgress}%`,
+                width: `${animatedProgress}%`,
                 background: `linear-gradient(to right, ${accent}, var(--info))`,
               }}
             />
@@ -666,6 +721,12 @@ export function BentoConsoleStats({
   className = "",
 }: BentoConsoleStatsProps) {
   const activePercent = scale.activeRate ?? 100;
+  const animatedActivePercent = useAnimatedProgress(activePercent, {
+    enabled: !loading,
+  });
+  const animatedSecurityPercent = useAnimatedProgress(security.percent, {
+    enabled: !loading,
+  });
   const isSecurityGood = security.percent >= 60;
   const hasWarning = sentinel.isWarning ?? sentinel.count > 0;
   const isVietnamese = useIsVietnamese();
@@ -701,9 +762,9 @@ export function BentoConsoleStats({
               <Typography
                 variant="embossed"
                 as="div"
-                className="text-2xl font-black font-mono tracking-tight text-foreground"
+                className="text-2xl font-black font-mono tabular-nums tracking-tight text-foreground"
               >
-                {scale.totalValue}
+                <AnimatedMetricValue value={scale.totalValue} />
               </Typography>
             )}
             <p className="text-[10px] text-muted-foreground/80 font-medium truncate mt-0.5">
@@ -740,19 +801,19 @@ export function BentoConsoleStats({
                 <Typography
                   variant="embossed"
                   as="div"
-                  className="text-2xl font-black font-mono tracking-tight !text-primary"
+                  className="text-2xl font-black font-mono tabular-nums tracking-tight !text-primary"
                 >
-                  {scale.activeValue}
+                  <AnimatedMetricValue value={scale.activeValue} />
                 </Typography>
               )}
-              <span className="text-[10px] font-extrabold text-primary">
-                {activePercent}%
+              <span className="text-[10px] font-extrabold tabular-nums text-primary">
+                <AnimatedNumber value={activePercent} />%
               </span>
             </div>
             <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] flex">
               <div
-                className="h-full rounded-full bg-primary shadow-[0_0_4px_var(--primary)] transition-all duration-700"
-                style={{ width: `${activePercent}%` }}
+                className="h-full rounded-full bg-primary shadow-[0_0_4px_var(--primary)] transition-all duration-700 animate-live-shimmer"
+                style={{ width: `${animatedActivePercent}%` }}
               />
             </div>
           </div>
@@ -783,18 +844,25 @@ export function BentoConsoleStats({
               <Typography
                 variant="embossed"
                 as="div"
-                className="text-2xl font-black font-mono tracking-tight text-foreground"
+                className="text-2xl font-black font-mono tabular-nums tracking-tight text-foreground"
               >
-                {security.percent}%
+                <AnimatedNumber value={security.percent} />%
               </Typography>
-              <span className="text-[10px] font-medium text-muted-foreground truncate">
-                {loading ? <Skeleton className="h-3 w-12 rounded inline-block" /> : `${security.currentValue}/${security.totalValue}`}
+              <span className="text-[10px] font-medium text-muted-foreground truncate tabular-nums">
+                {loading ? (
+                  <Skeleton className="h-3 w-12 rounded inline-block" />
+                ) : (
+                  <>
+                    <AnimatedMetricValue value={security.currentValue} />/
+                    <AnimatedMetricValue value={security.totalValue} />
+                  </>
+                )}
               </span>
             </div>
             <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-background shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] flex">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-primary to-[var(--accent)] transition-all duration-700"
-                style={{ width: `${security.percent}%` }}
+                className="h-full rounded-full bg-gradient-to-r from-primary to-[var(--accent)] transition-all duration-700 animate-live-shimmer"
+                style={{ width: `${animatedSecurityPercent}%` }}
               />
             </div>
           </div>
@@ -834,11 +902,11 @@ export function BentoConsoleStats({
                 variant="embossed"
                 as="div"
                 className={cn(
-                  "text-2xl font-black font-mono tracking-tight",
+                  "text-2xl font-black font-mono tabular-nums tracking-tight",
                   hasWarning ? "!text-accent" : "!text-foreground"
                 )}
               >
-                {loading ? <Skeleton className="my-1 h-7 w-16 rounded-lg" /> : sentinel.count}
+                {loading ? <Skeleton className="my-1 h-7 w-16 rounded-lg" /> : <AnimatedNumber value={sentinel.count} />}
               </Typography>
               <span
                 className={cn(
@@ -861,7 +929,7 @@ export function BentoConsoleStats({
       {/* DESKTOP & TABLET BENTO CONSOLE (>= md) */}
       <div className="hidden md:grid md:grid-cols-12 md:gap-4 lg:gap-5">
         {/* KHỐI 1 (5 CỘT): TRUNG TÂM CHỈ HUY QUY MÔ & TỶ LỆ HOẠT ĐỘNG */}
-        <div className="relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-12 lg:col-span-5 flex flex-col justify-between">
+        <div className="animate-stat-enter relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-12 lg:col-span-5 flex flex-col justify-between">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-x-8 top-0 h-[2px] bg-gradient-to-r from-transparent via-white to-transparent dark:via-white/30"
@@ -893,9 +961,9 @@ export function BentoConsoleStats({
               <Typography
                 variant="embossed"
                 as="div"
-                className="text-4xl lg:text-5xl font-black tracking-tight !text-foreground font-mono"
+                className="text-4xl lg:text-5xl font-black tracking-tight !text-foreground font-mono tabular-nums"
               >
-                {loading ? <Skeleton className="my-1.5 h-10 w-24 rounded-xl" /> : scale.totalValue}
+                {loading ? <Skeleton className="my-1.5 h-10 w-24 rounded-xl" /> : <AnimatedMetricValue value={scale.totalValue} />}
               </Typography>
               <p className="text-[11px] text-muted-foreground/80 font-medium">
                 {scale.totalSub ?? (isVietnamese ? "Tài khoản toàn công ty" : "Company-wide Accounts")}
@@ -912,9 +980,9 @@ export function BentoConsoleStats({
               <Typography
                 variant="embossed"
                 as="div"
-                className="text-4xl lg:text-5xl font-black tracking-tight !text-primary font-mono"
+                className="text-4xl lg:text-5xl font-black tracking-tight !text-primary font-mono tabular-nums"
               >
-                {loading ? <Skeleton className="my-1.5 h-10 w-24 rounded-xl" /> : scale.activeValue}
+                {loading ? <Skeleton className="my-1.5 h-10 w-24 rounded-xl" /> : <AnimatedMetricValue value={scale.activeValue} />}
               </Typography>
               <p className="text-[11px] text-muted-foreground/80 font-medium">
                 {scale.activeSub ?? (isVietnamese ? "Sẵn sàng đăng nhập" : "Ready to log in")}
@@ -928,19 +996,26 @@ export function BentoConsoleStats({
             <span className="text-muted-foreground">
               {scale.availabilityLabel ?? (isVietnamese ? "Tỷ lệ khả dụng hệ thống" : "System Availability Rate")}
             </span>
-            <span className="font-extrabold text-foreground">
-              {scale.availabilityText ?? (isVietnamese ? `${activePercent}% sẵn sàng` : `${activePercent}% ready`)}
+            <span className="font-extrabold text-foreground tabular-nums">
+              {scale.availabilityText ? (
+                <AnimatedMetricValue value={scale.availabilityText} />
+              ) : (
+                <>
+                  <AnimatedNumber value={activePercent} />%{" "}
+                  {isVietnamese ? "sẵn sàng" : "ready"}
+                </>
+              )}
             </span>
           </div>
           <div className="h-3 w-full overflow-hidden rounded-full bg-background p-0.5 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] flex gap-1">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-primary to-[var(--accent)] shadow-[0_0_8px_var(--primary)] transition-all duration-700"
-              style={{ width: `${activePercent}%` }}
+              className="h-full rounded-full bg-gradient-to-r from-primary to-[var(--accent)] shadow-[0_0_8px_var(--primary)] transition-all duration-700 animate-live-shimmer"
+              style={{ width: `${animatedActivePercent}%` }}
             />
             {hasWarning && (
               <div
                 className="h-full rounded-full bg-accent/60 transition-all duration-700"
-                style={{ width: `${Math.max(5, 100 - activePercent)}%` }}
+                style={{ width: `${Math.max(5, 100 - animatedActivePercent)}%` }}
               />
             )}
           </div>
@@ -950,8 +1025,9 @@ export function BentoConsoleStats({
       {/* KHỐI 2 (4 CỘT): ĐỒNG HỒ TRẮC SINH BẢO MẬT 2FA (CIRCULAR DIAL) */}
       <div
         onClick={security.onClick}
+        style={{ animationDelay: "70ms" }}
         className={cn(
-          "relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-6 lg:col-span-4 flex flex-col justify-between",
+          "animate-stat-enter relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-6 lg:col-span-4 flex flex-col justify-between",
           security.onClick && "cursor-pointer"
         )}
       >
@@ -995,7 +1071,7 @@ export function BentoConsoleStats({
                   strokeWidth="6"
                   fill="transparent"
                   strokeDasharray={201}
-                  strokeDashoffset={201 - (201 * security.percent) / 100}
+                  strokeDashoffset={201 - (201 * animatedSecurityPercent) / 100}
                   strokeLinecap="round"
                   className="transition-all duration-1000 ease-out"
                 />
@@ -1007,19 +1083,29 @@ export function BentoConsoleStats({
                 </defs>
               </svg>
               <div className="absolute flex flex-col items-center justify-center text-center">
-                <span className="text-base font-black tracking-tight text-foreground font-mono">
-                  {security.percent}%
+                <span className="text-base font-black tracking-tight text-foreground font-mono tabular-nums">
+                  <AnimatedNumber value={security.percent} />%
                 </span>
               </div>
             </div>
 
             <div className="space-y-1.5 min-w-0">
               <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-black text-foreground font-mono">
-                  {loading ? <Skeleton className="h-6 w-12 rounded inline-block" /> : security.currentValue}
+                <span className="text-2xl font-black text-foreground font-mono tabular-nums">
+                  {loading ? <Skeleton className="h-6 w-12 rounded inline-block" /> : <AnimatedMetricValue value={security.currentValue} />}
                 </span>
-                <span className="text-xs text-muted-foreground font-bold">
-                  {security.totalStaffLabel ?? (isVietnamese ? `/ ${security.totalValue} nhân viên` : `/ ${security.totalValue} staff`)}
+                <span className="text-xs text-muted-foreground font-bold tabular-nums">
+                  {security.totalStaffLabel ? (
+                    <AnimatedMetricValue value={security.totalStaffLabel} />
+                  ) : isVietnamese ? (
+                    <>
+                      / <AnimatedMetricValue value={security.totalValue} /> nhân viên
+                    </>
+                  ) : (
+                    <>
+                      / <AnimatedMetricValue value={security.totalValue} /> staff
+                    </>
+                  )}
                 </span>
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground font-medium">
@@ -1043,8 +1129,9 @@ export function BentoConsoleStats({
       {/* KHỐI 3 (3 CỘT): ĐÈN HẢI ĐĂNG BÁO NGUY HIỂM & KHÓA (SENTINEL BEACON) */}
       <div
         onClick={sentinel.onClick}
+        style={{ animationDelay: "140ms" }}
         className={cn(
-          "relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-6 lg:col-span-3 flex flex-col justify-between",
+          "animate-stat-enter relative group overflow-hidden rounded-[28px] border border-white/80 bg-background p-6 shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)] dark:border-white/15 dark:shadow-[10px_10px_24px_rgba(0,0,0,0.5),-8px_-8px_20px_rgba(255,255,255,0.05),inset_1px_1px_2px_rgba(255,255,255,0.12)] md:col-span-6 lg:col-span-3 flex flex-col justify-between",
           sentinel.onClick && "cursor-pointer"
         )}
       >
@@ -1086,11 +1173,11 @@ export function BentoConsoleStats({
               variant="embossed"
               as="div"
               className={cn(
-                "text-4xl lg:text-5xl font-black tracking-tight font-mono",
+                "text-4xl lg:text-5xl font-black tracking-tight font-mono tabular-nums",
                 hasWarning ? "!text-accent" : "!text-foreground",
               )}
             >
-              {loading ? <Skeleton className="my-1.5 h-10 w-20 rounded-xl" /> : sentinel.count}
+              {loading ? <Skeleton className="my-1.5 h-10 w-20 rounded-xl" /> : <AnimatedNumber value={sentinel.count} />}
             </Typography>
             <p className="text-xs text-muted-foreground/90 font-medium pt-1">
               {sentinel.description ?? (hasWarning

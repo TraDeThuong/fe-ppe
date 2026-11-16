@@ -2,6 +2,7 @@
 
 import { Archive, CalendarRange, Cctv, ChevronRight, ShieldCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AnimatedMetricValue, AnimatedNumber } from "@/components/ui/animated-number";
 import { partitionDashboardCameras } from "@/lib/dashboard-data";
 import { useLocale } from "@/providers/locale-provider";
 import type { CameraItem } from "@/types";
@@ -297,9 +298,13 @@ export function DashboardZoneRiskChart({
           {!loading && rows.length > 0 && (
             <div className="inline-flex items-center gap-1.5 rounded-xl border border-border/40 bg-background/70 px-3 py-1.5 dark:border-white/[0.06] dark:bg-background/40">
               <span className="text-xs font-extrabold tabular-nums text-foreground">
-                {catalogComplete
-                  ? `${number.format(onlineCount)}/${number.format(rows.length)}`
-                  : number.format(rows.length)}
+                <AnimatedMetricValue
+                  value={
+                    catalogComplete
+                      ? `${number.format(onlineCount)}/${number.format(rows.length)}`
+                      : number.format(rows.length)
+                  }
+                />
               </span>
               <span className="text-[11px] font-medium text-muted-foreground">
                 {catalogComplete ? "online" : "cam"}
@@ -363,7 +368,7 @@ export function DashboardZoneRiskChart({
                     {isVi ? "Vi phạm phát hiện" : "PPE detected"}
                   </p>
                   <p className="mt-0.5 text-lg font-black tracking-tight tabular-nums text-foreground">
-                    {number.format(periodTotal)}
+                    <AnimatedNumber value={periodTotal} format={(v) => number.format(v)} />
                   </p>
                   <p className="truncate text-[10px] text-muted-foreground">
                     {number.format(rows.length)} cam
@@ -380,7 +385,7 @@ export function DashboardZoneRiskChart({
                       periodPending > 0 ? "text-accent" : "text-foreground"
                     }`}
                   >
-                    {number.format(periodPending)}
+                    <AnimatedNumber value={periodPending} format={(v) => number.format(v)} />
                   </p>
                   <p className="truncate text-[10px] text-muted-foreground">
                     {t("dashboard.status.pending")} + {t("dashboard.status.confirmed")}
@@ -392,7 +397,7 @@ export function DashboardZoneRiskChart({
                     {isVi ? "Đã xử lý xong" : "Resolved"}
                   </p>
                   <p className="mt-0.5 text-lg font-black tracking-tight tabular-nums text-primary">
-                    {number.format(periodResolved)}
+                    <AnimatedNumber value={periodResolved} format={(v) => number.format(v)} />
                   </p>
                   <p className="truncate text-[10px] text-muted-foreground">
                     {periodDismissed > 0

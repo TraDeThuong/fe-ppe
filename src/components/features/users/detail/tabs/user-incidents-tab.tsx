@@ -1,19 +1,19 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   CheckCircle2,
   Clock,
   ExternalLink,
   Search,
-  Filter,
-  ShieldAlert,
   Camera,
   Building2,
-  Calendar,
+  Ban,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { resolveEvidenceUrl } from "@/lib/evidence-url";
 import { useLocale } from "@/providers/locale-provider";
 import type { IncidentItem, SiteItem, UserResponseDto } from "@/types";
 
@@ -25,7 +25,6 @@ export interface UserIncidentsTabProps {
 }
 
 export function UserIncidentsTab({
-  user,
   incidents,
   userSites,
   isLoading,
@@ -35,9 +34,10 @@ export function UserIncidentsTab({
 
   // Filter States
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "RESOLVED" | "PENDING">("ALL");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "RESOLVED" | "PENDING" | "DISMISSED">("ALL");
   const [severityFilter, setSeverityFilter] = useState<string>("ALL");
   const [siteFilter, setSiteFilter] = useState<string>("ALL");
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
   // Summary Metrics
   const summary = useMemo(() => {
@@ -45,10 +45,19 @@ export function UserIncidentsTab({
     const resolved = incidents.filter(
       (i) => i.status === "RESOLVED" || i.status === "CLOSED",
     ).length;
-    const pending = total - resolved;
+    const dismissed = incidents.filter((i) => i.status === "DISMISSED").length;
+    const pending = incidents.filter(
+      (i) => i.status !== "RESOLVED" && i.status !== "CLOSED" && i.status !== "DISMISSED",
+    ).length;
     const critical = incidents.filter((i) => i.severity === "CRITICAL").length;
-    const rate = total > 0 ? Math.round((resolved / total) * 100) : 100;
-    return { total, resolved, pending, critical, rate };
+    const actionableTotal = total - dismissed;
+    const rate =
+      actionableTotal > 0
+        ? Math.round((resolved / actionableTotal) * 100)
+        : total > 0
+          ? 100
+          : 0;
+    return { total, resolved, dismissed, pending, critical, rate };
   }, [incidents]);
 
   // Filtered List
@@ -56,8 +65,10 @@ export function UserIncidentsTab({
     return incidents.filter((inc) => {
       // Status filter
       const isResolved = inc.status === "RESOLVED" || inc.status === "CLOSED";
+      const isDismissed = inc.status === "DISMISSED";
       if (statusFilter === "RESOLVED" && !isResolved) return false;
-      if (statusFilter === "PENDING" && isResolved) return false;
+      if (statusFilter === "DISMISSED" && !isDismissed) return false;
+      if (statusFilter === "PENDING" && (isResolved || isDismissed)) return false;
 
       // Severity filter
       if (severityFilter !== "ALL" && inc.severity !== severityFilter) return false;
@@ -171,6 +182,7 @@ export function UserIncidentsTab({
               <option value="ALL">{isVietnamese ? "Tất cả tiến độ" : "All Progress"}</option>
               <option value="RESOLVED">{isVietnamese ? "Đã xử lý xong" : "Resolved / Closed"}</option>
               <option value="PENDING">{isVietnamese ? "Chưa xong (Đang xử lý)" : "Pending / In Progress"}</option>
+              <option value="DISMISSED">{isVietnamese ? "Đã bác bỏ" : "Dismissed"}</option>
             </select>
           </div>
 
@@ -209,7 +221,13 @@ export function UserIncidentsTab({
 
       {/* 3. Incidents List Table */}
       <div className="rounded-2xl border border-white/80 dark:border-white/5 bg-background dark:bg-card shadow-[6px_6px_14px_var(--shadow-dark),-5px_-5px_14px_rgba(255,255,255,0.9)] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.4),-2px_-2px_6px_rgba(255,255,255,0.02)] overflow-hidden">
-        {filteredIncidents.length === 0 ? (
+        {isLoading ? (
+          <div className="p-5 space-y-3">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <Skeleton key={idx} className="h-14 w-full rounded-xl" />
+            ))}
+          </div>
+        ) : filteredIncidents.length === 0 ? (
           <div className="flex min-h-[220px] flex-col items-center justify-center gap-2 p-8 text-center text-muted-foreground">
             <AlertTriangle className="size-8 text-muted-foreground/60" />
             <p className="text-xs font-semibold">
@@ -232,8 +250,12 @@ export function UserIncidentsTab({
               <tbody className="divide-y divide-border/30 text-xs">
                 {filteredIncidents.map((incident) => {
                   const isResolved = incident.status === "RESOLVED" || incident.status === "CLOSED";
+                  const isDismissed = incident.status === "DISMISSED";
                   const primaryEvidence = incident.evidences?.[0];
-                  const snapshotUrl = incident.snapshotUrl || primaryEvidence?.storageKey;
+                  const rawSnapshot =
+                    incident.snapshotUrl || primaryEvidence?.url || primaryEvidence?.storageKey;
+                  const snapshotUrl = rawSnapshot ? resolveEvidenceUrl(rawSnapshot) : "";
+                  const isImgBroken = Boolean(brokenImages[incident.id]);
 
                   return (
                     <tr
@@ -243,11 +265,14 @@ export function UserIncidentsTab({
                       {/* Evidence snapshot */}
                       <td className="p-3 pl-4">
                         <div className="size-12 rounded-xl overflow-hidden border border-border/60 bg-muted/40 shadow-[1px_1px_3px_var(--shadow-dark)] shrink-0 flex items-center justify-center">
-                          {snapshotUrl ? (
+                          {snapshotUrl && !isImgBroken ? (
                             <img
                               src={snapshotUrl}
                               alt=""
                               className="size-full object-cover"
+                              onError={() =>
+                                setBrokenImages((prev) => ({ ...prev, [incident.id]: true }))
+                              }
                             />
                           ) : (
                             <Camera className="size-5 text-muted-foreground/50" />
@@ -305,7 +330,7 @@ export function UserIncidentsTab({
                         )}
                       </td>
 
-                      {/* Progress Status: Finished or Pending? */}
+                      {/* Progress Status: Finished, Dismissed or Pending */}
                       <td className="p-3">
                         {isResolved ? (
                           <div className="space-y-0.5">
@@ -322,6 +347,16 @@ export function UserIncidentsTab({
                               </p>
                             )}
                           </div>
+                        ) : isDismissed ? (
+                          <div className="space-y-0.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-border/60 bg-muted/40 text-muted-foreground font-bold text-[11px]">
+                              <Ban size={12} />
+                              <span>{isVietnamese ? "Đã bác bỏ" : "Dismissed"}</span>
+                            </span>
+                            <p className="text-[10px] text-muted-foreground font-medium">
+                              {incident.status}
+                            </p>
+                          </div>
                         ) : (
                           <div className="space-y-0.5">
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-warning/40 bg-warning/10 text-warning font-bold text-[11px]">
@@ -337,13 +372,13 @@ export function UserIncidentsTab({
 
                       {/* Action */}
                       <td className="p-3 pr-4 text-right">
-                        <a
+                        <Link
                           href={`/incidents/${incident.id}`}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl border border-border/60 bg-background text-foreground hover:text-primary hover:border-primary/40 text-xs font-semibold shadow-[1.5px_1.5px_3px_var(--shadow-dark),-1.5px_-1.5px_3px_var(--shadow-light)] transition-all"
                         >
                           <span>{isVietnamese ? "Chi tiết" : "View"}</span>
                           <ExternalLink size={12} />
-                        </a>
+                        </Link>
                       </td>
                     </tr>
                   );

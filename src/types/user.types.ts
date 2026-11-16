@@ -52,6 +52,7 @@ export interface AdminResetPasswordResponseDto extends UserResponseDto {
 
 export interface UserSessionDto {
   id: string;
+  deviceName?: string | null;
   userAgent?: string | null;
   ipAddress?: string | null;
   expiresAt: string | Date;

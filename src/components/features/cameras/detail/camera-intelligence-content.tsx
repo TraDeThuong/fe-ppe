@@ -32,7 +32,10 @@ import {
 } from "@/hooks/cameras";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useCan } from "@/hooks/use-can";
-import { aiTestService } from "@/services/ai-test.service";
+import {
+  aiTestService,
+  isAiEndpointNotFoundError,
+} from "@/services/ai-test.service";
 import { incidentService } from "@/services/incident.service";
 import { Loader } from "@/components/ui/loader";
 import { CameraIncidentsDeviceTab } from "./camera-incidents-device-tab";
@@ -116,6 +119,8 @@ export function CameraIntelligenceContent({
   const {
     engineOnline,
     engineError,
+    productionMode,
+    autoSyncEnabled,
     models,
     videos: liveVideos,
     getSessionForCamera,
@@ -206,13 +211,15 @@ export function CameraIntelligenceContent({
 
   const dbRunnableSource = useMemo(() => {
     if (!camera) return "";
-    if (!canAutoStartCameraSource(camera, liveVideos)) return "";
+    if (!canAutoStartCameraSource(camera, liveVideos, { productionMode })) {
+      return "";
+    }
     if (String(camera.sourceType).toUpperCase() === "WEBCAM") {
       const trimmed = (camera.streamUrl ?? "").trim();
       return /^[0-9]$/.test(trimmed) ? trimmed : "0";
     }
     return (camera.streamUrl ?? "").trim();
-  }, [camera, liveVideos]);
+  }, [camera, liveVideos, productionMode]);
 
   const effectiveSource = useMemo(() => {
     if (overrideSource.trim()) return overrideSource.trim();
@@ -227,8 +234,8 @@ export function CameraIntelligenceContent({
     if (overrideSource.trim() || runningSession?.status === "running") {
       return null;
     }
-    return resolveCameraSourceIssue(camera, liveVideos);
-  }, [camera, liveVideos, overrideSource, runningSession]);
+    return resolveCameraSourceIssue(camera, liveVideos, { productionMode });
+  }, [camera, liveVideos, overrideSource, productionMode, runningSession]);
 
   // Sync FPS from an already-running session
   useEffect(() => {
@@ -284,7 +291,7 @@ export function CameraIntelligenceContent({
     async (nextOverride?: string, options?: { silent?: boolean }) => {
       if (!camera) return;
       const sourceToRun = (nextOverride ?? effectiveSource).trim();
-      if (!sourceToRun) {
+      if (!sourceToRun && !productionMode) {
         if (!options?.silent) {
           toast.error(
             "Camera chưa có nguồn AI khả dụng trực tiếp — hãy gắn Nguồn Override trong Tab 03.",
@@ -296,18 +303,23 @@ export function CameraIntelligenceContent({
       userStoppedRef.current = false;
       setIsStarting(true);
       try {
-        const payload = buildCameraStartPayload(camera, {
-          source: sourceToRun,
-          model: selectedModel || null,
-          targetFps,
-          aiFps,
-          confirmHelmetSec,
-          confirmVestSec,
-          enableNoHelmet,
-          enableNoVest,
-          enableRestrictedArea,
-          enableSceneCut,
-        });
+        const payload = buildCameraStartPayload(
+          camera,
+          {
+            source: sourceToRun,
+            cameraUuid: camera.id,
+            model: selectedModel || null,
+            targetFps,
+            aiFps,
+            confirmHelmetSec,
+            confirmVestSec,
+            enableNoHelmet,
+            enableNoVest,
+            enableRestrictedArea,
+            enableSceneCut,
+          },
+          { productionMode },
+        );
         await aiTestService.startLiveStream(payload);
         setStreamNonce(Date.now());
         const fresh = await aiTestService
@@ -339,6 +351,7 @@ export function CameraIntelligenceContent({
       enableRestrictedArea,
       enableSceneCut,
       liveCameraId,
+      productionMode,
       refreshAiEngine,
       selectedModel,
       targetFps,
@@ -348,6 +361,7 @@ export function CameraIntelligenceContent({
   // Auto-Start AI Live once on entering /cameras/[id] if DB camera source is directly runnable
   useEffect(() => {
     if (!camera || !engineOnline) return;
+    if (autoSyncEnabled && camera.status === "ONLINE") return;
     if (statsCheckedFor !== liveCameraId) return;
     if (autoStartedForRef.current === camera.id) return;
 
@@ -363,6 +377,7 @@ export function CameraIntelligenceContent({
       void handleStartStream(dbRunnableSource, { silent: true });
     }
   }, [
+    autoSyncEnabled,
     camera,
     dbRunnableSource,
     engineOnline,
@@ -428,9 +443,15 @@ export function CameraIntelligenceContent({
         setActiveTab("live");
         await handleStartStream(uploadedSource);
       } catch (error) {
-        toast.error(
-          error instanceof Error ? error.message : "Upload & stream thất bại",
-        );
+        if (isAiEndpointNotFoundError(error)) {
+          toast.error(
+            "AI Production Server (24/7) không hỗ trợ upload video offline — hãy chọn video sẵn có trên server hoặc RTSP.",
+          );
+        } else {
+          toast.error(
+            error instanceof Error ? error.message : "Upload & stream thất bại",
+          );
+        }
       } finally {
         setIsUploading(false);
       }
@@ -745,6 +766,7 @@ export function CameraIntelligenceContent({
           onRefreshIncidents={handleRefreshIncidents}
           liveVideos={liveVideos}
           overrideSource={overrideSource}
+          productionMode={productionMode}
           isUploading={isUploading}
           isStarting={isStarting}
           overrideHighlightTick={overrideHighlightTick}

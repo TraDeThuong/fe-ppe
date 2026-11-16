@@ -101,3 +101,37 @@ export function useUserDevices(userId: string, options?: UseUserDevicesOptions) 
     ...options,
   });
 }
+
+export interface DeleteDeviceVariables {
+  userId: string;
+  deviceId: string;
+}
+
+/**
+ * Hook xóa một thiết bị tin cậy khỏi tài khoản người dùng.
+ */
+export function useDeleteUserDevice(
+  options?: MutationHookOptions<{ message: string }, DeleteDeviceVariables>,
+) {
+  const queryClient = useQueryClient();
+  const { onSuccess, onError, ...restOptions } = options ?? {};
+
+  return useMutation({
+    ...restOptions,
+    mutationFn: ({ userId, deviceId }: DeleteDeviceVariables) =>
+      userService.deleteUserDevice(userId, deviceId),
+    onSuccess: async (...args) => {
+      const [, variables] = args;
+      await queryClient.invalidateQueries({ queryKey: userKeys.devices(variables.userId) });
+      if (!options?.suppressToast) {
+        toast.success("Đã xóa thiết bị khỏi danh sách tin cậy.");
+      }
+      await onSuccess?.(...args);
+    },
+    onError: async (...args) => {
+      const [error] = args;
+      handleMutationError(error, options?.suppressToast);
+      await onError?.(...args);
+    },
+  });
+}

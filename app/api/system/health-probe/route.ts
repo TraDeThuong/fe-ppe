@@ -10,7 +10,7 @@ function resolveProbeUrl(target: ProbeTargetKey): string {
 
   switch (target) {
     case "ai":
-      return `${aiBase}/api/models`;
+      return `${aiBase}/health`;
     case "traefik":
       return process.env.TRAEFIK_PING_URL || "http://127.0.0.1:8080/ping";
     case "minio":

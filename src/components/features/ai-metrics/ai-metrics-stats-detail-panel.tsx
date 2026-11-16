@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedMetricValue } from "@/components/ui/animated-number";
 import type { AiPerformanceDto } from "@/types";
 
 export type AiMetricStatKey = "map50" | "latency" | "fps" | "samples";
@@ -176,9 +177,9 @@ export function AiMetricsStatsDetailPanel({
                 <Badge
                   variant="outline"
                   size="sm"
-                  className="font-mono text-[10px] sm:text-xs font-bold text-primary px-2 py-0.5 border-primary/30"
+                  className="font-mono text-[10px] sm:text-xs font-bold tabular-nums text-primary px-2 py-0.5 border-primary/30"
                 >
-                  {config.value}
+                  <AnimatedMetricValue value={config.value} />
                 </Badge>
                 <span className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full border ${config.badgeBg}`}>
                   <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />

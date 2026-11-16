@@ -22,6 +22,7 @@ export interface CameraCardProps {
   camera: CameraItem;
   siteName?: string;
   liveSession?: LiveSessionInfo;
+  productionMode?: boolean;
   isBusy?: boolean;
   onStartLive?: (camera: CameraItem) => void;
   onStopLive?: (camera: CameraItem) => void;
@@ -34,6 +35,7 @@ export const CameraCard = memo(function CameraCard({
   camera,
   siteName,
   liveSession,
+  productionMode = false,
   isBusy = false,
   onStartLive,
   onStopLive,
@@ -133,6 +135,7 @@ export const CameraCard = memo(function CameraCard({
       <CameraVideoPlayer
         camera={camera}
         liveSession={liveSession}
+        productionMode={productionMode}
         isBusy={isBusy}
         onStartLive={onStartLive}
         onStopLive={onStopLive}

@@ -42,6 +42,7 @@ export interface CameraIncidentsDeviceTabProps {
   onRefreshIncidents: () => void;
   liveVideos: LiveVideoItem[];
   overrideSource: string;
+  productionMode?: boolean;
   isUploading: boolean;
   isStarting: boolean;
   overrideHighlightTick?: number;
@@ -74,6 +75,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
   onRefreshIncidents,
   liveVideos,
   overrideSource,
+  productionMode = false,
   isUploading,
   isStarting,
   overrideHighlightTick = 0,
@@ -668,8 +670,13 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
 
                 <button
                   type="button"
-                  disabled={isUploading || isStarting}
+                  disabled={isUploading || isStarting || productionMode}
                   onClick={() => fileInputRef.current?.click()}
+                  title={
+                    productionMode
+                      ? "Endpoint upload video offline chỉ có ở test-ui/server.py sandbox"
+                      : undefined
+                  }
                   className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-foreground hover:text-primary disabled:opacity-45 ${NM.tactileBtn}`}
                 >
                   <Upload className="size-3.5 text-accent" />

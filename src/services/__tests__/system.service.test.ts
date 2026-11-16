@@ -54,6 +54,8 @@ describe("systemService.checkServicesHealth", () => {
     assert.equal(report.healthyCount, 12);
     assert.equal(report.overallStatus, "HEALTHY");
     assert.ok(report.services.every((s) => s.status === "HEALTHY"));
+    const aiService = report.services.find((s) => s.serviceCode === "ai-service");
+    assert.equal(aiService?.endpoint, "/health (:8000)");
   });
 
   it("marks failed direct fetch as DOWN with diagnostic reason and sorts issues first", async () => {

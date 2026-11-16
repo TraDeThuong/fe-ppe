@@ -1,6 +1,7 @@
 import { apiClient } from "@/lib/axios";
 import type {
   ArchiveSiteResponse,
+  CameraSafetyConfigItem,
   CreateRestrictedAreaPayload,
   CreateSitePayload,
   CreateZonePayload,
@@ -106,8 +107,10 @@ export const siteService = {
    * DELETE /api/v1/sites/:id
    * Xóa công trường khỏi hệ thống.
    */
-  async deleteSite(id: string): Promise<{ message: string }> {
-    const res = await apiClient.delete<unknown, any>(`/sites/${id}`);
+  async deleteSite(id: string, force = false): Promise<{ message: string }> {
+    const res = await apiClient.delete<unknown, any>(`/sites/${id}`, {
+      params: force ? { force: "true" } : undefined,
+    });
     return { message: res?.message || "Site deleted successfully" };
   },
 
@@ -164,9 +167,9 @@ export const siteService = {
    * GET /api/v1/safety-rules/cameras/:cameraId
    * Lấy cấu hình an toàn ghi đè riêng của Camera
    */
-  async getCameraSafetyConfig(cameraId: string): Promise<any> {
+  async getCameraSafetyConfig(cameraId: string): Promise<CameraSafetyConfigItem> {
     const res = await apiClient.get<unknown, any>(`/safety-rules/cameras/${cameraId}`);
-    return unwrapData<any>(res);
+    return unwrapData<CameraSafetyConfigItem>(res);
   },
 
   /**
@@ -176,12 +179,12 @@ export const siteService = {
   async updateCameraSafetyConfig(
     cameraId: string,
     payload: UpdateCameraSafetyConfigPayload,
-  ): Promise<any> {
+  ): Promise<CameraSafetyConfigItem> {
     const res = await apiClient.put<unknown, any>(
       `/safety-rules/cameras/${cameraId}`,
       payload,
     );
-    return unwrapData<any>(res);
+    return unwrapData<CameraSafetyConfigItem>(res);
   },
 
   /**
@@ -214,9 +217,26 @@ export const siteService = {
    * GET /api/v1/sites/:id/zones
    * Lấy danh sách phân khu thuộc công trường.
    */
-  async getSiteZones(siteId: string): Promise<ZoneItem[]> {
-    const res = await apiClient.get<unknown, any>(`/sites/${siteId}/zones`);
+  async getSiteZones(siteId: string, params?: ZoneQueryParams): Promise<ZoneItem[]> {
+    const res = await apiClient.get<unknown, any>(`/sites/${siteId}/zones`, {
+      params: { limit: 100, ...params },
+    });
     const data = unwrapData<ZoneItem[]>(res);
+    return Array.isArray(data) ? data : [];
+  },
+
+  /**
+   * GET /api/v1/zones/:id/restricted-areas
+   * Lấy danh sách vùng cấm trực thuộc một phân khu.
+   */
+  async getZoneRestrictedAreas(
+    zoneId: string,
+    params?: RestrictedAreaQueryParams,
+  ): Promise<RestrictedAreaItem[]> {
+    const res = await apiClient.get<unknown, any>(`/zones/${zoneId}/restricted-areas`, {
+      params: { limit: 100, ...params },
+    });
+    const data = unwrapData<RestrictedAreaItem[]>(res);
     return Array.isArray(data) ? data : [];
   },
 
@@ -236,10 +256,14 @@ export const siteService = {
    * DELETE /api/v1/zones/:zoneId
    * Xóa phân khu.
    */
-  async deleteZone(_siteId: string, zoneId: string): Promise<{ message: string }> {
-    const res = await apiClient.delete<unknown, any>(
-      `/zones/${zoneId}`,
-    );
+  async deleteZone(
+    _siteId: string,
+    zoneId: string,
+    force = false,
+  ): Promise<{ message: string }> {
+    const res = await apiClient.delete<unknown, any>(`/zones/${zoneId}`, {
+      params: force ? { force: "true" } : undefined,
+    });
     return { message: res?.message || "Zone deleted successfully" };
   },
 
@@ -264,9 +288,13 @@ export const siteService = {
    * GET /api/v1/sites/:id/restricted-areas
    * Lấy danh sách vùng cấm / vùng nguy hiểm cao của công trường.
    */
-  async getRestrictedAreas(siteId: string): Promise<RestrictedAreaItem[]> {
+  async getRestrictedAreas(
+    siteId: string,
+    params?: RestrictedAreaQueryParams,
+  ): Promise<RestrictedAreaItem[]> {
     const res = await apiClient.get<unknown, any>(
       `/sites/${siteId}/restricted-areas`,
+      { params: { limit: 100, ...params } },
     );
     const data = unwrapData<RestrictedAreaItem[]>(res);
     return Array.isArray(data) ? data : [];

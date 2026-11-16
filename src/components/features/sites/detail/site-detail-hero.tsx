@@ -3,8 +3,11 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
+  Archive,
   ArrowLeft,
   Building2,
+  CalendarDays,
   Check,
   ChevronRight,
   Copy,
@@ -15,20 +18,31 @@ import {
   Phone,
   Shield,
   ShieldCheck,
+  Trash2,
   User,
   UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
+import { resolveDisplayOfficers, toDateInputValue } from "../site-helpers";
 import type { SiteContactOfficer, SiteItem } from "@/types";
 
 export interface SiteDetailHeroProps {
   site: SiteItem;
-  onEdit: () => void;
-  onManageZones: () => void;
-  onSafetyConfig: () => void;
+  onEdit?: () => void;
+  onManageZones?: () => void;
+  onSafetyConfig?: () => void;
   onExportReport?: () => void;
   onViewPersonnel?: () => void;
+  onArchive?: () => void;
+  onDelete?: () => void;
+  canEdit?: boolean;
+  canManageZones?: boolean;
+  canSafetyConfig?: boolean;
+  canExportReport?: boolean;
+  canArchive?: boolean;
+  canDelete?: boolean;
+  archivePending?: boolean;
 }
 
 export function SiteDetailHero({
@@ -38,6 +52,15 @@ export function SiteDetailHero({
   onSafetyConfig,
   onExportReport,
   onViewPersonnel,
+  onArchive,
+  onDelete,
+  canEdit = true,
+  canManageZones = true,
+  canSafetyConfig = true,
+  canExportReport = true,
+  canArchive = false,
+  canDelete = false,
+  archivePending = false,
 }: SiteDetailHeroProps) {
   const router = useRouter();
   const { t, locale } = useLocale();
@@ -45,40 +68,17 @@ export function SiteDetailHero({
   const [copiedPhone, setCopiedPhone] = useState<string | null>(null);
 
   const isActive = site.status === "ACTIVE";
+  const startStr = toDateInputValue(site.startDate);
+  const endStr = toDateInputValue(site.endDate);
 
-  // Safely parse officers list
-  const officers: SiteContactOfficer[] = useMemo(() => {
-    if (!site.contactOfficers) return [];
-    if (Array.isArray(site.contactOfficers)) return site.contactOfficers;
-    if (typeof site.contactOfficers === "string") {
-      try {
-        const parsed = JSON.parse(site.contactOfficers);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  }, [site.contactOfficers]);
-
-  // Fallback to legacy contactPerson / contactPhone if officers is empty
-  const displayOfficers: SiteContactOfficer[] = useMemo(() => {
-    if (officers.length > 0) return officers;
-    if (!site.contactPerson) return [];
-    const phones = site.contactPhone
-      ? site.contactPhone
-          .split(",")
-          .map((p) => p.trim())
-          .filter(Boolean)
-      : [];
-    return [
-      {
-        name: site.contactPerson,
-        roleTitle: isVietnamese ? "Cán bộ phụ trách" : "Officer in Charge",
-        phones,
-      },
-    ];
-  }, [officers, site.contactPerson, site.contactPhone, isVietnamese]);
+  const displayOfficers: SiteContactOfficer[] = useMemo(
+    () =>
+      resolveDisplayOfficers(
+        site,
+        isVietnamese ? "Cán bộ phụ trách" : "Officer in Charge",
+      ),
+    [site, isVietnamese],
+  );
 
   const handleCopyPhone = (phone: string) => {
     navigator.clipboard.writeText(phone);
@@ -113,58 +113,97 @@ return (
         <span className="hidden sm:inline">{t("sites.detail.back")}</span>
       </button>
 
-      <div className="
-        flex items-center gap-1 sm:gap-1.5 rounded-2xl p-1 sm:p-1.5
-        border border-white/60 bg-surface/90
-        shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_rgba(255,255,255,0.75)]
-        dark:border-white/5 dark:bg-card/80
-        dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.35),inset_-1px_-1px_4px_rgba(255,255,255,0.025)]
-      ">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onManageZones}
-          className="h-8 rounded-xl border-transparent px-2.5 sm:px-3 text-xs text-primary shadow-none hover:border-primary/20 hover:bg-primary/10"
-        >
-          <Layers className="mr-1 sm:mr-1.5 h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{t("sites.card.zonesAndRestricted")}</span>
-          <span className="sm:hidden">{isVietnamese ? "Khu vực" : "Zones"}</span>
-        </Button>
+      {(canManageZones ||
+        canSafetyConfig ||
+        canEdit ||
+        (onExportReport && canExportReport) ||
+        (onArchive && canArchive && site.status !== "ARCHIVED") ||
+        (onDelete && canDelete)) && (
+        <div className="
+          flex flex-wrap items-center gap-1 sm:gap-1.5 rounded-2xl p-1 sm:p-1.5
+          border border-white/60 bg-surface/90
+          shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_rgba(255,255,255,0.75)]
+          dark:border-white/5 dark:bg-card/80
+          dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.35),inset_-1px_-1px_4px_rgba(255,255,255,0.025)]
+        ">
+          {canManageZones && onManageZones && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onManageZones}
+              className="h-8 rounded-xl border-transparent px-2.5 sm:px-3 text-xs text-primary shadow-none hover:border-primary/20 hover:bg-primary/10"
+            >
+              <Layers className="mr-1 sm:mr-1.5 h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{t("sites.card.zonesAndRestricted")}</span>
+              <span className="sm:hidden">{isVietnamese ? "Khu vực" : "Zones"}</span>
+            </Button>
+          )}
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onSafetyConfig}
-          className="h-8 rounded-xl border-transparent px-2.5 sm:px-3 text-xs text-accent shadow-none hover:border-accent/20 hover:bg-accent/10"
-        >
-          <Shield className="mr-1 sm:mr-1.5 h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{t("sites.card.ppeRules")}</span>
-          <span className="sm:hidden">PPE</span>
-        </Button>
+          {canSafetyConfig && onSafetyConfig && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onSafetyConfig}
+              className="h-8 rounded-xl border-transparent px-2.5 sm:px-3 text-xs text-accent shadow-none hover:border-accent/20 hover:bg-accent/10"
+            >
+              <Shield className="mr-1 sm:mr-1.5 h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{t("sites.card.ppeRules")}</span>
+              <span className="sm:hidden">PPE</span>
+            </Button>
+          )}
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onEdit}
-          className="h-8 rounded-xl border-transparent px-2.5 sm:px-3 text-xs text-muted-foreground shadow-none hover:bg-background/70 hover:text-foreground"
-        >
-          <Edit2 className="mr-1 sm:mr-1.5 h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{t("sites.detail.editSite")}</span>
-          <span className="sm:hidden">{t("sites.detail.editSiteShort")}</span>
-        </Button>
+          {canEdit && onEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onEdit}
+              className="h-8 rounded-xl border-transparent px-2.5 sm:px-3 text-xs text-muted-foreground shadow-none hover:bg-background/70 hover:text-foreground"
+            >
+              <Edit2 className="mr-1 sm:mr-1.5 h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{t("sites.detail.editSite")}</span>
+              <span className="sm:hidden">{t("sites.detail.editSiteShort")}</span>
+            </Button>
+          )}
 
-        {onExportReport && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onExportReport}
-            className="hidden h-8 rounded-xl border-transparent px-3 text-xs text-muted-foreground shadow-none hover:bg-background/70 hover:text-foreground md:inline-flex"
-          >
-            <FileDown className="mr-1.5 h-3.5 w-3.5" />
-            <span>{t("sites.detail.exportReport")}</span>
-          </Button>
-        )}
-      </div>
+          {onExportReport && canExportReport && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onExportReport}
+              className="hidden h-8 rounded-xl border-transparent px-3 text-xs text-muted-foreground shadow-none hover:bg-background/70 hover:text-foreground md:inline-flex"
+            >
+              <FileDown className="mr-1.5 h-3.5 w-3.5" />
+              <span>{t("sites.detail.exportReport")}</span>
+            </Button>
+          )}
+
+          {onArchive && canArchive && site.status !== "ARCHIVED" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onArchive}
+              disabled={archivePending}
+              title={isVietnamese ? "Lưu trữ công trường" : "Archive site"}
+              className="h-8 rounded-xl border-transparent px-2.5 text-xs text-muted-foreground shadow-none hover:bg-amber-500/10 hover:text-amber-600"
+            >
+              <Archive className="mr-1 h-3.5 w-3.5" />
+              <span className="hidden lg:inline">{isVietnamese ? "Lưu trữ" : "Archive"}</span>
+            </Button>
+          )}
+
+          {onDelete && canDelete && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onDelete}
+              title={isVietnamese ? "Xóa công trường" : "Delete site"}
+              className="h-8 rounded-xl border-transparent px-2.5 text-xs text-muted-foreground shadow-none hover:bg-danger/10 hover:text-danger"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+      )}
     </div>
 
     {/* ── 2. SITE OVERVIEW ───────────────────────────────── */}
@@ -222,7 +261,7 @@ return (
                 {t("sites.detail.subtitle")}
               </p>
 
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span
                   className={`
                     inline-flex items-center gap-1.5 sm:gap-2 rounded-full px-2.5 sm:px-3 py-1 sm:py-1.5
@@ -254,7 +293,27 @@ return (
                         ? t("sites.status.archived")
                         : t("sites.status.inactive")}
                 </span>
+
+                {(startStr || endStr) && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/60 px-2.5 py-1 font-mono text-[10px] font-semibold text-muted-foreground">
+                    <CalendarDays className="h-3 w-3 text-primary/80" />
+                    <span>
+                      {startStr || "?"} → {endStr || "..."}
+                    </span>
+                  </span>
+                )}
               </div>
+
+              {!isActive && (
+                <div className="mt-2.5 flex items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    {isVietnamese
+                      ? `Công trường đang ở trạng thái ${site.status}. Tạo mới phân khu, vùng cấm và thay đổi quy tắc an toàn công trường sẽ bị khóa.`
+                      : `Site status is ${site.status}. Creating zones/restricted areas and editing site safety rules are restricted.`}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -488,15 +547,17 @@ return (
                 </p>
               </div>
 
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onEdit}
-                className="mt-3 h-8 rounded-xl border-primary/20 px-3 text-xs text-primary hover:bg-primary/10"
-              >
-                <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-                {isVietnamese ? "Phân công cán bộ" : "Assign Officers"}
-              </Button>
+              {canEdit && onEdit && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onEdit}
+                  className="mt-3 h-8 rounded-xl border-primary/20 px-3 text-xs text-primary hover:bg-primary/10"
+                >
+                  <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                  {isVietnamese ? "Phân công cán bộ" : "Assign Officers"}
+                </Button>
+              )}
             </div>
           )}
         </div>

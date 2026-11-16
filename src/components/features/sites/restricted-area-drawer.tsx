@@ -12,7 +12,11 @@ import {
   useUpdateRestrictedArea,
 } from "@/hooks/sites/use-restricted-areas";
 import { useLocale } from "@/providers/locale-provider";
-import type { RestrictedAreaItem, RestrictedAreaPoint } from "@/types";
+import type {
+  RestrictedAreaItem,
+  RestrictedAreaPoint,
+  RestrictedAreaStatus,
+} from "@/types";
 
 export interface RestrictedAreaDrawerProps {
   open: boolean;
@@ -49,7 +53,7 @@ export function RestrictedAreaDrawer({
   // Form states
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [severity, setSeverity] = useState<"CRITICAL" | "HIGH" | "MEDIUM">("CRITICAL");
+  const [status, setStatus] = useState<RestrictedAreaStatus>("ACTIVE");
   const [zoneId, setZoneId] = useState("");
   const [points, setPoints] = useState<RestrictedAreaPoint[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
@@ -59,13 +63,14 @@ export function RestrictedAreaDrawer({
   useEffect(() => {
     if (!open) {
       setValidationError(null);
+      setSelectedCameraId("");
       return;
     }
 
     if (area) {
       setName(area.name || "");
       setDescription(area.description || "");
-      setSeverity((area.severity as any) || "CRITICAL");
+      setStatus(area.status === "INACTIVE" ? "INACTIVE" : "ACTIVE");
       setZoneId(area.zoneId || defaultZoneId || "");
 
       // Parse boundary points if exists
@@ -87,7 +92,7 @@ export function RestrictedAreaDrawer({
     } else {
       setName("");
       setDescription("");
-      setSeverity("CRITICAL");
+      setStatus("ACTIVE");
       setZoneId(defaultZoneId || "");
       // Default initial preset polygon
       setPoints([
@@ -99,14 +104,15 @@ export function RestrictedAreaDrawer({
     }
   }, [open, area, defaultZoneId]);
 
-  // Set default selected camera once cameras are loaded
+  // Select matching reference camera when drawer opens or zone changes
   useEffect(() => {
-    if (cameras.length > 0 && !selectedCameraId) {
-      // Prioritize camera in the same zone if any
+    if (!open || cameras.length === 0) return;
+    const currentValid = cameras.some((c) => c.id === selectedCameraId);
+    if (!currentValid) {
       const matchingCam = zoneId ? cameras.find((c) => c.zoneId === zoneId) : cameras[0];
       setSelectedCameraId(matchingCam ? matchingCam.id : cameras[0].id);
     }
-  }, [cameras, zoneId, selectedCameraId]);
+  }, [open, cameras, zoneId, selectedCameraId]);
 
   // Selected reference camera details
   const activeCamera = useMemo(
@@ -158,7 +164,7 @@ export function RestrictedAreaDrawer({
             description: description.trim() || undefined,
             zoneId: zoneId || null,
             boundary: points,
-            severity,
+            status,
           },
         });
       } else {
@@ -169,7 +175,7 @@ export function RestrictedAreaDrawer({
             description: description.trim() || undefined,
             zoneId: zoneId || undefined,
             boundary: points,
-            severity,
+            status,
           },
         });
       }
@@ -270,26 +276,21 @@ export function RestrictedAreaDrawer({
             />
           </div>
 
-          {/* Severity */}
+          {/* Status (BE supported: ACTIVE | INACTIVE) */}
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-foreground">
-              {isVietnamese ? "Mức độ rủi ro" : "Severity"}
+              {isVietnamese ? "Trạng thái giám sát" : "Monitoring Status"}
             </label>
             <select
-              value={severity}
-              onChange={(e) =>
-                setSeverity(e.target.value as "CRITICAL" | "HIGH" | "MEDIUM")
-              }
+              value={status}
+              onChange={(e) => setStatus(e.target.value as RestrictedAreaStatus)}
               className="h-9 w-full rounded-xl border border-border/40 bg-surface px-3 text-xs text-foreground shadow-nm-inset focus:border-danger focus:outline-none"
             >
-              <option value="CRITICAL">
-                {isVietnamese ? "NGUY CẤP (CRITICAL)" : "CRITICAL"}
+              <option value="ACTIVE">
+                {isVietnamese ? "Đang kích hoạt (ACTIVE)" : "ACTIVE"}
               </option>
-              <option value="HIGH">
-                {isVietnamese ? "NGUY HIỂM CAO (HIGH)" : "HIGH"}
-              </option>
-              <option value="MEDIUM">
-                {isVietnamese ? "TRUNG BÌNH (MEDIUM)" : "MEDIUM"}
+              <option value="INACTIVE">
+                {isVietnamese ? "Tạm tắt (INACTIVE)" : "INACTIVE"}
               </option>
             </select>
           </div>

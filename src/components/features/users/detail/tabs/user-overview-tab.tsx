@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   User,
   Mail,
@@ -18,10 +19,12 @@ import {
   Copy,
   Check,
   ExternalLink,
+  Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
 import { toast } from "@/lib/toast";
+import { getSiteRoleDetails, type UserIncidentStats } from "../user-detail-utils";
 import type { UserResponseDto, SiteItem, IncidentItem } from "@/types";
 import type { UserDetailTabKey } from "../user-detail-tabs";
 
@@ -30,15 +33,7 @@ export interface UserOverviewTabProps {
   sites: SiteItem[];
   userSites: SiteItem[];
   incidents: IncidentItem[];
-  stats: {
-    totalIncidents: number;
-    resolvedIncidents: number;
-    pendingIncidents: number;
-    resolutionRate: number;
-    mttrHours: number;
-    slaComplianceRate: number;
-    performanceTier: "EXCELLENT" | "GOOD" | "AVERAGE" | "NEEDS_IMPROVEMENT" | "UNRATED";
-  };
+  stats: UserIncidentStats;
   onSelectTab: (tab: UserDetailTabKey) => void;
   onEditClick?: () => void;
   onAssignSitesClick?: () => void;
@@ -66,41 +61,6 @@ export function UserOverviewTab({
 
   const roleName = user.role?.name || "USER";
   const is2FA = Boolean(user.twoFactorEnabled);
-  const isLocked = Boolean(user.lockedUntil && new Date(user.lockedUntil) > new Date());
-  const isDeleted = Boolean(user.deletedAt);
-  const isActive = user.isActive && !isDeleted && !isLocked;
-
-  // Resolve on-site role title helper
-  const getSiteRoleTitle = (site: SiteItem): string => {
-    if (site.contactOfficers) {
-      const officers = Array.isArray(site.contactOfficers)
-        ? site.contactOfficers
-        : typeof site.contactOfficers === "string"
-          ? JSON.parse(site.contactOfficers || "[]")
-          : [];
-
-      const matched = officers.find(
-        (o: any) =>
-          (user.fullName && o.name && o.name.toLowerCase().includes(user.fullName.toLowerCase())) ||
-          (user.phoneNumber && Array.isArray(o.phones) && o.phones.includes(user.phoneNumber)),
-      );
-      if (matched?.roleTitle) return matched.roleTitle;
-    }
-
-    if (roleName === "ADMIN" || roleName === "SUPER_ADMIN") {
-      return isVietnamese ? "Quản trị viên toàn quyền" : "Full System Administrator";
-    }
-    if (roleName === "SAFETY_MANAGER") {
-      return isVietnamese ? "Chỉ huy trưởng an toàn công trường" : "Site Safety Manager";
-    }
-    if (roleName === "SAFETY_OFFICER") {
-      return isVietnamese ? "Cán bộ giám sát an toàn PPE" : "Safety Officer";
-    }
-    if (roleName === "SUPERVISOR") {
-      return isVietnamese ? "Giám sát viên hiện trường" : "Field Supervisor";
-    }
-    return isVietnamese ? "Nhân sự an toàn công trường" : "Site Safety Personnel";
-  };
 
   // Recent 5 incidents
   const recentIncidents = useMemo(() => {
@@ -110,132 +70,164 @@ export function UserOverviewTab({
   return (
     <div className="space-y-6">
       {/* Top 2 Columns: Bio details + Performance Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         {/* Left: Account Identity Card (5 cols) */}
-        <div className="lg:col-span-5 rounded-2xl border border-white/80 dark:border-white/5 bg-background dark:bg-card p-5 shadow-[6px_6px_14px_var(--shadow-dark),-5px_-5px_14px_rgba(255,255,255,0.9)] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.4),-2px_-2px_6px_rgba(255,255,255,0.02)] space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-border/40">
-            <div className="flex items-center gap-2">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
-                <User size={16} />
-              </span>
-              <h3 className="font-bold text-sm text-foreground">
-                {isVietnamese ? "Thông tin tài khoản" : "Account Identity"}
-              </h3>
-            </div>
-            {onEditClick && (
-              <Button variant="ghost" size="sm" onClick={onEditClick} className="text-xs h-7 px-2">
-                {isVietnamese ? "Chỉnh sửa" : "Edit"}
-              </Button>
-            )}
-          </div>
+        <div className="flex flex-col justify-between space-y-4 rounded-[26px] bg-background p-5 sm:p-6 shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)] lg:col-span-5">
+          <div className="space-y-4">
+            {/* Header không đường kẻ ngang */}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-[13px] bg-background text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+                  <div className="flex size-7.5 items-center justify-center rounded-[9px] bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+                    <User size={16} strokeWidth={2.3} />
+                  </div>
+                </div>
+                <h3 className="text-sm font-black tracking-tight text-foreground sm:text-base">
+                  {isVietnamese ? "Thông tin tài khoản" : "Account Identity"}
+                </h3>
+              </div>
 
-          <div className="space-y-3 text-xs">
-            {/* UUID */}
-            <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-background border border-border/40 shadow-[inset_1px_1px_2px_var(--shadow-dark)]">
-              <span className="text-muted-foreground font-mono text-[11px]">ID</span>
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="font-mono text-[11px] text-foreground truncate max-w-[190px]">
-                  {user.id}
-                </span>
+              {onEditClick && (
                 <button
                   type="button"
-                  onClick={handleCopyId}
-                  className="size-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                  title={isVietnamese ? "Sao chép ID" : "Copy ID"}
+                  onClick={onEditClick}
+                  className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-background px-3.5 text-xs font-bold text-primary shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
                 >
-                  {copiedId ? <Check size={12} className="text-primary" /> : <Copy size={12} />}
+                  {isVietnamese ? "Chỉnh sửa" : "Edit"}
                 </button>
+              )}
+            </div>
+
+            {/* Khay lõm chứa thông tin định danh */}
+            <div className="space-y-3 rounded-[20px] bg-background p-3.5 text-xs shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)]">
+              {/* UUID Bar khắc chìm sâu */}
+              <div className="flex items-center justify-between gap-2 rounded-[13px] bg-background px-3 py-2 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+                <span className="font-mono text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+                  ID
+                </span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="max-w-[180px] truncate font-mono text-[11px] font-semibold text-foreground">
+                    {user.id}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyId}
+                    className="inline-flex size-6.5 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-background text-muted-foreground shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]"
+                    title={isVietnamese ? "Sao chép ID" : "Copy ID"}
+                  >
+                    {copiedId ? (
+                      <Check size={12} className="text-primary" strokeWidth={2.5} />
+                    ) : (
+                      <Copy size={12} />
+                    )}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            {/* Email */}
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground flex items-center gap-1.5">
-                <Mail size={13} className="text-primary" />
-                {isVietnamese ? "Email" : "Email"}
-              </span>
-              <span className="font-semibold text-foreground font-mono">{user.email || "-"}</span>
-            </div>
+              {/* Email */}
+              <div className="flex items-center justify-between gap-2 px-1">
+                <span className="flex items-center gap-2 font-medium text-muted-foreground">
+                  <Mail size={13} className="text-primary" />
+                  {isVietnamese ? "Email" : "Email"}
+                </span>
+                <span className="truncate font-mono font-bold text-foreground">
+                  {user.email || "-"}
+                </span>
+              </div>
 
-            {/* Phone */}
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground flex items-center gap-1.5">
-                <Phone size={13} className="text-primary" />
-                {isVietnamese ? "Số điện thoại" : "Phone"}
-              </span>
-              <span className="font-semibold text-foreground font-mono">
-                {user.phoneNumber || (isVietnamese ? "Chưa cập nhật" : "Not set")}
-              </span>
-            </div>
+              {/* Phone */}
+              <div className="flex items-center justify-between gap-2 px-1">
+                <span className="flex items-center gap-2 font-medium text-muted-foreground">
+                  <Phone size={13} className="text-primary" />
+                  {isVietnamese ? "Số điện thoại" : "Phone"}
+                </span>
+                <span className="font-mono font-bold text-foreground">
+                  {user.phoneNumber || (isVietnamese ? "Chưa cập nhật" : "Not set")}
+                </span>
+              </div>
 
-            {/* Role */}
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground flex items-center gap-1.5">
-                <Shield size={13} className="text-primary" />
-                {isVietnamese ? "Vai trò RBAC" : "RBAC Role"}
-              </span>
-              <span className="px-2 py-0.5 rounded-lg border border-primary/30 bg-primary/10 text-primary font-mono font-bold text-[10px] uppercase">
-                {roleName}
-              </span>
-            </div>
+              {/* Role */}
+              <div className="flex items-center justify-between gap-2 px-1">
+                <span className="flex items-center gap-2 font-medium text-muted-foreground">
+                  <Shield size={13} className="text-primary" />
+                  {isVietnamese ? "Vai trò RBAC" : "RBAC Role"}
+                </span>
+                <span className="rounded-full bg-background px-2.5 py-0.5 font-mono text-[10px] font-extrabold uppercase text-primary shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)]">
+                  {roleName}
+                </span>
+              </div>
 
-            {/* 2FA */}
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground flex items-center gap-1.5">
-                {is2FA ? (
-                  <ShieldCheck size={13} className="text-primary" />
-                ) : (
-                  <ShieldAlert size={13} className="text-muted-foreground" />
-                )}
-                {isVietnamese ? "Xác thực 2FA" : "2FA Security"}
-              </span>
-              <span
-                className={`font-semibold text-[11px] ${
-                  is2FA ? "text-primary" : "text-muted-foreground"
-                }`}
-              >
-                {is2FA
-                  ? isVietnamese
-                    ? "Đã kích hoạt"
-                    : "Enabled"
-                  : isVietnamese
-                    ? "Chưa kích hoạt"
-                    : "Disabled"}
-              </span>
-            </div>
+              {/* 2FA */}
+              <div className="flex items-center justify-between gap-2 px-1">
+                <span className="flex items-center gap-2 font-medium text-muted-foreground">
+                  {is2FA ? (
+                    <ShieldCheck size={13} className="text-primary" />
+                  ) : (
+                    <ShieldAlert size={13} className="text-muted-foreground" />
+                  )}
+                  {isVietnamese ? "Xác thực 2FA" : "2FA Security"}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full bg-background px-2.5 py-0.5 text-[11px] font-bold shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] ${is2FA ? "text-primary" : "text-muted-foreground"
+                    }`}
+                >
+                  <span
+                    className={`size-1.5 rounded-full ${is2FA
+                        ? "bg-primary shadow-[0_0_6px_hsl(var(--primary))]"
+                        : "bg-muted-foreground/50"
+                      }`}
+                  />
+                  {is2FA
+                    ? isVietnamese
+                      ? "Đã kích hoạt"
+                      : "Enabled"
+                    : isVietnamese
+                      ? "Chưa kích hoạt"
+                      : "Disabled"}
+                </span>
+              </div>
 
-            {/* Created At */}
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground flex items-center gap-1.5">
-                <Calendar size={13} className="text-primary" />
-                {isVietnamese ? "Ngày tạo tài khoản" : "Created Date"}
-              </span>
-              <span className="font-mono text-muted-foreground">
-                {user.createdAt
-                  ? new Date(user.createdAt).toLocaleDateString(isVietnamese ? "vi-VN" : "en-US", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })
-                  : "-"}
-              </span>
+              {/* Created At */}
+              <div className="flex items-center justify-between gap-2 px-1">
+                <span className="flex items-center gap-2 font-medium text-muted-foreground">
+                  <Calendar size={13} className="text-primary" />
+                  {isVietnamese ? "Ngày tạo tài khoản" : "Created Date"}
+                </span>
+                <span className="font-mono font-semibold text-muted-foreground">
+                  {user.createdAt
+                    ? new Date(user.createdAt).toLocaleDateString(
+                      isVietnamese ? "vi-VN" : "en-US",
+                      {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      },
+                    )
+                    : "-"}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Right: Work Performance & SLA Overview (7 cols) */}
-        <div className="lg:col-span-7 rounded-2xl border border-white/80 dark:border-white/5 bg-background dark:bg-card p-5 shadow-[6px_6px_14px_var(--shadow-dark),-5px_-5px_14px_rgba(255,255,255,0.9)] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.4),-2px_-2px_6px_rgba(255,255,255,0.02)] flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between pb-3 border-b border-border/40 mb-4">
-              <div className="flex items-center gap-2">
-                <span className="flex size-8 items-center justify-center rounded-lg bg-accent/10 text-accent border border-accent/20">
-                  <Award size={16} />
-                </span>
+        <div className="flex flex-col justify-between rounded-[26px] bg-background p-5 sm:p-6 shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)] lg:col-span-7">
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-[13px] bg-background text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+                  <div className="flex size-7.5 items-center justify-center rounded-[9px] bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+                    <Award size={16} strokeWidth={2.3} />
+                  </div>
+                </div>
                 <div>
-                  <h3 className="font-bold text-sm text-foreground">
-                    {isVietnamese ? "Đánh giá quá trình làm việc" : "Work Performance Overview"}
+                  <h3 className="text-sm font-black tracking-tight text-foreground sm:text-base">
+                    {isVietnamese
+                      ? "Đánh giá quá trình làm việc"
+                      : "Work Performance Overview"}
                   </h3>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
                     {isVietnamese
                       ? "Chỉ số hiệu quả tiếp nhận & giải quyết vi phạm PPE"
                       : "PPE violation response & resolution efficiency"}
@@ -243,16 +235,16 @@ export function UserOverviewTab({
                 </div>
               </div>
 
+              {/* Performance Tier Badge khắc chìm */}
               <span
-                className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${
-                  stats.performanceTier === "EXCELLENT"
-                    ? "border-primary/40 bg-primary/10 text-primary shadow-[0_0_8px_var(--primary)]"
+                className={`rounded-full bg-background px-3 py-1 text-xs font-extrabold shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] ${stats.performanceTier === "EXCELLENT"
+                    ? "text-primary"
                     : stats.performanceTier === "GOOD"
-                      ? "border-accent/40 bg-accent/10 text-accent"
+                      ? "text-accent-foreground"
                       : stats.performanceTier === "UNRATED"
-                        ? "border-border/60 bg-muted/40 text-muted-foreground"
-                        : "border-warning/40 bg-warning/10 text-warning"
-                }`}
+                        ? "text-muted-foreground"
+                        : "text-warning"
+                  }`}
               >
                 {stats.performanceTier === "EXCELLENT"
                   ? isVietnamese
@@ -262,42 +254,47 @@ export function UserOverviewTab({
                     ? isVietnamese
                       ? "Tốt"
                       : "Good"
-                    : stats.performanceTier === "UNRATED"
+                  : stats.performanceTier === "UNRATED"
+                    ? isVietnamese
+                      ? "Chưa đánh giá"
+                      : "Unrated"
+                    : stats.performanceTier === "AVERAGE"
                       ? isVietnamese
-                        ? "Chưa đánh giá"
-                        : "Unrated"
+                        ? "Trung bình"
+                        : "Average"
                       : isVietnamese
                         ? "Cần cải thiện"
                         : "Needs Improvement"}
               </span>
             </div>
 
-            {/* 3 Metric Pills */}
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <div className="p-3 rounded-xl border border-border/40 bg-background/50 shadow-[inset_1px_1px_3px_var(--shadow-dark)] text-center">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase">
+            {/* 3 Metric Pods nổi khối độc lập */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="rounded-[18px] bg-background p-3.5 text-center shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   {isVietnamese ? "Tỷ lệ xử lý" : "Completion"}
                 </p>
-                <p className="text-lg font-bold text-foreground mt-0.5 font-mono">
+                <p className="mt-1 font-mono text-lg font-black text-foreground sm:text-xl">
                   {stats.totalIncidents === 0 ? "0%" : `${stats.resolutionRate}%`}
                 </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {stats.resolvedIncidents}/{stats.totalIncidents} {isVietnamese ? "vụ" : "cases"}
+                <p className="mt-0.5 text-[10px] font-medium text-muted-foreground">
+                  {stats.resolvedIncidents}/{stats.totalIncidents}{" "}
+                  {isVietnamese ? "vụ" : "cases"}
                 </p>
               </div>
 
-              <div className="p-3 rounded-xl border border-border/40 bg-background/50 shadow-[inset_1px_1px_3px_var(--shadow-dark)] text-center">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase">
+              <div className="rounded-[18px] bg-background p-3.5 text-center shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   {isVietnamese ? "Thời gian TB" : "Avg MTTR"}
                 </p>
-                <p className="text-lg font-bold text-foreground mt-0.5 font-mono">
+                <p className="mt-1 font-mono text-lg font-black text-foreground sm:text-xl">
                   {stats.mttrHours <= 0
                     ? "—"
                     : stats.mttrHours < 1
                       ? `${Math.round(stats.mttrHours * 60)}p`
                       : `${stats.mttrHours}h`}
                 </p>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="mt-0.5 text-[10px] font-medium text-muted-foreground">
                   {stats.mttrHours <= 0
                     ? isVietnamese
                       ? "chưa có dữ liệu"
@@ -308,18 +305,18 @@ export function UserOverviewTab({
                 </p>
               </div>
 
-              <div className="p-3 rounded-xl border border-border/40 bg-background/50 shadow-[inset_1px_1px_3px_var(--shadow-dark)] text-center">
-                <p className="text-[10px] font-semibold text-muted-foreground uppercase">
+              <div className="rounded-[18px] bg-background p-3.5 text-center shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   {isVietnamese ? "Đúng hạn SLA" : "SLA Rate"}
                 </p>
-                <p className="text-lg font-bold text-foreground mt-0.5 font-mono text-primary">
-                  {stats.slaComplianceRate <= 0 ? "—" : `${stats.slaComplianceRate}%`}
+                <p className="mt-1 font-mono text-lg font-black text-primary sm:text-xl">
+                  {!stats.hasSlaData ? "—" : `${stats.slaComplianceRate}%`}
                 </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {stats.slaComplianceRate <= 0
+                <p className="mt-0.5 text-[10px] font-medium text-muted-foreground">
+                  {!stats.hasSlaData
                     ? isVietnamese
-                      ? "chưa phát sinh"
-                      : "no cases"
+                      ? "chưa có dữ liệu"
+                      : "no SLA data"
                     : isVietnamese
                       ? "đáp ứng tiêu chuẩn"
                       : "standard SLA"}
@@ -327,221 +324,289 @@ export function UserOverviewTab({
               </div>
             </div>
 
-            {/* Progress bar */}
-            <div className="space-y-1.5">
+            {/* Khay tiến độ tổng thể khắc chìm */}
+            <div className="space-y-2 rounded-[16px] bg-background p-3.5 shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_var(--shadow-light)]">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground font-medium">
-                  {isVietnamese ? "Tiến độ hoàn thành toàn bộ sự cố được giao" : "Total Assignment Progress"}
+                <span className="font-semibold text-muted-foreground">
+                  {isVietnamese
+                    ? "Tiến độ hoàn thành sự cố liên quan"
+                    : "Correlated Incident Progress"}
                 </span>
-                <span className="font-bold text-foreground font-mono">{stats.resolutionRate}%</span>
+                <span className="font-mono font-black text-primary">
+                  {stats.resolutionRate}%
+                </span>
               </div>
-              <div className="h-2 w-full rounded-full bg-muted/60 overflow-hidden shadow-[inset_1px_1px_2px_var(--shadow-dark)]">
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-background p-[2px] shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
                 <div
-                  className="h-full bg-gradient-to-r from-primary to-accent transition-all duration-500 rounded-full"
+                  className="h-full rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.45)] transition-all duration-500"
                   style={{ width: `${stats.resolutionRate}%` }}
                 />
               </div>
             </div>
           </div>
 
-          <div className="pt-4 mt-4 border-t border-border/30 flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              {stats.pendingIncidents > 0
+          {/* Footer không đường kẻ, nút bấm nổi vật lý */}
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-2.5 pt-1">
+            <span className="text-xs font-medium text-muted-foreground">
+              {stats.totalIncidents === 0
                 ? isVietnamese
-                  ? `Hiện còn ${stats.pendingIncidents} sự cố đang chờ xử lý!`
-                  : `${stats.pendingIncidents} incidents awaiting resolution!`
-                : isVietnamese
-                  ? "Tất cả sự cố được giao đã hoàn tất."
-                  : "All assigned incidents are resolved."}
+                  ? "Chưa ghi nhận sự cố nào liên quan."
+                  : "No correlated incidents recorded."
+                : stats.pendingIncidents > 0
+                  ? isVietnamese
+                    ? `Hiện còn ${stats.pendingIncidents} sự cố đang chờ xử lý!`
+                    : `${stats.pendingIncidents} incidents awaiting resolution!`
+                  : isVietnamese
+                    ? "Tất cả sự cố cần xử lý đã hoàn tất."
+                    : "All actionable incidents are resolved."}
             </span>
-            <Button
-              variant="outline"
-              size="sm"
+
+            <button
+              type="button"
               onClick={() => onSelectTab("performance")}
-              className="gap-1.5 text-xs h-8"
+              className="group inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-full bg-background px-3.5 text-xs font-bold text-primary shadow-[3.5px_3.5px_8px_var(--shadow-dark),-3.5px_-3.5px_8px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[5px_5px_10px_var(--shadow-dark),-5px_-5px_10px_var(--shadow-light)] active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
             >
-              <span>{isVietnamese ? "Xem phân tích chi tiết" : "View Analytics"}</span>
-              <ArrowRight size={13} />
-            </Button>
+              <span>
+                {isVietnamese ? "Xem phân tích chi tiết" : "View Analytics"}
+              </span>
+              <ArrowRight
+                size={13}
+                className="transition-transform duration-200 group-hover:translate-x-0.5"
+              />
+            </button>
           </div>
         </div>
       </div>
 
       {/* Bottom 2 Columns: Assigned Sites preview + Recent Incidents preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Assigned Sites Preview */}
-        <div className="rounded-2xl border border-white/80 dark:border-white/5 bg-background dark:bg-card p-5 shadow-[6px_6px_14px_var(--shadow-dark),-5px_-5px_14px_rgba(255,255,255,0.9)] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.4),-2px_-2px_6px_rgba(255,255,255,0.02)] space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-border/40">
-            <div className="flex items-center gap-2">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20">
-                <Building2 size={16} />
-              </span>
-              <div>
-                <h3 className="font-bold text-sm text-foreground">
-                  {isVietnamese ? "Công trường phụ trách" : "Assigned Construction Sites"}
-                </h3>
-                <p className="text-[11px] text-muted-foreground font-mono">
-                  {userSites.length} {isVietnamese ? "công trường" : "sites"}
-                </p>
+        <div className="flex flex-col justify-between space-y-4 rounded-[26px] bg-background p-5 sm:p-6 shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)]">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-[13px] bg-background text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+                  <div className="flex size-7.5 items-center justify-center rounded-[9px] bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+                    <Building2 size={16} strokeWidth={2.3} />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-black tracking-tight text-foreground sm:text-base">
+                    {isVietnamese
+                      ? "Công trường phụ trách"
+                      : "Assigned Construction Sites"}
+                  </h3>
+                  <p className="mt-0.5 font-mono text-[11px] font-semibold text-muted-foreground">
+                    {userSites.length} {isVietnamese ? "công trường" : "sites"}
+                  </p>
+                </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => onSelectTab("sites")}
+                className="group inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-background px-3.5 text-xs font-bold text-primary shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+              >
+                <span>{isVietnamese ? "Xem tất cả" : "View all"}</span>
+                <ArrowRight
+                  size={12}
+                  className="transition-transform duration-200 group-hover:translate-x-0.5"
+                />
+              </button>
             </div>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onSelectTab("sites")}
-              className="text-xs h-7 px-2 gap-1 text-primary hover:text-primary"
-            >
-              <span>{isVietnamese ? "Xem tất cả" : "View all"}</span>
-              <ArrowRight size={12} />
-            </Button>
-          </div>
+            {/* Khay lõm chứa danh sách công trường */}
+            <div className="rounded-[20px] bg-background p-3 shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)]">
+              {userSites.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2.5 py-6 text-center text-xs text-muted-foreground">
+                  <p>
+                    {isVietnamese
+                      ? "Chưa được phân công công trường nào."
+                      : "No assigned sites yet."}
+                  </p>
+                  {onAssignSitesClick && (
+                    <button
+                      type="button"
+                      onClick={onAssignSitesClick}
+                      className="inline-flex h-8 cursor-pointer items-center rounded-full bg-background px-3.5 text-xs font-bold text-primary shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+                    >
+                      {isVietnamese ? "Phân công ngay" : "Assign Sites Now"}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {userSites.slice(0, 3).map((site) => {
+                    const { roleTitle } = getSiteRoleDetails(site, user, isVietnamese);
+                    return (
+                      <div
+                        key={site.id}
+                        className="group flex items-center justify-between gap-3 rounded-[15px] bg-background p-3 shadow-[3.5px_3.5px_8px_var(--shadow-dark),-3.5px_-3.5px_8px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-[1px] hover:shadow-[5px_5px_10px_var(--shadow-dark),-5px_-5px_10px_var(--shadow-light)]"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-xs font-extrabold text-foreground">
+                              {site.name}
+                            </span>
+                            <span className="rounded-md bg-background px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-muted-foreground shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]">
+                              {site.code}
+                            </span>
+                          </div>
+                          <p className="mt-1 truncate text-[11px] font-semibold text-primary">
+                            {roleTitle}
+                          </p>
+                        </div>
 
-          {userSites.length === 0 ? (
-            <div className="p-6 text-center rounded-xl border border-dashed border-border/60 text-muted-foreground text-xs space-y-2">
-              <p>{isVietnamese ? "Chưa được phân công công trường nào." : "No assigned sites yet."}</p>
-              {onAssignSitesClick && (
-                <Button variant="outline" size="sm" onClick={onAssignSitesClick} className="text-xs h-7">
-                  {isVietnamese ? "Phân công ngay" : "Assign Sites Now"}
-                </Button>
+                        <Link
+                          href={`/sites/${site.id}`}
+                          className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-background text-muted-foreground shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+                          title={
+                            isVietnamese
+                              ? "Đến trang công trường"
+                              : "Go to site page"
+                          }
+                        >
+                          <ExternalLink size={13} />
+                        </Link>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
-          ) : (
-            <div className="space-y-2.5">
-              {userSites.slice(0, 3).map((site) => {
-                const siteRole = getSiteRoleTitle(site);
-                return (
-                  <div
-                    key={site.id}
-                    className="p-3 rounded-xl border border-border/50 bg-background shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] flex items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-foreground truncate">
-                          {site.name}
-                        </span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded border border-border/60 bg-muted/30 text-muted-foreground uppercase">
-                          {site.code}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-primary font-medium mt-0.5 truncate">
-                        {siteRole}
-                      </p>
-                    </div>
-
-                    <a
-                      href={`/sites/${site.id}`}
-                      className="size-7 inline-flex items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground hover:text-primary hover:border-primary/40 shadow-[1.5px_1.5px_3px_var(--shadow-dark),-1.5px_-1.5px_3px_var(--shadow-light)] transition-all shrink-0"
-                      title={isVietnamese ? "Đến trang công trường" : "Go to site page"}
-                    >
-                      <ExternalLink size={13} />
-                    </a>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          </div>
         </div>
 
         {/* Recent Incidents Preview */}
-        <div className="rounded-2xl border border-white/80 dark:border-white/5 bg-background dark:bg-card p-5 shadow-[6px_6px_14px_var(--shadow-dark),-5px_-5px_14px_rgba(255,255,255,0.9)] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.4),-2px_-2px_6px_rgba(255,255,255,0.02)] space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-border/40">
-            <div className="flex items-center gap-2">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-warning/10 text-warning border border-warning/20">
-                <AlertTriangle size={16} />
-              </span>
-              <div>
-                <h3 className="font-bold text-sm text-foreground">
-                  {isVietnamese ? "Sự cố PPE gần đây" : "Recent PPE Incidents"}
-                </h3>
-                <p className="text-[11px] text-muted-foreground font-mono">
-                  {incidents.length} {isVietnamese ? "vụ việc liên quan" : "correlated cases"}
-                </p>
-              </div>
-            </div>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onSelectTab("incidents")}
-              className="text-xs h-7 px-2 gap-1 text-primary hover:text-primary"
-            >
-              <span>{isVietnamese ? "Xem tất cả" : "View all"}</span>
-              <ArrowRight size={12} />
-            </Button>
-          </div>
-
-          {recentIncidents.length === 0 ? (
-            <div className="p-6 text-center rounded-xl border border-dashed border-border/60 text-muted-foreground text-xs">
-              {isVietnamese
-                ? "Chưa ghi nhận sự cố nào liên quan đến nhân sự này."
-                : "No correlated incidents recorded."}
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {recentIncidents.map((inc) => {
-                const isResolved = inc.status === "RESOLVED" || inc.status === "CLOSED";
-                return (
-                  <div
-                    key={inc.id}
-                    className="p-3 rounded-xl border border-border/50 bg-background shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] flex items-center justify-between gap-3"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-foreground truncate">
-                          {inc.violationType}
-                        </span>
-                        <span
-                          className={`text-[10px] font-mono px-1.5 py-0.2 rounded border font-bold uppercase ${
-                            inc.severity === "CRITICAL"
-                              ? "border-danger/40 bg-danger/10 text-danger"
-                              : inc.severity === "HIGH"
-                                ? "border-warning/40 bg-warning/10 text-warning"
-                                : "border-border/60 bg-muted/40 text-muted-foreground"
-                          }`}
-                        >
-                          {inc.severity}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate font-mono">
-                        {inc.siteName || (isVietnamese ? "Công trường liên kết" : "Linked Site")} •{" "}
-                        {new Date(inc.detectedAt).toLocaleDateString(
-                          isVietnamese ? "vi-VN" : "en-US",
-                        )}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span
-                        className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
-                          isResolved ? "text-primary" : "text-warning"
-                        }`}
-                      >
-                        {isResolved ? (
-                          <>
-                            <CheckCircle2 size={13} />
-                            <span>{isVietnamese ? "Đã giải quyết" : "Resolved"}</span>
-                          </>
-                        ) : (
-                          <>
-                            <Clock size={13} />
-                            <span>{isVietnamese ? "Đang xử lý" : "In Progress"}</span>
-                          </>
-                        )}
-                      </span>
-                      <a
-                        href={`/incidents/${inc.id}`}
-                        className="size-7 inline-flex items-center justify-center rounded-lg border border-border/60 bg-background text-muted-foreground hover:text-primary hover:border-primary/40 shadow-[1.5px_1.5px_3px_var(--shadow-dark),-1.5px_-1.5px_3px_var(--shadow-light)] transition-all"
-                        title={isVietnamese ? "Xem sự cố" : "View incident"}
-                      >
-                        <ExternalLink size={13} />
-                      </a>
-                    </div>
+        <div className="flex flex-col justify-between space-y-4 rounded-[26px] bg-background p-5 sm:p-6 shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)]">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-[13px] bg-background text-warning shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+                  <div className="flex size-7.5 items-center justify-center rounded-[9px] bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+                    <AlertTriangle size={16} strokeWidth={2.3} />
                   </div>
-                );
-              })}
+                </div>
+                <div>
+                  <h3 className="text-sm font-black tracking-tight text-foreground sm:text-base">
+                    {isVietnamese ? "Sự cố PPE gần đây" : "Recent PPE Incidents"}
+                  </h3>
+                  <p className="mt-0.5 font-mono text-[11px] font-semibold text-muted-foreground">
+                    {incidents.length}{" "}
+                    {isVietnamese ? "vụ việc liên quan" : "correlated cases"}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => onSelectTab("incidents")}
+                className="group inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full bg-background px-3.5 text-xs font-bold text-primary shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+              >
+                <span>{isVietnamese ? "Xem tất cả" : "View all"}</span>
+                <ArrowRight
+                  size={12}
+                  className="transition-transform duration-200 group-hover:translate-x-0.5"
+                />
+              </button>
             </div>
-          )}
+
+            {/* Khay lõm chứa danh sách sự cố gần đây */}
+            <div className="rounded-[20px] bg-background p-3 shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)]">
+              {recentIncidents.length === 0 ? (
+                <div className="py-7 text-center text-xs font-medium text-muted-foreground">
+                  {isVietnamese
+                    ? "Chưa ghi nhận sự cố nào liên quan đến nhân sự này."
+                    : "No correlated incidents recorded."}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {recentIncidents.map((inc) => {
+                    const isResolved =
+                      inc.status === "RESOLVED" || inc.status === "CLOSED";
+                    const isDismissed = inc.status === "DISMISSED";
+                    return (
+                      <div
+                        key={inc.id}
+                        className="group flex items-center justify-between gap-3 rounded-[15px] bg-background p-3 shadow-[3.5px_3.5px_8px_var(--shadow-dark),-3.5px_-3.5px_8px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-[1px] hover:shadow-[5px_5px_10px_var(--shadow-dark),-5px_-5px_10px_var(--shadow-light)]"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-xs font-extrabold text-foreground">
+                              {inc.violationType}
+                            </span>
+                            <span
+                              className={`rounded-md bg-background px-2 py-0.5 font-mono text-[10px] font-extrabold uppercase shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] ${inc.severity === "CRITICAL"
+                                  ? "text-danger"
+                                  : inc.severity === "HIGH"
+                                    ? "text-warning"
+                                    : "text-muted-foreground"
+                                }`}
+                            >
+                              {inc.severity}
+                            </span>
+                          </div>
+                          <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                            {inc.siteName ||
+                              (isVietnamese
+                                ? "Công trường liên kết"
+                                : "Linked Site")}{" "}
+                            •{" "}
+                            {new Date(inc.detectedAt).toLocaleDateString(
+                              isVietnamese ? "vi-VN" : "en-US",
+                            )}
+                          </p>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-2.5">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full bg-background px-2.5 py-0.5 text-[11px] font-bold shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] ${
+                              isResolved
+                                ? "text-primary"
+                                : isDismissed
+                                  ? "text-muted-foreground"
+                                  : "text-warning"
+                            }`}
+                          >
+                            {isResolved ? (
+                              <>
+                                <CheckCircle2 size={12} />
+                                <span>
+                                  {isVietnamese ? "Đã giải quyết" : "Resolved"}
+                                </span>
+                              </>
+                            ) : isDismissed ? (
+                              <>
+                                <Ban size={12} />
+                                <span>
+                                  {isVietnamese ? "Đã bác bỏ" : "Dismissed"}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <Clock size={12} />
+                                <span>
+                                  {isVietnamese ? "Đang xử lý" : "In Progress"}
+                                </span>
+                              </>
+                            )}
+                          </span>
+
+                          <Link
+                            href={`/incidents/${inc.id}`}
+                            className="inline-flex size-8 items-center justify-center rounded-full bg-background text-muted-foreground shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+                            title={isVietnamese ? "Xem sự cố" : "View incident"}
+                          >
+                            <ExternalLink size={13} />
+                          </Link>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

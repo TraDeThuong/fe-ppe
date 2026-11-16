@@ -40,6 +40,7 @@ export interface ReportKpiSummaryProps {
   sites?: SiteItem[];
   incidents?: IncidentItem[];
   onGenerateReport?: (template?: ReportTemplateDto) => void;
+  onViewHistory?: () => void;
 }
 
 export function ReportKpiSummary({
@@ -56,6 +57,7 @@ export function ReportKpiSummary({
   sites = [],
   incidents = [],
   onGenerateReport,
+  onViewHistory,
 }: ReportKpiSummaryProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -229,6 +231,7 @@ export function ReportKpiSummary({
           incidents={incidents}
           onClose={() => handleToggle(activeStat)}
           onGenerateReport={onGenerateReport}
+          onViewHistory={onViewHistory}
         />
       )}
     </div>

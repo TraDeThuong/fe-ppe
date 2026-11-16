@@ -67,7 +67,7 @@ export function CameraKpiSummary({
       activePersons,
       activeViolations,
     };
-  }, [cameras, sessions]);
+  }, [cameras, sessions, statusCounts]);
 
   const handleToggle = (key: CameraKpiFilterKey) => {
     setSelectedStat((prev) => {

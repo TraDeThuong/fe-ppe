@@ -249,9 +249,30 @@ export interface SystemDefaultSafetyConfigResponse {
   confidenceThreshold: number;
   confirmationDuration: number;
   cooldownDuration: number;
-  enableNoHelmet: boolean;
-  enableNoVest: boolean;
-  enableRestrictedArea: boolean;
+  rules?: {
+    enableNoHelmet: boolean;
+    enableNoVest: boolean;
+    enableRestrictedArea: boolean;
+  };
+  enableNoHelmet?: boolean;
+  enableNoVest?: boolean;
+  enableRestrictedArea?: boolean;
+  modelVersionId?: string | null;
+  source?: string;
+}
+
+export interface CameraSafetyConfigItem {
+  id: string;
+  cameraId: string;
+  confidenceThreshold: number | null;
+  confirmationDuration: number | null;
+  cooldownDuration: number | null;
+  enableNoHelmet: boolean | null;
+  enableNoVest: boolean | null;
+  enableRestrictedArea: boolean | null;
+  modelVersionId: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ArchiveSiteResponse {

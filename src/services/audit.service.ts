@@ -122,13 +122,21 @@ function normalizeAuditSummary(raw: any): AuditSummaryDto {
   };
 }
 
-function mapAuditDateParams<T extends { fromDate?: string; toDate?: string; startDate?: string; endDate?: string }>(
-  params?: T,
-) {
+function mapAuditQueryParams<
+  T extends {
+    userId?: string;
+    actorId?: string;
+    fromDate?: string;
+    toDate?: string;
+    startDate?: string;
+    endDate?: string;
+  },
+>(params?: T) {
   if (!params) return undefined;
-  const { fromDate, toDate, ...rest } = params;
+  const { fromDate, toDate, userId, actorId, ...rest } = params;
   return {
     ...rest,
+    actorId: actorId ?? userId,
     startDate: params.startDate ?? fromDate,
     endDate: params.endDate ?? toDate,
   };
@@ -160,7 +168,7 @@ export const auditService = {
     params?: AuditLogQueryParams,
   ): Promise<{ items: AuditLogItem[]; meta: PaginationMeta }> {
     const res = await apiClient.get<any>("/audit-logs", {
-      params: mapAuditDateParams(params),
+      params: mapAuditQueryParams(params),
     });
     return unwrapPaginated<AuditLogItem>(res, normalizeAuditItem);
   },
@@ -181,7 +189,7 @@ export const auditService = {
    */
   async getSummary(params?: { fromDate?: string; toDate?: string; startDate?: string; endDate?: string; siteId?: string }): Promise<AuditSummaryDto> {
     const res = await apiClient.get<unknown>("/audit-logs/summary", {
-      params: mapAuditDateParams(params),
+      params: mapAuditQueryParams(params),
     });
     const data = unwrapData<any>(res);
     return normalizeAuditSummary(data);

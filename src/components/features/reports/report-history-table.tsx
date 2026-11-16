@@ -3,7 +3,7 @@
 import { Table, TableToolbar, TableContent, TablePagination, TableRefresh } from "@/components/ui/table";
 import type { TableProps } from "@/components/ui/table";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { CheckCircle2, Download, Eye, FileSpreadsheet, FileText, Loader2, XCircle, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
@@ -16,6 +16,9 @@ export interface ReportHistoryTableProps {
   history: ReportGenerationDto[];
   loading?: boolean;
   onPreview?: (report: ReportGenerationDto) => void;
+  toolbarFilters?: ReactNode;
+  currentUserId?: string;
+  isAdmin?: boolean;
   tableState?: Partial<TableProps<ReportGenerationDto>>;
 }
 
@@ -23,6 +26,9 @@ export function ReportHistoryTable({
   history,
   loading = false,
   onPreview,
+  toolbarFilters,
+  currentUserId,
+  isAdmin = false,
   tableState,
 }: ReportHistoryTableProps) {
   const { t, locale } = useLocale();
@@ -113,7 +119,8 @@ export function ReportHistoryTable({
     columns={[{
       id: "fileName",
       header: t("reports.history.fileName"),
-      accessorFn: (item) => item.fileName,
+      accessorFn: (item) =>
+        item.fileName || `report_${item.id.slice(0, 8)}.pdf`,
       enableSorting: true,
       cell: ({ row }) => {
         const item = row.original;
@@ -175,7 +182,13 @@ export function ReportHistoryTable({
     {
       id: "siteId",
       header: t("reports.history.site"),
-      accessorFn: (item) => item.siteId,
+      accessorFn: (item) =>
+        item.siteName ||
+        (item.siteId
+          ? getSiteName(item.siteId, item.siteId.slice(0, 8))
+          : isVietnamese
+            ? "Tất cả công trường"
+            : "All Sites"),
       enableSorting: true,
       cell: ({ row }) => {
         const item = row.original;
@@ -200,7 +213,8 @@ export function ReportHistoryTable({
     {
       id: "createdAt",
       header: t("reports.history.createdAt"),
-      accessorFn: (item) => item.createdAt,
+      accessorFn: (item) =>
+        new Date(item.generatedAt || item.createdAt).getTime(),
       enableSorting: true,
       cell: ({ row }) => {
         const item = row.original;
@@ -242,6 +256,15 @@ export function ReportHistoryTable({
         const item = row.original;
         const isCompleted = item.status === "COMPLETED";
         const isDownloading = downloadingId === item.id;
+        // BOLA Guard đồng bộ BE: chỉ ADMIN hoặc đúng tác giả tạo mới được xem/tải tệp
+        const canAccessFile =
+          isAdmin ||
+          !currentUserId ||
+          !item.generatedBy ||
+          item.generatedBy === currentUserId;
+        const restrictedTitle = !canAccessFile
+          ? t("reports.history.restrictedAccess")
+          : undefined;
         return (
           <div className="flex items-center justify-end gap-1.5">
             {isCompleted ? (
@@ -250,6 +273,7 @@ export function ReportHistoryTable({
                   <Button
                     size="sm"
                     variant="ghost"
+                    disabled={!canAccessFile}
                     onClick={() => onPreview(item)}
                     className="
                       h-8 gap-1 rounded-lg px-2.5
@@ -260,9 +284,10 @@ export function ReportHistoryTable({
                       transition-all duration-200
                       hover:bg-primary/10 hover:text-primary
                       active:scale-[0.97]
+                      disabled:pointer-events-none disabled:opacity-45
                       dark:shadow-[2px_2px_5px_rgba(0,0,0,0.3)]
                     "
-                    title={t("reports.history.preview")}
+                    title={restrictedTitle || t("reports.history.preview")}
                   >
                     <Eye className="h-3.5 w-3.5 text-primary" />
                     <span className="hidden sm:inline">
@@ -275,7 +300,8 @@ export function ReportHistoryTable({
                   size="sm"
                   variant="ghost"
                   onClick={() => handleDownload(item)}
-                  disabled={isDownloading}
+                  disabled={isDownloading || !canAccessFile}
+                  title={restrictedTitle || t("reports.history.download")}
                   className="
                     h-8 gap-1.5 rounded-lg px-3
                     bg-primary/10 text-primary
@@ -285,7 +311,7 @@ export function ReportHistoryTable({
                     hover:bg-primary hover:text-primary-foreground
                     hover:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.12)]
                     active:scale-[0.97]
-                    disabled:opacity-50
+                    disabled:pointer-events-none disabled:opacity-45
                     dark:shadow-[2px_2px_5px_rgba(0,0,0,0.3)]
                   "
                 >
@@ -310,17 +336,24 @@ export function ReportHistoryTable({
     getRowId={row => row.id}
     features={{
       globalFilter: false,
-      sorting: false,
+      sorting: true,
       rowSelection: false,
       pagination: true
     }}
     manualFiltering
-    manualSorting
     manualPagination
     emptyMessage={t("reports.history.empty")}
     {...tableState}
   >
-    <TableToolbar showSearch={false} actions={<TableRefresh />} />
+    <TableToolbar
+      showSearch={false}
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          {toolbarFilters}
+          <TableRefresh />
+        </div>
+      }
+    />
     <TableContent />
     <TablePagination />
   </Table>);

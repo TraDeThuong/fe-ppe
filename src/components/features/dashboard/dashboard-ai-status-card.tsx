@@ -12,6 +12,7 @@ import {
   Layers3,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { AnimatedMetricValue } from "@/components/ui/animated-number";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/providers/locale-provider";
 import type { AiModelVersionDto } from "@/types";
@@ -266,11 +267,11 @@ export function DashboardAiStatusCard({
                   {metric.label}
                 </p>
 
-                <div className={`mt-1 truncate font-mono text-sm font-black tracking-tight sm:text-base ${metric.color}`}>
+                <div className={`mt-1 truncate font-mono text-sm font-black tracking-tight tabular-nums sm:text-base ${metric.color}`}>
                   {loading ? (
                     <Skeleton className="mx-auto my-0.5 h-4 w-12 rounded" />
                   ) : (
-                    metric.value
+                    <AnimatedMetricValue value={metric.value} />
                   )}
                 </div>
               </div>

@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CRON_TIMEZONE, describeCronSchedule } from "@/lib/cron";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedNumber } from "@/components/ui/animated-number";
 import type { CronJobItem, CronJobName, CronScheduleFilter } from "@/types/cron.types";
 
 export type CronStatKey = "total" | "enabled" | "disabled" | "engine";
@@ -155,8 +156,8 @@ export function CronStatsDetailPanel({
               <span className="text-[10px] sm:text-xs text-muted-foreground block font-medium">
                 {t("cron.category.cleanup")}
               </span>
-              <p className="font-mono text-base sm:text-lg font-bold text-foreground mt-0.5">
-                {cleanupJobs.length}
+              <p className="font-mono text-base sm:text-lg font-bold tabular-nums text-foreground mt-0.5">
+                <AnimatedNumber value={cleanupJobs.length} />
               </p>
             </div>
 
@@ -164,8 +165,8 @@ export function CronStatsDetailPanel({
               <span className="text-[10px] sm:text-xs text-muted-foreground block font-medium">
                 {t("cron.category.digest")}
               </span>
-              <p className="font-mono text-base sm:text-lg font-bold text-foreground mt-0.5">
-                {digestJobs.length}
+              <p className="font-mono text-base sm:text-lg font-bold tabular-nums text-foreground mt-0.5">
+                <AnimatedNumber value={digestJobs.length} />
               </p>
             </div>
 
@@ -173,8 +174,8 @@ export function CronStatsDetailPanel({
               <span className="text-[10px] sm:text-xs text-muted-foreground block font-medium">
                 {isVietnamese ? "Lịch hằng ngày" : "Daily Frequency"}
               </span>
-              <p className="font-mono text-base sm:text-lg font-bold text-foreground mt-0.5">
-                {jobs.filter((j) => !j.cron.endsWith("1")).length}
+              <p className="font-mono text-base sm:text-lg font-bold tabular-nums text-foreground mt-0.5">
+                <AnimatedNumber value={jobs.filter((j) => !j.cron.endsWith("1")).length} />
               </p>
             </div>
 
@@ -182,8 +183,8 @@ export function CronStatsDetailPanel({
               <span className="text-[10px] sm:text-xs text-muted-foreground block font-medium">
                 {isVietnamese ? "Lịch hàng tuần" : "Weekly Frequency"}
               </span>
-              <p className="font-mono text-base sm:text-lg font-bold text-foreground mt-0.5">
-                {jobs.filter((j) => j.cron.endsWith("1")).length}
+              <p className="font-mono text-base sm:text-lg font-bold tabular-nums text-foreground mt-0.5">
+                <AnimatedNumber value={jobs.filter((j) => j.cron.endsWith("1")).length} />
               </p>
             </div>
           </div>

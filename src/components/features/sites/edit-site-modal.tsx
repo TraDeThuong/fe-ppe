@@ -15,6 +15,7 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useUsers } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
+import { toDateInputValue } from "./site-helpers";
 import type {
   SiteContactOfficer,
   SiteItem,
@@ -79,6 +80,8 @@ export function EditSiteModal({
   const [status, setStatus] = useState<SiteStatus>("ACTIVE");
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   // Officers list state
@@ -91,6 +94,8 @@ export function EditSiteModal({
       setStatus(site.status);
       setAddress(site.address || "");
       setDescription(site.description || "");
+      setStartDate(toDateInputValue(site.startDate));
+      setEndDate(toDateInputValue(site.endDate));
       setError(null);
 
       if (site.contactOfficers && site.contactOfficers.length > 0) {
@@ -246,7 +251,16 @@ export function EditSiteModal({
     setError(null);
 
     if (!name.trim()) {
-      setError("Vui lòng nhập tên công trường.");
+      setError(isVietnamese ? "Vui lòng nhập tên công trường." : "Please enter site name.");
+      return;
+    }
+
+    if (startDate && endDate && endDate < startDate) {
+      setError(
+        isVietnamese
+          ? "Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu."
+          : "End date must be on or after start date.",
+      );
       return;
     }
 
@@ -272,6 +286,8 @@ export function EditSiteModal({
         status,
         address: address.trim() || undefined,
         description: description.trim() || undefined,
+        startDate: startDate || null,
+        endDate: endDate || null,
         contactPerson: primaryOfficer?.name || undefined,
         contactPhone: primaryPhone,
         contactOfficers: validOfficers,
@@ -363,6 +379,36 @@ export function EditSiteModal({
               onChange={(e) => setAddress(e.target.value)}
               placeholder={t("sites.form.addressPlaceholder")}
               className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              disabled={loading}
+            />
+          </div>
+        </div>
+
+        {/* Project Start & End Date */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {isVietnamese ? "Ngày khởi công" : "Start Date"}
+            </label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs font-mono shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              disabled={loading}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {isVietnamese ? "Ngày dự kiến hoàn thành" : "End Date"}
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate || undefined}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs font-mono shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={loading}
             />
           </div>

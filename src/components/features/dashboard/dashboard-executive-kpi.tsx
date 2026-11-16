@@ -9,6 +9,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedMetricValue, AnimatedNumber } from "@/components/ui/animated-number";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DashboardTabKey } from "./dashboard-nav-tabs";
 
@@ -66,7 +67,7 @@ export function DashboardExecutiveKpi({
       <button
         type="button"
         onClick={() => onSelectPillar?.("safety")}
-        className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-surface/90 p-4 text-left transition-all duration-200
+        className="animate-stat-enter group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-surface/90 p-4 text-left transition-all duration-200
           shadow-[4px_6px_16px_rgba(0,0,0,0.03),-3px_-3px_10px_rgba(255,255,255,0.6)]
           hover:-translate-y-0.5 hover:border-primary/50
           dark:border-white/[0.08] dark:bg-card/40 dark:shadow-[0_8px_24px_rgba(0,0,0,0.25)] dark:hover:border-white/20"
@@ -89,8 +90,8 @@ export function DashboardExecutiveKpi({
 
           <div className="mt-3 flex items-baseline gap-2">
             {typeof totalIncidents === "number" ? (
-              <span className="font-mono text-3xl font-black tracking-tight text-foreground">
-                {totalIncidents}
+              <span className="font-mono text-3xl font-black tracking-tight text-foreground tabular-nums">
+                <AnimatedNumber value={totalIncidents} />
               </span>
             ) : (
               <Skeleton className="my-1 h-8 w-16 rounded-lg" />
@@ -109,9 +110,11 @@ export function DashboardExecutiveKpi({
           <span className="text-muted-foreground">
             {t("dashboard.executive.pendingReview")}:
           </span>
-          <span className="font-mono font-bold text-foreground">
+          <span className="font-mono font-bold text-foreground tabular-nums">
             {typeof pendingCount === "number" ? (
-              `${pendingCount} cần duyệt`
+              <>
+                <AnimatedNumber value={pendingCount} /> cần duyệt
+              </>
             ) : (
               <Skeleton className="h-3.5 w-16 rounded inline-block" />
             )}
@@ -123,7 +126,8 @@ export function DashboardExecutiveKpi({
       <button
         type="button"
         onClick={() => onSelectPillar?.("devices")}
-        className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-surface/90 p-4 text-left transition-all duration-200
+        style={{ animationDelay: "60ms" }}
+        className="animate-stat-enter group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-surface/90 p-4 text-left transition-all duration-200
           shadow-[4px_6px_16px_rgba(0,0,0,0.03),-3px_-3px_10px_rgba(255,255,255,0.6)]
           hover:-translate-y-0.5 hover:border-primary/50
           dark:border-white/[0.08] dark:bg-card/40 dark:shadow-[0_8px_24px_rgba(0,0,0,0.25)] dark:hover:border-white/20"
@@ -146,8 +150,8 @@ export function DashboardExecutiveKpi({
 
           <div className="mt-3 flex items-baseline gap-2">
             {typeof onlineCameras === "number" && typeof totalCameras === "number" ? (
-              <span className="font-mono text-3xl font-black tracking-tight text-foreground">
-                {`${onlineCameras}/${totalCameras}`}
+              <span className="font-mono text-3xl font-black tracking-tight text-foreground tabular-nums">
+                <AnimatedMetricValue value={`${onlineCameras}/${totalCameras}`} />
               </span>
             ) : (
               <Skeleton className="my-1 h-8 w-20 rounded-lg" />
@@ -174,7 +178,8 @@ export function DashboardExecutiveKpi({
       <button
         type="button"
         onClick={() => onSelectPillar?.("system")}
-        className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-surface/90 p-4 text-left transition-all duration-200
+        style={{ animationDelay: "120ms" }}
+        className="animate-stat-enter group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-surface/90 p-4 text-left transition-all duration-200
           shadow-[4px_6px_16px_rgba(0,0,0,0.03),-3px_-3px_10px_rgba(255,255,255,0.6)]
           hover:-translate-y-0.5 hover:border-primary/50
           dark:border-white/[0.08] dark:bg-card/40 dark:shadow-[0_8px_24px_rgba(0,0,0,0.25)] dark:hover:border-white/20"
@@ -197,8 +202,8 @@ export function DashboardExecutiveKpi({
 
           <div className="mt-3 flex items-baseline gap-2">
             {typeof totalUsers === "number" ? (
-              <span className="font-mono text-3xl font-black tracking-tight text-foreground">
-                {totalUsers}
+              <span className="font-mono text-3xl font-black tracking-tight text-foreground tabular-nums">
+                <AnimatedNumber value={totalUsers} />
               </span>
             ) : (
               <Skeleton className="my-1 h-8 w-16 rounded-lg" />
@@ -217,11 +222,11 @@ export function DashboardExecutiveKpi({
           <span className="text-muted-foreground">
             {t("dashboard.executive.twoFactorRate")}:
           </span>
-          <span className="font-mono font-bold text-foreground">
+          <span className="font-mono font-bold text-foreground tabular-nums">
             {twoFactorRate != null ? (
-              `${twoFactorRate}% bảo mật`
+              <AnimatedNumber value={twoFactorRate} suffix="% bảo mật" />
             ) : typeof activeUsers === "number" ? (
-              `${activeUsers} hoạt động`
+              <AnimatedNumber value={activeUsers} suffix=" hoạt động" />
             ) : (
               <Skeleton className="h-3.5 w-16 rounded inline-block" />
             )}
@@ -233,7 +238,8 @@ export function DashboardExecutiveKpi({
       <button
         type="button"
         onClick={() => onSelectPillar?.("system")}
-        className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-surface/90 p-4 text-left transition-all duration-200
+        style={{ animationDelay: "180ms" }}
+        className="animate-stat-enter group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border/40 bg-surface/90 p-4 text-left transition-all duration-200
           shadow-[4px_6px_16px_rgba(0,0,0,0.03),-3px_-3px_10px_rgba(255,255,255,0.6)]
           hover:-translate-y-0.5 hover:border-primary/50
           dark:border-white/[0.08] dark:bg-card/40 dark:shadow-[0_8px_24px_rgba(0,0,0,0.25)] dark:hover:border-white/20"
@@ -256,8 +262,8 @@ export function DashboardExecutiveKpi({
 
           <div className="mt-3 flex items-baseline gap-2">
             {typeof healthyServices === "number" && typeof totalServices === "number" ? (
-              <span className="font-mono text-3xl font-black tracking-tight text-foreground">
-                {`${healthyServices}/${totalServices}`}
+              <span className="font-mono text-3xl font-black tracking-tight text-foreground tabular-nums">
+                <AnimatedMetricValue value={`${healthyServices}/${totalServices}`} />
               </span>
             ) : (
               <Skeleton className="my-1 h-8 w-20 rounded-lg" />
@@ -276,9 +282,9 @@ export function DashboardExecutiveKpi({
           <span className="text-muted-foreground">
             {t("dashboard.executive.avgLatency")}:
           </span>
-          <span className="font-mono font-bold text-foreground">
+          <span className="font-mono font-bold text-foreground tabular-nums">
             {typeof avgLatencyMs === "number" ? (
-              `${Math.round(avgLatencyMs)}ms`
+              <AnimatedNumber value={Math.round(avgLatencyMs)} suffix="ms" />
             ) : (
               <Skeleton className="h-3.5 w-12 rounded inline-block" />
             )}

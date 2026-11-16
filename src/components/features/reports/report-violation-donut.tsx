@@ -13,6 +13,7 @@ import {
   Activity,
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import { AnimatedNumber, useAnimatedProgress } from "@/components/ui/animated-number";
 import type { ViolationTypeStatDto } from "@/types";
 
 export interface ReportViolationDonutProps {
@@ -62,7 +63,7 @@ export function ReportViolationDonut({
   distribution = [],
   loading = false,
 }: ReportViolationDonutProps) {
-  const { locale } = useLocale();
+  const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
   const [activeType, setActiveType] = useState<string | null>(null);
@@ -90,6 +91,7 @@ export function ReportViolationDonut({
     () => distribution.reduce((sum, item) => sum + item.count, 0),
     [distribution],
   );
+  const donutSweep = useAnimatedProgress(100, { enabled: !loading && total > 0 });
 
   const getLabel = (type: string) =>
     labels[type]
@@ -186,12 +188,10 @@ export function ReportViolationDonut({
 
           <div className="min-w-0">
             <h3 className="truncate text-sm font-extrabold text-foreground">
-              {isVietnamese ? "Báo cáo vi phạm" : "Violation Report"}
+              {t("reports.charts.donutTitle")}
             </h3>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              {isVietnamese
-                ? "Cơ cấu phân loại vi phạm PPE"
-                : "PPE violation distribution"}
+              {t("reports.charts.donutDesc")}
             </p>
           </div>
         </div>
@@ -200,7 +200,7 @@ export function ReportViolationDonut({
           shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)]
         ">
           <p className="text-base font-extrabold leading-none tabular-nums text-primary">
-            {total.toLocaleString()}
+            <AnimatedNumber value={total} format={(v) => v.toLocaleString()} />
           </p>
           <p className="mt-0.5 text-[9px] font-medium text-muted-foreground">
             {isVietnamese ? "Vi phạm" : "Violations"}
@@ -237,6 +237,8 @@ export function ReportViolationDonut({
               {/* Segments */}
               {items.map((item) => {
                 const isActive = activeType === item.violationType;
+                const segLength =
+                  ((item.percentage * (donutSweep / 100)) / 100) * CIRCUMFERENCE;
 
                 return (
                   <circle
@@ -248,7 +250,7 @@ export function ReportViolationDonut({
                     stroke={item.color.color}
                     strokeOpacity={item.color.opacity}
                     strokeWidth={isActive ? STROKE_WIDTH + 4 : STROKE_WIDTH}
-                    strokeDasharray={item.strokeDasharray}
+                    strokeDasharray={`${segLength} ${CIRCUMFERENCE}`}
                     strokeDashoffset={item.strokeDashoffset}
                     strokeLinecap="round"
                     transform={`rotate(-90 ${CENTER} ${CENTER})`}
@@ -279,9 +281,10 @@ export function ReportViolationDonut({
               <Activity size={15} className="mb-0.5 text-accent" />
 
               <span className="text-2xl font-black leading-none tabular-nums text-primary">
-                {activeItem
-                  ? activeItem.count.toLocaleString()
-                  : total.toLocaleString()}
+                <AnimatedNumber
+                  value={activeItem ? activeItem.count : total}
+                  format={(v) => v.toLocaleString()}
+                />
               </span>
 
               <span className="mt-1 text-[10px] font-medium text-muted-foreground">
@@ -389,10 +392,21 @@ export function ReportViolationDonut({
                               index % 2 === 0 ? "text-primary" : "text-accent"
                             }`}
                           >
-                            {item.percentage.toFixed(1)}%
+                            <AnimatedNumber
+                              value={item.percentage}
+                              decimals={1}
+                              delay={index * 50}
+                            />
+                            %
                           </span>
                           <span className="text-[9px] text-muted-foreground tabular-nums">
-                            ({item.count.toLocaleString()} {isVietnamese ? "vụ" : "cases"})
+                            (
+                            <AnimatedNumber
+                              value={item.count}
+                              delay={index * 50}
+                              format={(v) => v.toLocaleString()}
+                            />{" "}
+                            {isVietnamese ? "vụ" : "cases"})
                           </span>
                         </div>
                       </div>
@@ -402,9 +416,9 @@ export function ReportViolationDonut({
                         shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)]
                       ">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${item.color.bar}`}
+                          className={`h-full rounded-full transition-all duration-700 animate-live-shimmer ${item.color.bar}`}
                           style={{
-                            width: `${Math.min(item.percentage, 100)}%`,
+                            width: `${Math.min(item.percentage * (donutSweep / 100), 100)}%`,
                           }}
                         />
                       </div>
@@ -441,8 +455,8 @@ export function ReportViolationDonut({
 
           <span className="text-[10px] font-semibold text-muted-foreground">
             {isVietnamese ? "Tổng cộng" : "Total"}:{" "}
-            <span className="font-bold text-primary">
-              {total.toLocaleString()}
+            <span className="font-bold text-primary tabular-nums">
+              <AnimatedNumber value={total} format={(v) => v.toLocaleString()} />
             </span>
           </span>
         </div>

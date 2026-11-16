@@ -127,8 +127,11 @@ export default function CamerasContent() {
   const [kpiDetailOpen, setKpiDetailOpen] = useState(false);
 
   // Queries: Status Counts (lightweight KPI), Lazy Catalog (only when KPI detail panel opens), Filtered Page (Grid/Wall/Table), Live AI Sessions
-  const { data: cameraStatusCounts, refetch: refetchStatusCounts } =
-    useCameraStatusCounts(siteFilter || undefined);
+  const {
+    data: cameraStatusCounts,
+    isLoading: statusCountsLoading,
+    refetch: refetchStatusCounts,
+  } = useCameraStatusCounts(siteFilter || undefined);
   const { data: catalogCameras = [], refetch: refetchCatalog } =
     useCamerasCatalog({ enabled: kpiDetailOpen });
 
@@ -151,6 +154,9 @@ export default function CamerasContent() {
   const {
     engineOnline,
     engineError,
+    productionMode,
+    maxSessions,
+    autoSyncEnabled,
     models,
     videos,
     sessions,
@@ -158,6 +164,8 @@ export default function CamerasContent() {
     isLoadingSessions,
     startLive,
     stopLive,
+    triggerSync,
+    isSyncingLive,
     startingCameraId,
     isFetchingSessions,
     refreshAll: refreshAiEngine,
@@ -268,9 +276,10 @@ export default function CamerasContent() {
     });
   }, [stopLive]);
 
-  // Auto-start eligible ONLINE cameras when viewing Grid / Video Wall (respects BE max 4 session slots)
+  // Auto-start eligible ONLINE cameras only when BE 24/7 Auto-Sync is disabled (e.g. sandbox mode)
   useEffect(() => {
     if (!engineOnline || isLoadingSessions) return;
+    if (autoSyncEnabled) return;
     if (viewMode !== "grid" && viewMode !== "wall") return;
     if (autoStartRunningRef.current) return;
 
@@ -279,7 +288,8 @@ export default function CamerasContent() {
       sessions,
       videos,
       {
-        maxTotalSessions: 4,
+        maxTotalSessions: maxSessions,
+        productionMode,
         attemptedIds: autoAttemptedIdsRef.current,
       },
     );
@@ -302,8 +312,11 @@ export default function CamerasContent() {
       }
     })();
   }, [
+    autoSyncEnabled,
     engineOnline,
     isLoadingSessions,
+    maxSessions,
+    productionMode,
     sessions,
     startLive,
     videos,
@@ -322,6 +335,17 @@ export default function CamerasContent() {
         }}
         engineOnline={engineOnline}
         engineError={engineError}
+        productionMode={productionMode}
+        autoSyncEnabled={autoSyncEnabled}
+        maxSessions={maxSessions}
+        isSyncingLive={isSyncingLive}
+        onTriggerSync={
+          productionMode && canCreate
+            ? () => {
+                void triggerSync().catch(() => {});
+              }
+            : undefined
+        }
         models={models}
         totalCameras={cameraStatusCounts?.total ?? totalCount}
         runningSessionsCount={runningSessionsCount}
@@ -339,6 +363,7 @@ export default function CamerasContent() {
         activeFilter={kpiFilter}
         onSelectFilter={handleKpiSelect}
         onDetailOpenChange={setKpiDetailOpen}
+        loading={statusCountsLoading && !cameraStatusCounts && camerasLoading}
       />
 
       {/* Layer 3: Search & Portal Select Filter Bar */}
@@ -372,6 +397,7 @@ export default function CamerasContent() {
           cameras={visibleCameras}
           layout={wallLayout}
           getSessionForCamera={getSessionForCamera}
+          productionMode={productionMode}
           startingCameraId={startingCameraId}
           onStartLive={handleStartLive}
           onStopLive={handleStopLive}
@@ -446,6 +472,7 @@ export default function CamerasContent() {
                   camera={camera}
                   siteName={camera.siteName}
                   liveSession={getSessionForCamera(camera)}
+                  productionMode={productionMode}
                   isBusy={startingCameraId === camera.id}
                   onStartLive={handleStartLive}
                   onStopLive={handleStopLive}

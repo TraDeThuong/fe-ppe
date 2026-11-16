@@ -218,7 +218,8 @@ export interface LiveVideoItem {
 
 export interface LiveStartPayload {
   camera_id: string;
-  source: string;
+  camera_uuid?: string | null;
+  source?: string | null;
   model?: string | null;
   target_fps: number;
   ai_fps: number;
@@ -229,6 +230,8 @@ export interface LiveStartPayload {
   enable_no_vest: boolean;
   enable_restricted_area: boolean;
   enable_scene_cut: boolean;
+  auto_reconnect?: boolean;
+  loop_on_eof?: boolean;
 }
 
 export interface LiveConfigPayload {
@@ -281,18 +284,58 @@ export interface LiveViolationEvent {
 
 export interface LiveSessionInfo {
   camera_id: string;
+  camera_uuid?: string | null;
+  site_id?: string | null;
   status?: string;
+  managed?: boolean;
+  reconnect_count?: number;
+  dispatch_enabled?: boolean;
   target_fps?: number;
   ai_fps?: number;
   source?: string;
   metrics?: LiveMetrics;
+  error?: string | null;
 }
 
 export interface LiveStatsResponse {
   camera_id: string;
+  camera_uuid?: string | null;
+  site_id?: string | null;
   status?: string;
+  managed?: boolean;
+  reconnect_count?: number;
   error?: string | null;
   metrics?: LiveMetrics;
   recent_violations?: LiveViolationEvent[];
   evidences?: RawEvidenceRecord[];
+}
+
+export interface LiveSyncStatus {
+  last_sync_at: string | null;
+  last_sync_ok: boolean | null;
+  last_sync_error: string | null;
+  last_synced_count: number;
+  skipped_over_limit: string[];
+  dynamic_max_sessions: number | null;
+  max_sessions: number;
+  dispatch_enabled: boolean;
+}
+
+export interface LiveRuntimeConfigResponse {
+  max_sessions: number;
+  active_sessions: number;
+  dispatch_enabled: boolean;
+  auto_sync_enabled: boolean;
+  sync_interval_s: number;
+  sync?: LiveSyncStatus | null;
+}
+
+export interface LiveRuntimeConfigPatchPayload {
+  max_sessions?: number;
+  trigger_sync?: boolean;
+}
+
+export interface LiveSyncTriggerResponse extends LiveSyncStatus {
+  status: string;
+  sessions?: LiveSessionInfo[];
 }

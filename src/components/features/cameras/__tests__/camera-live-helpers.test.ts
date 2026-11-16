@@ -307,3 +307,81 @@ test("selectAutoStartCandidates picks ONLINE runnable cameras within session cap
     ["c1", "c5"],
   );
 });
+
+test("productionMode supports masked RTSP via M2M camera_uuid lookup and dynamic session limits", () => {
+  const maskedCamera: CameraItem = {
+    ...sampleCamera,
+    id: "cam-uuid-masked-1",
+    code: "CAM-MASKED-01",
+    streamUrl: "rtsp://admin:***@10.0.0.10:554/stream1",
+    status: "ONLINE",
+  };
+
+  // In production mode, masked RTSP is runnable and has no error note
+  assert.equal(
+    canAutoStartCameraSource(maskedCamera, uploadedVideos, { productionMode: true }),
+    true,
+  );
+  assert.equal(
+    resolveCameraSourceIssue(maskedCamera, uploadedVideos, { productionMode: true }),
+    null,
+  );
+  assert.deepEqual(
+    resolveInitialCameraSource(maskedCamera, uploadedVideos, { productionMode: true }),
+    {
+      source: "rtsp://admin:***@10.0.0.10:554/stream1",
+      usesFallbackServerVideo: false,
+      cameraSourceNote: null,
+    },
+  );
+
+  // buildCameraStartPayload omits masked source and passes camera_uuid for M2M lookup
+  const maskedPayload = buildCameraStartPayload(
+    maskedCamera,
+    {
+      source: maskedCamera.streamUrl,
+      targetFps: 25,
+      aiFps: 15,
+      confirmHelmetSec: 2,
+      confirmVestSec: 4,
+      enableNoHelmet: true,
+      enableNoVest: true,
+      enableRestrictedArea: true,
+      enableSceneCut: true,
+    },
+    { productionMode: true },
+  );
+  assert.equal(maskedPayload.camera_uuid, "cam-uuid-masked-1");
+  assert.equal("source" in maskedPayload, false);
+
+  // Explicit non-masked override preserves source alongside camera_uuid
+  const overridePayload = buildCameraStartPayload(
+    maskedCamera,
+    {
+      source: "sample.mp4",
+      targetFps: 25,
+      aiFps: 15,
+      confirmHelmetSec: 2,
+      confirmVestSec: 4,
+      enableNoHelmet: true,
+      enableNoVest: true,
+      enableRestrictedArea: true,
+      enableSceneCut: true,
+    },
+    { productionMode: true },
+  );
+  assert.equal(overridePayload.camera_uuid, "cam-uuid-masked-1");
+  assert.equal(overridePayload.source, "sample.mp4");
+
+  // selectAutoStartCandidates selects masked RTSP in production mode & counts reconnecting sessions
+  const selectedProd = selectAutoStartCandidates(
+    [maskedCamera],
+    [{ camera_id: "OTHER", status: "reconnecting" }],
+    uploadedVideos,
+    { productionMode: true, maxTotalSessions: 16 },
+  );
+  assert.deepEqual(
+    selectedProd.map((c) => c.id),
+    ["cam-uuid-masked-1"],
+  );
+});

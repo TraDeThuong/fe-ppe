@@ -2,13 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertTriangle, ArrowLeft, Loader2, RefreshCw } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, ArrowLeft, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/providers/locale-provider";
 import { useUserDetail } from "@/hooks/users";
 import { useSitesCatalog } from "@/hooks/sites";
-import { useIncidents } from "@/hooks/incidents";
+import { useCamerasCatalog } from "@/hooks/cameras";
+import { incidentKeys } from "@/hooks/incidents";
+import { incidentService } from "@/services/incident.service";
+import { collectCatalog } from "@/lib/table-utils";
+import {
+  computeUserIncidentStats,
+  correlateUserIncidents,
+  getUserAssignedSites,
+} from "./user-detail-utils";
 import { UserDetailHero } from "./user-detail-hero";
 import { UserDetailKpiBar } from "./user-detail-kpi-bar";
 import { UserDetailTabs, type UserDetailTabKey } from "./user-detail-tabs";
@@ -27,7 +36,7 @@ import {
   AdminResetPasswordModal,
   ConfirmUserDeleteModal,
 } from "../modals";
-import type { IncidentItem, SiteItem, UserResponseDto } from "@/types";
+import type { CameraItem, IncidentItem, SiteItem } from "@/types";
 
 export interface UserDetailContentProps {
   userId: string;
@@ -53,10 +62,7 @@ export function UserDetailContent({ userId }: UserDetailContentProps) {
   const [activeTab, setActiveTab] = useState<UserDetailTabKey>(resolveTab(searchParams.get("tab")));
 
   useEffect(() => {
-    const t = searchParams.get("tab");
-    if (t) {
-      setActiveTab(resolveTab(t));
-    }
+    setActiveTab(resolveTab(searchParams.get("tab")));
   }, [searchParams]);
 
   const handleTabChange = (tab: UserDetailTabKey) => {
@@ -76,10 +82,56 @@ export function UserDetailContent({ userId }: UserDetailContentProps) {
   } = useUserDetail(userId);
 
   const { data: allSites = [], isLoading: isLoadingSites } = useSitesCatalog();
+  const { data: allCameras = [] } = useCamerasCatalog();
 
-  // Incidents query: get recent incidents across system to correlate on client
-  const { data: rawIncidentsData, isLoading: isLoadingIncidents } = useIncidents({
-    limit: 100,
+  // Correlate user's assigned sites from both user.siteIds and site.contactOfficers[].userId
+  const {
+    userSites,
+    explicitSiteIdSet,
+    contactOfficerSiteIdSet,
+    combinedSiteIdSet,
+  } = useMemo(() => getUserAssignedSites(user, allSites), [user, allSites]);
+
+  const siteIdsKey = useMemo(
+    () => Array.from(combinedSiteIdSet).sort().join(","),
+    [combinedSiteIdSet],
+  );
+
+  // Query incidents scoped by the user's assigned sites when available, avoiding the global 100-item truncation
+  const { data: rawIncidents = [], isLoading: isLoadingIncidents } = useQuery<IncidentItem[], Error>({
+    queryKey: [...incidentKeys.lists(), "user-correlated", userId, siteIdsKey],
+    enabled: Boolean(user) && !isLoadingSites,
+    staleTime: 15 * 1000,
+    queryFn: async () => {
+      const siteIds = Array.from(combinedSiteIdSet);
+      if (siteIds.length > 0 && siteIds.length <= 5) {
+        const pages = await Promise.all(
+          siteIds.map((siteId) =>
+            collectCatalog((page, limit) =>
+              incidentService.getIncidents({ siteId, page, limit }),
+            ),
+          ),
+        );
+        const deduped = new Map<string, IncidentItem>();
+        for (const list of pages) {
+          for (const item of list) {
+            deduped.set(item.id, item);
+          }
+        }
+        return Array.from(deduped.values()).sort(
+          (a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime(),
+        );
+      }
+
+      if (siteIds.length > 5) {
+        return collectCatalog((page, limit) =>
+          incidentService.getIncidents({ page, limit }),
+        );
+      }
+
+      const firstPage = await incidentService.getIncidents({ page: 1, limit: 100 });
+      return firstPage.items;
+    },
   });
 
   // Modals state
@@ -95,103 +147,28 @@ export function UserDetailContent({ userId }: UserDetailContentProps) {
     mode: "delete",
   });
 
-  // Correlate user's assigned sites
-  const userSites = useMemo(() => {
-    if (!user?.siteIds || user.siteIds.length === 0) return [];
-    const siteIdSet = new Set(user.siteIds);
-    return allSites.filter((s) => siteIdSet.has(s.id));
-  }, [user?.siteIds, allSites]);
+  const siteMap = useMemo(() => {
+    const map = new Map<string, SiteItem>();
+    for (const s of allSites) map.set(s.id, s);
+    return map;
+  }, [allSites]);
 
-  // Client-Side Correlation & Filtering of Incidents
-  // Matches incidents where:
-  // 1. User is explicitly assigned in assignments (assignedTo === userId)
-  // 2. OR incident occurred at a site where this user is assigned
-  const userIncidents = useMemo<IncidentItem[]>(() => {
-    const allInc = rawIncidentsData?.items || [];
-    if (!user) return [];
+  const cameraMap = useMemo(() => {
+    const map = new Map<string, CameraItem>();
+    for (const c of allCameras) map.set(c.id, c);
+    return map;
+  }, [allCameras]);
 
-    const userSiteIdsSet = new Set(user.siteIds || []);
-
-    const matched = allInc.filter((inc) => {
-      // 1. Direct assignment match
-      const hasDirectAssignment = inc.assignments?.some(
-        (a) => a.assignedTo === user.id || a.assignedToEmail === user.email,
-      );
-      if (hasDirectAssignment) return true;
-
-      // 2. Site responsibility match
-      if (userSiteIdsSet.has(inc.siteId)) return true;
-
-      return false;
-    });
-
-    return matched;
-  }, [rawIncidentsData?.items, user]);
+  // Client-Side Correlation & Enrichment of Incidents
+  const userIncidents = useMemo<IncidentItem[]>(
+    () => correlateUserIncidents(rawIncidents, user, combinedSiteIdSet, siteMap, cameraMap),
+    [rawIncidents, user, combinedSiteIdSet, siteMap, cameraMap],
+  );
 
   // KPI & Analytics Calculations
-  const stats = useMemo(() => {
-    const total = userIncidents.length;
-    const resolved = userIncidents.filter(
-      (i) => i.status === "RESOLVED" || i.status === "CLOSED",
-    ).length;
-    const pending = total - resolved;
-    const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
+  const stats = useMemo(() => computeUserIncidentStats(userIncidents), [userIncidents]);
 
-    // MTTR in hours
-    let totalResolveDurationHours = 0;
-    let resolvedWithDurationCount = 0;
-    let slaComplianceCount = 0;
-
-    userIncidents.forEach((inc) => {
-      if ((inc.status === "RESOLVED" || inc.status === "CLOSED") && inc.resolvedAt) {
-        const start = new Date(inc.detectedAt).getTime();
-        const end = new Date(inc.resolvedAt).getTime();
-        const diffHours = (end - start) / (1000 * 60 * 60);
-
-        if (diffHours >= 0 && diffHours < 720) {
-          totalResolveDurationHours += diffHours;
-          resolvedWithDurationCount += 1;
-
-          // Benchmark: Critical < 2h, Others < 24h
-          const maxAllowed = inc.severity === "CRITICAL" ? 2 : 24;
-          if (diffHours <= maxAllowed) {
-            slaComplianceCount += 1;
-          }
-        }
-      }
-    });
-
-    const avgMttr =
-      resolvedWithDurationCount > 0
-        ? Math.round((totalResolveDurationHours / resolvedWithDurationCount) * 10) / 10
-        : 0;
-
-    const slaRate =
-      resolvedWithDurationCount > 0
-        ? Math.round((slaComplianceCount / resolvedWithDurationCount) * 100)
-        : 0;
-
-    let tier: "EXCELLENT" | "GOOD" | "AVERAGE" | "NEEDS_IMPROVEMENT" | "UNRATED" = "UNRATED";
-    if (total === 0) {
-      tier = "UNRATED";
-    } else if (resolutionRate >= 90 && (slaRate >= 85 || resolvedWithDurationCount === 0)) {
-      tier = "EXCELLENT";
-    } else if (resolutionRate >= 75) {
-      tier = "GOOD";
-    } else {
-      tier = "NEEDS_IMPROVEMENT";
-    }
-
-    return {
-      totalIncidents: total,
-      resolvedIncidents: resolved,
-      pendingIncidents: pending,
-      resolutionRate,
-      mttrHours: avgMttr,
-      slaComplianceRate: slaRate,
-      performanceTier: tier,
-    };
-  }, [userIncidents]);
+  const isLoadingMetrics = isLoadingUser || isLoadingSites || isLoadingIncidents;
 
   // Error / Not found state (chỉ hiện khi đã tải xong nhưng lỗi)
   if (!isLoadingUser && (isUserError || !user)) {
@@ -239,14 +216,16 @@ export function UserDetailContent({ userId }: UserDetailContentProps) {
 
       {/* 2. Quick Executive KPI Metrics Bar */}
       <UserDetailKpiBar
-        loading={isLoadingUser}
+        loading={isLoadingMetrics}
         assignedSitesCount={userSites.length}
         totalIncidents={stats.totalIncidents}
         resolvedIncidents={stats.resolvedIncidents}
+        dismissedIncidents={stats.dismissedIncidents}
         pendingIncidents={stats.pendingIncidents}
         resolutionRate={stats.resolutionRate}
         mttrHours={stats.mttrHours}
         slaComplianceRate={stats.slaComplianceRate}
+        hasSlaData={stats.hasSlaData}
         performanceTier={stats.performanceTier}
         onSelectTab={handleTabChange}
       />
@@ -259,6 +238,7 @@ export function UserDetailContent({ userId }: UserDetailContentProps) {
         incidentsCount={stats.totalIncidents}
         pendingIncidentsCount={stats.pendingIncidents}
         completionRate={stats.resolutionRate}
+        performanceTier={stats.performanceTier}
       />
 
       {/* 4. Tab Content Area */}
@@ -295,6 +275,8 @@ export function UserDetailContent({ userId }: UserDetailContentProps) {
                 user={user}
                 userSites={userSites}
                 allSites={allSites}
+                explicitSiteIdSet={explicitSiteIdSet}
+                contactOfficerSiteIdSet={contactOfficerSiteIdSet}
                 onOpenAssignSites={() => setIsAssignSitesOpen(true)}
               />
             )}
@@ -303,10 +285,10 @@ export function UserDetailContent({ userId }: UserDetailContentProps) {
               <UserIncidentsTab
                 user={user}
                 incidents={userIncidents}
-            userSites={userSites}
-            isLoading={isLoadingIncidents}
-          />
-        )}
+                userSites={userSites}
+                isLoading={isLoadingSites || isLoadingIncidents}
+              />
+            )}
 
         {activeTab === "performance" && user && (
           <UserPerformanceTab

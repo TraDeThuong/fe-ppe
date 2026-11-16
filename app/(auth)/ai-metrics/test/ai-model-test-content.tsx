@@ -8,7 +8,10 @@ import {
   LiveStreamPanel,
   OfflinePlayerPanel,
 } from "@/components/features/ai-test";
-import { aiTestService } from "@/services/ai-test.service";
+import {
+  aiTestService,
+  isAiEndpointNotFoundError,
+} from "@/services/ai-test.service";
 import { useLocale } from "@/providers/locale-provider";
 import type {
   AiTestViewTab,
@@ -24,6 +27,8 @@ export default function AiModelTestContent() {
   const [backendOnline, setBackendOnline] = useState<boolean>(true);
   const [backendError, setBackendError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [offlineJobsSupported, setOfflineJobsSupported] = useState<boolean>(true);
+  const [maxSessions, setMaxSessions] = useState<number | null>(null);
 
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [jobs, setJobs] = useState<JobSummary[]>([]);
@@ -52,19 +57,37 @@ export default function AiModelTestContent() {
   const refreshMetadata = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [fetchedModels, fetchedJobs] = await Promise.all([
+      const [modelsRes, jobsRes, runtimeRes] = await Promise.allSettled([
         aiTestService.getModels(),
         aiTestService.listJobs(),
+        aiTestService.getLiveRuntimeConfig(),
       ]);
-      setModels(fetchedModels);
-      setJobs(fetchedJobs);
+
+      if (modelsRes.status === "rejected") {
+        setBackendOnline(false);
+        setBackendError(
+          modelsRes.reason instanceof Error
+            ? modelsRes.reason.message
+            : t("aiTest.errors.connectFailed"),
+        );
+        return;
+      }
+
+      setModels(modelsRes.value);
       setBackendOnline(true);
       setBackendError(null);
-    } catch (error) {
-      setBackendOnline(false);
-      setBackendError(
-        error instanceof Error ? error.message : t("aiTest.errors.connectFailed"),
-      );
+
+      if (runtimeRes.status === "fulfilled") {
+        setMaxSessions(runtimeRes.value.max_sessions);
+      }
+
+      if (jobsRes.status === "fulfilled") {
+        setJobs(jobsRes.value);
+        setOfflineJobsSupported(true);
+      } else {
+        setJobs([]);
+        setOfflineJobsSupported(!isAiEndpointNotFoundError(jobsRes.reason));
+      }
     } finally {
       setIsRefreshing(false);
     }
@@ -121,6 +144,8 @@ export default function AiModelTestContent() {
       <section className={activeTab === "live" ? "block" : "hidden"}>
         <LiveStreamPanel
           models={models}
+          maxSessions={maxSessions}
+          offlineUploadSupported={offlineJobsSupported}
           activeCameraId={activeLiveCameraId}
           onActiveCameraChange={setActiveLiveCameraId}
           onLiveEvidencesChange={setLiveEvidences}
@@ -133,6 +158,7 @@ export default function AiModelTestContent() {
         <OfflinePlayerPanel
           models={models}
           jobs={jobs}
+          offlineJobsSupported={offlineJobsSupported}
           onRefreshJobs={refreshJobsOnly}
           activeJobId={activeJobId}
           onActiveJobChange={setActiveJobId}

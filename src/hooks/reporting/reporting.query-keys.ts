@@ -18,10 +18,9 @@ export const reportingKeys = {
     [...reportingKeys.all, "distribution", params] as const,
   rankings: (params?: ReportingFilterParams & { limit?: number }) =>
     [...reportingKeys.all, "rankings", params] as const,
-  aiPerformance: (params?: ReportingFilterParams) =>
-    [...reportingKeys.all, "aiPerformance", params] as const,
   templates: () => [...reportingKeys.all, "templates"] as const,
   template: (id: string) => [...reportingKeys.templates(), id] as const,
+  historyAll: () => [...reportingKeys.all, "history"] as const,
   history: (params?: ReportHistoryQueryDto) =>
-    [...reportingKeys.all, "history", params] as const,
+    [...reportingKeys.historyAll(), params] as const,
 };

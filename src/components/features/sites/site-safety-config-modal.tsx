@@ -1,12 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertOctagon, HardHat, Loader2, Save, Shield, Shirt } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import {
+  AlertOctagon,
+  Cpu,
+  HardHat,
+  Loader2,
+  Save,
+  Shield,
+  Shirt,
+  Timer,
+} from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useSiteSafetyConfig, useUpdateSiteSafetyConfig } from "@/hooks/sites";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
-import type { SiteItem, UpdateSiteSafetyConfigPayload } from "@/types";
+import { aiMetricsService } from "@/services/ai-metrics.service";
+import type { AiModelDto, SiteItem, UpdateSiteSafetyConfigPayload } from "@/types";
 
 export interface SiteSafetyConfigModalProps {
   open: boolean;
@@ -19,12 +31,24 @@ export function SiteSafetyConfigModal({
   onOpenChange,
   site,
 }: SiteSafetyConfigModalProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canManage = can("PPE_SAFETY_CONFIG_MANAGE");
+  const canReadModels = can("PPE_MODEL_READ");
+  const isSiteActive = site?.status === "ACTIVE";
 
   const { data: config, isLoading: configLoading } = useSiteSafetyConfig(
     site?.id || "",
     open && Boolean(site?.id),
   );
+  const { data: aiModels = [] } = useQuery<AiModelDto[]>({
+    queryKey: ["ai-models", "list"],
+    queryFn: () => aiMetricsService.getAiModels(),
+    enabled: open && canReadModels,
+    staleTime: 60_000,
+  });
+
   const updateConfig = useUpdateSiteSafetyConfig();
 
   const [enableNoHelmet, setEnableNoHelmet] = useState(true);
@@ -32,27 +56,32 @@ export function SiteSafetyConfigModal({
   const [enableRestrictedArea, setEnableRestrictedArea] = useState(true);
   const [confirmationDuration, setConfirmationDuration] = useState(2);
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.8);
+  const [cooldownDuration, setCooldownDuration] = useState(30);
+  const [modelVersionId, setModelVersionId] = useState<string>("");
 
   useEffect(() => {
-    if (config) {
-      setEnableNoHelmet(config.enableNoHelmet ?? true);
-      setEnableNoVest(config.enableNoVest ?? true);
-      setEnableRestrictedArea(config.enableRestrictedArea ?? true);
-      setConfirmationDuration(config.confirmationDuration ?? 2);
-      setConfidenceThreshold(Number(config.confidenceThreshold) || 0.8);
-    } else if (site?.safetyConfigs?.[0]) {
-      const cfg = site.safetyConfigs[0];
-      setEnableNoHelmet(cfg.enableNoHelmet ?? true);
-      setEnableNoVest(cfg.enableNoVest ?? true);
-      setEnableRestrictedArea(cfg.enableRestrictedArea ?? true);
-      setConfirmationDuration(cfg.confirmationDuration ?? 2);
-      setConfidenceThreshold(Number(cfg.confidenceThreshold) || 0.8);
+    const src = config || site?.safetyConfigs?.[0];
+    if (src) {
+      setEnableNoHelmet(src.enableNoHelmet ?? true);
+      setEnableNoVest(src.enableNoVest ?? true);
+      setEnableRestrictedArea(src.enableRestrictedArea ?? true);
+      setConfirmationDuration(src.confirmationDuration ?? 2);
+      setConfidenceThreshold(Number(src.confidenceThreshold) || 0.8);
+      setCooldownDuration(src.cooldownDuration ?? 30);
+      setModelVersionId(src.modelVersionId ?? "");
     }
   }, [config, site]);
 
+  const modelVersions = aiModels.flatMap((model) =>
+    (model.versions || []).map((ver) => ({
+      id: ver.id,
+      label: `${model.name} v${ver.version} (${ver.status})`,
+    })),
+  );
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!site) return;
+    if (!site || !canManage || !isSiteActive) return;
 
     const payload: UpdateSiteSafetyConfigPayload = {
       enableNoHelmet,
@@ -60,6 +89,8 @@ export function SiteSafetyConfigModal({
       enableRestrictedArea,
       confirmationDuration,
       confidenceThreshold,
+      cooldownDuration,
+      modelVersionId: modelVersionId ? modelVersionId : null,
     };
 
     await updateConfig.mutateAsync({
@@ -69,6 +100,8 @@ export function SiteSafetyConfigModal({
 
     onOpenChange(false);
   };
+
+  const disabled = !canManage || !isSiteActive || configLoading || updateConfig.isPending;
 
   return (
     <Modal
@@ -89,6 +122,14 @@ export function SiteSafetyConfigModal({
             {site?.name}
           </span>
         </div>
+
+        {!isSiteActive && site && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+            {isVietnamese
+              ? `Công trường đang ở trạng thái ${site.status}. Chỉ công trường ACTIVE mới được chỉnh sửa quy tắc.`
+              : `Site status is ${site.status}. Only ACTIVE sites can update safety rules.`}
+          </div>
+        )}
 
         {/* Mandatory PPE Toggles */}
         <div className="space-y-3">
@@ -113,6 +154,7 @@ export function SiteSafetyConfigModal({
               <input
                 type="checkbox"
                 checked={enableNoHelmet}
+                disabled={disabled}
                 onChange={(e) => setEnableNoHelmet(e.target.checked)}
                 className="h-4 w-4 rounded border-border/40 text-primary focus:ring-primary"
               />
@@ -134,6 +176,7 @@ export function SiteSafetyConfigModal({
               <input
                 type="checkbox"
                 checked={enableNoVest}
+                disabled={disabled}
                 onChange={(e) => setEnableNoVest(e.target.checked)}
                 className="h-4 w-4 rounded border-border/40 text-primary focus:ring-primary"
               />
@@ -155,6 +198,7 @@ export function SiteSafetyConfigModal({
               <input
                 type="checkbox"
                 checked={enableRestrictedArea}
+                disabled={disabled}
                 onChange={(e) => setEnableRestrictedArea(e.target.checked)}
                 className="h-4 w-4 rounded border-border/40 text-primary focus:ring-primary"
               />
@@ -162,7 +206,7 @@ export function SiteSafetyConfigModal({
           </div>
         </div>
 
-        {/* Temporal Confirmation & AI Confidence */}
+        {/* Temporal Confirmation, AI Confidence & Cooldown */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 rounded-2xl border border-border/40 bg-surface/40 p-4">
           {/* Confirmation Duration */}
           <div className="space-y-1.5">
@@ -176,10 +220,11 @@ export function SiteSafetyConfigModal({
             </div>
             <input
               type="range"
-              min={1}
-              max={5}
+              min={0.5}
+              max={60}
               step={0.5}
               value={confirmationDuration}
+              disabled={disabled}
               onChange={(e) => setConfirmationDuration(Number(e.target.value))}
               className="w-full accent-primary"
             />
@@ -200,10 +245,11 @@ export function SiteSafetyConfigModal({
             </div>
             <input
               type="range"
-              min={0.5}
-              max={0.95}
+              min={0.1}
+              max={0.99}
               step={0.05}
               value={confidenceThreshold}
+              disabled={disabled}
               onChange={(e) => setConfidenceThreshold(Number(e.target.value))}
               className="w-full accent-primary"
             />
@@ -211,6 +257,54 @@ export function SiteSafetyConfigModal({
               {t("sites.safetyConfig.aiConfidenceHelp")}
             </p>
           </div>
+
+          {/* Cooldown Duration */}
+          <div className="space-y-1.5 sm:col-span-2">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                <Timer className="h-3.5 w-3.5 text-primary" />
+                <span>{isVietnamese ? "Thời gian Cooldown chống lặp cảnh báo" : "Alert Cooldown Duration"}</span>
+              </label>
+              <span className="font-mono text-xs font-bold text-primary">
+                {cooldownDuration}s
+              </span>
+            </div>
+            <input
+              type="range"
+              min={5}
+              max={300}
+              step={5}
+              value={cooldownDuration}
+              disabled={disabled}
+              onChange={(e) => setCooldownDuration(Number(e.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
+
+          {/* Model Version Selector */}
+          {modelVersions.length > 0 && (
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                <Cpu className="h-3.5 w-3.5 text-primary" />
+                <span>{isVietnamese ? "Phiên bản mô hình AI áp dụng" : "AI Model Version"}</span>
+              </label>
+              <select
+                value={modelVersionId}
+                disabled={disabled}
+                onChange={(e) => setModelVersionId(e.target.value)}
+                className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2 text-xs text-foreground shadow-nm-inset focus:border-primary focus:outline-none"
+              >
+                <option value="">
+                  {isVietnamese ? "Mặc định theo hệ thống (Active Global)" : "System Default (Active Global)"}
+                </option>
+                {modelVersions.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -224,19 +318,21 @@ export function SiteSafetyConfigModal({
             {t("common.cancel")}
           </Button>
 
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={updateConfig.isPending}
-            className="flex items-center gap-2"
-          >
-            {updateConfig.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-            <span>{t("sites.safetyConfig.save")}</span>
-          </Button>
+          {canManage && (
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={disabled}
+              className="flex items-center gap-2"
+            >
+              {updateConfig.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              <span>{t("sites.safetyConfig.save")}</span>
+            </Button>
+          )}
         </div>
       </form>
     </Modal>
