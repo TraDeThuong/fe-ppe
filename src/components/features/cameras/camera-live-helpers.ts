@@ -251,6 +251,58 @@ export function resolveInitialCameraSource(
   };
 }
 
+export interface AutoStartSelectionOptions {
+  maxTotalSessions?: number;
+  attemptedIds?: ReadonlySet<string>;
+}
+
+/**
+ * Selects ONLINE cameras whose DB source can run directly on AI Engine without
+ * exceeding backend session capacity or retrying already-attempted/stopped cameras.
+ */
+export function selectAutoStartCandidates(
+  cameras: readonly CameraItem[],
+  sessions: readonly LiveSessionInfo[],
+  uploadedVideos: readonly LiveVideoItem[] = [],
+  options: AutoStartSelectionOptions = {},
+): CameraItem[] {
+  const maxTotal = Math.max(1, options.maxTotalSessions ?? 4);
+  const attempted = options.attemptedIds;
+
+  const sessionMap = new Map<string, LiveSessionInfo>();
+  let activeCount = 0;
+  for (const s of sessions) {
+    sessionMap.set(s.camera_id, s);
+    if (s.status === "running" || s.status === "initializing") {
+      activeCount++;
+    }
+  }
+
+  const remainingSlots = Math.max(0, maxTotal - activeCount);
+  if (remainingSlots === 0) return [];
+
+  const candidates: CameraItem[] = [];
+  for (const camera of cameras) {
+    if (candidates.length >= remainingSlots) break;
+    if (camera.status !== "ONLINE") continue;
+    if (camera.config?.enabled === false) continue;
+    if (attempted?.has(camera.id)) continue;
+
+    const existing = findSessionForCamera(sessionMap, camera);
+    if (
+      existing &&
+      (existing.status === "running" || existing.status === "initializing")
+    ) {
+      continue;
+    }
+
+    if (!canAutoStartCameraSource(camera, [...uploadedVideos])) continue;
+    candidates.push(camera);
+  }
+
+  return candidates;
+}
+
 export interface CameraLiveFormValues {
   source: string;
   model?: string | null;

@@ -10,9 +10,12 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/lib/toast";
-import { useIncidents } from "@/hooks/incidents";
-import { useGenerateReport, useReportTemplates } from "@/hooks/reporting";
+import {
+  useGenerateReport,
+  useReportSummary,
+  useReportTemplates,
+  useViolationDistribution,
+} from "@/hooks/reporting";
 import { useLocale } from "@/providers/locale-provider";
 import type { SiteItem } from "@/types";
 
@@ -21,22 +24,26 @@ export interface SiteAnalyticsTabProps {
 }
 
 export function SiteAnalyticsTab({ site }: SiteAnalyticsTabProps) {
-  const { t, locale } = useLocale();
+  const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  // Fetch real incidents for this site
-  const { data: incidentsData, isLoading } = useIncidents({
+  // Fetch real aggregated statistics from reporting-service (no limit:100 client aggregation)
+  const { data: summary, isLoading: isSummaryLoading } = useReportSummary({
     siteId: site.id,
-    limit: 100,
   });
+  const { data: violationStats = [], isLoading: isDistributionLoading } =
+    useViolationDistribution({
+      siteId: site.id,
+    });
+  const isLoading = isSummaryLoading || isDistributionLoading;
 
   const { data: templates } = useReportTemplates();
   const generateReportMutation = useGenerateReport();
 
-  const incidents = useMemo(
-    () => incidentsData?.items ?? [],
-    [incidentsData]
-  );
+  const totalIncidents = useMemo(() => {
+    if (summary && summary.totalIncidents > 0) return summary.totalIncidents;
+    return violationStats.reduce((sum, item) => sum + item.count, 0);
+  }, [summary, violationStats]);
 
   const handleExport = async (format: "pdf" | "excel") => {
     try {
@@ -56,19 +63,21 @@ export function SiteAnalyticsTab({ site }: SiteAnalyticsTabProps) {
     }
   };
 
-  // Group real incidents by violation type
-  const violationCounts = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const inc of incidents) {
-      const type = inc.violationType || "OTHER";
-      map[type] = (map[type] || 0) + 1;
-    }
-    return Object.entries(map).map(([type, count]) => ({
-      type,
-      count,
-      rate: incidents.length > 0 ? Math.round((count / incidents.length) * 100) : 0,
-    }));
-  }, [incidents]);
+  // Group aggregated stats by violation type
+  const violationCounts = useMemo(
+    () =>
+      violationStats.map((item) => ({
+        type: item.violationType || "OTHER",
+        count: item.count,
+        rate:
+          typeof item.percentage === "number" && item.percentage > 0
+            ? Math.round(item.percentage)
+            : totalIncidents > 0
+              ? Math.round((item.count / totalIncidents) * 100)
+              : 0,
+      })),
+    [violationStats, totalIncidents],
+  );
 
   return (
     <div className="space-y-6">
@@ -116,7 +125,7 @@ export function SiteAnalyticsTab({ site }: SiteAnalyticsTabProps) {
 
       {isLoading ? (
         <div className="h-48 animate-pulse rounded-2xl bg-surface-elevated/40" />
-      ) : incidents.length === 0 ? (
+      ) : totalIncidents === 0 && violationCounts.length === 0 ? (
         <div className="rounded-2xl border border-border/30 bg-surface p-12 text-center dark:border-black/50 dark:bg-card/70">
           <BarChart3 className="mx-auto h-12 w-12 text-muted-foreground/40 mb-3" />
           <h4 className="text-sm font-bold text-foreground">
@@ -146,8 +155,8 @@ export function SiteAnalyticsTab({ site }: SiteAnalyticsTabProps) {
               </div>
               <span className="text-[11px] font-mono text-primary font-bold">
                 {isVietnamese
-                  ? `Tổng cộng: ${incidents.length} sự cố`
-                  : `Total: ${incidents.length} incidents`}
+                  ? `Tổng cộng: ${totalIncidents} sự cố`
+                  : `Total: ${totalIncidents} incidents`}
               </span>
             </div>
 
@@ -198,7 +207,7 @@ export function SiteAnalyticsTab({ site }: SiteAnalyticsTabProps) {
                   {isVietnamese ? "Chờ xử lý (Pending)" : "Pending Review"}
                 </span>
                 <span className="font-mono font-bold text-danger">
-                  {incidents.filter((i) => i.status === "PENDING" || i.status === "PENDING_REVIEW").length}
+                  {summary?.openIncidents ?? 0}
                 </span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-xl bg-surface-elevated">
@@ -206,7 +215,7 @@ export function SiteAnalyticsTab({ site }: SiteAnalyticsTabProps) {
                   {isVietnamese ? "Đã xác nhận / xử lý (Resolved)" : "Resolved / Confirmed"}
                 </span>
                 <span className="font-mono font-bold text-primary">
-                  {incidents.filter((i) => i.status === "RESOLVED" || i.status === "CONFIRMED" || i.status === "CLOSED").length}
+                  {(summary?.resolvedIncidents ?? 0) + (summary?.trueViolations ?? 0)}
                 </span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-xl bg-surface-elevated">
@@ -214,7 +223,7 @@ export function SiteAnalyticsTab({ site }: SiteAnalyticsTabProps) {
                   {isVietnamese ? "Báo động giả (Dismissed)" : "False Alarm (Dismissed)"}
                 </span>
                 <span className="font-mono font-bold text-muted-foreground">
-                  {incidents.filter((i) => i.status === "DISMISSED").length}
+                  {summary?.falseAlarms ?? 0}
                 </span>
               </div>
             </div>

@@ -7,9 +7,10 @@ import {
   dashboardPeriod,
   incidentInPeriod,
   pageTotal,
+  partitionDashboardCameras,
   vietnamToday,
 } from "../dashboard-data";
-import type { IncidentItem } from "@/types";
+import type { CameraItem, IncidentItem } from "@/types";
 import type { DashboardPage } from "@/types/dashboard.types";
 
 const incident = (override: Partial<IncidentItem> = {}): IncidentItem => ({
@@ -239,6 +240,8 @@ describe("dashboard aggregate semantics", () => {
     assert.equal(result.mttrMinutes, 30);
     assert.equal(result.resolutionSamples, 1);
     assert.equal(result.cameras[0].pending, 7);
+    assert.equal(result.cameras[0].resolved, 1);
+    assert.equal(result.cameras[0].dismissed, 2);
     assert.equal(
       result.distribution.reduce((sum, row) => sum + row.count, 0),
       10,
@@ -325,6 +328,60 @@ describe("dashboard aggregate semantics", () => {
     assert.equal(
       result.cameras.reduce((sum, row) => sum + row.total, 0),
       125,
+    );
+  });
+  it("partitions active catalog cameras and collapses deleted historical cameras when catalogComplete is true", () => {
+    const mkCam = (id: string, name: string): CameraItem => ({
+      id,
+      siteId: "s",
+      name,
+      code: id.toUpperCase(),
+      sourceType: "RTSP",
+      streamUrl: "rtsp://example",
+      status: "ONLINE",
+      createdAt: "2026-11-01T00:00:00Z",
+      updatedAt: "2026-11-01T00:00:00Z",
+    });
+    const activeCameras = [
+      mkCam("cam-1", "Cổng chính"),
+      mkCam("cam-2", "Kho vật tư"),
+      mkCam("cam-3", "Khu hàn"),
+    ];
+    const stats = aggregateDashboard([
+      incident({ id: "i1", cameraId: "cam-2", status: "PENDING_REVIEW" }),
+      incident({ id: "i2", cameraId: "cam-2", status: "RESOLVED" }),
+      incident({ id: "i3", cameraId: "deleted-old-1", status: "CONFIRMED" }),
+      incident({ id: "i4", cameraId: "deleted-old-2", status: "DISMISSED" }),
+    ]).cameras;
+
+    const partitioned = partitionDashboardCameras(activeCameras, stats, {
+      catalogComplete: true,
+    });
+    assert.equal(partitioned.rows.length, 3);
+    assert.deepEqual(
+      partitioned.rows.map((r) => r.cameraId),
+      ["cam-2", "cam-1", "cam-3"],
+    );
+    assert.ok(partitioned.rows.every((r) => r.inCatalog));
+    assert.deepEqual(partitioned.archived, {
+      cameraCount: 2,
+      total: 2,
+      pending: 1,
+      resolved: 0,
+      dismissed: 1,
+    });
+
+    const fallback = partitionDashboardCameras([activeCameras[0]], stats, {
+      catalogComplete: false,
+    });
+    assert.equal(fallback.archived, null);
+    assert.equal(
+      fallback.rows.find((r) => r.cameraId === "deleted-old-1")?.inCatalog,
+      false,
+    );
+    assert.equal(
+      fallback.rows.find((r) => r.cameraId === "cam-1")?.inCatalog,
+      true,
     );
   });
 });

@@ -5,6 +5,7 @@ const variantClasses = {
   secondary: "bg-secondary text-secondary-foreground",
   outline: "bg-background text-foreground border border-border/70",
   ghost: "bg-background text-foreground",
+  success: "bg-success text-success-foreground",
   danger: "bg-danger text-danger-foreground",
   hybrid: "bg-background text-foreground",
   sculpted: "bg-primary text-primary-foreground",
@@ -96,7 +97,8 @@ export function Button({
   type = "button",
   ...props
 }: ButtonProps) {
-  const isSolid = variant === "primary" || variant === "danger";
+  const isSolid =
+    variant === "primary" || variant === "danger" || variant === "success";
 
   let shadowClasses = neumorphicShadow;
 

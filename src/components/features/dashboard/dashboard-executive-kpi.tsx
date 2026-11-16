@@ -165,7 +165,7 @@ export function DashboardExecutiveKpi({
         >
           <span className="text-muted-foreground">Mô hình AI:</span>
           <span className="max-w-[140px] truncate font-mono font-bold text-foreground">
-            {aiModelVersion || "YOLO11x active"}
+            {aiModelVersion || "--"}
           </span>
         </div>
       </button>

@@ -21,17 +21,21 @@ export type { CameraKpiFilterKey };
 
 export interface CameraKpiSummaryProps {
   cameras: CameraItem[];
+  statusCounts?: { total: number; online: number; offline: number } | null;
   sessions: LiveSessionInfo[];
   activeFilter: CameraKpiFilterKey;
   onSelectFilter: (key: CameraKpiFilterKey) => void;
+  onDetailOpenChange?: (open: boolean) => void;
   loading?: boolean;
 }
 
 export function CameraKpiSummary({
   cameras,
+  statusCounts,
   sessions,
   activeFilter,
   onSelectFilter,
+  onDetailOpenChange,
   loading = false,
 }: CameraKpiSummaryProps) {
   const [selectedStat, setSelectedStat] = useState<CameraKpiFilterKey | null>(
@@ -39,9 +43,11 @@ export function CameraKpiSummary({
   );
 
   const stats = useMemo(() => {
-    const total = cameras.length;
-    const online = cameras.filter((c) => c.status === "ONLINE").length;
-    const offline = total - online;
+    const total = statusCounts?.total ?? cameras.length;
+    const online =
+      statusCounts?.online ??
+      cameras.filter((c) => c.status === "ONLINE").length;
+    const offline = statusCounts?.offline ?? Math.max(0, total - online);
 
     const runningSessions = sessions.filter((s) => s.status === "running");
     let activePersons = 0;
@@ -64,7 +70,11 @@ export function CameraKpiSummary({
   }, [cameras, sessions]);
 
   const handleToggle = (key: CameraKpiFilterKey) => {
-    setSelectedStat((prev) => (prev === key ? null : key));
+    setSelectedStat((prev) => {
+      const next = prev === key ? null : key;
+      onDetailOpenChange?.(next !== null);
+      return next;
+    });
   };
 
   // Hiệu ứng chìm sâu (neumorphic sunken) chuẩn mực kiểu cũ:
@@ -173,7 +183,10 @@ export function CameraKpiSummary({
           onToggleFleetFilter={(key) =>
             onSelectFilter(activeFilter === key ? "all" : key)
           }
-          onClose={() => setSelectedStat(null)}
+          onClose={() => {
+            setSelectedStat(null);
+            onDetailOpenChange?.(false);
+          }}
         />
       )}
     </section>

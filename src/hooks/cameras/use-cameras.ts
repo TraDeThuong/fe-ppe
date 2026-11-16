@@ -25,6 +25,12 @@ export function useCameras(
 }
 
 /** Complete catalog for aggregate KPI panels; the operational table still pages on the server. */
-export function useCamerasCatalog() {
-  return useQuery({ queryKey: cameraKeys.list({ page: 0, limit: 100 }), queryFn: () => collectCatalog((page, limit) => cameraService.getCameras({ page, limit })), staleTime: 60_000 });
+export function useCamerasCatalog(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: cameraKeys.list({ page: 0, limit: 100 }),
+    queryFn: () =>
+      collectCatalog((page, limit) => cameraService.getCameras({ page, limit })),
+    staleTime: 60_000,
+    enabled: options?.enabled ?? true,
+  });
 }

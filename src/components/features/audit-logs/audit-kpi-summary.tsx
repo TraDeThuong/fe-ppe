@@ -62,7 +62,8 @@ export function AuditKpiSummary({
   const total = summary?.totalLogs ?? totalLogsCount;
   const configChanges = summary?.configChangesCount ?? 0;
   const incidentReviews = summary?.incidentReviewsCount ?? 0;
-  const successRate = summary?.successRate ?? 99.8;
+  const successRate = summary?.successRate ?? null;
+  const successRateLabel = successRate != null ? `${successRate}%` : "--";
 
   // Hiệu ứng chìm sâu (neumorphic sunken) khi card được chọn:
   // - Chìm xuống dưới (translate-y-1.5)
@@ -163,7 +164,7 @@ export function AuditKpiSummary({
         {/* 4. Tỷ lệ thực thi thành công */}
         <StatsCard
           title={t("audit.kpi.successRate")}
-          value={loading ? "..." : `${successRate}%`}
+          value={loading ? "..." : successRateLabel}
           icon={CheckCircle2}
           variant="soft-extruded"
           tone="success"

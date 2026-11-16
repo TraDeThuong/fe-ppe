@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/toast";
 import { incidentService } from "@/services/incident.service";
 import { incidentKeys } from "./incident.query-keys";
+import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
 import type {
   CloseIncidentPayload,
   CreateIncidentPayload,
@@ -16,6 +17,7 @@ function invalidateIncidentListsAndCounts(
 ) {
   queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
   queryClient.invalidateQueries({ queryKey: incidentKeys.statusCountsRoot() });
+  queryClient.invalidateQueries({ queryKey: reportingKeys.all });
 }
 
 export function useCreateIncident() {

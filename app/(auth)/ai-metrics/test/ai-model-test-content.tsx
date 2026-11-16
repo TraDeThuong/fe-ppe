@@ -9,6 +9,7 @@ import {
   OfflinePlayerPanel,
 } from "@/components/features/ai-test";
 import { aiTestService } from "@/services/ai-test.service";
+import { useLocale } from "@/providers/locale-provider";
 import type {
   AiTestViewTab,
   EvidenceItem,
@@ -17,6 +18,7 @@ import type {
 } from "@/types/ai-test.types";
 
 export default function AiModelTestContent() {
+  const { t } = useLocale();
   const [activeTab, setActiveTab] = useState<AiTestViewTab>("live");
 
   const [backendOnline, setBackendOnline] = useState<boolean>(true);
@@ -61,12 +63,12 @@ export default function AiModelTestContent() {
     } catch (error) {
       setBackendOnline(false);
       setBackendError(
-        error instanceof Error ? error.message : "Không thể kết nối AI Inference Engine",
+        error instanceof Error ? error.message : t("aiTest.errors.connectFailed"),
       );
     } finally {
       setIsRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void refreshMetadata();

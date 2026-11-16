@@ -115,13 +115,7 @@ function Fixture() {
           />
         }
       />
-      {analytics && (
-        <DashboardOperationalSuite
-          analytics={analytics}
-          cameras={cameraQuery.data?.items}
-          catalogComplete={cameraQuery.data?.complete}
-        />
-      )}
+      {analytics && <DashboardOperationalSuite analytics={analytics} />}
     </div>
   );
 }

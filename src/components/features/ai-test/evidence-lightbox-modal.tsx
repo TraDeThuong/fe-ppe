@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Clock, Film, Play, User } from "lucide-react
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { useLocale } from "@/providers/locale-provider";
 import { formatTimeSec, formatViolationLabel, normalizeViolationType } from "./ai-test-utils";
 import type { EvidenceItem } from "@/types/ai-test.types";
 
@@ -24,6 +25,7 @@ export function EvidenceLightboxModal({
   onChangeIndex,
   onSeekToJobTime,
 }: EvidenceLightboxModalProps) {
+  const { t, locale } = useLocale();
   const current = items[activeIndex] ?? null;
 
   if (!current) {
@@ -40,8 +42,8 @@ export function EvidenceLightboxModal({
       onOpenChange={(nextOpen) => {
         if (!nextOpen) onClose();
       }}
-      title="Chi tiết ảnh bằng chứng vi phạm"
-      description={`${formatViolationLabel(current.type)} — Track #${current.trackId}`}
+      title={t("aiTest.lightbox.title")}
+      description={`${formatViolationLabel(current.type, locale)} — Track #${current.trackId}`}
       size="xl"
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
@@ -53,7 +55,7 @@ export function EvidenceLightboxModal({
               onClick={() => onChangeIndex(activeIndex - 1)}
             >
               <ChevronLeft className="size-4" />
-              Trước
+              {t("aiTest.common.prev")}
             </Button>
             <span className="text-xs font-medium text-muted-foreground">
               {activeIndex + 1} / {items.length}
@@ -64,7 +66,7 @@ export function EvidenceLightboxModal({
               disabled={!hasNext}
               onClick={() => onChangeIndex(activeIndex + 1)}
             >
-              Sau
+              {t("aiTest.common.next")}
               <ChevronRight className="size-4" />
             </Button>
           </div>
@@ -82,11 +84,11 @@ export function EvidenceLightboxModal({
                   }}
                 >
                   <Play className="size-4" />
-                  Tua video tới {formatTimeSec(current.timeSec)}
+                  {t("aiTest.lightbox.seekVideoTo", { time: formatTimeSec(current.timeSec) })}
                 </Button>
               )}
             <Button variant="outline" size="sm" onClick={onClose}>
-              Đóng
+              {t("common.close")}
             </Button>
           </div>
         </div>
@@ -98,15 +100,15 @@ export function EvidenceLightboxModal({
             variant={normalizeViolationType(current.type) === "NO_HELMET" ? "danger" : "warning"}
             size="sm"
           >
-            {formatViolationLabel(current.type)}
+            {formatViolationLabel(current.type, locale)}
           </Badge>
           <Badge variant="outline" size="sm" icon={<User className="size-3" />}>
             Track #{current.trackId}
           </Badge>
           <Badge variant="secondary" size="sm" icon={<Film className="size-3" />}>
             {current.source === "live"
-              ? `Live Session ${current.sourceId.slice(0, 8)}`
-              : `Job ${current.sourceId.slice(0, 8)}`}
+              ? t("aiTest.lightbox.liveSession", { id: current.sourceId.slice(0, 8) })
+              : t("aiTest.lightbox.jobSession", { id: current.sourceId.slice(0, 8) })}
           </Badge>
           {typeof current.timeSec === "number" && (
             <Badge variant="default" size="sm" icon={<Clock className="size-3" />}>
@@ -124,7 +126,7 @@ export function EvidenceLightboxModal({
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2 rounded-2xl bg-background p-3 shadow-[var(--nm-inset)]">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Before (Snapshot trước vi phạm)
+                {t("aiTest.lightbox.beforeCaption")}
               </p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -135,7 +137,7 @@ export function EvidenceLightboxModal({
             </div>
             <div className="space-y-2 rounded-2xl bg-background p-3 shadow-[var(--nm-inset)]">
               <p className="text-xs font-semibold uppercase tracking-wide text-danger">
-                After (Khoảnh khắc xác nhận vi phạm)
+                {t("aiTest.lightbox.afterCaption")}
               </p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img

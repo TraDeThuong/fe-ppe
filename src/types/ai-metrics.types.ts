@@ -129,6 +129,14 @@ export interface AiPerformanceFilter {
 export interface AiModelVersionDto {
   id: string;
   modelId: string;
+  modelName?: string | null;
+  model?: {
+    id: string;
+    name: string;
+    code: string;
+    modelType?: AiModelType | string;
+    status?: AiModelStatus | string;
+  } | null;
   version: string;
   modelPath?: string | null;
   framework: string;

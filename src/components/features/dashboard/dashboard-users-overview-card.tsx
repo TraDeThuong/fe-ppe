@@ -26,56 +26,69 @@ export function DashboardUsersOverviewCard({ className = "" }: DashboardUsersOve
 
   return (
     <div
-      className={`flex flex-col justify-between rounded-2xl border border-border/40 bg-surface/90 p-5 shadow-[4px_6px_16px_rgba(0,0,0,0.03),-3px_-3px_10px_rgba(255,255,255,0.6)] dark:border-white/[0.08] dark:bg-card/40 dark:shadow-[0_8px_24px_rgba(0,0,0,0.25)] ${className}`}
+      className={[
+        "relative flex flex-col justify-between overflow-hidden transition-all duration-300",
+        // Khung vỏ ngoài Pure Neumorphism: Đồng màu nền gốc, không viền
+        "rounded-[24px] sm:rounded-[28px] p-4 sm:p-5",
+        "bg-background",
+        "shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)]",
+        className,
+      ].join(" ")}
     >
-      <div>
+      <div className="relative">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-border/40 pb-4 dark:border-white/[0.08]">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-background border border-border/40 text-foreground shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none">
-              <Users className="size-5 text-muted-foreground" />
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            {/* Icon Box 2 tầng: Vỏ lồi + Lõi lõm đúc từ màu nền */}
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-[13px] bg-background text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+              <div className="flex size-7.5 items-center justify-center rounded-[9px] bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+                <Users className="size-4" strokeWidth={2.3} />
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-foreground">
+
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-black tracking-tight text-foreground sm:text-base">
                 {t("dashboard.usersCard.title")}
               </h3>
-              <p className="text-xs text-muted-foreground">
+              <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                 {t("dashboard.usersCard.subtitle")}
               </p>
             </div>
           </div>
 
-          <span className="inline-flex items-center rounded-full bg-muted/70 px-2.5 py-1 text-xs font-semibold text-foreground border border-border/40 dark:bg-white/[0.06] dark:border-white/[0.1]">
+          {/* Tổng số user: Dạng huy hiệu khắc chìm (Recessed Pill) */}
+          <span className="inline-flex shrink-0 items-center rounded-full bg-background px-3 py-1 font-mono text-[11px] font-extrabold text-primary shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
             {total} {t("nav.users").toLowerCase()}
           </span>
         </div>
 
-        {/* Content */}
-        <div className="mt-4 space-y-4">
+        {/* Khay lõm chứa chỉ số người dùng & bảo mật (Recessed Telemetry Well) */}
+        <div className="mt-4 rounded-[18px] bg-background p-3.5 shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)]">
           {isLoading ? (
-            <div className="space-y-4 py-2">
+            <div className="space-y-4 py-1">
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <Skeleton className="h-3 w-28 rounded-md" />
                   <Skeleton className="h-3 w-16 rounded-md" />
                 </div>
-                <Skeleton className="h-2 w-full rounded-full" />
+                <Skeleton className="h-2.5 w-full rounded-full" />
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <Skeleton className="h-3 w-28 rounded-md" />
                   <Skeleton className="h-3 w-16 rounded-md" />
                 </div>
-                <Skeleton className="h-2 w-full rounded-full" />
+                <Skeleton className="h-2.5 w-full rounded-full" />
               </div>
+              <Skeleton className="h-10 w-full rounded-[12px]" />
             </div>
           ) : isError ? (
             <div className="flex h-36 flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
-              <p>{t("dashboard.data.error")}</p>
+              <p className="font-medium">{t("dashboard.data.error")}</p>
               <button
                 type="button"
                 onClick={() => void refetch()}
-                className="text-xs font-semibold text-primary underline"
+                className="rounded-full bg-background px-3 py-1 text-[11px] font-bold text-primary shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
               >
                 {t("dashboard.data.retry")}
               </button>
@@ -85,17 +98,22 @@ export function DashboardUsersOverviewCard({ className = "" }: DashboardUsersOve
               {/* Active Users bar */}
               <div>
                 <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 font-medium text-foreground">
-                    <UserCheck className="size-3.5 text-muted-foreground" />
+                  <div className="flex items-center gap-2 font-bold text-foreground">
+                    <span className="flex size-5 items-center justify-center rounded-md bg-background text-primary shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)]">
+                      <UserCheck className="size-3" strokeWidth={2.4} />
+                    </span>
                     <span>{t("dashboard.usersCard.active")}</span>
                   </div>
-                  <span className="font-semibold text-foreground">
-                    {active}/{total} ({activePercent}%)
+                  <span className="font-mono text-[11px] font-extrabold text-foreground">
+                    {active}/{total}{" "}
+                    <span className="text-primary">({activePercent}%)</span>
                   </span>
                 </div>
-                <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted/60 dark:bg-white/[0.06]">
+
+                {/* Rãnh thanh tiến trình khắc chìm (Recessed Groove Track) */}
+                <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-background p-[2px] shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
                   <div
-                    className="h-full rounded-full bg-primary transition-all duration-500"
+                    className="h-full rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.45)] transition-all duration-500"
                     style={{ width: `${activePercent}%` }}
                   />
                 </div>
@@ -104,34 +122,45 @@ export function DashboardUsersOverviewCard({ className = "" }: DashboardUsersOve
               {/* 2FA Security bar */}
               <div>
                 <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 font-medium text-foreground">
-                    <ShieldCheck className="size-3.5 text-muted-foreground" />
+                  <div className="flex items-center gap-2 font-bold text-foreground">
+                    <span className="flex size-5 items-center justify-center rounded-md bg-background text-accent-foreground shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)]">
+                      <ShieldCheck className="size-3" strokeWidth={2.4} />
+                    </span>
                     <span>{t("dashboard.usersCard.twoFactor")}</span>
                   </div>
-                  <span className="font-semibold text-foreground">
-                    {twoFactor}/{total} ({twoFactorPercent}%)
+                  <span className="font-mono text-[11px] font-extrabold text-foreground">
+                    {twoFactor}/{total}{" "}
+                    <span className="text-muted-foreground">
+                      ({twoFactorPercent}%)
+                    </span>
                   </span>
                 </div>
-                <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-muted/60 dark:bg-white/[0.06]">
+
+                {/* Rãnh thanh tiến trình khắc chìm dùng tông Accent */}
+                <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-background p-[2px] shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
                   <div
-                    className="h-full rounded-full bg-foreground/75 transition-all duration-500"
+                    className="h-full rounded-full bg-accent-foreground/80 transition-all duration-500"
                     style={{ width: `${twoFactorPercent}%` }}
                   />
                 </div>
               </div>
 
-              {/* Locked Accounts stat */}
-              <div className="flex items-center justify-between rounded-xl border border-border/30 bg-background/50 p-2.5 text-xs dark:border-white/[0.06] dark:bg-white/[0.03]">
+              {/* Locked Accounts stat: Khối nổi lên bên trong khay lõm */}
+              <div className="flex items-center justify-between rounded-[13px] bg-background px-3 py-2 text-xs shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)]">
                 <div className="flex items-center gap-2">
-                  <Lock className="size-3.5 text-muted-foreground" />
-                  <span className="text-muted-foreground">
+                  <Lock
+                    className={`size-3.5 ${locked > 0 ? "text-danger" : "text-muted-foreground"
+                      }`}
+                    strokeWidth={2.3}
+                  />
+                  <span className="font-semibold text-muted-foreground">
                     {t("dashboard.usersCard.locked")}:
                   </span>
                 </div>
+
                 <span
-                  className={`font-semibold ${
-                    locked > 0 ? "text-danger" : "text-foreground"
-                  }`}
+                  className={`rounded-full bg-background px-2.5 py-0.5 font-mono text-[11px] font-extrabold shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] ${locked > 0 ? "text-danger" : "text-foreground"
+                    }`}
                 >
                   {locked} tài khoản
                 </span>
@@ -141,22 +170,25 @@ export function DashboardUsersOverviewCard({ className = "" }: DashboardUsersOve
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-3 text-xs dark:border-white/[0.08]">
+      {/* Footer: Hai nút bấm vật lý nổi cân đối, không viền */}
+      <div className="relative mt-4 flex flex-wrap items-center justify-between gap-2 text-xs">
         <Link
           href="/roles"
-          className="group inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+          className="group inline-flex items-center gap-1.5 rounded-full bg-background px-3 py-1.5 text-[11px] font-bold text-muted-foreground shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 hover:text-foreground active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
         >
-          <Shield className="size-3.5" />
+          <Shield className="size-3.5 text-accent-foreground" strokeWidth={2.3} />
           <span>{t("dashboard.usersCard.manageRoles")}</span>
         </Link>
 
         <Link
           href="/users"
-          className="group inline-flex items-center gap-1 font-semibold text-primary hover:underline dark:text-primary-foreground"
+          className="group inline-flex items-center gap-1.5 rounded-full bg-background px-3.5 py-1.5 text-[11px] font-bold text-primary shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)] active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
         >
           <span>{t("dashboard.usersCard.manageUsers")}</span>
-          <ArrowRight className="size-3 transition-transform duration-200 group-hover:translate-x-1" />
+          <ArrowRight
+            className="size-3 transition-transform duration-200 group-hover:translate-x-0.5"
+            strokeWidth={2.4}
+          />
         </Link>
       </div>
     </div>

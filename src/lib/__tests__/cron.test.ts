@@ -1,14 +1,21 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  assessCronJobGuidance,
   buildCronPayload,
   calculateNextRun,
   canReadCron,
   describeCronSchedule,
   detectCronConflicts,
+  extractRecentCronExecutions,
   filterCronJobs,
+  findNextScheduledJob,
+  formatCronOutcomeSummary,
+  formatCronRelativeAgo,
+  mergeRecentExecutions,
 } from "../cron";
 import { getVisibleNavItems, resolveRoutePermission } from "@/config/navigation";
+import type { AuditLogItem } from "@/types/audit.types";
 import type { CronJobItem } from "@/types/cron.types";
 
 describe("Cron manual execution validation", () => {
@@ -126,6 +133,127 @@ describe("Cron next run calculation & conflict detection", () => {
       { ...jobs[1], isEnabled: false },
     ];
     assert.equal(detectCronConflicts("daily-summary-digest", jobsWithWeeklyDisabled).hasConflict, false);
+  });
+
+  it("finds the earliest upcoming enabled job", () => {
+    const sampleJobs: CronJobItem[] = [
+      { name: "cleanup-audit-logs", description: "Audit", cron: "0 2 * * *", isEnabled: false },
+      { name: "cleanup-expired-tokens", description: "Tokens", cron: "0 4 * * *", isEnabled: true },
+      { name: "daily-summary-digest", description: "Daily", cron: "0 8 * * *", isEnabled: true },
+    ];
+    // 2026-11-16 03:00 VN time -> UTC: 2026-11-15 20:00:00
+    const now = new Date(Date.UTC(2026, 10, 15, 20, 0, 0));
+    const earliest = findNextScheduledJob(sampleJobs, now);
+    assert.equal(earliest?.job.name, "cleanup-expired-tokens");
+  });
+
+  it("extracts latest execution per cron job from audit logs and merges session runs", () => {
+    const auditLogs: AuditLogItem[] = [
+      {
+        id: "1",
+        userId: null,
+        actorId: null,
+        action: "TOGGLE_CRON_JOB",
+        targetType: "CRON_JOB",
+        targetId: "cleanup-audit-logs",
+        status: "SUCCESS",
+        createdAt: "2026-11-16T05:00:00.000Z",
+      },
+      {
+        id: "2",
+        userId: "admin-1",
+        actorId: "admin-1",
+        action: "TRIGGER_CRON_JOB",
+        targetType: "CRON_JOB",
+        targetId: "cleanup-audit-logs",
+        status: "SUCCESS",
+        details: { durationMs: 88, result: { deletedCount: 4 } },
+        createdAt: "2026-11-16T01:00:00.000Z",
+      },
+      {
+        id: "3",
+        userId: null,
+        actorId: null,
+        action: "CLEANUP_AUDIT_LOGS",
+        targetType: "CRON_JOB",
+        targetId: "cleanup-audit-logs",
+        status: "SUCCESS",
+        details: { deletedCount: 4 },
+        createdAt: "2026-11-16T01:00:00.100Z",
+      },
+    ];
+
+    const fromAudit = extractRecentCronExecutions(auditLogs);
+    assert.equal(fromAudit["cleanup-audit-logs"]?.durationMs, 88);
+    assert.equal(fromAudit["cleanup-audit-logs"]?.triggerType, "MANUAL");
+    assert.equal(fromAudit["cleanup-audit-logs"]?.fromAuditLog, true);
+
+    const merged = mergeRecentExecutions(fromAudit, {
+      "cleanup-audit-logs": {
+        timestamp: "2026-11-16T06:00:00.000Z",
+        success: true,
+        durationMs: 42,
+        triggerType: "MANUAL",
+        fromAuditLog: false,
+      },
+    });
+    assert.equal(merged["cleanup-audit-logs"]?.durationMs, 42);
+    assert.equal(merged["cleanup-audit-logs"]?.fromAuditLog, false);
+  });
+
+  it("assesses guidance to highlight just-ran, failed, overdue, never-ran, and healthy jobs", () => {
+    const now = new Date("2026-11-16T10:00:00.000Z");
+    const dailyJob: CronJobItem = {
+      name: "cleanup-audit-logs",
+      cron: "0 2 * * *",
+      description: "Audit",
+      isEnabled: true,
+    };
+
+    // Never ran when audit history is available -> shouldClickRun
+    assert.equal(
+      assessCronJobGuidance(dailyJob, undefined, { auditAvailable: true, now }).state,
+      "never_ran",
+    );
+    assert.equal(
+      assessCronJobGuidance(dailyJob, undefined, { auditAvailable: true, now }).shouldClickRun,
+      true,
+    );
+
+    // Just ran 5 minutes ago -> just_ran, no click needed
+    const justRan = assessCronJobGuidance(
+      dailyJob,
+      { timestamp: "2026-11-16T09:55:00.000Z", success: true, durationMs: 30, fromAuditLog: true },
+      { auditAvailable: true, now },
+    );
+    assert.equal(justRan.state, "just_ran");
+    assert.equal(justRan.isJustRan, true);
+    assert.equal(justRan.shouldClickRun, false);
+
+    // Overdue (>26h ago for daily) -> overdue, shouldClickRun
+    const overdue = assessCronJobGuidance(
+      dailyJob,
+      { timestamp: "2026-11-14T10:00:00.000Z", success: true, durationMs: 30, fromAuditLog: true },
+      { auditAvailable: true, now },
+    );
+    assert.equal(overdue.state, "overdue");
+    assert.equal(overdue.shouldClickRun, true);
+
+    // Failed -> failed, shouldClickRun
+    const failed = assessCronJobGuidance(
+      dailyJob,
+      { timestamp: "2026-11-16T09:58:00.000Z", success: false, durationMs: 30, fromAuditLog: true },
+      { auditAvailable: true, now },
+    );
+    assert.equal(failed.state, "failed");
+    assert.equal(failed.shouldClickRun, true);
+
+    // Relative time & outcome formatting
+    assert.equal(formatCronRelativeAgo("2026-11-16T09:55:00.000Z", now), "5 phút trước");
+    assert.equal(
+      formatCronOutcomeSummary("cleanup-audit-logs", { deletedCount: 12 }),
+      "Đã xóa 12 nhật ký cũ",
+    );
   });
 });
 

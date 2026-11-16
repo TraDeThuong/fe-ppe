@@ -9,6 +9,7 @@ import { reportingService } from "@/services/reporting.service";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { cameraKeys } from "@/hooks/cameras/camera.query-keys";
 import { aiMetricsKeys } from "@/hooks/ai-metrics/ai-metrics.query-keys";
+import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
 import {
   aggregateDashboard,
   collectDashboardPages,
@@ -19,11 +20,22 @@ import {
 } from "@/lib/dashboard-data";
 import type { DashboardPeriod, DashboardPreset } from "@/types/dashboard.types";
 
-export function useDashboardPeriod() {
+export function useDashboardPeriod(initial?: {
+  preset?: DashboardPreset | null;
+  customStart?: string | null;
+  customEnd?: string | null;
+}) {
   const [today, setToday] = useState(() => vietnamToday());
-  const [preset, setPreset] = useState<DashboardPreset>("today");
-  const [customStart, setCustomStart] = useState(today);
-  const [customEnd, setCustomEnd] = useState(today);
+  const validPreset =
+    initial?.preset &&
+    (["today", "7d", "month", "custom"] as const).includes(initial.preset)
+      ? initial.preset
+      : "today";
+  const [preset, setPreset] = useState<DashboardPreset>(validPreset);
+  const [customStart, setCustomStart] = useState(
+    initial?.customStart || today,
+  );
+  const [customEnd, setCustomEnd] = useState(initial?.customEnd || today);
   useEffect(() => {
     const update = () => {
       if (!document.hidden) setToday(vietnamToday());
@@ -60,6 +72,7 @@ interface DashboardAccess {
   incidents: boolean;
   analytics: boolean;
   cameras: boolean;
+  cameraCatalog?: boolean;
   model: boolean;
   ready: boolean;
 }
@@ -133,25 +146,65 @@ export function useDashboardData(access: DashboardAccess) {
     refetchInterval: 15_000,
   });
   const recentQuery = useQuery({
-    queryKey: [...incidentKeys.lists(), "dashboard-recent", scope],
+    queryKey: [...incidentKeys.lists(), "dashboard-unresolved", scope],
     enabled: ready && access.incidents,
-    queryFn: ({ signal }) =>
-      incidentService.getIncidents(
-        {
-          siteId: siteId || undefined,
-          page: 1,
-          limit: 5,
-          sortBy: "detectedAt",
-          sortOrder: "desc",
-        },
-        { signal },
-      ),
+    queryFn: async ({ signal }) => {
+      const [pendingPage, confirmedPage] = await Promise.all([
+        incidentService.getIncidents(
+          {
+            siteId: siteId || undefined,
+            status: "PENDING_REVIEW",
+            page: 1,
+            limit: 100,
+            sortBy: "detectedAt",
+            sortOrder: "desc",
+          },
+          { signal },
+        ),
+        incidentService.getIncidents(
+          {
+            siteId: siteId || undefined,
+            status: "CONFIRMED",
+            page: 1,
+            limit: 100,
+            sortBy: "detectedAt",
+            sortOrder: "desc",
+          },
+          { signal },
+        ),
+      ]);
+
+      const mergedMap = new Map<string, (typeof pendingPage.items)[number]>();
+      for (const item of [...pendingPage.items, ...confirmedPage.items]) {
+        mergedMap.set(item.id, item);
+      }
+
+      return {
+        items: [...mergedMap.values()],
+        totalPending: pendingPage.meta?.total ?? pendingPage.items.length,
+        totalConfirmed: confirmedPage.meta?.total ?? confirmedPage.items.length,
+      };
+    },
     ...polling,
     refetchInterval: 15_000,
   });
+  const dashboardKpiQuery = useQuery({
+    queryKey: [...reportingKeys.dashboardKpi(siteId), "dashboard", userId],
+    enabled:
+      ready &&
+      (access.analytics || access.incidents || access.cameras || access.model),
+    queryFn: () => reportingService.getDashboardKpi(siteId || undefined),
+    ...polling,
+  });
+  const recentNeedsCameraName = (recentQuery.data?.items ?? []).some(
+    (inc) => !inc.cameraName && !!inc.cameraId,
+  );
   const cameraQuery = useQuery({
     queryKey: [...cameraKeys.lists(), "dashboard-catalog", scope],
-    enabled: ready && access.cameras,
+    enabled:
+      ready &&
+      access.cameras &&
+      ((access.cameraCatalog ?? true) || recentNeedsCameraName),
     queryFn: ({ signal }) =>
       collectDashboardPages(
         (page, limit) =>
@@ -163,71 +216,99 @@ export function useDashboardData(access: DashboardAccess) {
       ),
     ...polling,
   });
-  const onlineQuery = useQuery({
-    queryKey: [...cameraKeys.lists(), "dashboard-online", scope],
+  const cameraCountsQuery = useQuery({
+    queryKey: [...cameraKeys.statusCounts(siteId), "dashboard", userId],
     enabled: ready && access.cameras,
     queryFn: async ({ signal }) => {
       try {
-        const counts = await cameraService.getStatusCounts(siteId || undefined);
-        return counts.online;
+        return await cameraService.getStatusCounts(siteId || undefined);
       } catch {
-        const page = await cameraService.getCameras(
-          { siteId: siteId || undefined, status: "ONLINE", page: 1, limit: 1 },
-          { signal },
-        );
-        const total = pageTotal(page, 1, 1);
-        if (total === null) throw new Error("Invalid camera count metadata");
-        return total;
+        const [allPage, onlinePage] = await Promise.all([
+          cameraService.getCameras(
+            { siteId: siteId || undefined, page: 1, limit: 1 },
+            { signal },
+          ),
+          cameraService.getCameras(
+            { siteId: siteId || undefined, status: "ONLINE", page: 1, limit: 1 },
+            { signal },
+          ),
+        ]);
+        const total = pageTotal(allPage, 1, 1);
+        const online = pageTotal(onlinePage, 1, 1);
+        if (total === null || online === null) {
+          throw new Error("Invalid camera count metadata");
+        }
+        return {
+          total,
+          online,
+          offline: Math.max(0, total - online),
+        };
       }
     },
-    ...polling,
-  });
-  const isSingleDayPeriod = Boolean(period && period.startDate === period.endDate);
-  const hourlyRiskQuery = useQuery({
-    queryKey: ["reporting", "hourly-risk", scope, period?.startDate],
-    enabled: ready && access.analytics && isSingleDayPeriod,
-    queryFn: () =>
-      reportingService.getHourlyRisk({
-        siteId: siteId || undefined,
-        date: period!.startDate,
-      }),
     ...polling,
   });
   const modelQuery = useQuery({
     queryKey: [...aiMetricsKeys.activeVersion(), "dashboard", userId],
     enabled: ready && access.model,
-    queryFn: ({ signal }) =>
-      aiMetricsService.getActiveModelVersion({ signal, strict: true }),
+    queryFn: async ({ signal }) => {
+      try {
+        return await aiMetricsService.getActiveModelVersion({
+          signal,
+          strict: true,
+        });
+      } catch (err) {
+        if (
+          err &&
+          typeof err === "object" &&
+          "status" in err &&
+          err.status === 404
+        ) {
+          return null;
+        }
+        throw err;
+      }
+    },
+    ...polling,
+  });
+  const modelsQuery = useQuery({
+    queryKey: [...aiMetricsKeys.models(), "dashboard", userId],
+    enabled: ready && access.model,
+    queryFn: () => aiMetricsService.getAiModels(),
     ...polling,
   });
   const visiblePeriod = visibleQuery(
     periodQuery,
     ready && access.analytics && access.incidents && !!period,
   );
+  const visibleCameraCounts = visibleQuery(
+    cameraCountsQuery,
+    ready && access.cameras,
+  );
+  const onlineQuery = useMemo(
+    () => ({
+      ...visibleCameraCounts,
+      data: visibleCameraCounts.data?.online,
+    }),
+    [visibleCameraCounts],
+  );
   const analytics = useMemo(() => {
     if (!visiblePeriod.data?.complete) return null;
-    const base = aggregateDashboard(visiblePeriod.data.items);
-    const hr = hourlyRiskQuery.data;
-    if (isSingleDayPeriod && hr && Array.isArray(hr.hourly) && hr.hourly.length === 24) {
-      return {
-        ...base,
-        hours: hr.hourly.map((item) => item.count),
-        shifts: {
-          morning: hr.shifts?.morning?.totalIncidents ?? base.shifts.morning,
-          afternoon: hr.shifts?.afternoon?.totalIncidents ?? base.shifts.afternoon,
-          night: hr.shifts?.night?.totalIncidents ?? base.shifts.night,
-        },
-      };
-    }
-    return base;
-  }, [visiblePeriod.data, hourlyRiskQuery.data, isSingleDayPeriod]);
+    return aggregateDashboard(visiblePeriod.data.items);
+  }, [visiblePeriod.data]);
   return {
     periodQuery: visiblePeriod,
     pendingQuery: visibleQuery(pendingQuery, ready && access.incidents),
     recentQuery: visibleQuery(recentQuery, ready && access.incidents),
     cameraQuery: visibleQuery(cameraQuery, ready && access.cameras),
-    onlineQuery: visibleQuery(onlineQuery, ready && access.cameras),
+    cameraCountsQuery: visibleCameraCounts,
+    onlineQuery,
+    dashboardKpiQuery: visibleQuery(
+      dashboardKpiQuery,
+      ready &&
+        (access.analytics || access.incidents || access.cameras || access.model),
+    ),
     modelQuery: visibleQuery(modelQuery, ready && access.model),
+    modelsQuery: visibleQuery(modelsQuery, ready && access.model),
     analytics,
   };
 }

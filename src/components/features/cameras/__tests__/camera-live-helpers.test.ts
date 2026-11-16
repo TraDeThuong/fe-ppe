@@ -14,6 +14,7 @@ import {
   normalizeIncidentEvidences,
   resolveCameraSourceIssue,
   resolveInitialCameraSource,
+  selectAutoStartCandidates,
   toSafeLiveCameraId,
 } from "../camera-live-helpers";
 import type { EvidenceItem, LiveSessionInfo, LiveVideoItem } from "@/types/ai-test.types";
@@ -268,4 +269,41 @@ test("normalizeIncidentEvidences & mergeCameraEvidences adapt DB evidences witho
   assert.equal(merged.length, 2);
   assert.equal(merged[0].id, "live-1");
   assert.equal(merged[1].id, "live-2");
+});
+
+test("selectAutoStartCandidates picks ONLINE runnable cameras within session capacity", () => {
+  const cam1: CameraItem = { ...sampleCamera, id: "c1", code: "CAM-01", status: "ONLINE" };
+  const cam2Offline: CameraItem = { ...sampleCamera, id: "c2", code: "CAM-02", status: "OFFLINE" };
+  const cam3Masked: CameraItem = {
+    ...sampleCamera,
+    id: "c3",
+    code: "CAM-03",
+    status: "ONLINE",
+    streamUrl: "rtsp://admin:***@10.0.0.3:554/stream",
+  };
+  const cam4AlreadyRunning: CameraItem = { ...sampleCamera, id: "c4", code: "CAM-04", status: "ONLINE" };
+  const cam5Runnable: CameraItem = { ...sampleCamera, id: "c5", code: "CAM-05", status: "ONLINE" };
+  const cam6Attempted: CameraItem = { ...sampleCamera, id: "c6", code: "CAM-06", status: "ONLINE" };
+  const cam7Overflow: CameraItem = { ...sampleCamera, id: "c7", code: "CAM-07", status: "ONLINE" };
+
+  const activeSessions: LiveSessionInfo[] = [
+    { camera_id: "CAM-04", status: "running" },
+    { camera_id: "EXT-CAM", status: "initializing" },
+  ];
+
+  const selected = selectAutoStartCandidates(
+    [cam1, cam2Offline, cam3Masked, cam4AlreadyRunning, cam5Runnable, cam6Attempted, cam7Overflow],
+    activeSessions,
+    uploadedVideos,
+    {
+      maxTotalSessions: 4,
+      attemptedIds: new Set(["c6"]),
+    },
+  );
+
+  // 2 slots already occupied (CAM-04 + EXT-CAM), so at most 2 new cameras selected: c1 and c5
+  assert.deepEqual(
+    selected.map((c) => c.id),
+    ["c1", "c5"],
+  );
 });

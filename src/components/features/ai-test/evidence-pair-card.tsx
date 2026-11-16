@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock, Expand, Film, Play, Radio, User } from "lucide-react";
+import { useLocale } from "@/providers/locale-provider";
 import { formatTimeSec, normalizeViolationType } from "./ai-test-utils";
 import type { EvidenceItem } from "@/types/ai-test.types";
 
@@ -13,21 +14,21 @@ export interface EvidencePairCardProps {
 
 const VIOLATION_META: Record<
   string,
-  { short: string; title: string; useAccent: boolean }
+  { short: string; titleKey: string; useAccent: boolean }
 > = {
   NO_HELMET: {
     short: "NO_HELMET",
-    title: "Thiếu mũ bảo hộ",
+    titleKey: "aiTest.violations.short.NO_HELMET",
     useAccent: true,
   },
   RESTRICTED_AREA: {
     short: "RESTRICTED",
-    title: "Vùng nguy hiểm",
+    titleKey: "aiTest.violations.short.RESTRICTED_AREA",
     useAccent: true,
   },
   NO_VEST: {
     short: "NO_VEST",
-    title: "Thiếu áo phản quang",
+    titleKey: "aiTest.violations.short.NO_VEST",
     useAccent: false,
   },
 };
@@ -38,13 +39,21 @@ export function EvidencePairCard({
   onSeekToTime,
   compact = false,
 }: EvidencePairCardProps) {
+  const { t } = useLocale();
   const isPair = Boolean(item.beforeUrl && item.afterUrl);
   const normType = normalizeViolationType(item.type);
-  const meta = VIOLATION_META[normType] ?? {
-    short: normType || "VIOLATION",
-    title: item.type,
-    useAccent: false,
-  };
+  const metaConfig = VIOLATION_META[normType];
+  const meta = metaConfig
+    ? {
+        short: metaConfig.short,
+        title: t(metaConfig.titleKey),
+        useAccent: metaConfig.useAccent,
+      }
+    : {
+        short: normType || "VIOLATION",
+        title: item.type,
+        useAccent: false,
+      };
 
   const shortSourceId =
     item.sourceId.length > 10 ? `${item.sourceId.slice(0, 8)}…` : item.sourceId;
@@ -76,8 +85,8 @@ export function EvidencePairCard({
         <span
           title={
             item.source === "live"
-              ? `Live Camera: ${item.sourceId}`
-              : `Offline Job: ${item.sourceId}`
+              ? t("aiTest.card.liveSourceTitle", { id: item.sourceId })
+              : t("aiTest.card.jobSourceTitle", { id: item.sourceId })
           }
           className={`inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 font-mono text-[10px] font-bold ${
             item.source === "live"
@@ -110,7 +119,7 @@ export function EvidencePairCard({
                 : "bg-muted text-muted-foreground"
             }`}
           >
-            {isPair ? "Before / After" : "Ảnh đơn"}
+            {isPair ? t("aiTest.card.pairBadge") : t("aiTest.card.singleBadge")}
           </span>
         </div>
       )}
@@ -134,7 +143,7 @@ export function EvidencePairCard({
                 loading="lazy"
               />
               <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-md bg-background/85 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-foreground backdrop-blur-sm">
-                Before
+                {t("aiTest.card.before")}
               </span>
             </div>
 
@@ -149,7 +158,7 @@ export function EvidencePairCard({
                 loading="lazy"
               />
               <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-md bg-accent px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-accent-foreground shadow-sm">
-                After
+                {t("aiTest.card.after")}
               </span>
             </div>
           </div>
@@ -165,7 +174,7 @@ export function EvidencePairCard({
               loading="lazy"
             />
             <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-md bg-primary/90 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-primary-foreground shadow-sm">
-              Snapshot
+              {t("aiTest.card.snapshot")}
             </span>
           </div>
         )}
@@ -173,7 +182,7 @@ export function EvidencePairCard({
         {/* Cue phóng to khi hover */}
         <span className="pointer-events-none absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 rounded-lg bg-background/85 px-2 py-1 text-[10px] font-semibold text-foreground opacity-0 shadow-sm backdrop-blur-sm transition-opacity duration-200 group-hover:opacity-100">
           <Expand className="size-3 text-primary" />
-          Đối chiếu
+          {t("aiTest.card.compare")}
         </span>
       </button>
 
@@ -200,21 +209,21 @@ export function EvidencePairCard({
               <button
                 type="button"
                 onClick={() => onSeekToTime(item.timeSec!)}
-                title="Nhảy tới thời điểm vi phạm trong Video Player"
+                title={t("aiTest.card.seekTitle")}
                 className="inline-flex h-7 items-center gap-1 rounded-lg bg-background px-2 text-[11px] font-semibold text-primary shadow-[3px_3px_6px_rgba(0,0,0,0.09),-3px_-3px_6px_rgba(255,255,255,0.75)] dark:shadow-[3px_3px_6px_rgba(0,0,0,0.45)] hover:text-accent active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.12)] border border-white/50 dark:border-white/[0.05] transition-all cursor-pointer"
               >
                 <Play className="size-3" />
-                {!compact && <span>Tua tới</span>}
+                {!compact && <span>{t("aiTest.card.seek")}</span>}
               </button>
             )}
           <button
             type="button"
             onClick={() => onInspect(item)}
-            title="Phóng to ảnh bằng chứng"
+            title={t("aiTest.card.inspectTitle")}
             className="inline-flex h-7 items-center gap-1 rounded-lg bg-background px-2 text-[11px] font-semibold text-foreground shadow-[3px_3px_6px_rgba(0,0,0,0.09),-3px_-3px_6px_rgba(255,255,255,0.75)] dark:shadow-[3px_3px_6px_rgba(0,0,0,0.45)] hover:text-primary active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.12)] border border-white/50 dark:border-white/[0.05] transition-all cursor-pointer"
           >
             <Expand className="size-3" />
-            {!compact && <span>Xem</span>}
+            {!compact && <span>{t("aiTest.card.view")}</span>}
           </button>
         </div>
       </div>

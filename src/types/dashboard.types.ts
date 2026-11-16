@@ -1,4 +1,4 @@
-import type { IncidentItem, PaginationMeta } from "@/types";
+import type { CameraItem, IncidentItem, PaginationMeta } from "@/types";
 
 export type DashboardPreset = "today" | "7d" | "month" | "custom";
 export interface DashboardPeriod {
@@ -45,6 +45,25 @@ export interface DashboardCameraStat {
   cameraName?: string;
   total: number;
   pending: number;
+  resolved: number;
+  dismissed: number;
+}
+export interface DashboardCameraPartitionRow {
+  cameraId: string;
+  camera?: CameraItem;
+  stat?: DashboardCameraStat;
+  inCatalog: boolean;
+}
+export interface DashboardArchivedCameraSummary {
+  cameraCount: number;
+  total: number;
+  pending: number;
+  resolved: number;
+  dismissed: number;
+}
+export interface DashboardCameraPartition {
+  rows: DashboardCameraPartitionRow[];
+  archived: DashboardArchivedCameraSummary | null;
 }
 export interface DashboardAnalytics {
   total: number;

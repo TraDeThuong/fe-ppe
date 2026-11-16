@@ -1,6 +1,9 @@
-import type { IncidentItem } from "@/types";
+import type { CameraItem, IncidentItem } from "@/types";
 import type {
   DashboardAnalytics,
+  DashboardArchivedCameraSummary,
+  DashboardCameraPartition,
+  DashboardCameraPartitionRow,
   DashboardCameraStat,
   DashboardCollection,
   DashboardPage,
@@ -237,10 +240,16 @@ export function aggregateDashboard(
       cameraName: item.cameraName,
       total: 0,
       pending: 0,
+      resolved: 0,
+      dismissed: 0,
     };
     camera.total++;
     if (item.status === "PENDING_REVIEW" || item.status === "CONFIRMED")
       camera.pending++;
+    else if (item.status === "RESOLVED" || item.status === "CLOSED")
+      camera.resolved++;
+    else if (item.status === "DISMISSED")
+      camera.dismissed++;
     cameras.set(cameraId, camera);
   }
   const rows = [...severities.values()].filter(
@@ -283,6 +292,92 @@ export function aggregateDashboard(
     mttrMinutes: resolutionSamples ? minutes / resolutionSamples : null,
     resolutionSamples,
   };
+}
+
+/**
+ * Separates active catalog cameras from archived/deleted camera IDs present in historical incidents
+ * so the dashboard camera card stays aligned 1-to-1 with the active camera fleet.
+ */
+export function partitionDashboardCameras(
+  cameras: readonly CameraItem[],
+  cameraStats: readonly DashboardCameraStat[],
+  options: { catalogComplete?: boolean; topOnly?: boolean } = {},
+): DashboardCameraPartition {
+  const { catalogComplete = false, topOnly = false } = options;
+  const statsMap = new Map(cameraStats.map((row) => [row.cameraId, row]));
+  const cameraMap = new Map(cameras.map((camera) => [camera.id, camera]));
+
+  const sortRows = (
+    a: DashboardCameraPartitionRow,
+    b: DashboardCameraPartitionRow,
+  ): number => {
+    const totalDiff = (b.stat?.total ?? 0) - (a.stat?.total ?? 0);
+    if (totalDiff !== 0) return totalDiff;
+    const pendingDiff = (b.stat?.pending ?? 0) - (a.stat?.pending ?? 0);
+    if (pendingDiff !== 0) return pendingDiff;
+    const aLabel = a.camera?.name ?? a.stat?.cameraName ?? a.cameraId;
+    const bLabel = b.camera?.name ?? b.stat?.cameraName ?? b.cameraId;
+    return aLabel.localeCompare(bLabel);
+  };
+
+  if (catalogComplete) {
+    const activeRows: DashboardCameraPartitionRow[] = cameras
+      .map((camera) => ({
+        cameraId: camera.id,
+        camera,
+        stat: statsMap.get(camera.id),
+        inCatalog: true,
+      }))
+      .sort(sortRows);
+
+    const archivedRows = cameraStats.filter(
+      (row) => !cameraMap.has(row.cameraId) && row.total > 0,
+    );
+    const archived: DashboardArchivedCameraSummary | null =
+      archivedRows.length > 0
+        ? archivedRows.reduce<DashboardArchivedCameraSummary>(
+            (acc, row) => ({
+              cameraCount: acc.cameraCount + 1,
+              total: acc.total + row.total,
+              pending: acc.pending + row.pending,
+              resolved: acc.resolved + row.resolved,
+              dismissed: acc.dismissed + row.dismissed,
+            }),
+            {
+              cameraCount: 0,
+              total: 0,
+              pending: 0,
+              resolved: 0,
+              dismissed: 0,
+            },
+          )
+        : null;
+
+    return {
+      rows: topOnly ? activeRows.slice(0, 5) : activeRows,
+      archived,
+    };
+  }
+
+  const fallbackIds = topOnly
+    ? cameraStats.slice(0, 5).map((row) => row.cameraId)
+    : [
+        ...new Set([
+          ...cameraStats.map((row) => row.cameraId),
+          ...cameras.map((camera) => camera.id),
+        ]),
+      ];
+
+  const rows: DashboardCameraPartitionRow[] = fallbackIds
+    .map((cameraId) => ({
+      cameraId,
+      camera: cameraMap.get(cameraId),
+      stat: statsMap.get(cameraId),
+      inCatalog: cameraMap.has(cameraId),
+    }))
+    .sort(sortRows);
+
+  return { rows, archived: null };
 }
 
 export function dashboardIncidentHref(

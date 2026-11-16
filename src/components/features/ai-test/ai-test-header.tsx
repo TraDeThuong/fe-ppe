@@ -13,6 +13,7 @@ import {
   Layers,
 } from "lucide-react";
 import { NM } from "./nm-styles";
+import { useLocale } from "@/providers/locale-provider";
 import type { AiTestViewTab, ModelInfo } from "@/types/ai-test.types";
 
 export interface AiTestHeaderProps {
@@ -40,6 +41,7 @@ export function AiTestHeader({
   isRefreshing,
   onRefreshAll,
 }: AiTestHeaderProps) {
+  const { t } = useLocale();
   const defaultModel = models.find((m) => m.is_default) ?? models[0];
 
   const tabItems: {
@@ -54,26 +56,26 @@ export function AiTestHeader({
     {
       value: "live",
       index: "01",
-      label: "Live Stream",
-      caption: "Real-time MJPEG & Hot Config",
+      label: t("aiTest.header.tabs.live.label"),
+      caption: t("aiTest.header.tabs.live.caption"),
       icon: <Radio className="size-4" />,
-      badge: activeLiveCameraId ? "ON" : undefined,
+      badge: activeLiveCameraId ? t("aiTest.header.tabs.live.badgeOn") : undefined,
       useAccent: true,
     },
     {
       value: "player",
       index: "02",
-      label: "Offline Analysis",
-      caption: "Video Player & Frame Telemetry",
+      label: t("aiTest.header.tabs.player.label"),
+      caption: t("aiTest.header.tabs.player.caption"),
       icon: <Film className="size-4" />,
-      badge: activeJobId ? "Loaded" : undefined,
+      badge: activeJobId ? t("aiTest.header.tabs.player.badgeLoaded") : undefined,
       useAccent: false,
     },
     {
       value: "gallery",
       index: "03",
-      label: "Evidence Gallery",
-      caption: "Before / After Inspection",
+      label: t("aiTest.header.tabs.gallery.label"),
+      caption: t("aiTest.header.tabs.gallery.caption"),
       icon: <Images className="size-4" />,
       badge: galleryCount > 0 ? String(galleryCount) : undefined,
       useAccent: true,
@@ -82,7 +84,7 @@ export function AiTestHeader({
 
   return (
     <section
-      aria-label="AI Service Test Bench Header"
+      aria-label={t("aiTest.header.ariaLabel")}
       className={`relative overflow-hidden rounded-[30px] p-5 sm:p-7 transition-all duration-300 ${NM.chassis}`}
     >
       {/* Viền phản chiếu ánh sáng đỉnh khối */}
@@ -117,24 +119,26 @@ export function AiTestHeader({
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
-                  AI Service Test Bench
+                  {t("aiTest.header.title")}
                 </h1>
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                   <Layers className="size-3" />
-                  Control Console
+                  {t("aiTest.header.consoleBadge")}
                 </span>
               </div>
 
               {/* Trạng thái AI Engine */}
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span>Trạng thái kết nối</span>
+                <span>{t("aiTest.header.connectionStatus")}</span>
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-xs font-semibold ${
                     backendOnline ? "text-primary" : "text-accent"
                   } ${NM.recessed}`}
                 >
                   <Terminal className="size-3 text-accent" />
-                  {backendOnline ? "AI Engine Online" : "AI Engine Offline"}
+                  {backendOnline
+                    ? t("aiTest.header.engineOnline")
+                    : t("aiTest.header.engineOffline")}
                 </span>
               </div>
             </div>
@@ -155,7 +159,7 @@ export function AiTestHeader({
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Active Model
+                      {t("aiTest.header.activeModel")}
                     </span>
                     <span className="rounded-full bg-accent/15 px-1.5 py-0.2 text-[10px] font-extrabold text-accent">
                       {models.length}
@@ -193,10 +197,10 @@ export function AiTestHeader({
               </span>
               <div className="text-left">
                 <div className="leading-none">
-                  {isRefreshing ? "Đang đồng bộ" : "Làm mới"}
+                  {isRefreshing ? t("aiTest.header.syncing") : t("aiTest.header.refresh")}
                 </div>
                 <div className="mt-1 text-[10px] font-medium normal-case tracking-normal text-muted-foreground">
-                  Trạng thái
+                  {t("aiTest.header.refreshSubtitle")}
                 </div>
               </div>
             </button>
@@ -217,18 +221,19 @@ export function AiTestHeader({
               </div>
               <div className="space-y-1.5">
                 <p className="font-bold text-foreground">
-                  Không kết nối được <span className="text-accent">AI Inference Engine</span>
+                  {t("aiTest.header.offlineTitlePrefix")}{" "}
+                  <span className="text-accent">AI Inference Engine</span>
                 </p>
                 <p className="leading-relaxed text-muted-foreground">
-                  Chi tiết:{" "}
+                  {t("aiTest.header.offlineDetailLabel")}{" "}
                   <span className="font-medium text-foreground">
                     {backendError}
                   </span>
-                  . Hãy đảm bảo dịch vụ AI Engine đã được khởi chạy (hoặc kiểm tra cấu hình{" "}
+                  {t("aiTest.header.offlineHintBefore")}{" "}
                   <code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary">
                     AI_ENGINE_URL
                   </code>
-                  ) rồi bấm Làm mới.
+                  {t("aiTest.header.offlineHintAfter")}
                 </p>
               </div>
             </div>
@@ -240,7 +245,7 @@ export function AiTestHeader({
            ================================================================= */}
         <div
           role="tablist"
-          aria-label="Chuyển chế độ AI Test Bench"
+          aria-label={t("aiTest.header.tabsAriaLabel")}
           className={`grid grid-cols-1 gap-3 rounded-[24px] p-2.5 md:grid-cols-3 ${NM.recessed}`}
         >
           {tabItems.map((tab) => {

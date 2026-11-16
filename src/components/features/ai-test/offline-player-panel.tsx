@@ -24,6 +24,7 @@ import {
   SegmentedControl,
   type SegmentedControlOption,
 } from "@/components/ui/segmented-control";
+import { useLocale } from "@/providers/locale-provider";
 import { aiTestService } from "@/services/ai-test.service";
 import {
   buildFrameLookupMap,
@@ -61,13 +62,13 @@ export interface OfflinePlayerPanelProps {
 
 const JOB_STATUS_BADGE: Record<
   JobStatus,
-  { variant: "default" | "info" | "warning" | "success" | "danger"; label: string }
+  { variant: "default" | "info" | "warning" | "success" | "danger"; labelKey: string }
 > = {
-  idle: { variant: "default", label: "Chờ chạy" },
-  queued: { variant: "info", label: "Đang xếp hàng" },
-  running: { variant: "warning", label: "Đang phân tích" },
-  done: { variant: "success", label: "Hoàn thành" },
-  error: { variant: "danger", label: "Lỗi" },
+  idle: { variant: "default", labelKey: "aiTest.player.status.idle" },
+  queued: { variant: "info", labelKey: "aiTest.player.status.queued" },
+  running: { variant: "warning", labelKey: "aiTest.player.status.running" },
+  done: { variant: "success", labelKey: "aiTest.player.status.done" },
+  error: { variant: "danger", labelKey: "aiTest.player.status.error" },
 };
 
 export function OfflinePlayerPanel({
@@ -80,6 +81,7 @@ export function OfflinePlayerPanel({
   onInspectEvidence,
   externalSeekTimeSec,
 }: OfflinePlayerPanelProps) {
+  const { t, locale } = useLocale();
   const [selectedJobId, setSelectedJobId] = useState<string | null>(activeJobId);
   const [runningJobStatus, setRunningJobStatus] = useState<JobSummary | null>(null);
 
@@ -134,13 +136,13 @@ export function OfflinePlayerPanel({
         onJobEvidencesChange(evidences);
       } catch (error) {
         toast.error(
-          error instanceof Error ? error.message : "Không tải được dữ liệu job",
+          error instanceof Error ? error.message : t("aiTest.player.toasts.loadJobFailed"),
         );
       } finally {
         setIsLoadingArtifacts(false);
       }
     },
-    [onActiveJobChange, onJobEvidencesChange],
+    [onActiveJobChange, onJobEvidencesChange, t],
   );
 
   // Poll job status every 800ms while a selected job is queued/running
@@ -166,7 +168,7 @@ export function OfflinePlayerPanel({
           await onRefreshJobs();
           await loadJobArtifacts(selectedJobId);
         } else if (statusRes.status === "error") {
-          toast.error(statusRes.error || "Job phân tích gặp lỗi.");
+          toast.error(statusRes.error || t("aiTest.player.toasts.jobError"));
           await onRefreshJobs();
         }
       } catch {
@@ -183,17 +185,17 @@ export function OfflinePlayerPanel({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [jobs, loadJobArtifacts, onRefreshJobs, selectedJobId]);
+  }, [jobs, loadJobArtifacts, onRefreshJobs, selectedJobId, t]);
 
   const handleUploadFile = async (file: File) => {
     setIsUploading(true);
     try {
       const res = await aiTestService.uploadVideo(file);
-      toast.success(`Đã tải lên video -> Job ${res.job_id.slice(0, 8)}`);
+      toast.success(t("aiTest.player.toasts.uploaded", { jobId: res.job_id.slice(0, 8) }));
       setSelectedJobId(res.job_id);
       await onRefreshJobs();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Upload video thất bại");
+      toast.error(error instanceof Error ? error.message : t("aiTest.player.toasts.uploadFailed"));
     } finally {
       setIsUploading(false);
     }
@@ -201,13 +203,13 @@ export function OfflinePlayerPanel({
 
   const handleStartJob = async () => {
     if (!selectedJobId) {
-      toast.error("Hãy upload hoặc chọn một Job trước.");
+      toast.error(t("aiTest.player.toasts.selectJobFirst"));
       return;
     }
     setIsStartingJob(true);
     try {
       await aiTestService.startJob(selectedJobId, model || undefined);
-      toast.success(`Đang chạy phân tích AI cho Job ${selectedJobId.slice(0, 8)}...`);
+      toast.success(t("aiTest.player.toasts.started", { jobId: selectedJobId.slice(0, 8) }));
       setRunningJobStatus({
         job_id: selectedJobId,
         status: "running",
@@ -215,7 +217,7 @@ export function OfflinePlayerPanel({
       });
       await onRefreshJobs();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Không thể start job");
+      toast.error(error instanceof Error ? error.message : t("aiTest.player.toasts.startFailed"));
     } finally {
       setIsStartingJob(false);
     }
@@ -296,7 +298,7 @@ export function OfflinePlayerPanel({
   const inspectorOptions: SegmentedControlOption<InspectorSubTab>[] = [
     {
       value: "associations",
-      label: "Persons & PPE (VI-04/05)",
+      label: t("aiTest.player.inspector.tabs.associations"),
       icon: <Users className="size-4" />,
       badge: currentFrameEntry?.associations?.length
         ? String(currentFrameEntry.associations.length)
@@ -304,13 +306,13 @@ export function OfflinePlayerPanel({
     },
     {
       value: "violations",
-      label: "Violations (VI-06/07)",
+      label: t("aiTest.player.inspector.tabs.violations"),
       icon: <AlertTriangle className="size-4" />,
       badge: jobViolations.length > 0 ? String(jobViolations.length) : undefined,
     },
     {
       value: "evidences",
-      label: "Before / After Evidences",
+      label: t("aiTest.player.inspector.tabs.evidences"),
       icon: <Images className="size-4" />,
       badge: jobEvidences.length > 0 ? String(jobEvidences.length) : undefined,
     },
@@ -328,7 +330,7 @@ export function OfflinePlayerPanel({
       KHỐI 1: JOB CREATOR & INFERENCE LAUNCHER (TACTILE CONTROL MODULE)
      ===================================================================== */}
         <section
-          aria-label="Tạo Job & Cấu hình Inference"
+          aria-label={t("aiTest.player.creator.ariaLabel")}
           className="relative overflow-hidden rounded-[28px] bg-background p-5 sm:p-6 shadow-[14px_14px_28px_rgba(0,0,0,0.12),-14px_-14px_28px_rgba(255,255,255,0.75),inset_1px_1px_2px_rgba(255,255,255,0.6)] dark:shadow-[14px_14px_28px_rgba(0,0,0,0.55),-10px_-10px_24px_rgba(255,255,255,0.04),inset_1px_1px_1px_rgba(255,255,255,0.07)] border border-white/40 dark:border-white/[0.06] transition-all duration-300"
         >
           {/* Viền phản chiếu ánh sáng đỉnh khối */}
@@ -352,11 +354,11 @@ export function OfflinePlayerPanel({
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-base font-extrabold tracking-tight text-foreground">
-                    Tạo Job &amp; Cấu hình Inference
+                    {t("aiTest.player.creator.title")}
                   </h2>
                 </div>
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  Upload video mới hoặc chọn Job sẵn có bên dưới để chạy phân tích chi tiết từng frame.
+                  {t("aiTest.player.creator.subtitle")}
                 </p>
               </div>
             </div>
@@ -383,7 +385,9 @@ export function OfflinePlayerPanel({
                 className="group inline-flex items-center justify-center gap-2 rounded-xl bg-background px-3.5 py-2.5 text-xs font-bold text-foreground shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.75)] dark:shadow-[4px_4px_8px_rgba(0,0,0,0.45),-3px_-3px_6px_rgba(255,255,255,0.03)] hover:text-primary active:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.14),inset_-3px_-3px_6px_rgba(255,255,255,0.7)] border border-white/50 dark:border-white/[0.05] transition-all duration-200 disabled:pointer-events-none disabled:opacity-45 cursor-pointer"
               >
                 <Upload className="size-3.5 text-accent transition-transform duration-200 group-hover:-translate-y-0.5" />
-                <span>{isUploading ? "Đang upload..." : "Upload Video Mới"}</span>
+                <span>
+                  {isUploading ? t("aiTest.player.creator.uploading") : t("aiTest.player.creator.uploadNew")}
+                </span>
               </button>
 
               {/* Nút Bắt đầu Phân Tích */}
@@ -394,7 +398,9 @@ export function OfflinePlayerPanel({
                 className="group inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-3.5 py-2.5 text-xs font-extrabold text-primary-foreground shadow-[4px_4px_10px_rgba(0,0,0,0.16),-3px_-3px_8px_rgba(255,255,255,0.7),inset_1px_1px_1px_rgba(255,255,255,0.35)] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04)] hover:brightness-105 active:scale-[0.98] transition-all duration-200 disabled:pointer-events-none disabled:opacity-45 cursor-pointer"
               >
                 <Play className="size-3.5 fill-current" />
-                <span>{isRunning ? "Đang chạy..." : "Bắt đầu Phân Tích"}</span>
+                <span>
+                  {isRunning ? t("aiTest.player.creator.running") : t("aiTest.player.creator.startAnalysis")}
+                </span>
               </button>
             </div>
 
@@ -410,7 +416,7 @@ export function OfflinePlayerPanel({
                 <div className="flex items-center justify-between gap-2 pl-2.5">
                   <div className="min-w-0">
                     <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                      Active Target Job
+                      {t("aiTest.player.creator.activeTargetJob")}
                     </span>
                     <span className="font-mono text-xs font-extrabold text-foreground">
                       {selectedJobId.slice(0, 12)}
@@ -424,8 +430,9 @@ export function OfflinePlayerPanel({
                         : "bg-accent/15 text-accent"
                         }`}
                     >
-                      {JOB_STATUS_BADGE[runningJobStatus.status]?.label ??
-                        runningJobStatus.status}
+                      {JOB_STATUS_BADGE[runningJobStatus.status]
+                        ? t(JOB_STATUS_BADGE[runningJobStatus.status].labelKey)
+                        : runningJobStatus.status}
                     </span>
                   )}
                 </div>
@@ -434,7 +441,7 @@ export function OfflinePlayerPanel({
                   <div className="mt-3 space-y-1.5 pl-2.5">
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="font-semibold text-muted-foreground">
-                        Tiến độ suy luận
+                        {t("aiTest.player.creator.inferenceProgress")}
                       </span>
                       <span className="font-mono font-extrabold text-primary">
                         {Math.round(runningJobStatus?.progress ?? 0)}%
@@ -460,7 +467,7 @@ export function OfflinePlayerPanel({
             <div className="space-y-2 rounded-2xl bg-background p-3.5 shadow-[6px_6px_12px_rgba(0,0,0,0.08),-6px_-6px_12px_rgba(255,255,255,0.75),inset_1px_1px_1px_rgba(255,255,255,0.5)] dark:shadow-[6px_6px_12px_rgba(0,0,0,0.45),-5px_-5px_10px_rgba(255,255,255,0.03)] border border-white/40 dark:border-white/[0.05]">
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                  Model AI (.pt trên đĩa)
+                  {t("aiTest.player.creator.modelLabel")}
                 </label>
                 <span className="h-1.5 w-1.5 rounded-full bg-accent" />
               </div>
@@ -469,7 +476,7 @@ export function OfflinePlayerPanel({
                 options={modelOptions}
                 value={model}
                 onValueChange={setModel}
-                placeholder="Chọn model"
+                placeholder={t("aiTest.live.modelPlaceholder")}
               />
             </div>
           </div>
@@ -479,14 +486,14 @@ export function OfflinePlayerPanel({
       KHỐI 2: JOBS QUEUE LIST (DANH SÁCH HÀNG ĐỢI ĐÚC NỔI + KHAY LÕM)
      ===================================================================== */}
         <section
-          aria-label="Danh sách Jobs"
+          aria-label={t("aiTest.player.jobs.ariaLabel")}
           className="relative overflow-hidden rounded-[28px] bg-background p-5 sm:p-6 shadow-[14px_14px_28px_rgba(0,0,0,0.12),-14px_-14px_28px_rgba(255,255,255,0.75),inset_1px_1px_2px_rgba(255,255,255,0.6)] dark:shadow-[14px_14px_28px_rgba(0,0,0,0.55),-10px_-10px_24px_rgba(255,255,255,0.04),inset_1px_1px_1px_rgba(255,255,255,0.07)] border border-white/40 dark:border-white/[0.06]"
         >
           {/* Header Danh sách Jobs */}
           <div className="mb-4 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5">
               <h2 className="text-base font-extrabold tracking-tight text-foreground">
-                Danh sách Jobs
+                {t("aiTest.player.jobs.title")}
               </h2>
               <span className="rounded-full bg-primary/15 px-2.5 py-0.5 font-mono text-xs font-extrabold text-primary">
                 {jobs.length}
@@ -496,7 +503,7 @@ export function OfflinePlayerPanel({
             <button
               type="button"
               onClick={() => void onRefreshJobs()}
-              title="Tải lại danh sách Jobs"
+              title={t("aiTest.player.jobs.refreshTitle")}
               className="group inline-flex h-8 w-8 items-center justify-center rounded-xl bg-background text-primary shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.75)] dark:shadow-[4px_4px_8px_rgba(0,0,0,0.45)] active:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.14)] border border-white/50 dark:border-white/[0.05] transition-all cursor-pointer"
             >
               <RefreshCw className="size-3.5 transition-transform duration-500 group-hover:rotate-90" />
@@ -506,16 +513,14 @@ export function OfflinePlayerPanel({
           {/* Khay chứa danh sách Jobs khoét sâu */}
           {jobs.length === 0 ? (
             <div className="rounded-2xl bg-background/80 px-4 py-8 text-center text-xs font-medium text-muted-foreground shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.5)] border border-black/[0.03] dark:border-white/[0.03]">
-              Chưa có job phân tích nào. Hãy Upload video để bắt đầu.
+              {t("aiTest.player.jobs.empty")}
             </div>
           ) : (
             <div className="max-h-[420px] space-y-2.5 overflow-y-auto rounded-2xl bg-background/80 p-2.5 shadow-[inset_5px_5px_10px_rgba(0,0,0,0.11),inset_-5px_-5px_10px_rgba(255,255,255,0.7)] dark:shadow-[inset_5px_5px_10px_rgba(0,0,0,0.55)] border border-black/[0.04] dark:border-white/[0.03]">
               {jobs.map((job) => {
                 const isSelected = job.job_id === selectedJobId;
-                const badgeMeta = JOB_STATUS_BADGE[job.status] ?? {
-                  variant: "default" as const,
-                  label: job.status,
-                };
+                const badgeConfig = JOB_STATUS_BADGE[job.status];
+                const badgeLabel = badgeConfig ? t(badgeConfig.labelKey) : job.status;
                 const isJobRunning = job.status === "running";
 
                 return (
@@ -553,7 +558,7 @@ export function OfflinePlayerPanel({
                             : "bg-accent/15 text-accent"
                             }`}
                         >
-                          {badgeMeta.label}
+                          {badgeLabel}
                         </span>
                       </div>
 
@@ -570,7 +575,7 @@ export function OfflinePlayerPanel({
 
                         {typeof job.evidence_count === "number" && (
                           <span className="rounded-md bg-accent/15 px-1.5 py-0.5 font-mono text-accent">
-                            {job.evidence_count} evidence
+                            {t("aiTest.player.jobs.evidenceCount", { count: job.evidence_count })}
                           </span>
                         )}
                       </div>
@@ -589,7 +594,7 @@ export function OfflinePlayerPanel({
       KHỐI 1: ANNOTATED VIDEO PLAYER & PERSON TRACKS TIMELINE
      ===================================================================== */}
         <section
-          aria-label="Trình phát Annotated Video & Frame Sync"
+          aria-label={t("aiTest.player.viewport.ariaLabel")}
           className="relative overflow-hidden rounded-[28px] bg-background p-5 sm:p-6 shadow-[14px_14px_28px_rgba(0,0,0,0.12),-14px_-14px_28px_rgba(255,255,255,0.75),inset_1px_1px_2px_rgba(255,255,255,0.6)] dark:shadow-[14px_14px_28px_rgba(0,0,0,0.55),-10px_-10px_24px_rgba(255,255,255,0.04),inset_1px_1px_1px_rgba(255,255,255,0.07)] border border-white/40 dark:border-white/[0.06] transition-all duration-300"
         >
           {/* Viền phản chiếu ánh sáng đỉnh khối */}
@@ -613,10 +618,10 @@ export function OfflinePlayerPanel({
 
                 <div>
                   <h2 className="text-base font-extrabold tracking-tight text-foreground sm:text-lg">
-                    Trình phát Annotated Video &amp; Frame Sync
+                    {t("aiTest.player.viewport.title")}
                   </h2>
                   <p className="text-[11px] font-medium text-muted-foreground">
-                    Frame-accurate Playback &amp; Multi-Object Track Scrubber
+                    {t("aiTest.player.viewport.subtitle")}
                   </p>
                 </div>
               </div>
@@ -624,7 +629,7 @@ export function OfflinePlayerPanel({
               {activeJobId && (
                 <div className="flex flex-wrap items-center gap-2 self-start rounded-2xl bg-background/80 p-1.5 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.5)] border border-black/[0.03] dark:border-white/[0.03] sm:self-center">
                   <span className="inline-flex items-center gap-1 rounded-xl bg-primary px-3 py-1 font-mono text-[11px] font-extrabold text-primary-foreground shadow-sm">
-                    Frame #{targetFrameIdx}
+                    {t("aiTest.player.viewport.frameCounter", { frame: targetFrameIdx })}
                     <span className="opacity-75">/ {maxFrame}</span>
                   </span>
 
@@ -655,7 +660,7 @@ export function OfflinePlayerPanel({
                   <Loader
                     size="lg"
                     showLabel
-                    label="Đang tải video & log.jsonl..."
+                    label={t("aiTest.player.viewport.loadingArtifacts")}
                   />
                 </div>
               ) : activeJobId ? (
@@ -680,12 +685,14 @@ export function OfflinePlayerPanel({
                   </div>
                   <div className="space-y-1.5">
                     <p className="text-sm font-extrabold tracking-tight text-foreground">
-                      Chưa chọn Job hoàn tất để phát
+                      {t("aiTest.player.viewport.emptyTitle")}
                     </p>
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                      Chọn một Job có trạng thái{" "}
-                      <strong className="font-bold text-primary">Hoàn thành</strong> ở
-                      danh sách bên trái hoặc Upload &amp; Start Job mới.
+                      {t("aiTest.player.viewport.emptyHintBefore")}
+                      <strong className="font-bold text-primary">
+                        {t("aiTest.player.status.done")}
+                      </strong>
+                      {t("aiTest.player.viewport.emptyHintAfter")}
                     </p>
                   </div>
                 </div>
@@ -703,7 +710,7 @@ export function OfflinePlayerPanel({
                     className="group inline-flex items-center gap-1.5 rounded-xl bg-background px-3.5 py-2 text-xs font-bold text-foreground shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.75)] dark:shadow-[4px_4px_8px_rgba(0,0,0,0.45)] hover:text-primary active:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.14)] border border-white/50 dark:border-white/[0.05] transition-all cursor-pointer"
                   >
                     <SkipBack className="size-3.5 text-primary transition-transform group-hover:-translate-x-0.5" />
-                    <span>-1 Frame</span>
+                    <span>{t("aiTest.player.viewport.prevFrame")}</span>
                   </button>
 
                   <button
@@ -711,7 +718,7 @@ export function OfflinePlayerPanel({
                     onClick={() => stepFrame(1)}
                     className="group inline-flex items-center gap-1.5 rounded-xl bg-background px-3.5 py-2 text-xs font-bold text-foreground shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.75)] dark:shadow-[4px_4px_8px_rgba(0,0,0,0.45)] hover:text-primary active:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.14)] border border-white/50 dark:border-white/[0.05] transition-all cursor-pointer"
                   >
-                    <span>+1 Frame</span>
+                    <span>{t("aiTest.player.viewport.nextFrame")}</span>
                     <SkipForward className="size-3.5 text-primary transition-transform group-hover:translate-x-0.5" />
                   </button>
                 </div>
@@ -719,7 +726,7 @@ export function OfflinePlayerPanel({
                 {/* Cụm Bộ Chọn Tốc Độ Phát */}
                 <div className="flex items-center gap-1.5">
                   <span className="mr-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Tốc độ:
+                    {t("aiTest.player.viewport.speed")}
                   </span>
                   {[0.25, 0.5, 1, 2].map((rate) => {
                     const isSelectedRate = playbackRate === rate;
@@ -750,7 +757,7 @@ export function OfflinePlayerPanel({
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-2">
                     <span className="font-extrabold tracking-tight text-foreground">
-                      Dòng thời gian đối tượng (Person Tracks)
+                      {t("aiTest.player.tracks.title")}
                     </span>
                     <span className="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[11px] font-extrabold text-primary">
                       {personTracks.length}
@@ -760,11 +767,11 @@ export function OfflinePlayerPanel({
                   <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                     <span className="inline-flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-full bg-primary/60" />
-                      Xuất hiện
+                      {t("aiTest.player.tracks.legendAppear")}
                     </span>
                     <span className="inline-flex items-center gap-1.5">
                       <span className="h-2 w-2 rounded-full bg-accent" />
-                      Vi phạm
+                      {t("aiTest.player.tracks.legendViolation")}
                     </span>
                   </div>
                 </div>
@@ -777,7 +784,7 @@ export function OfflinePlayerPanel({
                         onClick={() => seekToTime(track.firstTimeSec)}
                         className="w-24 shrink-0 truncate rounded-xl bg-background px-2.5 py-1.5 text-left font-mono text-[11px] font-bold text-foreground shadow-[4px_4px_8px_rgba(0,0,0,0.09),-4px_-4px_8px_rgba(255,255,255,0.75)] dark:shadow-[4px_4px_8px_rgba(0,0,0,0.45)] hover:text-primary active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.14)] border border-white/40 dark:border-white/[0.05] transition-all cursor-pointer"
                       >
-                        Track #{track.trackId}
+                        {t("aiTest.common.trackNumber", { id: track.trackId })}
                       </button>
 
                       <div className="relative h-6 flex-1 overflow-hidden rounded-xl bg-background p-0.5 shadow-[inset_3px_3px_6px_rgba(0,0,0,0.12),inset_-3px_-3px_6px_rgba(255,255,255,0.7)] dark:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.6)]">
@@ -799,7 +806,11 @@ export function OfflinePlayerPanel({
                               }
                               style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                               className="absolute top-1.5 bottom-1.5 rounded-md bg-primary/45 hover:bg-primary/75 transition-colors cursor-pointer"
-                              title={`Track #${track.trackId}: Frame ${r.start} → ${r.end}`}
+                              title={t("aiTest.player.tracks.spanTitle", {
+                                trackId: track.trackId,
+                                start: r.start,
+                                end: r.end,
+                              })}
                             />
                           );
                         })}
@@ -821,7 +832,11 @@ export function OfflinePlayerPanel({
                               }
                               style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
                               className="absolute top-1 bottom-1 rounded-md bg-accent hover:brightness-110 shadow-sm transition-all cursor-pointer"
-                              title={`Vi phạm (${track.violationTypes.join(", ")}): Frame ${vr.start} → ${vr.end}`}
+                              title={t("aiTest.player.tracks.violationSpanTitle", {
+                                types: track.violationTypes.join(", "),
+                                start: vr.start,
+                                end: vr.end,
+                              })}
                             />
                           );
                         })}
@@ -838,7 +853,7 @@ export function OfflinePlayerPanel({
       KHỐI 2: SYNCHRONIZED FRAME INSPECTOR (TACTILE TELEMETRY CONSOLE)
      ===================================================================== */}
         <section
-          aria-label="Chi tiết telemetry theo frame"
+          aria-label={t("aiTest.player.inspector.ariaLabel")}
           className="relative overflow-hidden rounded-[28px] bg-background p-5 sm:p-6 shadow-[14px_14px_28px_rgba(0,0,0,0.12),-14px_-14px_28px_rgba(255,255,255,0.75),inset_1px_1px_2px_rgba(255,255,255,0.6)] dark:shadow-[14px_14px_28px_rgba(0,0,0,0.55),-10px_-10px_24px_rgba(255,255,255,0.04),inset_1px_1px_1px_rgba(255,255,255,0.07)] border border-white/40 dark:border-white/[0.06] transition-all duration-300"
         >
           {/* Viền phản chiếu ánh sáng đỉnh khối */}
@@ -848,7 +863,7 @@ export function OfflinePlayerPanel({
             {/* Khay Chuyển Tab Cơ Học Khoét Sâu (Recessed Inspector Tab Switcher) */}
             <div
               role="tablist"
-              aria-label="Chi tiết telemetry theo frame"
+              aria-label={t("aiTest.player.inspector.ariaLabel")}
               className="grid grid-cols-1 gap-2 rounded-2xl bg-background/80 p-2 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.11),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.55)] border border-black/[0.04] dark:border-white/[0.03] sm:grid-cols-3"
             >
               {inspectorOptions.map((opt) => {
@@ -892,24 +907,24 @@ export function OfflinePlayerPanel({
               <div className="space-y-4">
                 {!currentFrameEntry ? (
                   <div className="rounded-2xl bg-background/80 px-4 py-8 text-center text-xs font-medium text-muted-foreground shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.5)]">
-                    Chưa có log telemetry cho khung hình này.
+                    {t("aiTest.player.inspector.noFrameLog")}
                   </div>
                 ) : (
                   <>
                     {/* Thanh Tóm Tắt Frame Đúc Nổi */}
                     <div className="flex flex-wrap items-center gap-2.5 rounded-2xl bg-background/80 px-3.5 py-2.5 text-xs shadow-[inset_3px_3px_6px_rgba(0,0,0,0.09),inset_-3px_-3px_6px_rgba(255,255,255,0.7)] dark:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.5)]">
                       <span className="rounded-lg bg-primary/15 px-2.5 py-0.5 font-mono text-[11px] font-extrabold text-primary">
-                        Logged Frame #{currentFrameEntry.frame_idx}
+                        {t("aiTest.player.inspector.loggedFrame", { frame: currentFrameEntry.frame_idx })}
                       </span>
                       <span className="font-semibold text-foreground">
-                        Persons:{" "}
+                        {t("aiTest.player.inspector.personsLabel")}{" "}
                         <strong className="font-mono text-primary">
                           {currentFrameEntry.persons?.length ?? 0}
                         </strong>
                       </span>
                       <span className="text-foreground/20">•</span>
                       <span className="font-semibold text-foreground">
-                        Associations:{" "}
+                        {t("aiTest.player.inspector.associationsLabel")}{" "}
                         <strong className="font-mono text-accent">
                           {currentFrameEntry.associations?.length ?? 0}
                         </strong>
@@ -946,7 +961,7 @@ export function OfflinePlayerPanel({
                                     className={`size-4 ${isAllClear ? "text-primary" : "text-accent"
                                       }`}
                                   />
-                                  Person Track #{parsed.trackId}
+                                  {t("aiTest.player.inspector.personTrack", { id: parsed.trackId })}
                                 </span>
 
                                 <span
@@ -956,8 +971,8 @@ export function OfflinePlayerPanel({
                                     }`}
                                 >
                                   {isAllClear
-                                    ? "Đủ PPE"
-                                    : `Thiếu ${parsed.missing.length} món`}
+                                    ? t("aiTest.player.inspector.ppeComplete")
+                                    : t("aiTest.player.inspector.ppeMissing", { count: parsed.missing.length })}
                                 </span>
                               </div>
 
@@ -968,7 +983,9 @@ export function OfflinePlayerPanel({
                                       : "bg-accent/15 text-accent"
                                     }`}
                                 >
-                                  Helmet: {parsed.helmetOk ? "Có" : "Không"}
+                                  {t("aiTest.player.inspector.helmetStatus", {
+                                    status: parsed.helmetOk ? t("aiTest.common.yes") : t("aiTest.common.no"),
+                                  })}
                                   {typeof parsed.helmetConf === "number"
                                     ? ` (${(parsed.helmetConf * 100).toFixed(0)}%)`
                                     : ""}
@@ -980,7 +997,9 @@ export function OfflinePlayerPanel({
                                       : "bg-accent/15 text-accent"
                                     }`}
                                 >
-                                  Safety Vest: {parsed.vestOk ? "Có" : "Không"}
+                                  {t("aiTest.player.inspector.vestStatus", {
+                                    status: parsed.vestOk ? t("aiTest.common.yes") : t("aiTest.common.no"),
+                                  })}
                                   {typeof parsed.vestConf === "number"
                                     ? ` (${(parsed.vestConf * 100).toFixed(0)}%)`
                                     : ""}
@@ -998,7 +1017,7 @@ export function OfflinePlayerPanel({
                             className="flex items-center justify-between rounded-2xl bg-background px-3.5 py-2.5 text-xs shadow-[5px_5px_10px_rgba(0,0,0,0.08),-5px_-5px_10px_rgba(255,255,255,0.75)] dark:shadow-[5px_5px_10px_rgba(0,0,0,0.45)] border border-white/40 dark:border-white/[0.05]"
                           >
                             <span className="font-mono font-extrabold text-foreground">
-                              Track #{p.track_id}
+                              {t("aiTest.common.trackNumber", { id: p.track_id })}
                             </span>
                             <div className="flex items-center gap-1.5">
                               {p.has_helmet !== undefined && (
@@ -1008,7 +1027,9 @@ export function OfflinePlayerPanel({
                                       : "bg-accent/15 text-accent"
                                     }`}
                                 >
-                                  Mũ: {p.has_helmet ? "OK" : "Thiếu"}
+                                  {t("aiTest.player.inspector.helmetShort", {
+                                    status: p.has_helmet ? t("aiTest.common.ok") : t("aiTest.common.missing"),
+                                  })}
                                 </span>
                               )}
                               {p.has_vest !== undefined && (
@@ -1018,7 +1039,9 @@ export function OfflinePlayerPanel({
                                       : "bg-accent/15 text-accent"
                                     }`}
                                 >
-                                  Áo: {p.has_vest ? "OK" : "Thiếu"}
+                                  {t("aiTest.player.inspector.vestShort", {
+                                    status: p.has_vest ? t("aiTest.common.ok") : t("aiTest.common.missing"),
+                                  })}
                                 </span>
                               )}
                             </div>
@@ -1027,8 +1050,7 @@ export function OfflinePlayerPanel({
                       </div>
                     ) : (
                       <div className="rounded-2xl bg-background/80 px-4 py-6 text-center text-xs font-medium text-muted-foreground shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.5)]">
-                        Không có người nào được phát hiện tại frame #
-                        {currentFrameEntry.frame_idx}.
+                        {t("aiTest.player.inspector.noPersonsInFrame", { frame: currentFrameEntry.frame_idx })}
                       </div>
                     )}
                   </>
@@ -1045,7 +1067,7 @@ export function OfflinePlayerPanel({
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
                     <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                      Vi phạm tại Frame hiện tại
+                      {t("aiTest.player.inspector.currentFrameViolations")}
                     </h4>
                     <span className="rounded-full bg-accent/15 px-2 py-0.5 font-mono text-[10px] font-extrabold text-accent">
                       {currentFrameEntry?.violations?.length ?? 0}
@@ -1055,7 +1077,7 @@ export function OfflinePlayerPanel({
                   {(currentFrameEntry?.violations?.length ?? 0) === 0 ? (
                     <div className="flex items-center gap-2.5 rounded-2xl bg-background/80 px-4 py-3 text-xs font-bold text-primary shadow-[inset_4px_4px_8px_rgba(0,0,0,0.09),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.5)]">
                       <CheckCircle2 className="size-4 shrink-0" />
-                      <span>Không có vi phạm đang kích hoạt tại khung hình này.</span>
+                      <span>{t("aiTest.player.inspector.noActiveViolationsInFrame")}</span>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -1067,14 +1089,14 @@ export function OfflinePlayerPanel({
                           <span className="absolute inset-y-1.5 left-1 w-1 rounded-full bg-accent" />
                           <div className="flex items-center gap-2.5 pl-2">
                             <span className="rounded-lg bg-accent/15 px-2 py-0.5 font-mono text-[10px] font-extrabold uppercase text-accent">
-                              {formatViolationLabel(v.type)}
+                              {formatViolationLabel(v.type, locale)}
                             </span>
                             <span className="font-bold text-foreground">
-                              Track #{v.track_id}
+                              {t("aiTest.common.trackNumber", { id: v.track_id })}
                             </span>
                           </div>
                           <span className="font-mono text-[11px] font-bold text-accent">
-                            Sustain:{" "}
+                            {t("aiTest.player.inspector.sustainLabel")}{" "}
                             {(v.sustained_sec ?? v.duration_sec ?? 0).toFixed(1)}s
                           </span>
                         </div>
@@ -1087,7 +1109,7 @@ export function OfflinePlayerPanel({
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
                     <h4 className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                      Toàn bộ chuỗi vi phạm trong Job
+                      {t("aiTest.player.inspector.allJobViolations")}
                     </h4>
                     <span className="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[10px] font-extrabold text-primary">
                       {jobViolations.length}
@@ -1096,7 +1118,7 @@ export function OfflinePlayerPanel({
 
                   {jobViolations.length === 0 ? (
                     <div className="rounded-2xl bg-background/80 px-4 py-6 text-center text-xs font-medium text-muted-foreground shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.5)]">
-                      Video này không có sự kiện vi phạm nào được ghi nhận.
+                      {t("aiTest.player.inspector.noViolationsInJob")}
                     </div>
                   ) : (
                     <div className="max-h-56 space-y-2.5 overflow-y-auto rounded-2xl bg-background/80 p-2.5 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.11),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.55)]">
@@ -1120,10 +1142,10 @@ export function OfflinePlayerPanel({
                                     : "bg-primary/15 text-primary"
                                   }`}
                               >
-                                {formatViolationLabel(ev.type)}
+                                {formatViolationLabel(ev.type, locale)}
                               </span>
                               <span className="font-bold text-foreground">
-                                Track #{ev.trackId}
+                                {t("aiTest.common.trackNumber", { id: ev.trackId })}
                               </span>
                               <span className="font-mono text-[11px] text-muted-foreground">
                                 Frame {ev.startFrame} → {ev.endFrame}
@@ -1131,7 +1153,9 @@ export function OfflinePlayerPanel({
                             </div>
 
                             <span className="rounded-lg bg-primary/10 px-2.5 py-1 font-mono text-[11px] font-extrabold text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                              Tua tới {formatTimeSec(ev.startTimeSec)}
+                              {t("aiTest.player.inspector.seekToTime", {
+                                time: formatTimeSec(ev.startTimeSec),
+                              })}
                             </span>
                           </button>
                         );
@@ -1149,7 +1173,7 @@ export function OfflinePlayerPanel({
               <div>
                 {jobEvidences.length === 0 ? (
                   <div className="rounded-2xl bg-background/80 px-4 py-8 text-center text-xs font-medium text-muted-foreground shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.5)]">
-                    Job này chưa có ảnh bằng chứng Before/After nào.
+                    {t("aiTest.player.inspector.noEvidencesInJob")}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-4 rounded-2xl bg-background/80 p-3 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.5)] md:grid-cols-2">

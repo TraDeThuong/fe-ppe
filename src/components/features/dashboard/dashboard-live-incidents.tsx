@@ -1,33 +1,54 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
   Camera,
+  Check,
   CheckCircle2,
   Clock,
   Eye,
-  ExternalLink,
+  Loader2,
   Radio,
-  ShieldAlert,
+  Wrench,
+  X,
+  XCircle,
 } from "lucide-react";
+import { NM } from "@/components/features/ai-test/nm-styles";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { IncidentSeverityBadge } from "@/components/features/incidents/incident-severity-badge";
 import { IncidentStatusBadge } from "@/components/features/incidents/incident-status-badge";
 import { useLocale } from "@/providers/locale-provider";
 import { resolveEvidenceUrl } from "@/lib/evidence-url";
-import type { IncidentItem, IncidentSeverity, IncidentStatus, ViolationType } from "@/types";
+import type {
+  IncidentItem,
+  IncidentSeverity,
+  IncidentStatus,
+} from "@/types";
+
+export type UnresolvedIncidentFilter = "ALL" | "PENDING_REVIEW" | "CONFIRMED";
 
 export interface DashboardLiveIncidentsProps {
   incidents: IncidentItem[];
+  totalPendingCount?: number | null;
+  totalConfirmedCount?: number | null;
   loading?: boolean;
   error?: boolean;
   viewAllHref?: string;
   highlightedId?: string | null;
   onReview?: (incident: IncidentItem) => void;
+  onResolve?: (incident: IncidentItem) => void;
+  onBatchReview?: (
+    ids: string[],
+    action: "CONFIRM" | "REJECT",
+    resolutionNote?: string,
+  ) => Promise<void>;
+  batchReviewPending?: boolean;
+  isRealtimeConnected?: boolean;
   canReview?: boolean;
+  canResolve?: boolean;
 }
 
 const VIOLATION_LABELS: Record<string, { vi: string; en: string }> = {
@@ -37,222 +58,703 @@ const VIOLATION_LABELS: Record<string, { vi: string; en: string }> = {
   MULTI_VIOLATION: { vi: "Vi phạm phức hợp", en: "Multi Violation" },
 };
 
-function formatRelativeTime(dateStr: string, isVietnamese: boolean): string {
-  try {
-    const diffMs = Date.now() - new Date(dateStr).getTime();
-    const diffSec = Math.floor(diffMs / 1000);
-    const diffMin = Math.floor(diffSec / 60);
-    const diffHours = Math.floor(diffMin / 60);
+const SEVERITY_PRIORITY: Record<string, number> = {
+  CRITICAL: 0,
+  HIGH: 1,
+  MEDIUM: 2,
+  LOW: 3,
+};
 
-    if (diffSec < 60) {
-      return isVietnamese ? "Vừa xong" : "Just now";
-    }
-    if (diffMin < 60) {
-      return isVietnamese ? `${diffMin} phút trước` : `${diffMin}m ago`;
-    }
-    if (diffHours < 24) {
-      return isVietnamese ? `${diffHours} giờ trước` : `${diffHours}h ago`;
-    }
-    return new Intl.DateTimeFormat(isVietnamese ? "vi-VN" : "en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      day: "2-digit",
-      month: "2-digit",
-    }).format(new Date(dateStr));
+const VN_TIME_FORMATTER = new Intl.DateTimeFormat("vi-VN", {
+  timeZone: "Asia/Ho_Chi_Minh",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+const VN_DATE_FORMATTER = new Intl.DateTimeFormat("vi-VN", {
+  timeZone: "Asia/Ho_Chi_Minh",
+  day: "2-digit",
+  month: "2-digit",
+});
+
+function formatExactVnTimestamp(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    if (!Number.isFinite(d.getTime())) return dateStr;
+    return `${VN_TIME_FORMATTER.format(d)} - ${VN_DATE_FORMATTER.format(d)}`;
   } catch {
     return dateStr;
   }
 }
 
+function formatIncidentTimeLabel(
+  dateStr: string,
+  isVietnamese: boolean,
+): { display: string; exact: string } {
+  const exact = formatExactVnTimestamp(dateStr);
+  try {
+    const time = new Date(dateStr).getTime();
+    if (!Number.isFinite(time)) return { display: dateStr, exact: dateStr };
+
+    const diffMs = Math.max(0, Date.now() - time);
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHours = Math.floor(diffMin / 60);
+
+    if (diffSec < 60) {
+      return {
+        display: isVietnamese ? `Vừa xong · ${exact}` : `Just now · ${exact}`,
+        exact,
+      };
+    }
+    if (diffMin < 60) {
+      return {
+        display: isVietnamese
+          ? `${diffMin} phút trước · ${exact}`
+          : `${diffMin}m ago · ${exact}`,
+        exact,
+      };
+    }
+    if (diffHours < 24) {
+      return {
+        display: isVietnamese
+          ? `${diffHours} giờ trước · ${exact}`
+          : `${diffHours}h ago · ${exact}`,
+        exact,
+      };
+    }
+    return { display: exact, exact };
+  } catch {
+    return { display: dateStr, exact: dateStr };
+  }
+}
+
+function resolveCameraLabel(inc: IncidentItem): string {
+  if (inc.cameraName && inc.cameraName.trim()) return inc.cameraName.trim();
+  if (inc.cameraCode && inc.cameraCode.trim()) return inc.cameraCode.trim();
+  if (inc.cameraId && inc.cameraId.trim()) {
+    return `Camera #${inc.cameraId.slice(0, 6)}`;
+  }
+  return "Camera";
+}
+
 export function DashboardLiveIncidents({
   incidents,
+  totalPendingCount,
+  totalConfirmedCount,
   loading = false,
   error = false,
   viewAllHref = "/incidents",
   highlightedId,
   onReview,
+  onResolve,
+  onBatchReview,
+  batchReviewPending = false,
+  isRealtimeConnected = false,
   canReview = true,
+  canResolve = false,
 }: DashboardLiveIncidentsProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const [statusFilter, setStatusFilter] =
+    useState<UnresolvedIncidentFilter>("ALL");
+
+  // Keep only unresolved incidents (PENDING_REVIEW + CONFIRMED), sorted by severity & newest first
+  const unresolvedIncidents = useMemo(() => {
+    return incidents
+      .filter(
+        (inc) =>
+          inc.status === "PENDING_REVIEW" || inc.status === "CONFIRMED",
+      )
+      .sort((a, b) => {
+        const sevA = SEVERITY_PRIORITY[a.severity] ?? 9;
+        const sevB = SEVERITY_PRIORITY[b.severity] ?? 9;
+        if (sevA !== sevB) return sevA - sevB;
+        return Date.parse(b.detectedAt) - Date.parse(a.detectedAt);
+      });
+  }, [incidents]);
+
+  const pendingItems = useMemo(
+    () =>
+      unresolvedIncidents.filter((inc) => inc.status === "PENDING_REVIEW"),
+    [unresolvedIncidents],
+  );
+  const confirmedItems = useMemo(
+    () => unresolvedIncidents.filter((inc) => inc.status === "CONFIRMED"),
+    [unresolvedIncidents],
+  );
+
+  const visibleIncidents = useMemo(() => {
+    if (statusFilter === "PENDING_REVIEW") return pendingItems;
+    if (statusFilter === "CONFIRMED") return confirmedItems;
+    return unresolvedIncidents;
+  }, [statusFilter, pendingItems, confirmedItems, unresolvedIncidents]);
+
+  const pendingCountDisplay = totalPendingCount ?? pendingItems.length;
+  const confirmedCountDisplay = totalConfirmedCount ?? confirmedItems.length;
+  const totalUnresolvedDisplay = pendingCountDisplay + confirmedCountDisplay;
+
+  const pendingIds = useMemo(
+    () =>
+      visibleIncidents
+        .filter((inc) => inc.status === "PENDING_REVIEW")
+        .map((inc) => inc.id),
+    [visibleIncidents],
+  );
+
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [rejectMode, setRejectMode] = useState(false);
+  const [rejectNote, setRejectNote] = useState("");
+  const [batchError, setBatchError] = useState<string | null>(null);
+
+  const activeSelectedIds = useMemo(() => {
+    const pendingSet = new Set(pendingIds);
+    return selectedIds.filter((id) => pendingSet.has(id));
+  }, [selectedIds, pendingIds]);
+
+  const batchEnabled = Boolean(canReview && onBatchReview && pendingIds.length > 0);
+  const allPendingSelected =
+    pendingIds.length > 0 && activeSelectedIds.length === pendingIds.length;
+
+  const toggleSelectOne = (id: string) => {
+    setBatchError(null);
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    );
+  };
+
+  const toggleSelectAllPending = () => {
+    setBatchError(null);
+    if (allPendingSelected) {
+      setSelectedIds([]);
+      setRejectMode(false);
+    } else {
+      setSelectedIds(pendingIds);
+    }
+  };
+
+  const handleBatchConfirm = async () => {
+    if (!onBatchReview || activeSelectedIds.length === 0) return;
+    setBatchError(null);
+    try {
+      await onBatchReview(activeSelectedIds, "CONFIRM");
+      setSelectedIds([]);
+      setRejectMode(false);
+      setRejectNote("");
+    } catch (err: unknown) {
+      setBatchError(
+        err instanceof Error
+          ? err.message
+          : isVietnamese
+            ? "Không thể duyệt hàng loạt sự cố."
+            : "Failed to batch review incidents.",
+      );
+    }
+  };
+
+  const handleBatchRejectSubmit = async () => {
+    if (!onBatchReview || activeSelectedIds.length === 0) return;
+    const trimmed = rejectNote.trim();
+    if (trimmed.length < 3) {
+      setBatchError(
+        isVietnamese
+          ? "Vui lòng nhập lý do bác bỏ (tối thiểu 3 ký tự)."
+          : "Please enter a dismissal reason (at least 3 characters).",
+      );
+      return;
+    }
+    setBatchError(null);
+    try {
+      await onBatchReview(activeSelectedIds, "REJECT", trimmed);
+      setSelectedIds([]);
+      setRejectMode(false);
+      setRejectNote("");
+    } catch (err: unknown) {
+      setBatchError(
+        err instanceof Error
+          ? err.message
+          : isVietnamese
+            ? "Không thể bác bỏ hàng loạt sự cố."
+            : "Failed to batch dismiss incidents.",
+      );
+    }
+  };
+
+  const filterTabs: {
+    key: UnresolvedIncidentFilter;
+    label: string;
+    count: number;
+  }[] = [
+    {
+      key: "ALL",
+      label: t("dashboard.liveIncidents.filterAll"),
+      count: totalUnresolvedDisplay,
+    },
+    {
+      key: "PENDING_REVIEW",
+      label: t("dashboard.liveIncidents.filterPending"),
+      count: pendingCountDisplay,
+    },
+    {
+      key: "CONFIRMED",
+      label: t("dashboard.liveIncidents.filterConfirmed"),
+      count: confirmedCountDisplay,
+    },
+  ];
 
   return (
-    <div className="relative isolate flex h-full w-full flex-col justify-between overflow-hidden rounded-2xl sm:rounded-[26px] bg-surface/90 p-4 sm:p-5 shadow-[4px_6px_16px_rgba(0,0,0,0.03),-3px_-3px_10px_rgba(255,255,255,0.6)] dark:border-white/[0.08] dark:bg-card/40 dark:shadow-[0_8px_24px_rgba(0,0,0,0.25)] border border-border/40">
-      {/* Specular highlight rim */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/[0.06]"
-      />
-
-      {/* Header */}
-      <div>
-        <div className="flex items-center justify-between gap-3 border-b border-border/40 pb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-danger/10 text-danger border border-danger/20 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.05)] dark:border-danger/30 dark:shadow-none">
-              <Radio className="h-4 w-4 animate-pulse" />
-            </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-extrabold tracking-tight text-foreground flex items-center gap-2">
-                {t("dashboard.liveIncidents.title")}
-                <span className="flex h-2 w-2 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-danger" />
-                </span>
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                {t("dashboard.liveIncidents.subtitle")}
-              </p>
-            </div>
+<div
+  className={[
+    "relative isolate flex h-full w-full flex-col justify-between overflow-hidden transition-all duration-300",
+    // Sử dụng đồng nhất màu nền gốc (bg-background) để tạo hiệu ứng đúc nguyên khối
+    "rounded-[24px] sm:rounded-[28px] p-4 sm:p-5",
+    "bg-background",
+    "shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)]",
+  ].join(" ")}
+>
+  <div className="relative flex min-h-0 flex-1 flex-col">
+    {/* Header & Bộ lọc gọn gàng */}
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-3">
+        {/* Icon Box 2 tầng đúc từ màu nền */}
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-[13px] bg-background text-danger shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+          <div className="flex size-7.5 items-center justify-center rounded-[9px] bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+            <Radio className="size-4 animate-pulse" strokeWidth={2.4} />
           </div>
-
-          <Link
-            href={viewAllHref}
-            className="flex items-center gap-1 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
-          >
-            <span>{t("dashboard.liveIncidents.viewAll")}</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
         </div>
 
-        {/* Incidents List */}
-        <div className="mt-4 space-y-3">
-          {loading ? (
-            <div className="space-y-3 py-4">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="h-16 w-full animate-pulse rounded-2xl bg-muted/40"
-                />
-              ))}
-            </div>
-          ) : error ? <p className="py-10 text-center text-sm text-muted-foreground">{t("dashboard.data.error")}</p> : incidents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-success/10 text-success mb-2 border border-success/20 dark:border-white/[0.08] dark:shadow-none shadow-[inset_2px_2px_4px_rgba(0,0,0,0.04)]">
-                <CheckCircle2 className="h-6 w-6" />
-              </div>
-              <p className="text-sm font-semibold text-foreground">
-                {t("dashboard.liveIncidents.empty")}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {isVietnamese
-                  ? "Chưa ghi nhận sự cố trong danh sách hiện tại."
-                  : "No incidents recorded in the current list."}
-              </p>
-            </div>
-          ) : (
-            incidents.slice(0, 5).map((inc) => {
-              const isHighlighted = inc.id === highlightedId;
-              const violationLabel =
-                VIOLATION_LABELS[inc.violationType]?.[
-                  isVietnamese ? "vi" : "en"
-                ] || inc.violationType;
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-sm font-black tracking-tight text-foreground sm:text-base">
+            <span className="truncate">{t("dashboard.liveIncidents.title")}</span>
+            {totalUnresolvedDisplay > 0 && (
+              <span className="inline-flex items-center rounded-full bg-background px-2.5 py-0.5 font-mono text-xs font-extrabold text-danger shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+                {totalUnresolvedDisplay}
+              </span>
+            )}
+          </h3>
+          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+            {t("dashboard.liveIncidents.subtitle")}
+          </p>
+        </div>
+      </div>
 
-              return (
-                <div
-                  key={inc.id}
-                  className={`group relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border p-3.5 transition-all duration-300 ${
-                    isHighlighted
-                      ? "border-danger bg-danger/5 shadow-[0_0_15px_rgba(239,68,68,0.25)] animate-pulse"
-                      : "border-border/30 bg-background/50 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.03)] dark:border-white/[0.06] dark:bg-background/40 dark:shadow-none hover:border-primary/40 dark:hover:border-white/20"
+      {/* Cụm Nút thao tác Header */}
+      <div className="flex items-center gap-2.5">
+        {batchEnabled && (
+          <button
+            type="button"
+            onClick={toggleSelectAllPending}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-background px-3 py-1.5 text-[11px] font-bold text-foreground shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 hover:text-primary active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+          >
+            <span
+              className={`flex size-3.5 items-center justify-center rounded-[5px] transition-all ${
+                allPendingSelected
+                  ? "bg-primary text-primary-foreground shadow-[0_0_8px_hsl(var(--primary)/0.5)]"
+                  : "bg-background shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]"
+              }`}
+            >
+              {allPendingSelected && <Check className="size-2.5" strokeWidth={3} />}
+            </span>
+            <span>
+              {allPendingSelected
+                ? isVietnamese
+                  ? "Bỏ chọn"
+                  : "Deselect"
+                : isVietnamese
+                  ? `Chọn chờ duyệt (${pendingIds.length})`
+                  : `Select pending (${pendingIds.length})`}
+            </span>
+          </button>
+        )}
+
+        <Link
+          href={viewAllHref}
+          className="group inline-flex items-center gap-1.5 rounded-full bg-background px-3 py-1.5 text-[11px] font-bold text-primary shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)] active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+        >
+          <span>{t("dashboard.liveIncidents.viewAll")}</span>
+          <ArrowRight
+            className="size-3 transition-transform duration-200 group-hover:translate-x-0.5"
+            strokeWidth={2.4}
+          />
+        </Link>
+      </div>
+    </div>
+
+    {/* Thanh Trạng thái khẩn & Filter Tabs nằm ngang */}
+    {!loading && !error && totalUnresolvedDisplay > 0 && (
+      <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2.5">
+        {/* Filter Tabs: Khay trượt lõm + Nút tab nổi đồng màu nền */}
+        <div
+          role="tablist"
+          aria-label={t("dashboard.liveIncidents.title")}
+          className={`inline-flex flex-wrap items-center gap-1 rounded-[15px] bg-background p-1 shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)] ${NM.recessed}`}
+        >
+          {filterTabs.map((tab) => {
+            const active = statusFilter === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setStatusFilter(tab.key)}
+                className={`inline-flex cursor-pointer items-center gap-1.5 rounded-[11px] px-3 py-1 text-[11px] font-bold transition-all duration-200 ${
+                  active
+                    ? `bg-background text-primary shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)] ${NM.extruded}`
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 font-mono text-[10px] font-extrabold ${
+                    active
+                      ? "bg-primary/12 text-primary"
+                      : "bg-accent text-accent-foreground"
                   }`}
                 >
-                  {/* Left: Thumbnail & Details */}
-                  <div className="flex items-center gap-3 min-w-0">
-                    {/* Snapshot / Camera Icon */}
-                    <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/40 bg-muted/20 shadow-[2px_2px_5px_rgba(0,0,0,0.04)] dark:border-white/[0.08] dark:bg-muted/10 dark:shadow-none">
-                      {inc.snapshotUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={resolveEvidenceUrl(inc.snapshotUrl)}
-                          alt="Violation Snapshot"
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <Camera className="h-5 w-5 text-muted-foreground" />
-                      )}
-                      {isHighlighted && (
-                        <span className="absolute top-1 right-1 flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-danger opacity-75" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-danger" />
-                        </span>
-                      )}
-                    </div>
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
-                    {/* Metadata */}
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-mono text-xs font-bold text-foreground truncate max-w-[140px] sm:max-w-none">
-                          {violationLabel}
-                        </span>
-                        <IncidentSeverityBadge
-                          severity={inc.severity as IncidentSeverity}
-                        />
-                        <IncidentStatusBadge
-                          status={inc.status as IncidentStatus}
-                        />
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-                        <span className="font-semibold text-foreground/80">
-                          {inc.cameraName || inc.cameraCode || "Camera"}
-                        </span>
-                        {inc.zoneName && (
-                          <>
-                            <span>•</span>
-                            <span>{inc.zoneName}</span>
-                          </>
-                        )}
-                        <span>•</span>
-                        <span className="flex items-center gap-0.5">
-                          <Clock className="h-3 w-3" />
-                          {formatRelativeTime(inc.detectedAt, isVietnamese)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right: Action Buttons */}
-                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                    {canReview && inc.status === "PENDING_REVIEW" && onReview && (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={() => onReview(inc)}
-                        className="h-8 rounded-xl px-2.5 text-xs font-bold shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)]"
-                      >
-                        {t("dashboard.liveIncidents.quickReview")}
-                      </Button>
-                    )}
-
-                    <Link href={`/incidents/${inc.id}`}>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0 rounded-xl hover:bg-surface-elevated"
-                        title={isVietnamese ? "Xem chi tiết sự cố" : "View Details"}
-                      >
-                        <Eye className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              );
-            })
+        {/* Urgent Action Pill: Dập nổi nhẹ trên nền */}
+        <div className="flex items-center gap-2 rounded-full bg-background px-3 py-1.5 text-[11px] shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)]">
+          <AlertTriangle className="size-3.5 shrink-0 text-danger" />
+          <span className="font-semibold text-danger">
+            {t("dashboard.liveIncidents.urgentBanner")}:{" "}
+            <strong className="font-black">{totalUnresolvedDisplay}</strong>
+          </span>
+          {totalUnresolvedDisplay > unresolvedIncidents.length && (
+            <span className="font-mono text-[10px] text-muted-foreground">
+              ({unresolvedIncidents.length}/{totalUnresolvedDisplay})
+            </span>
           )}
         </div>
       </div>
+    )}
 
-      {/* Footer hint */}
-      <div className="mt-4 pt-3 border-t border-border/30 flex items-center justify-between text-[11px] text-muted-foreground">
-        <span>
-          {isVietnamese
-            ? "Nguồn: hồ sơ sự cố · kiểm tra tự động mỗi 15 giây"
-            : "Source: incident records · checked every 15 seconds"}
-        </span>
-        <span className="font-mono text-xs text-primary font-semibold">
-          {isVietnamese ? "Mọi ngày" : "All dates"}
-        </span>
+    {/* Batch Review Toolbar: Dùng màu Primary & Accent thay cho xanh lá */}
+    {batchEnabled && activeSelectedIds.length > 0 && (
+      <div className="mt-3 space-y-2.5 rounded-[16px] bg-background p-3 shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="flex size-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
+            <span className="text-xs font-extrabold text-foreground">
+              {isVietnamese
+                ? `Đã chọn ${activeSelectedIds.length} sự cố chờ duyệt`
+                : `${activeSelectedIds.length} pending selected`}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={batchReviewPending}
+              onClick={() => void handleBatchConfirm()}
+              className="h-8 rounded-xl px-3 text-xs font-bold shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]"
+            >
+              {batchReviewPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              )}
+              <span>
+                {isVietnamese
+                  ? `Xác nhận (${activeSelectedIds.length})`
+                  : `Confirm (${activeSelectedIds.length})`}
+              </span>
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={batchReviewPending}
+              onClick={() => {
+                setBatchError(null);
+                setRejectMode((prev) => !prev);
+              }}
+              className="h-8 rounded-xl bg-background px-3 text-xs font-bold text-foreground shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] hover:text-danger active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+            >
+              <XCircle className="h-3.5 w-3.5 text-danger" />
+              <span>
+                {isVietnamese
+                  ? `Báo nhầm (${activeSelectedIds.length})`
+                  : `Dismiss (${activeSelectedIds.length})`}
+              </span>
+            </Button>
+          </div>
+        </div>
+
+        {rejectMode && (
+          <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
+            <input
+              type="text"
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+              placeholder={
+                isVietnamese
+                  ? "Nhập lý do bác bỏ (tối thiểu 3 ký tự)..."
+                  : "Enter dismissal reason (min 3 chars)..."
+              }
+              className="flex-1 rounded-xl bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/70 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={batchReviewPending}
+                onClick={() => void handleBatchRejectSubmit()}
+                className="h-8 rounded-xl px-3 text-xs font-bold"
+              >
+                {isVietnamese ? "Gửi bác bỏ" : "Submit"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={batchReviewPending}
+                onClick={() => {
+                  setRejectMode(false);
+                  setBatchError(null);
+                }}
+                className="h-8 w-8 rounded-xl bg-background p-0 shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)]"
+                aria-label={t("common.cancel")}
+              >
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {batchError && (
+          <p className="text-[11px] font-semibold text-danger">{batchError}</p>
+        )}
+      </div>
+    )}
+
+    {/* KHAY LÕM CHỨA DANH SÁCH SỰ CỐ: Đồng màu bg-background */}
+    <div className="mt-3.5 flex-1 rounded-[18px] bg-background p-2.5 sm:p-3 shadow-[inset_4px_4px_10px_var(--shadow-dark),inset_-4px_-4px_10px_var(--shadow-light)]">
+      <div className="max-h-[420px] space-y-2.5 overflow-y-auto pr-1">
+        {loading ? (
+          <div className="space-y-2.5 py-2">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-16 w-full animate-pulse rounded-[14px] bg-background shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)]"
+              />
+            ))}
+          </div>
+        ) : error ? (
+          <p className="py-12 text-center text-xs font-medium text-muted-foreground">
+            {t("dashboard.data.error")}
+          </p>
+        ) : visibleIncidents.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <div className="mb-2.5 flex size-12 items-center justify-center rounded-[15px] bg-background text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+              <CheckCircle2 className="size-6" strokeWidth={2.2} />
+            </div>
+            <p className="text-sm font-extrabold text-foreground">
+              {t("dashboard.liveIncidents.empty")}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {isVietnamese
+                ? "Tất cả vi phạm đã được thẩm duyệt và xử lý."
+                : "All violations have been reviewed and resolved."}
+            </p>
+          </div>
+        ) : (
+          visibleIncidents.map((inc) => {
+            const isHighlighted = inc.id === highlightedId;
+            const isPending = inc.status === "PENDING_REVIEW";
+            const isConfirmed = inc.status === "CONFIRMED";
+            const isSelected = activeSelectedIds.includes(inc.id);
+            const violationLabel =
+              VIOLATION_LABELS[inc.violationType]?.[
+                isVietnamese ? "vi" : "en"
+              ] || inc.violationType;
+            const cameraLabel = resolveCameraLabel(inc);
+            const timeLabel = formatIncidentTimeLabel(
+              inc.detectedAt,
+              isVietnamese,
+            );
+
+            return (
+              /* Từng thẻ sự cố: Nổi mượt trên khay lõm bằng chính màu nền bg-background */
+              <div
+                key={inc.id}
+                className={[
+                  "group relative flex flex-col justify-between gap-3 rounded-[15px] p-3 transition-all duration-200 sm:flex-row sm:items-center",
+                  "bg-background",
+                  isHighlighted
+                    ? "animate-pulse shadow-[0_0_16px_rgba(239,68,68,0.28)]"
+                    : isSelected
+                      ? "ring-1 ring-primary/40 shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]"
+                      : "shadow-[3.5px_3.5px_8px_var(--shadow-dark),-3.5px_-3.5px_8px_var(--shadow-light)] hover:-translate-y-[1px] hover:shadow-[5px_5px_11px_var(--shadow-dark),-5px_-5px_11px_var(--shadow-light)]",
+                ].join(" ")}
+              >
+                {/* Left: Checkbox, Recessed Snapshot Screen & Metadata */}
+                <div className="flex min-w-0 items-center gap-3">
+                  {batchEnabled && isPending && (
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={isSelected}
+                      aria-label={
+                        isVietnamese
+                          ? `Chọn sự cố ${violationLabel} tại ${cameraLabel}`
+                          : `Select ${violationLabel} at ${cameraLabel}`
+                      }
+                      onClick={() => toggleSelectOne(inc.id)}
+                      className={`flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-[7px] transition-all ${
+                        isSelected
+                          ? "bg-primary text-primary-foreground shadow-[0_0_8px_hsl(var(--primary)/0.5)]"
+                          : "bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+                      }`}
+                    >
+                      {isSelected && <Check className="size-3.5" strokeWidth={3} />}
+                    </button>
+                  )}
+
+                  {/* Khung ảnh Snapshot lõm vào bề mặt nền */}
+                  <div className="relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-background shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+                    {inc.snapshotUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={resolveEvidenceUrl(inc.snapshotUrl)}
+                        alt="Violation Snapshot"
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    ) : (
+                      <Camera className="size-5 text-muted-foreground/70" />
+                    )}
+                    {isHighlighted && (
+                      <span className="absolute right-1 top-1 flex size-2">
+                        <span className="absolute inline-flex size-full animate-ping rounded-full bg-danger opacity-75" />
+                        <span className="relative inline-flex size-2 rounded-full bg-danger" />
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Metadata */}
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="max-w-[160px] truncate font-mono text-xs font-extrabold text-foreground sm:max-w-none">
+                        {violationLabel}
+                      </span>
+                      <IncidentSeverityBadge
+                        severity={inc.severity as IncidentSeverity}
+                      />
+                      <IncidentStatusBadge
+                        status={inc.status as IncidentStatus}
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                      <span className="max-w-[180px] truncate font-semibold text-foreground/85 sm:max-w-[240px]">
+                        {cameraLabel}
+                      </span>
+                      {inc.zoneName && (
+                        <>
+                          <span className="opacity-50">•</span>
+                          <span className="max-w-[140px] truncate">
+                            {inc.zoneName}
+                          </span>
+                        </>
+                      )}
+                      <span className="opacity-50">•</span>
+                      <span
+                        className="flex items-center gap-1 tabular-nums"
+                        title={timeLabel.exact}
+                      >
+                        <Clock className="size-3 shrink-0" />
+                        <span>{timeLabel.display}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right: Action Buttons (Dùng Primary & Accent) */}
+                <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
+                  {canReview && isPending && onReview && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => onReview(inc)}
+                      className="h-8 rounded-xl px-3 text-xs font-bold shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)] transition-transform active:scale-95"
+                    >
+                      {t("dashboard.liveIncidents.quickReview")}
+                    </Button>
+                  )}
+
+                  {canResolve && isConfirmed && onResolve && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => onResolve(inc)}
+                      className="h-8 gap-1 rounded-xl bg-accent px-3 text-xs font-bold text-accent-foreground shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)] transition-transform hover:bg-accent/80 active:scale-95"
+                    >
+                      <Wrench className="size-3 text-primary" />
+                      <span>{t("dashboard.liveIncidents.resolveNow")}</span>
+                    </Button>
+                  )}
+
+                  <Link href={`/incidents/${inc.id}`}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="size-8 rounded-xl bg-background p-0 shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+                      title={
+                        isVietnamese ? "Xem chi tiết sự cố" : "View Details"
+                      }
+                    >
+                      <Eye className="size-4 text-muted-foreground transition-colors group-hover:text-primary" />
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
+  </div>
+
+  {/* Footer: Đồng màu nền, sử dụng Primary & Accent */}
+  <div className="relative mt-3.5 flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-2">
+      <span>
+        {isVietnamese
+          ? "Nguồn: sự cố chờ duyệt & chờ khắc phục · đồng bộ mỗi 15 giây"
+          : "Source: pending & confirmed incidents · synced every 15s"}
+      </span>
+      <span
+        title={
+          isVietnamese
+            ? "Nhận cảnh báo vi phạm PPE tức thì qua luồng SSE thời gian thực"
+            : "Receiving live PPE violation alerts via SSE stream"
+        }
+        className={`inline-flex items-center gap-1.5 rounded-full bg-background px-2.5 py-0.5 text-[10px] font-bold shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] ${
+          isRealtimeConnected ? "text-primary" : "text-muted-foreground"
+        }`}
+      >
+        <span
+          className={`size-1.5 rounded-full ${
+            isRealtimeConnected
+              ? "bg-primary shadow-[0_0_6px_hsl(var(--primary))]"
+              : "bg-muted-foreground/50"
+          }`}
+        />
+        {isRealtimeConnected ? "SSE Live" : "Polling"}
+      </span>
+    </div>
+
+    <span className="rounded-full bg-accent px-2.5 py-0.5 font-mono text-[11px] font-bold text-accent-foreground shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]">
+      {isVietnamese ? "Mọi ngày" : "All dates"}
+    </span>
+  </div>
+</div>
   );
 }

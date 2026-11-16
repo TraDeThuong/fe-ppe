@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Camera, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { mapTableSort } from "@/lib/table-utils";
@@ -10,6 +10,7 @@ import { useCan } from "@/hooks/use-can";
 import { useSite } from "@/contexts/SiteContext";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { NM } from "@/components/features/ai-test/nm-styles";
+import { selectAutoStartCandidates } from "@/components/features/cameras/camera-live-helpers";
 import {
   CameraCard,
   CameraFleetHeader,
@@ -28,6 +29,7 @@ import {
   useCameraLiveSessions,
   useCameras,
   useCamerasCatalog,
+  useCameraStatusCounts,
   useCreateCamera,
   useDeleteCamera,
   useUpdateCamera,
@@ -122,8 +124,13 @@ export default function CamerasContent() {
     { sortBy: "createdAt", order: "desc" },
   );
 
-  // Queries: Catalog (KPI), Filtered Page (Grid/Wall/Table), Live AI Sessions
-  const { data: catalogCameras = [], refetch: refetchCatalog } = useCamerasCatalog();
+  const [kpiDetailOpen, setKpiDetailOpen] = useState(false);
+
+  // Queries: Status Counts (lightweight KPI), Lazy Catalog (only when KPI detail panel opens), Filtered Page (Grid/Wall/Table), Live AI Sessions
+  const { data: cameraStatusCounts, refetch: refetchStatusCounts } =
+    useCameraStatusCounts(siteFilter || undefined);
+  const { data: catalogCameras = [], refetch: refetchCatalog } =
+    useCamerasCatalog({ enabled: kpiDetailOpen });
 
   const {
     data: camerasResponse,
@@ -145,14 +152,27 @@ export default function CamerasContent() {
     engineOnline,
     engineError,
     models,
+    videos,
     sessions,
     getSessionForCamera,
+    isLoadingSessions,
     startLive,
     stopLive,
     startingCameraId,
     isFetchingSessions,
     refreshAll: refreshAiEngine,
   } = useCameraLiveSessions({ enabled: true, pollIntervalMs: 2500 });
+
+  const autoAttemptedIdsRef = useRef<Set<string>>(new Set());
+  const autoStartRunningRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const createMutation = useCreateCamera();
   const updateMutation = useUpdateCamera();
@@ -204,7 +224,13 @@ export default function CamerasContent() {
   const pageCount = Math.max(1, meta?.totalPages ?? Math.ceil(totalCount / pageSize));
 
   const handleRefreshAll = () => {
-    void Promise.all([refetchCameras(), refetchCatalog(), refreshAiEngine()]);
+    autoAttemptedIdsRef.current.clear();
+    void Promise.all([
+      refetchCameras(),
+      refetchStatusCounts(),
+      kpiDetailOpen ? refetchCatalog() : Promise.resolve(),
+      refreshAiEngine(),
+    ]);
   };
 
   const handleKpiSelect = (key: CameraKpiFilterKey) => {
@@ -229,16 +255,61 @@ export default function CamerasContent() {
   };
 
   const handleStartLive = useCallback((camera: CameraItem) => {
+    autoAttemptedIdsRef.current.add(camera.id);
     void startLive({ camera }).catch(() => {
       // toast handled inside mutation
     });
   }, [startLive]);
 
   const handleStopLive = useCallback((camera: CameraItem) => {
+    autoAttemptedIdsRef.current.add(camera.id);
     void stopLive(camera).catch(() => {
       // toast handled inside mutation
     });
   }, [stopLive]);
+
+  // Auto-start eligible ONLINE cameras when viewing Grid / Video Wall (respects BE max 4 session slots)
+  useEffect(() => {
+    if (!engineOnline || isLoadingSessions) return;
+    if (viewMode !== "grid" && viewMode !== "wall") return;
+    if (autoStartRunningRef.current) return;
+
+    const candidates = selectAutoStartCandidates(
+      visibleCameras,
+      sessions,
+      videos,
+      {
+        maxTotalSessions: 4,
+        attemptedIds: autoAttemptedIdsRef.current,
+      },
+    );
+    if (candidates.length === 0) return;
+
+    autoStartRunningRef.current = true;
+    void (async () => {
+      try {
+        for (const cam of candidates) {
+          if (!isMountedRef.current) break;
+          autoAttemptedIdsRef.current.add(cam.id);
+          try {
+            await startLive({ camera: cam, silent: true });
+          } catch {
+            break;
+          }
+        }
+      } finally {
+        autoStartRunningRef.current = false;
+      }
+    })();
+  }, [
+    engineOnline,
+    isLoadingSessions,
+    sessions,
+    startLive,
+    videos,
+    viewMode,
+    visibleCameras,
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-10">
@@ -252,7 +323,7 @@ export default function CamerasContent() {
         engineOnline={engineOnline}
         engineError={engineError}
         models={models}
-        totalCameras={catalogCameras.length}
+        totalCameras={cameraStatusCounts?.total ?? totalCount}
         runningSessionsCount={runningSessionsCount}
         isRefreshing={camerasFetching || isFetchingSessions}
         canCreateCamera={canCreate}
@@ -260,12 +331,14 @@ export default function CamerasContent() {
         onCreateCamera={() => setCreateOpen(true)}
       />
 
-      {/* Layer 2: 4 Bento Telemetry Pods (Real Catalog + Live Sessions) */}
+      {/* Layer 2: 4 Bento Telemetry Pods (Status Counts + Live Sessions + Lazy Detail) */}
       <CameraKpiSummary
-        cameras={catalogCameras}
+        cameras={catalogCameras.length > 0 ? catalogCameras : rawCameras}
+        statusCounts={cameraStatusCounts}
         sessions={sessions}
         activeFilter={kpiFilter}
         onSelectFilter={handleKpiSelect}
+        onDetailOpenChange={setKpiDetailOpen}
       />
 
       {/* Layer 3: Search & Portal Select Filter Bar */}

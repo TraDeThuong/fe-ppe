@@ -19,6 +19,10 @@ import {
   type TableFeatureSet,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import {
+  explainProbeFailure,
+  formatServiceLatencyLabel,
+} from "@/lib/system-health-guidance";
 import { useLocale } from "@/providers/locale-provider";
 import type { ServiceHealthItem, SystemHealthReport } from "@/types";
 
@@ -166,7 +170,19 @@ export function SystemHealthMatrix({
           return rank[left.original.status] - rank[right.original.status];
         },
         header: t("system.health.tableStatus"),
-        cell: ({ row }) => getStatusBadge(row.original.status),
+        cell: ({ row }) => {
+          const svc = row.original;
+          return (
+            <div className="space-y-1">
+              {getStatusBadge(svc.status)}
+              {svc.status !== "HEALTHY" && (
+                <p className="max-w-[240px] text-[11px] leading-snug text-muted-foreground">
+                  {explainProbeFailure(svc, locale)}
+                </p>
+              )}
+            </div>
+          );
+        },
 
       },
       {
@@ -174,27 +190,34 @@ export function SystemHealthMatrix({
         accessorKey: "latencyMs",
         header: t("system.health.tableLatency"),
         cell: ({ row }) => {
-          const lat = row.original.latencyMs;
+          const svc = row.original;
+          const lat = svc.latencyMs;
+          const isDown = svc.status === "DOWN";
           return (
             <div className="flex items-center gap-1.5 font-mono text-xs">
               <Activity
-                className={`h-3.5 w-3.5 ${lat < 100
-                    ? "text-success"
-                    : lat < 300
-                      ? "text-warning"
-                      : "text-danger"
-                  }`}
+                className={`h-3.5 w-3.5 ${
+                  isDown
+                    ? "text-danger"
+                    : lat < 100
+                      ? "text-success"
+                      : lat < 300
+                        ? "text-warning"
+                        : "text-danger"
+                }`}
               />
               <span
                 className={
-                  lat < 100
-                    ? "text-foreground font-semibold"
-                    : lat < 300
-                      ? "text-warning font-semibold"
-                      : "text-danger font-semibold"
+                  isDown
+                    ? "font-semibold text-danger"
+                    : lat < 100
+                      ? "text-foreground font-semibold"
+                      : lat < 300
+                        ? "text-warning font-semibold"
+                        : "text-danger font-semibold"
                 }
               >
-                {lat} ms
+                {isDown ? formatServiceLatencyLabel(svc) : `${lat} ms`}
               </span>
             </div>
           );

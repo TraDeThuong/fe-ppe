@@ -1,3 +1,4 @@
+import type { Locale } from "@/providers/locale-provider";
 import type {
   EvidenceItem,
   FrameLogEntry,
@@ -482,7 +483,8 @@ export function queryEvidenceItems(
         item.sourceId,
         item.source,
         normalizeViolationType(item.type),
-        formatViolationLabel(item.type),
+        formatViolationLabel(item.type, "vi-VN"),
+        formatViolationLabel(item.type, "en-US"),
         typeof item.frameIdx === "number" ? `frame #${item.frameIdx}` : "",
         typeof item.timeSec === "number" ? formatTimeSec(item.timeSec) : "",
       ]
@@ -625,8 +627,14 @@ export function extractAssociationPpeStatus(assoc: PpeAssociationItem): {
   return { trackId, helmetOk, helmetConf, vestOk, vestConf, missing };
 }
 
-export function formatViolationLabel(type: string): string {
+export function formatViolationLabel(type: string, locale: Locale = "vi-VN"): string {
   const normalized = normalizeViolationType(type);
+  if (locale === "en-US") {
+    if (normalized === "NO_HELMET") return "Missing Helmet (NO_HELMET)";
+    if (normalized === "NO_VEST") return "Missing Safety Vest (NO_VEST)";
+    if (normalized === "RESTRICTED_AREA") return "Restricted Area (RESTRICTED_AREA)";
+    return type;
+  }
   if (normalized === "NO_HELMET") return "Thiếu mũ bảo hộ (NO_HELMET)";
   if (normalized === "NO_VEST") return "Thiếu áo phản quang (NO_VEST)";
   if (normalized === "RESTRICTED_AREA") return "Vùng nguy hiểm (RESTRICTED_AREA)";

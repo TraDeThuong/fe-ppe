@@ -250,6 +250,9 @@ export default function IncidentsContent() {
   const [isResolveOpen, setIsResolveOpen] = useState(false);
   const [isCloseOpen, setIsCloseOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [batchRejectIds, setBatchRejectIds] = useState<string[] | null>(null);
+  const [batchRejectNote, setBatchRejectNote] = useState("");
+  const [batchRejectError, setBatchRejectError] = useState<string | null>(null);
 
   // Actions
   const handleOpenReview = (incident: IncidentItem) => {
@@ -261,8 +264,40 @@ export default function IncidentsContent() {
     ids: string[],
     action: "CONFIRM" | "REJECT"
   ) => {
+    if (action === "REJECT") {
+      setBatchRejectIds(ids);
+      setBatchRejectNote("");
+      setBatchRejectError(null);
+      return;
+    }
     try {
       await batchReviewMutation.mutateAsync({ ids, action });
+    } catch {
+      // Handled by onError in hook
+    }
+  };
+
+  const handleConfirmBatchReject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!batchRejectIds || batchRejectIds.length === 0) return;
+    const trimmed = batchRejectNote.trim();
+    if (trimmed.length < 3) {
+      setBatchRejectError(
+        isVietnamese
+          ? "Vui lòng nhập lý do bác bỏ (tối thiểu 3 ký tự)."
+          : "Please provide a dismissal reason (at least 3 characters).",
+      );
+      return;
+    }
+    try {
+      await batchReviewMutation.mutateAsync({
+        ids: batchRejectIds,
+        action: "REJECT",
+        resolutionNote: trimmed,
+      });
+      setBatchRejectIds(null);
+      setBatchRejectNote("");
+      setBatchRejectError(null);
     } catch {
       // Handled by onError in hook
     }
@@ -593,6 +628,63 @@ export default function IncidentsContent() {
         }}
 
       />
+
+      <Dialog
+        open={Boolean(batchRejectIds?.length)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBatchRejectIds(null);
+            setBatchRejectNote("");
+            setBatchRejectError(null);
+          }
+        }}
+        title={
+          isVietnamese
+            ? `Bác bỏ hàng loạt (${batchRejectIds?.length ?? 0} sự cố)`
+            : `Batch Dismiss (${batchRejectIds?.length ?? 0} incidents)`
+        }
+        description={
+          isVietnamese
+            ? "Bắt buộc nhập lý do bác bỏ (tối thiểu 3 ký tự) theo quy chuẩn kiểm toán an toàn."
+            : "A dismissal reason (minimum 3 characters) is required for safety audit compliance."
+        }
+      >
+        <form onSubmit={handleConfirmBatchReject} className="space-y-4 pt-2">
+          {batchRejectError && (
+            <p className="rounded-xl border border-danger/30 bg-danger/10 p-2.5 text-xs text-danger">
+              {batchRejectError}
+            </p>
+          )}
+          <textarea
+            rows={3}
+            value={batchRejectNote}
+            onChange={(e) => setBatchRejectNote(e.target.value)}
+            placeholder={
+              isVietnamese
+                ? "Ví dụ: Ánh sáng phản chiếu / nhận diện nhầm vật thể..."
+                : "Example: Light reflection / false object detection..."
+            }
+            className="w-full rounded-xl border border-border/50 bg-background p-3 text-xs text-foreground focus:border-primary focus:outline-none"
+          />
+          <div className="flex items-center justify-end gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setBatchRejectIds(null)}
+              disabled={batchReviewMutation.isPending}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="submit"
+              variant="danger"
+              disabled={batchReviewMutation.isPending}
+            >
+              {isVietnamese ? "Xác nhận bác bỏ" : "Confirm Dismiss"}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
 
       <Dialog
 

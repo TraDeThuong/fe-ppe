@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Switch } from "@/components/ui/form";
 import { Select, type SelectOption } from "@/components/ui/form/selection-controls/select";
 import { Loader } from "@/components/ui/loader";
+import { useLocale } from "@/providers/locale-provider";
 import { aiTestService } from "@/services/ai-test.service";
 import {
   formatTimeSec,
@@ -52,6 +53,7 @@ export function LiveStreamPanel({
   onInspectEvidence,
   onOpenGallery,
 }: LiveStreamPanelProps) {
+  const { t, locale } = useLocale();
   const [liveVideos, setLiveVideos] = useState<LiveVideoItem[]>([]);
   const [sessions, setSessions] = useState<LiveSessionInfo[]>([]);
 
@@ -170,11 +172,21 @@ export function LiveStreamPanel({
     [liveVideos],
   );
 
+  const translateSessionStatus = useCallback(
+    (status?: string) => {
+      const normalized = (status ?? "idle").toLowerCase();
+      const key = `aiTest.live.sessionStatus.${normalized}`;
+      const translated = t(key);
+      return translated === key ? (status ?? "idle") : translated;
+    },
+    [t],
+  );
+
   const handleStartStream = async (sourceOverride?: string) => {
     const targetSource = (sourceOverride ?? source).trim();
     const cleanCamId = cameraId.trim() || "CAM-01";
     if (!targetSource) {
-      toast.error("Hãy chọn video hoặc nhập URL nguồn (MP4/YouTube/RTSP).");
+      toast.error(t("aiTest.live.toasts.sourceRequired"));
       return;
     }
 
@@ -196,10 +208,10 @@ export function LiveStreamPanel({
       const resolvedId = started.camera_id || cleanCamId;
       onActiveCameraChange(resolvedId);
       setStreamNonce(Date.now());
-      toast.success(`Đã khởi chạy Live Stream cho ${resolvedId}`);
+      toast.success(t("aiTest.live.toasts.started", { cameraId: resolvedId }));
       await loadVideosAndSessions();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Không thể khởi chạy Live Stream");
+      toast.error(error instanceof Error ? error.message : t("aiTest.live.toasts.startFailed"));
     } finally {
       setIsStarting(false);
     }
@@ -220,9 +232,9 @@ export function LiveStreamPanel({
         enable_restricted_area: enableRestrictedArea,
         enable_scene_cut: enableSceneCut,
       });
-      toast.success(`Đã áp dụng Hot Config lên ${targetId}!`);
+      toast.success(t("aiTest.live.toasts.hotConfigApplied", { cameraId: targetId }));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Lỗi cập nhật Hot Config");
+      toast.error(error instanceof Error ? error.message : t("aiTest.live.toasts.hotConfigFailed"));
     } finally {
       setIsApplyingConfig(false);
     }
@@ -234,14 +246,14 @@ export function LiveStreamPanel({
     setIsStopping(true);
     try {
       await aiTestService.stopLiveStream(targetId);
-      toast.success(`Đã dừng Live Stream ${targetId}.`);
+      toast.success(t("aiTest.live.toasts.stopped", { cameraId: targetId }));
       await loadVideosAndSessions();
       if (targetId === activeCameraId) {
         const refreshed = await aiTestService.getLiveStats(targetId).catch(() => null);
         if (refreshed) setStats(refreshed);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Không thể dừng session");
+      toast.error(error instanceof Error ? error.message : t("aiTest.live.toasts.stopFailed"));
     } finally {
       setIsStopping(false);
     }
@@ -256,7 +268,7 @@ export function LiveStreamPanel({
       setSource(uploadedSource);
       await handleStartStream(uploadedSource);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Upload & stream thất bại");
+      toast.error(error instanceof Error ? error.message : t("aiTest.live.toasts.uploadFailed"));
     } finally {
       setIsUploading(false);
     }
@@ -282,7 +294,7 @@ export function LiveStreamPanel({
     <div className="space-y-6">
       {/* Control Deck (thu gọn mặc định, click header để mở rộng đầy đủ) */}
       <section
-        aria-label="Cấu hình Live Stream & Hot Config"
+        aria-label={t("aiTest.live.configAriaLabel")}
         className={`relative overflow-hidden rounded-[28px] bg-background shadow-[14px_14px_28px_rgba(0,0,0,0.12),-14px_-14px_28px_rgba(255,255,255,0.75),inset_1px_1px_2px_rgba(255,255,255,0.6)] dark:shadow-[14px_14px_28px_rgba(0,0,0,0.55),-10px_-10px_24px_rgba(255,255,255,0.04),inset_1px_1px_1px_rgba(255,255,255,0.07)] border border-white/40 dark:border-white/[0.06] transition-all duration-300 ${
           isConfigExpanded ? "p-5 sm:p-7" : "px-5 py-4 sm:px-6"
         }`}
@@ -317,7 +329,7 @@ export function LiveStreamPanel({
               <div className="min-w-0 space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-base font-extrabold tracking-tight text-foreground sm:text-lg">
-                    Cấu hình Live Stream &amp; Hot Config
+                    {t("aiTest.live.configTitle")}
                   </h2>
                   <span
                     className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${isRunning
@@ -329,10 +341,10 @@ export function LiveStreamPanel({
                       className={`h-1.5 w-1.5 rounded-full ${isRunning ? "animate-pulse bg-primary" : "bg-accent"
                         }`}
                     />
-                    {isRunning ? "Streaming Active" : "Standby"}
+                    {isRunning ? t("aiTest.live.statusActive") : t("aiTest.live.statusStandby")}
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.05] px-2 py-0.5 text-[10px] font-semibold text-muted-foreground group-hover:text-primary">
-                    {isConfigExpanded ? "Thu gọn" : "Nhấn để chỉnh chi tiết"}
+                    {isConfigExpanded ? t("aiTest.live.collapseConfig") : t("aiTest.live.expandConfig")}
                     <ChevronDown
                       className={`size-3 transition-transform duration-200 ${
                         isConfigExpanded ? "rotate-180" : ""
@@ -347,7 +359,7 @@ export function LiveStreamPanel({
                     {activeCameraId || cameraId}
                   </span>
                   <span className="max-w-[220px] truncate rounded-lg bg-foreground/[0.04] px-2 py-0.5 font-mono text-muted-foreground">
-                    {source || "Chưa chọn nguồn"}
+                    {source || t("aiTest.live.noSourceSelected")}
                   </span>
                   <span className="rounded-lg bg-foreground/[0.04] px-2 py-0.5 font-mono font-semibold text-foreground">
                     {activeModelName}
@@ -356,7 +368,7 @@ export function LiveStreamPanel({
                     {targetFps}/{aiFps} FPS • {confirmHelmetSec}s/{confirmVestSec}s
                   </span>
                   <span className="rounded-lg bg-primary/10 px-2 py-0.5 font-mono font-semibold text-primary">
-                    {enabledRulesCount}/4 Rules
+                    {t("aiTest.live.rulesSummary", { count: enabledRulesCount })}
                   </span>
                 </div>
               </div>
@@ -383,7 +395,7 @@ export function LiveStreamPanel({
                 className="group inline-flex items-center gap-2 rounded-xl bg-background px-3.5 py-2 text-xs font-bold text-foreground shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.75)] dark:shadow-[4px_4px_8px_rgba(0,0,0,0.45),-3px_-3px_6px_rgba(255,255,255,0.03)] hover:text-primary active:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.14),inset_-3px_-3px_6px_rgba(255,255,255,0.7)] border border-white/50 dark:border-white/[0.05] transition-all duration-200 disabled:pointer-events-none disabled:opacity-45 cursor-pointer"
               >
                 <Upload className="size-3.5 text-accent transition-transform duration-200 group-hover:-translate-y-0.5" />
-                <span>{isUploading ? "Đang tải..." : "Upload & Stream"}</span>
+                <span>{isUploading ? t("aiTest.live.uploading") : t("aiTest.live.uploadAndStream")}</span>
               </button>
 
               <button
@@ -393,7 +405,7 @@ export function LiveStreamPanel({
                 className="group inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground shadow-[4px_4px_10px_rgba(0,0,0,0.16),-3px_-3px_8px_rgba(255,255,255,0.7),inset_1px_1px_1px_rgba(255,255,255,0.35)] dark:shadow-[4px_4px_10px_rgba(0,0,0,0.55),-2px_-2px_6px_rgba(255,255,255,0.04)] hover:brightness-105 active:scale-[0.98] transition-all duration-200 disabled:pointer-events-none disabled:opacity-45 cursor-pointer"
               >
                 <Play className="size-3.5 fill-current" />
-                <span>{isStarting ? "Đang khởi tạo..." : "Bắt đầu Stream"}</span>
+                <span>{isStarting ? t("aiTest.live.starting") : t("aiTest.live.startStream")}</span>
               </button>
 
               <div className="hidden h-5 w-[1px] bg-foreground/10 sm:block" />
@@ -410,7 +422,7 @@ export function LiveStreamPanel({
                     : "transition-transform group-hover:scale-110"
                     }`}
                 />
-                <span>Áp dụng Hot Config</span>
+                <span>{t("aiTest.live.applyHotConfig")}</span>
               </button>
 
               <button
@@ -420,14 +432,14 @@ export function LiveStreamPanel({
                 className="group inline-flex items-center gap-2 rounded-xl bg-background px-3.5 py-2 text-xs font-bold text-accent shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.75)] dark:shadow-[4px_4px_8px_rgba(0,0,0,0.45),-3px_-3px_6px_rgba(255,255,255,0.03)] hover:bg-accent/10 active:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.14),inset_-3px_-3px_6px_rgba(255,255,255,0.7)] border border-accent/30 transition-all duration-200 disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
               >
                 <Square className="size-3.5 fill-current" />
-                <span>Dừng Stream</span>
+                <span>{t("aiTest.live.stopStream")}</span>
               </button>
 
               <button
                 type="button"
                 aria-expanded={isConfigExpanded}
                 onClick={() => setIsConfigExpanded((prev) => !prev)}
-                title={isConfigExpanded ? "Thu gọn bảng cấu hình" : "Mở rộng bảng cấu hình"}
+                title={isConfigExpanded ? t("aiTest.live.collapseConfigTitle") : t("aiTest.live.expandConfigTitle")}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-background text-primary shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.75)] dark:shadow-[4px_4px_8px_rgba(0,0,0,0.45)] active:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.14)] border border-white/40 dark:border-white/[0.05] transition-all cursor-pointer"
               >
                 <ChevronDown
@@ -449,7 +461,7 @@ export function LiveStreamPanel({
             <div className="space-y-3.5 rounded-2xl bg-background p-4 shadow-[6px_6px_12px_rgba(0,0,0,0.09),-6px_-6px_12px_rgba(255,255,255,0.75),inset_1px_1px_1px_rgba(255,255,255,0.5)] dark:shadow-[6px_6px_12px_rgba(0,0,0,0.45),-5px_-5px_10px_rgba(255,255,255,0.03)] border border-white/40 dark:border-white/[0.05] lg:col-span-4">
               <div className="flex items-center justify-between border-b border-foreground/[0.06] pb-2">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                  01. Session &amp; Model
+                  {t("aiTest.live.moduleSessionTitle")}
                 </span>
                 <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               </div>
@@ -457,7 +469,7 @@ export function LiveStreamPanel({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-semibold text-muted-foreground">
-                    Camera Session ID
+                    {t("aiTest.live.cameraSessionIdLabel")}
                   </label>
                   <Input
                     size="sm"
@@ -469,14 +481,14 @@ export function LiveStreamPanel({
 
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-semibold text-muted-foreground">
-                    Model AI (.pt)
+                    {t("aiTest.live.modelLabel")}
                   </label>
                   <Select
                     size="sm"
                     options={modelOptions}
                     value={selectedModel}
                     onValueChange={setSelectedModel}
-                    placeholder="Chọn model"
+                    placeholder={t("aiTest.live.modelPlaceholder")}
                   />
                 </div>
               </div>
@@ -486,37 +498,37 @@ export function LiveStreamPanel({
             <div className="space-y-3.5 rounded-2xl bg-background p-4 shadow-[6px_6px_12px_rgba(0,0,0,0.09),-6px_-6px_12px_rgba(255,255,255,0.75),inset_1px_1px_1px_rgba(255,255,255,0.5)] dark:shadow-[6px_6px_12px_rgba(0,0,0,0.45),-5px_-5px_10px_rgba(255,255,255,0.03)] border border-white/40 dark:border-white/[0.05] lg:col-span-5">
               <div className="flex items-center justify-between border-b border-foreground/[0.06] pb-2">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-accent">
-                  02. Nguồn Phát Video
+                  {t("aiTest.live.moduleSourceTitle")}
                 </span>
                 <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold text-accent">
-                  {liveVideos.length} sẵn có
+                  {t("aiTest.live.availableCount", { count: liveVideos.length })}
                 </span>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-semibold text-muted-foreground">
-                    Chọn Video Server ({liveVideos.length})
+                    {t("aiTest.live.selectServerVideo", { count: liveVideos.length })}
                   </label>
                   <Select
                     size="sm"
                     options={videoOptions}
                     value={liveVideos.some((v) => v.filename === source) ? source : ""}
                     onValueChange={setSource}
-                    placeholder="Chọn video test sẵn"
-                    emptyMessage="Chưa có video test sẵn trên server"
+                    placeholder={t("aiTest.live.serverVideoPlaceholder")}
+                    emptyMessage={t("aiTest.live.serverVideoEmpty")}
                   />
                 </div>
 
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-semibold text-muted-foreground">
-                    Source (File / YouTube / RTSP)
+                    {t("aiTest.live.sourceInputLabel")}
                   </label>
                   <Input
                     size="sm"
                     value={source}
                     onChange={(e) => setSource(e.target.value)}
-                    placeholder="filename.mp4 hoặc URL..."
+                    placeholder={t("aiTest.live.sourceInputPlaceholder")}
                   />
                 </div>
               </div>
@@ -526,7 +538,7 @@ export function LiveStreamPanel({
             <div className="space-y-3.5 rounded-2xl bg-background p-4 shadow-[6px_6px_12px_rgba(0,0,0,0.09),-6px_-6px_12px_rgba(255,255,255,0.75),inset_1px_1px_1px_rgba(255,255,255,0.5)] dark:shadow-[6px_6px_12px_rgba(0,0,0,0.45),-5px_-5px_10px_rgba(255,255,255,0.03)] border border-white/40 dark:border-white/[0.05] lg:col-span-3">
               <div className="flex items-center justify-between border-b border-foreground/[0.06] pb-2">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                  03. Xung Nhịp FPS
+                  {t("aiTest.live.moduleFpsTitle")}
                 </span>
                 <span className="font-mono text-[10px] font-bold text-muted-foreground">
                   1–60 Hz
@@ -536,7 +548,7 @@ export function LiveStreamPanel({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-semibold text-muted-foreground">
-                    Target FPS
+                    {t("aiTest.live.targetFpsLabel")}
                   </label>
                   <Input
                     size="sm"
@@ -551,7 +563,7 @@ export function LiveStreamPanel({
 
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-semibold text-muted-foreground">
-                    AI FPS
+                    {t("aiTest.live.aiFpsLabel")}
                   </label>
                   <Input
                     size="sm"
@@ -576,10 +588,10 @@ export function LiveStreamPanel({
               <div className="space-y-3.5 rounded-2xl border border-white/40 bg-background p-4 shadow-[6px_6px_12px_rgba(0,0,0,0.08),-6px_-6px_12px_rgba(255,255,255,0.75)] dark:border-white/[0.05] dark:shadow-[6px_6px_12px_rgba(0,0,0,0.45),-5px_-5px_10px_rgba(255,255,255,0.03)] xl:col-span-8">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-foreground/[0.06] pb-2">
                   <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                    04. Luật &amp; Ngưỡng Sustain (Hot-Config)
+                    {t("aiTest.live.moduleRulesTitle")}
                   </span>
                   <span className="rounded-full bg-accent/15 px-2.5 py-0.5 text-[10px] font-bold text-accent">
-                    Set mềm trực tiếp
+                    {t("aiTest.live.hotEditableBadge")}
                   </span>
                 </div>
 
@@ -588,7 +600,7 @@ export function LiveStreamPanel({
                   {[
                     {
                       key: "helmet_sustain",
-                      label: "Sustain Mũ (s)",
+                      label: t("aiTest.live.sustainHelmetLabel"),
                       ruleTag: "NO_HELMET",
                       enabled: enableNoHelmet,
                       value: confirmHelmetSec,
@@ -597,7 +609,7 @@ export function LiveStreamPanel({
                     },
                     {
                       key: "vest_sustain",
-                      label: "Sustain Áo (s)",
+                      label: t("aiTest.live.sustainVestLabel"),
                       ruleTag: "NO_VEST",
                       enabled: enableNoVest,
                       value: confirmVestSec,
@@ -623,7 +635,7 @@ export function LiveStreamPanel({
                           </span>
                         </div>
                         <p className="mt-0.5 pl-3.5 font-mono text-[10px] text-muted-foreground">
-                          Áp dụng cho {timer.ruleTag}
+                          {t("aiTest.live.appliesToRule", { rule: timer.ruleTag })}
                         </p>
                       </div>
 
@@ -672,7 +684,7 @@ export function LiveStreamPanel({
                     },
                     {
                       key: "scene_cut",
-                      label: "Scene Cut",
+                      label: t("aiTest.live.ruleSceneCut"),
                       checked: enableSceneCut,
                       onChange: setEnableSceneCut,
                       mono: false,
@@ -707,7 +719,7 @@ export function LiveStreamPanel({
                             : "bg-foreground/10 text-muted-foreground"
                             }`}
                         >
-                          {rule.checked ? "BẬT" : "TẮT"}
+                          {rule.checked ? t("aiTest.common.on") : t("aiTest.common.off")}
                         </span>
                       </div>
 
@@ -725,7 +737,7 @@ export function LiveStreamPanel({
               <div className="flex flex-col justify-between gap-3 rounded-2xl border border-white/40 bg-background p-4 shadow-[6px_6px_12px_rgba(0,0,0,0.08),-6px_-6px_12px_rgba(255,255,255,0.75)] dark:border-white/[0.05] dark:shadow-[6px_6px_12px_rgba(0,0,0,0.45),-5px_-5px_10px_rgba(255,255,255,0.03)] xl:col-span-4">
                 <div className="flex items-center justify-between border-b border-foreground/[0.06] pb-2">
                   <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-accent">
-                    05. Active Sessions
+                    {t("aiTest.live.moduleSessionsTitle")}
                     <span className="rounded-full bg-primary/15 px-2 py-0.5 font-mono text-[10px] text-primary">
                       {sessions.length}
                     </span>
@@ -734,7 +746,7 @@ export function LiveStreamPanel({
                   <button
                     type="button"
                     onClick={() => void loadVideosAndSessions()}
-                    title="Tải lại danh sách sessions & videos"
+                    title={t("aiTest.live.refreshSessionsTitle")}
                     className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-white/40 bg-background text-primary shadow-[3px_3px_6px_rgba(0,0,0,0.09),-3px_-3px_6px_rgba(255,255,255,0.75)] transition-all active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.14)] dark:border-white/[0.05] dark:shadow-[3px_3px_6px_rgba(0,0,0,0.45)]"
                   >
                     <RefreshCw className="size-3.5" />
@@ -744,7 +756,7 @@ export function LiveStreamPanel({
                 <div className="flex flex-1 flex-wrap content-start items-center gap-2 rounded-xl bg-background/70 p-2.5 shadow-[var(--nm-inset)]">
                   {sessions.length === 0 ? (
                     <span className="w-full py-2 text-center text-[11px] text-muted-foreground">
-                      Chưa có phiên stream nào.
+                      {t("aiTest.live.noSessions")}
                     </span>
                   ) : (
                     sessions.map((sess) => {
@@ -783,7 +795,7 @@ export function LiveStreamPanel({
                                 : "text-muted-foreground"
                                 }`}
                             >
-                              ({sess.status ?? "idle"})
+                              ({translateSessionStatus(sess.status)})
                             </span>
                           </button>
 
@@ -795,7 +807,7 @@ export function LiveStreamPanel({
                                 ? "bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30"
                                 : "bg-accent/15 text-accent hover:bg-accent/25"
                                 }`}
-                              title={`Dừng ${sess.camera_id}`}
+                              title={t("aiTest.live.stopSessionTitle", { cameraId: sess.camera_id })}
                             >
                               ✕
                             </button>
@@ -817,7 +829,7 @@ export function LiveStreamPanel({
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12">
         {/* Left: MJPEG Stream Viewport */}
         <section
-          aria-label="MJPEG Live Stream Viewport"
+          aria-label={t("aiTest.live.viewportAriaLabel")}
           className="relative flex flex-col overflow-hidden rounded-[28px] bg-background p-4 sm:p-6 shadow-[14px_14px_28px_rgba(0,0,0,0.12),-14px_-14px_28px_rgba(255,255,255,0.75),inset_1px_1px_2px_rgba(255,255,255,0.6)] dark:shadow-[14px_14px_28px_rgba(0,0,0,0.55),-10px_-10px_24px_rgba(255,255,255,0.04),inset_1px_1px_1px_rgba(255,255,255,0.07)] border border-white/40 dark:border-white/[0.06] xl:sticky xl:top-6 xl:col-span-7"
         >
           {/* Viền phản chiếu ánh sáng đỉnh khối */}
@@ -850,7 +862,7 @@ export function LiveStreamPanel({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-base font-extrabold tracking-tight text-foreground sm:text-lg">
-                    MJPEG Live Stream
+                    {t("aiTest.live.viewportTitle")}
                   </h2>
                   {activeCameraId && (
                     <span className="rounded-lg bg-primary/10 px-2.5 py-0.5 font-mono text-xs font-extrabold text-primary">
@@ -859,7 +871,7 @@ export function LiveStreamPanel({
                   )}
                 </div>
                 <p className="text-[11px] font-medium text-muted-foreground">
-                  Optical Inference &amp; Bounding Box Viewport
+                  {t("aiTest.live.viewportSubtitle")}
                 </p>
               </div>
             </div>
@@ -877,7 +889,11 @@ export function LiveStreamPanel({
                   {isRunning && (
                     <span className="h-1.5 w-1.5 animate-ping rounded-full bg-accent-foreground" />
                   )}
-                  {isRunning ? "LIVE" : (stats?.status ?? "STOPPED").toUpperCase()}
+                  {isRunning
+                    ? t("aiTest.live.badgeLive")
+                    : stats?.status
+                      ? translateSessionStatus(stats.status).toUpperCase()
+                      : t("aiTest.live.badgeStopped")}
                 </span>
 
                 {/* Badge Display FPS */}
@@ -903,7 +919,7 @@ export function LiveStreamPanel({
               </div>
             ) : (
               <span className="self-start rounded-xl bg-background px-3 py-1.5 text-xs font-bold text-muted-foreground shadow-[4px_4px_8px_rgba(0,0,0,0.08),-4px_-4px_8px_rgba(255,255,255,0.75)] dark:shadow-[4px_4px_8px_rgba(0,0,0,0.45)] border border-white/40 dark:border-white/[0.05] sm:self-center">
-                Chưa chọn session
+                {t("aiTest.live.noSessionSelected")}
               </span>
             )}
           </div>
@@ -941,7 +957,7 @@ export function LiveStreamPanel({
                 <Loader
                   size="lg"
                   showLabel
-                  label="Đang khởi tạo luồng suy luận Live..."
+                  label={t("aiTest.live.initializingStream")}
                 />
               </div>
             ) : (
@@ -956,19 +972,24 @@ export function LiveStreamPanel({
                 <div className="space-y-1.5">
                   <p className="text-sm font-extrabold tracking-tight text-foreground">
                     {activeCameraId
-                      ? `Session ${activeCameraId} đang ở trạng thái ${stats?.status ?? "stopped"}`
-                      : "Chưa có Live Session nào đang chạy"}
+                      ? t("aiTest.live.sessionStateNotice", {
+                          cameraId: activeCameraId,
+                          status: translateSessionStatus(stats?.status ?? "stopped"),
+                        })
+                      : t("aiTest.live.noRunningSession")}
                   </p>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    Chọn nguồn video hoặc URL ở trên rồi bấm{" "}
-                    <strong className="font-bold text-primary">Bắt đầu Stream</strong>{" "}
-                    để xem MJPEG bounding box real-time.
+                    {t("aiTest.live.emptyViewportHintBefore")}
+                    <strong className="font-bold text-primary">
+                      {t("aiTest.live.startStream")}
+                    </strong>
+                    {t("aiTest.live.emptyViewportHintAfter")}
                   </p>
                 </div>
 
                 {stats?.error && (
                   <div className="mx-auto inline-block rounded-xl bg-accent/15 px-3.5 py-2 text-xs font-bold text-accent border border-accent/25">
-                    Lỗi session: {stats.error}
+                    {t("aiTest.live.sessionError", { error: stats.error })}
                   </div>
                 )}
               </div>
@@ -986,7 +1007,7 @@ export function LiveStreamPanel({
             <div className="relative overflow-hidden rounded-[22px] bg-background p-4 shadow-[8px_8px_16px_rgba(0,0,0,0.1),-8px_-8px_16px_rgba(255,255,255,0.75),inset_1px_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[8px_8px_16px_rgba(0,0,0,0.45),-6px_-6px_12px_rgba(255,255,255,0.03)] border border-white/40 dark:border-white/[0.05]">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                  Display / AI FPS
+                  {t("aiTest.live.metrics.fpsTitle")}
                 </span>
                 <span className="h-2 w-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
               </div>
@@ -1021,7 +1042,7 @@ export function LiveStreamPanel({
             <div className="relative overflow-hidden rounded-[22px] bg-background p-4 shadow-[8px_8px_16px_rgba(0,0,0,0.1),-8px_-8px_16px_rgba(255,255,255,0.75),inset_1px_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[8px_8px_16px_rgba(0,0,0,0.45),-6px_-6px_12px_rgba(255,255,255,0.03)] border border-white/40 dark:border-white/[0.05]">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                  Inference Latency
+                  {t("aiTest.live.metrics.latencyTitle")}
                 </span>
                 <span className="rounded-md bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary">
                   MS
@@ -1038,7 +1059,9 @@ export function LiveStreamPanel({
               </div>
 
               <div className="mt-2.5 flex items-center justify-between border-t border-foreground/[0.06] pt-2 text-[11px]">
-                <span className="font-medium text-muted-foreground">E2E Alert</span>
+                <span className="font-medium text-muted-foreground">
+                  {t("aiTest.live.metrics.e2eAlert")}
+                </span>
                 <span className="font-mono font-bold text-primary">
                   {typeof metrics?.e2e_alert_latency_ms === "number"
                     ? `${metrics.e2e_alert_latency_ms.toFixed(1)} ms`
@@ -1051,9 +1074,11 @@ export function LiveStreamPanel({
             <div className="relative overflow-hidden rounded-[22px] bg-background p-4 shadow-[8px_8px_16px_rgba(0,0,0,0.1),-8px_-8px_16px_rgba(255,255,255,0.75),inset_1px_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[8px_8px_16px_rgba(0,0,0,0.45),-6px_-6px_12px_rgba(255,255,255,0.03)] border border-white/40 dark:border-white/[0.05]">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                  Entity Counts
+                  {t("aiTest.live.metrics.entityCounts")}
                 </span>
-                <span className="text-[10px] font-bold text-primary">PPE Track</span>
+                <span className="text-[10px] font-bold text-primary">
+                  {t("aiTest.live.metrics.ppeTrack")}
+                </span>
               </div>
 
               {/* 3 Ô đếm con khoét sâu (Recessed Mini-Wells) */}
@@ -1063,7 +1088,7 @@ export function LiveStreamPanel({
                     {metrics?.counts?.person ?? metrics?.active_persons ?? 0}
                   </div>
                   <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Person
+                    {t("aiTest.live.metrics.person")}
                   </div>
                 </div>
 
@@ -1072,7 +1097,7 @@ export function LiveStreamPanel({
                     {metrics?.counts?.helmet ?? 0}
                   </div>
                   <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Helmet
+                    {t("aiTest.live.metrics.helmet")}
                   </div>
                 </div>
 
@@ -1081,7 +1106,7 @@ export function LiveStreamPanel({
                     {metrics?.counts?.safety_vest ?? 0}
                   </div>
                   <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Vest
+                    {t("aiTest.live.metrics.vest")}
                   </div>
                 </div>
               </div>
@@ -1091,7 +1116,7 @@ export function LiveStreamPanel({
             <div className="relative overflow-hidden rounded-[22px] bg-background p-4 shadow-[8px_8px_16px_rgba(0,0,0,0.1),-8px_-8px_16px_rgba(255,255,255,0.75),inset_1px_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[8px_8px_16px_rgba(0,0,0,0.45),-6px_-6px_12px_rgba(255,255,255,0.03)] border border-white/40 dark:border-white/[0.05]">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
-                  Active Violations
+                  {t("aiTest.live.metrics.activeViolations")}
                 </span>
                 <span className="relative flex h-2.5 w-2.5">
                   {(metrics?.active_violations ?? 0) > 0 && (
@@ -1116,12 +1141,14 @@ export function LiveStreamPanel({
                   {metrics?.active_violations ?? 0}
                 </span>
                 <span className="font-sans text-xs font-medium text-muted-foreground">
-                  đang vi phạm
+                  {t("aiTest.live.metrics.violatingNow")}
                 </span>
               </div>
 
               <div className="mt-2.5 flex items-center justify-between border-t border-foreground/[0.06] pt-2 text-[11px]">
-                <span className="font-medium text-muted-foreground">Tổng đã ghi nhận</span>
+                <span className="font-medium text-muted-foreground">
+                  {t("aiTest.live.metrics.totalRecorded")}
+                </span>
                 <span className="rounded-full bg-accent/15 px-2 py-0.2 font-mono text-[10px] font-extrabold text-accent">
                   {recentViolations.length}
                 </span>
@@ -1140,10 +1167,10 @@ export function LiveStreamPanel({
                 </div>
                 <div>
                   <h3 className="text-sm font-extrabold tracking-tight text-foreground">
-                    Sự kiện Vi phạm gần đây
+                    {t("aiTest.live.recentViolations.title")}
                   </h3>
                   <p className="text-[11px] text-muted-foreground">
-                    Real-time violation telemetry log
+                    {t("aiTest.live.recentViolations.subtitle")}
                   </p>
                 </div>
               </div>
@@ -1155,7 +1182,7 @@ export function LiveStreamPanel({
 
             {recentViolations.length === 0 ? (
               <div className="rounded-2xl bg-background/80 px-4 py-6 text-center text-xs font-medium text-muted-foreground shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.5)] border border-black/[0.03] dark:border-white/[0.03]">
-                Chưa ghi nhận vi phạm nào trong session này.
+                {t("aiTest.live.recentViolations.empty")}
               </div>
             ) : (
               <div className="max-h-56 space-y-2.5 overflow-y-auto rounded-2xl bg-background/80 p-2.5 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.11),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.55)] border border-black/[0.04] dark:border-white/[0.03]">
@@ -1185,11 +1212,13 @@ export function LiveStreamPanel({
                               : "bg-primary/15 text-primary"
                               }`}
                           >
-                            {formatViolationLabel(v.violation_type)}
+                            {formatViolationLabel(v.violation_type, locale)}
                           </span>
 
                           <span className="font-bold text-foreground">
-                            Person #{v.canonical_person_id ?? v.person_id ?? "-"}
+                            {t("aiTest.common.personNumber", {
+                              id: v.canonical_person_id ?? v.person_id ?? "-",
+                            })}
                           </span>
 
                           {typeof v.frame === "number" && (
@@ -1219,7 +1248,7 @@ export function LiveStreamPanel({
             <div className="mb-3.5 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-extrabold tracking-tight text-foreground">
-                  Ảnh bằng chứng Live
+                  {t("aiTest.live.evidences.title")}
                 </h3>
                 <span className="rounded-full bg-primary/15 px-2.5 py-0.5 font-mono text-xs font-extrabold text-primary">
                   {liveEvidences.length}
@@ -1232,14 +1261,14 @@ export function LiveStreamPanel({
                   onClick={onOpenGallery}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-background px-3 py-1.5 text-xs font-bold text-primary shadow-[4px_4px_8px_rgba(0,0,0,0.09),-4px_-4px_8px_rgba(255,255,255,0.75)] dark:shadow-[4px_4px_8px_rgba(0,0,0,0.45)] hover:bg-primary/5 active:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.14)] border border-white/50 dark:border-white/[0.05] transition-all cursor-pointer"
                 >
-                  <span>Xem Gallery</span>
+                  <span>{t("aiTest.live.evidences.viewGallery")}</span>
                 </button>
               )}
             </div>
 
             {liveEvidences.length === 0 ? (
               <div className="rounded-2xl bg-background/80 px-4 py-6 text-center text-xs font-medium text-muted-foreground shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.5)] border border-black/[0.03] dark:border-white/[0.03]">
-                Cặp ảnh Before / After khi xác nhận vi phạm sẽ hiển thị tại đây.
+                {t("aiTest.live.evidences.empty")}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3.5 rounded-2xl bg-background/80 p-3 shadow-[inset_4px_4px_8px_rgba(0,0,0,0.1),inset_-4px_-4px_8px_rgba(255,255,255,0.7)] dark:shadow-[inset_4px_4px_8px_rgba(0,0,0,0.5)] border border-black/[0.03] dark:border-white/[0.03] sm:grid-cols-2">

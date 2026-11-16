@@ -4,26 +4,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  Cctv,
-  FileSpreadsheet,
-  LayoutDashboard,
-  RefreshCw,
-  Shield,
-  ShieldAlert,
-  Server,
-  Users,
-  Cpu,
-} from "lucide-react";
+import { Cctv, Cpu } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSite } from "@/contexts/SiteContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useLocale } from "@/providers/locale-provider";
 import { useGenerateReport, useReportTemplates } from "@/hooks/reporting";
-import { useReviewIncident } from "@/hooks/incidents";
+import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
+import {
+  useBatchReviewIncidents,
+  useResolveIncident,
+  useReviewIncident,
+} from "@/hooks/incidents";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { cameraKeys } from "@/hooks/cameras/camera.query-keys";
 import { aiMetricsKeys } from "@/hooks/ai-metrics/ai-metrics.query-keys";
+import { auditQueryKeys } from "@/hooks/audit/audit.query-keys";
 import { useSites } from "@/hooks/sites";
 import { useUserSummary } from "@/hooks/users";
 import { useSystemHealth } from "@/hooks/system/use-system-health";
@@ -32,17 +28,15 @@ import {
   useDashboardPeriod,
 } from "@/hooks/dashboard/use-dashboard-data";
 import { dashboardIncidentHref } from "@/lib/dashboard-data";
-import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
-import { Loader } from "@/components/ui/loader";
 import {
+  DashboardHeroHeader,
   DashboardKpiRibbon,
   DashboardLiveIncidents,
   DashboardAiStatusCard,
   DashboardQuickActions,
   DashboardOperationalSuite,
   HelmetShowcase,
-  DashboardNavTabs,
   type DashboardTabKey,
   DashboardExecutiveKpi,
   DashboardSystemStatusCard,
@@ -56,10 +50,12 @@ import {
   DashboardPanel,
 } from "@/components/features/dashboard/dashboard-data-state";
 import { GenerateReportModal } from "@/components/features/reports";
+import { ResolveIncidentModal } from "@/components/features/incidents/resolve-incident-modal";
 import { ReviewIncidentModal } from "@/components/features/incidents/review-incident-modal";
 import type {
   GenerateReportDto,
   IncidentItem,
+  ResolveIncidentPayload,
   ReviewIncidentPayload,
 } from "@/types";
 import type { DashboardPreset } from "@/types/dashboard.types";
@@ -73,7 +69,54 @@ export default function DashboardContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const periodState = useDashboardPeriod();
+  const initialPeriodParam = searchParams.get("period") as DashboardPreset | null;
+  const rawPeriodState = useDashboardPeriod({
+    preset: initialPeriodParam,
+    customStart: searchParams.get("from"),
+    customEnd: searchParams.get("to"),
+  });
+
+  const syncPeriodUrl = useCallback(
+    (nextPreset: DashboardPreset, nextStart: string, nextEnd: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (nextPreset === "today") {
+        params.delete("period");
+        params.delete("from");
+        params.delete("to");
+      } else {
+        params.set("period", nextPreset);
+        if (nextPreset === "custom") {
+          params.set("from", nextStart);
+          params.set("to", nextEnd);
+        } else {
+          params.delete("from");
+          params.delete("to");
+        }
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const periodState = useMemo(
+    () => ({
+      ...rawPeriodState,
+      setPreset: (next: DashboardPreset) => {
+        rawPeriodState.setPreset(next);
+        syncPeriodUrl(next, rawPeriodState.customStart, rawPeriodState.customEnd);
+      },
+      setCustomStart: (value: string) => {
+        rawPeriodState.setCustomStart(value);
+        syncPeriodUrl(rawPeriodState.preset, value, rawPeriodState.customEnd);
+      },
+      setCustomEnd: (value: string) => {
+        rawPeriodState.setCustomEnd(value);
+        syncPeriodUrl(rawPeriodState.preset, rawPeriodState.customStart, value);
+      },
+    }),
+    [rawPeriodState, syncPeriodUrl],
+  );
   const { period } = periodState;
 
   // Tab navigation state synced with URL query (?tab=overview|safety|devices|system)
@@ -105,6 +148,8 @@ export default function DashboardContent() {
   const [selectedIncident, setSelectedIncident] = useState<IncidentItem | null>(
     null,
   );
+  const [resolveModalOpen, setResolveModalOpen] = useState(false);
+  const [resolveTarget, setResolveTarget] = useState<IncidentItem | null>(null);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
@@ -120,6 +165,8 @@ export default function DashboardContent() {
     authenticated && (isAdmin || permissions.includes("PPE_INCIDENT_READ"));
   const canReviewIncidents =
     canViewIncidents && (isAdmin || permissions.includes("PPE_INCIDENT_REVIEW"));
+  const canResolveIncidents =
+    canViewIncidents && (isAdmin || permissions.includes("PPE_INCIDENT_UPDATE"));
   const canViewCameras =
     authenticated && (isAdmin || permissions.includes("PPE_CAMERA_READ"));
   const canViewSites =
@@ -131,6 +178,8 @@ export default function DashboardContent() {
       permissions.includes("PPE_MODEL_READ"));
   const canViewUsers =
     authenticated && (isAdmin || permissions.includes("USER_READ"));
+  const canViewAudit =
+    authenticated && (isAdmin || permissions.includes("AUDIT_LOG_READ"));
   const canViewSystem =
     authenticated &&
     (isAdmin ||
@@ -146,6 +195,7 @@ export default function DashboardContent() {
     incidents: canViewIncidents,
     analytics: canViewReports,
     cameras: canViewCameras,
+    cameraCatalog: activeTab === "devices",
     model: canViewAi,
   });
 
@@ -154,8 +204,11 @@ export default function DashboardContent() {
     pendingQuery,
     recentQuery,
     cameraQuery,
+    cameraCountsQuery,
     onlineQuery,
+    dashboardKpiQuery,
     modelQuery,
+    modelsQuery,
     analytics,
   } = data;
 
@@ -176,17 +229,26 @@ export default function DashboardContent() {
   });
   const generateReport = useGenerateReport();
   const review = useReviewIncident();
+  const resolveIncident = useResolveIncident();
+  const batchReview = useBatchReviewIncidents();
 
   const invalidate = useCallback(async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: incidentKeys.lists() }),
+      queryClient.invalidateQueries({
+        queryKey: incidentKeys.statusCountsRoot(),
+      }),
       queryClient.invalidateQueries({ queryKey: cameraKeys.lists() }),
       queryClient.invalidateQueries({
-        queryKey: aiMetricsKeys.activeVersion(),
+        queryKey: cameraKeys.statusCountsRoot(),
+      }),
+      queryClient.invalidateQueries({ queryKey: reportingKeys.all }),
+      queryClient.invalidateQueries({
+        queryKey: aiMetricsKeys.all,
       }),
       queryClient.invalidateQueries({ queryKey: ["users", "summary"] }),
       queryClient.invalidateQueries({ queryKey: ["system", "health"] }),
-      queryClient.invalidateQueries({ queryKey: ["audit", "summary"] }),
+      queryClient.invalidateQueries({ queryKey: auditQueryKeys.all }),
     ]);
   }, [queryClient]);
 
@@ -236,17 +298,80 @@ export default function DashboardContent() {
     }
   };
 
+  const handleBatchReview = async (
+    ids: string[],
+    action: "CONFIRM" | "REJECT",
+    resolutionNote?: string,
+  ) => {
+    await batchReview.mutateAsync({ ids, action, resolutionNote });
+  };
+
   const totalHref = dashboardIncidentHref(siteId, period);
   const pendingHref = dashboardIncidentHref(siteId, null, "PENDING_REVIEW");
   const cameras = cameraQuery.data?.complete ? cameraQuery.data.items : [];
+  const totalCamerasCount =
+    cameraCountsQuery.data?.total ?? cameraQuery.data?.total ?? null;
+  const onlineCamerasCount =
+    cameraCountsQuery.data?.online ?? onlineQuery.data ?? null;
+  const effectivePendingCount =
+    pendingQuery.data ?? dashboardKpiQuery.data?.pendingReview ?? null;
+
+  const activeModelName = useMemo(() => {
+    const activeVersion = modelQuery.data;
+    if (!activeVersion) return null;
+    const matchedModel = (modelsQuery.data ?? []).find(
+      (m) => m.id === activeVersion.modelId,
+    );
+    return (
+      activeVersion.modelName ||
+      activeVersion.model?.name ||
+      matchedModel?.name ||
+      (typeof activeVersion.metrics?.modelName === "string"
+        ? activeVersion.metrics.modelName
+        : null) ||
+      activeVersion.modelPath ||
+      null
+    );
+  }, [modelQuery.data, modelsQuery.data]);
+
+  const executiveAiModelLabel = useMemo(() => {
+    const activeVersion = modelQuery.data;
+    if (activeVersion?.version) {
+      const normalized = activeVersion.version.replace(/^v/i, "");
+      return activeModelName
+        ? `${activeModelName} v${normalized}`
+        : `v${normalized}`;
+    }
+    if (dashboardKpiQuery.data?.activeModel) {
+      const normalized = dashboardKpiQuery.data.activeModel.version.replace(
+        /^v/i,
+        "",
+      );
+      return `${dashboardKpiQuery.data.activeModel.name} v${normalized}`;
+    }
+    if (modelQuery.isLoading) return null;
+    return t("dashboard.aiStatus.noActiveModel");
+  }, [
+    modelQuery.data,
+    modelQuery.isLoading,
+    activeModelName,
+    dashboardKpiQuery.data,
+    t,
+  ]);
+
   const recentIncidents = useMemo(
     () =>
-      (recentQuery.data?.items ?? []).map((incident) => ({
-        ...incident,
-        cameraName:
-          cameras.find((camera) => camera.id === incident.cameraId)?.name ??
-          incident.cameraName,
-      })),
+      (recentQuery.data?.items ?? []).map((incident) => {
+        const matched = cameras.find(
+          (camera) => camera.id === incident.cameraId,
+        );
+        return {
+          ...incident,
+          cameraName: matched?.name ?? incident.cameraName,
+          cameraCode: matched?.code ?? incident.cameraCode,
+          zoneName: matched?.zoneName ?? incident.zoneName,
+        };
+      }),
     [recentQuery.data, cameras],
   );
 
@@ -284,217 +409,52 @@ export default function DashboardContent() {
   );
   const cameraNotice = (
     <DashboardDataState
-      loading={cameraQuery.isLoading || onlineQuery.isLoading}
+      loading={cameraCountsQuery.isLoading}
       message={
-        cameraQuery.isError || onlineQuery.isError
+        cameraCountsQuery.isError
           ? t("dashboard.data.error")
-          : cameraQuery.data?.issue
-            ? t(`dashboard.data.${cameraQuery.data.issue}`)
-            : onlineQuery.data != null &&
-                cameraQuery.data?.total != null &&
-                onlineQuery.data > cameraQuery.data.total
-              ? t("dashboard.data.changed")
-              : null
+          : onlineCamerasCount != null &&
+              totalCamerasCount != null &&
+              onlineCamerasCount > totalCamerasCount
+            ? t("dashboard.data.changed")
+            : null
       }
-      stale={cameraQuery.isRefetchError || onlineQuery.isRefetchError}
-      updatedAt={Math.min(cameraQuery.dataUpdatedAt, onlineQuery.dataUpdatedAt)}
-      onRetry={() => {
-        void cameraQuery.refetch();
-        void onlineQuery.refetch();
-      }}
+      stale={cameraCountsQuery.isRefetchError}
+      updatedAt={cameraCountsQuery.dataUpdatedAt}
+      onRetry={() => void cameraCountsQuery.refetch()}
     />
   );
 
   if (!user) return null;
 
   return (
-    <div className="space-y-6">
-      {/* Top Header */}
-      <PageHeader
-        icon={LayoutDashboard}
-        title={t("nav.dashboard")}
-        description={`${t("dashboard.welcome")}, ${user.fullName ?? user.email}`}
-        badge={`${isConnected ? t("dashboard.connected") : t("dashboard.disconnected")} · ${siteName}`}
-        badgeIcon={Shield}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="gap-1.5"
-            >
-              <RefreshCw
-                className={`size-3.5 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-              {t("dashboard.data.refresh")}
-            </Button>
-            {canReviewIncidents && (
-              <Link href={pendingHref}>
-                <Button variant="outline" size="sm" className="gap-1.5">
-                  <ShieldAlert className="size-3.5" />
-                  {t("dashboard.data.review")} {pendingQuery.data ?? ""}
-                </Button>
-              </Link>
-            )}
-            {canViewCameras && (
-              <Link href="/cameras?view=wall">
-                <Button variant="outline" size="sm" className="gap-1.5">
-                  <Cctv className="size-3.5" />
-                  Video Wall
-                </Button>
-              </Link>
-            )}
-            {canExportReports && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setReportModalOpen(true)}
-                className="gap-1.5"
-              >
-                <FileSpreadsheet className="size-3.5" />
-                {t("dashboard.data.export")}
-              </Button>
-            )}
-          </div>
-        }
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-10">
+      {/* Unified Command Console Header (Identity + Tabs + Scope & Period Filter) */}
+      <DashboardHeroHeader
+        user={user}
+        siteName={siteName}
+        isRealtimeConnected={isConnected}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
+        pendingCount={effectivePendingCount}
+        canExportReports={canExportReports}
+        onOpenExportReport={() => setReportModalOpen(true)}
+        activeTab={activeTab}
+        onChangeTab={handleTabChange}
+        onlineCameras={onlineCamerasCount}
+        totalCameras={totalCamerasCount}
+        healthyServices={systemHealth?.healthyCount}
+        totalServices={systemHealth?.totalServices}
+        canViewSafety={canViewIncidents || canViewReports}
+        canViewDevices={canViewCameras || canViewAi}
+        canViewSystem={canViewUsers || canViewSystem || canViewAudit}
+        showFilterBar={canViewReports}
+        sites={sitesData?.items ?? []}
+        siteId={siteId}
+        onSiteChange={setSiteId}
+        canViewSites={canViewSites}
+        periodState={periodState}
       />
-
-      {/* Domain Navigation Tabs */}
-      <div className="flex items-center justify-between gap-4">
-        <DashboardNavTabs
-          activeTab={activeTab}
-          onChangeTab={handleTabChange}
-          pendingCount={pendingQuery.data}
-          onlineCameras={onlineQuery.data}
-          totalCameras={cameraQuery.data?.total}
-          healthyServices={systemHealth?.healthyCount}
-          totalServices={systemHealth?.totalServices}
-          canViewSafety={canViewIncidents || canViewReports}
-          canViewDevices={canViewCameras || canViewAi}
-          canViewSystem={canViewUsers || canViewSystem}
-        />
-      </div>
-
-      {/* Scope & Period Filter Bar (Công trường & Thời gian) */}
-      {canViewReports && (
-        <section
-          className="space-y-3 rounded-2xl border border-border/40 bg-surface/90 p-4 shadow-[4px_6px_16px_rgba(0,0,0,0.03),-3px_-3px_10px_rgba(255,255,255,0.6)] dark:border-white/[0.08] dark:bg-card/40 dark:shadow-[0_8px_24px_rgba(0,0,0,0.25)]"
-          aria-label={t("dashboard.period.title")}
-        >
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <div className="flex flex-wrap items-end gap-3">
-              {/* Site Selector Dropdown */}
-              {canViewSites && (
-                <label className="space-y-1 text-xs font-semibold">
-                  <span className="block text-muted-foreground">
-                    {t("dashboard.activeSite")}
-                  </span>
-                  <select
-                    aria-label={t("dashboard.activeSite")}
-                    value={siteId || ""}
-                    onChange={(event) =>
-                      setSiteId(event.target.value || null)
-                    }
-                    className="rounded-xl border border-border/40 bg-background/80 px-3 py-2 text-sm font-medium transition-colors focus:border-primary focus:outline-none dark:border-white/[0.08] dark:bg-background/40 text-foreground"
-                  >
-                    <option value="">
-                      {t("dashboard.data.allSites")} (Toàn hệ thống)
-                    </option>
-                    {sitesData?.items.map((site) => (
-                      <option key={site.id} value={site.id}>
-                        {site.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-
-              {/* Period Preset Dropdown */}
-              <label className="space-y-1 text-xs font-semibold">
-                <span className="block text-muted-foreground">
-                  {t("dashboard.period.title")}
-                </span>
-                <select
-                  aria-label={t("dashboard.period.title")}
-                  value={periodState.preset}
-                  onChange={(event) =>
-                    periodState.setPreset(
-                      event.target.value as DashboardPreset,
-                    )
-                  }
-                  className="rounded-xl border border-border/40 bg-background/80 px-3 py-2 text-sm font-medium transition-colors focus:border-primary focus:outline-none dark:border-white/[0.08] dark:bg-background/40 text-foreground"
-                >
-                  {(["today", "7d", "month", "custom"] as const).map(
-                    (key) => (
-                      <option key={key} value={key}>
-                        {t(`dashboard.period.${key}`)}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-
-              {/* Custom Date Inputs if preset === 'custom' */}
-              {periodState.preset === "custom" && (
-                <>
-                  <label className="space-y-1 text-xs font-semibold">
-                    <span className="block text-muted-foreground">
-                      {t("dashboard.period.from")}
-                    </span>
-                    <input
-                      type="date"
-                      aria-label={t("dashboard.period.from")}
-                      value={periodState.customStart}
-                      max={
-                        periodState.customEnd < periodState.today
-                          ? periodState.customEnd
-                          : periodState.today
-                      }
-                      onChange={(event) =>
-                        periodState.setCustomStart(event.target.value)
-                      }
-                      className="rounded-xl border border-border/40 bg-background/80 px-3 py-1.5 text-sm dark:border-white/[0.08] dark:bg-background/40 text-foreground"
-                    />
-                  </label>
-                  <label className="space-y-1 text-xs font-semibold">
-                    <span className="block text-muted-foreground">
-                      {t("dashboard.period.to")}
-                    </span>
-                    <input
-                      type="date"
-                      aria-label={t("dashboard.period.to")}
-                      value={periodState.customEnd}
-                      min={periodState.customStart}
-                      max={periodState.today}
-                      onChange={(event) =>
-                        periodState.setCustomEnd(event.target.value)
-                      }
-                      className="rounded-xl border border-border/40 bg-background/80 px-3 py-1.5 text-sm dark:border-white/[0.08] dark:bg-background/40 text-foreground"
-                    />
-                  </label>
-                </>
-              )}
-            </div>
-
-            {/* Scope Summary Indicator */}
-            <div className="text-left sm:text-right">
-              <p className="text-xs font-medium text-foreground">
-                <span className="font-bold text-foreground">{siteName}</span> ·{" "}
-                <span className="font-mono font-semibold text-primary">
-                  {period
-                    ? `${period.startDate} → ${period.endDate}`
-                    : t("dashboard.data.invalidPeriod")}
-                </span>
-              </p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                {t("dashboard.period.scope")} · Asia/Ho_Chi_Minh (UTC+7)
-              </p>
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* TAB 1: EXECUTIVE OVERVIEW (CROSS-DOMAIN) */}
       {activeTab === "overview" && (
@@ -504,14 +464,10 @@ export default function DashboardContent() {
             totalIncidents={
               period && canViewIncidents ? (periodQuery.data?.total ?? null) : null
             }
-            pendingCount={pendingQuery.data ?? null}
-            onlineCameras={onlineQuery.data ?? null}
-            totalCameras={cameraQuery.data?.total ?? null}
-            aiModelVersion={
-              modelQuery.data?.version
-                ? `YOLO ${modelQuery.data.version}`
-                : "YOLO11x active"
-            }
+            pendingCount={effectivePendingCount}
+            onlineCameras={onlineCamerasCount}
+            totalCameras={totalCamerasCount}
+            aiModelVersion={executiveAiModelLabel}
             totalUsers={userSummary?.total ?? null}
             activeUsers={userSummary?.active ?? null}
             twoFactorCount={userSummary?.twoFactor ?? null}
@@ -522,7 +478,7 @@ export default function DashboardContent() {
             onSelectPillar={handleTabChange}
           />
 
-          {/* Row 1: Symmetrical Hero (50% 3D Helmet + 50% Live System Status Card) */}
+          {/* Row 1: Symmetrical Hero (50% 3D Helmet + 50% Live Incidents or Quick Actions) */}
           <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
             <div className="h-full">
               <HelmetShowcase
@@ -531,25 +487,29 @@ export default function DashboardContent() {
                 subtitle={t("dashboard.data.model3dDescription")}
               />
             </div>
-            <div className="h-full">
-              <DashboardSystemStatusCard className="h-full" />
-            </div>
-          </div>
 
-          {/* Row 2: Symmetrical Real-time Activity & Quick Intelligence (50% - 50%) */}
-          <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
-            {canViewIncidents && (
+            {canViewIncidents ? (
               <div className="flex h-full flex-col justify-between space-y-2">
                 <DashboardLiveIncidents
                   incidents={recentIncidents}
+                  totalPendingCount={recentQuery.data?.totalPending}
+                  totalConfirmedCount={recentQuery.data?.totalConfirmed}
                   loading={recentQuery.isLoading}
                   error={recentQuery.isError && !recentQuery.data}
                   highlightedId={highlightedId}
                   canReview={canReviewIncidents}
+                  canResolve={canResolveIncidents}
+                  isRealtimeConnected={isConnected}
+                  batchReviewPending={batchReview.isPending}
+                  onBatchReview={canReviewIncidents ? handleBatchReview : undefined}
                   viewAllHref={dashboardIncidentHref(siteId)}
                   onReview={(incident) => {
                     setSelectedIncident(incident);
                     setReviewModalOpen(true);
+                  }}
+                  onResolve={(incident) => {
+                    setResolveTarget(incident);
+                    setResolveModalOpen(true);
                   }}
                 />
                 <DashboardDataState
@@ -559,15 +519,30 @@ export default function DashboardContent() {
                   onRetry={() => void recentQuery.refetch()}
                 />
               </div>
+            ) : (
+              <div className="h-full">
+                <DashboardQuickActions
+                  onOpenGenerateReport={
+                    canExportReports ? () => setReportModalOpen(true) : undefined
+                  }
+                  canExportReports={canExportReports}
+                  canReviewIncidents={canReviewIncidents}
+                />
+              </div>
             )}
+          </div>
 
-            <div className="flex h-full flex-col justify-between space-y-6">
+          {/* Row 2: Symmetrical AI Status & Quick Actions (50% - 50%) */}
+          {(canViewAi || canViewIncidents) && (
+            <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
               {canViewAi && (
-                <div className="space-y-2">
+                <div className="flex h-full flex-col justify-between space-y-2">
                   <DashboardAiStatusCard
                     activeVersion={modelQuery.data}
+                    modelName={activeModelName}
                     loading={modelQuery.isLoading}
                     error={modelQuery.isError && !modelQuery.data}
+                    className="h-full"
                   />
                   <DashboardDataState
                     stale={modelQuery.isRefetchError}
@@ -578,15 +553,19 @@ export default function DashboardContent() {
                 </div>
               )}
 
-              <DashboardQuickActions
-                onOpenGenerateReport={
-                  canExportReports ? () => setReportModalOpen(true) : undefined
-                }
-                canExportReports={canExportReports}
-                canReviewIncidents={canReviewIncidents}
-              />
+              {canViewIncidents && (
+                <div className={`h-full ${!canViewAi ? "lg:col-span-2" : ""}`}>
+                  <DashboardQuickActions
+                    onOpenGenerateReport={
+                      canExportReports ? () => setReportModalOpen(true) : undefined
+                    }
+                    canExportReports={canExportReports}
+                    canReviewIncidents={canReviewIncidents}
+                  />
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -600,9 +579,9 @@ export default function DashboardContent() {
                 ? (periodQuery.data?.total ?? null)
                 : null
             }
-            pendingCount={pendingQuery.data ?? null}
-            totalCamerasCount={cameraQuery.data?.total ?? null}
-            onlineCamerasCount={onlineQuery.data ?? null}
+            pendingCount={effectivePendingCount}
+            totalCamerasCount={totalCamerasCount}
+            onlineCamerasCount={onlineCamerasCount}
             analytics={analytics}
             canViewReports={canViewReports}
             canViewIncidents={canViewIncidents}
@@ -618,21 +597,15 @@ export default function DashboardContent() {
             }
           />
 
-          {/* Operational Analytics Suite (Radar, Hourly, Severity SLA, Zone Risk) */}
+          {/* Operational Analytics Suite (Hourly & Severity & MTTR) */}
           {canViewReports &&
             (analytics ? (
-              <div className="space-y-4">
+              <div className="space-y-2">
+                <DashboardOperationalSuite analytics={analytics} />
                 <DashboardDataState
                   stale={periodQuery.isRefetchError}
                   updatedAt={periodQuery.dataUpdatedAt}
                   onRetry={() => void periodQuery.refetch()}
-                />
-                <DashboardOperationalSuite
-                  analytics={analytics}
-                  cameras={cameras}
-                  catalogComplete={cameraQuery.data?.complete}
-                  canViewCameras={canViewCameras}
-                  onSelectCamera={(id) => router.push(`/cameras/${id}`)}
                 />
               </div>
             ) : (
@@ -646,14 +619,24 @@ export default function DashboardContent() {
             <div className="space-y-2">
               <DashboardLiveIncidents
                 incidents={recentIncidents}
+                totalPendingCount={recentQuery.data?.totalPending}
+                totalConfirmedCount={recentQuery.data?.totalConfirmed}
                 loading={recentQuery.isLoading}
                 error={recentQuery.isError && !recentQuery.data}
                 highlightedId={highlightedId}
                 canReview={canReviewIncidents}
+                canResolve={canResolveIncidents}
+                isRealtimeConnected={isConnected}
+                batchReviewPending={batchReview.isPending}
+                onBatchReview={canReviewIncidents ? handleBatchReview : undefined}
                 viewAllHref={dashboardIncidentHref(siteId)}
                 onReview={(incident) => {
                   setSelectedIncident(incident);
                   setReviewModalOpen(true);
+                }}
+                onResolve={(incident) => {
+                  setResolveTarget(incident);
+                  setResolveModalOpen(true);
                 }}
               />
               <DashboardDataState
@@ -719,6 +702,7 @@ export default function DashboardContent() {
             <div className="h-full">
               <DashboardAiStatusCard
                 activeVersion={modelQuery.data}
+                modelName={activeModelName}
                 loading={modelQuery.isLoading}
                 error={modelQuery.isError && !modelQuery.data}
                 className="h-full"
@@ -729,6 +713,39 @@ export default function DashboardContent() {
                 cameras={cameras}
                 cameraStats={analytics?.cameras ?? []}
                 catalogComplete={cameraQuery.data?.complete}
+                loading={
+                  (canViewCameras && cameraQuery.isLoading) ||
+                  (canViewReports &&
+                    canViewIncidents &&
+                    periodQuery.isFetching &&
+                    !periodQuery.data)
+                }
+                incidentUnavailable={
+                  unavailable ??
+                  (!canViewReports ? t("dashboard.data.noAccess") : null)
+                }
+                catalogError={
+                  !canViewCameras
+                    ? t("dashboard.data.noAccess")
+                    : cameraQuery.isError
+                      ? t("dashboard.data.error")
+                      : null
+                }
+                onRetry={() => {
+                  if (canViewCameras) void cameraQuery.refetch();
+                  if (canViewReports && canViewIncidents && period && isReady) {
+                    void periodQuery.refetch();
+                  }
+                }}
+                periodLabel={
+                  period
+                    ? periodState.preset === "custom"
+                      ? `${period.startDate} → ${period.endDate}`
+                      : t(`dashboard.period.${periodState.preset}`)
+                    : undefined
+                }
+                preset={periodState.preset}
+                onChangePreset={periodState.setPreset}
                 onSelectCamera={(id) => router.push(`/cameras/${id}`)}
                 className="h-full"
               />
@@ -740,20 +757,20 @@ export default function DashboardContent() {
       {/* TAB 4: USERS & SYSTEM INFRASTRUCTURE */}
       {activeTab === "system" && (
         <div className="space-y-6">
-          {/* Row 1: Users Overview & System Health Status (50% - 50%) */}
+          {/* Row 1: Users Overview & Recent Audit Activity Feed (50% - 50%) */}
           <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
             <div className="h-full">
               <DashboardUsersOverviewCard className="h-full" />
             </div>
             <div className="h-full">
-              <DashboardSystemStatusCard className="h-full" />
+              <DashboardAuditMiniFeed className="h-full" enabled={canViewAudit} />
             </div>
           </div>
 
-          {/* Row 2: Recent Audit Activity Feed & Scheduled Cron Jobs (50% - 50%) */}
+          {/* Row 2: System Health Status & Scheduled Cron Jobs (50% - 50%) */}
           <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
             <div className="h-full">
-              <DashboardAuditMiniFeed className="h-full" />
+              <DashboardSystemStatusCard className="h-full" />
             </div>
             <div className="h-full">
               <DashboardCronMiniCard className="h-full" />
@@ -772,6 +789,17 @@ export default function DashboardContent() {
             await review.mutateAsync({ id, payload });
           }}
           loading={review.isPending}
+        />
+      )}
+      {canResolveIncidents && (
+        <ResolveIncidentModal
+          open={resolveModalOpen}
+          onOpenChange={setResolveModalOpen}
+          incident={resolveTarget}
+          onSubmit={async (id: string, payload: ResolveIncidentPayload) => {
+            await resolveIncident.mutateAsync({ id, payload });
+          }}
+          loading={resolveIncident.isPending}
         />
       )}
       {canExportReports && (

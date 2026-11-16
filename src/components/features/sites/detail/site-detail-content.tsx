@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSite } from "@/contexts/SiteContext";
-import { useCameras } from "@/hooks/cameras";
-import { useIncidents } from "@/hooks/incidents";
+import { useCameraStatusCounts } from "@/hooks/cameras";
+import { useIncidentStatusCounts } from "@/hooks/incidents";
 import {
   useSiteDetail,
   useUpdateSite,
@@ -83,16 +83,14 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
     site?._count?.restrictedAreas ||
     0;
 
-  // Fetch cameras for KPI
-  const { data: camerasData } = useCameras({ siteId, limit: 100 });
-  const cameraCount =
-    camerasData?.meta?.total ?? camerasData?.items?.length ?? site?.cameraCount ?? 0;
-  const onlineCameraCount =
-    camerasData?.items?.filter((c) => c.status === "ONLINE").length || 0;
+  // Fetch camera counts via lightweight status-counts endpoint
+  const { data: cameraCounts } = useCameraStatusCounts(siteId);
+  const cameraCount = cameraCounts?.total ?? site?.cameraCount ?? 0;
+  const onlineCameraCount = cameraCounts?.online ?? 0;
 
-  // Fetch incidents for KPI
-  const { data: incidentsData } = useIncidents({ siteId, status: "PENDING_REVIEW", limit: 50 });
-  const pendingIncidentsCount = incidentsData?.meta?.total ?? incidentsData?.items?.length ?? 0;
+  // Fetch pending incident count via lightweight status-counts endpoint
+  const { data: incidentCounts } = useIncidentStatusCounts({ siteId });
+  const pendingIncidentsCount = incidentCounts?.pendingReview ?? 0;
 
   // Fetch site-specific safety report summary for Compliance Rate
   const { data: reportSummary } = useReportSummary({ siteId });

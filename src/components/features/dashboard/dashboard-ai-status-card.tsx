@@ -18,6 +18,7 @@ import type { AiModelVersionDto } from "@/types";
 
 export interface DashboardAiStatusCardProps {
   activeVersion?: AiModelVersionDto | null;
+  modelName?: string | null;
   loading?: boolean;
   error?: boolean;
   className?: string;
@@ -25,6 +26,7 @@ export interface DashboardAiStatusCardProps {
 
 export function DashboardAiStatusCard({
   activeVersion,
+  modelName: modelNameProp,
   loading = false,
   error = false,
   className = "",
@@ -38,13 +40,25 @@ export function DashboardAiStatusCard({
       ["ACTIVE", "DEPLOYED"].includes(activeVersion.status),
   );
 
+  const metricsModelName =
+    typeof activeVersion?.metrics?.modelName === "string"
+      ? activeVersion.metrics.modelName
+      : "";
+
   const modelName = isModelActive
-    ? activeVersion?.metrics?.modelName || "—"
+    ? modelNameProp ||
+      activeVersion?.modelName ||
+      activeVersion?.model?.name ||
+      metricsModelName ||
+      activeVersion?.modelPath ||
+      "—"
     : isVietnamese
       ? "Chưa kích hoạt mô hình"
       : "No active model deployed";
 
-  const versionTag = isModelActive ? activeVersion?.version : "--";
+  const normalizedVersion = activeVersion?.version?.replace(/^v/i, "") ?? "";
+  const versionTag =
+    isModelActive && normalizedVersion ? `v${normalizedVersion}` : "--";
 
   const mapValue =
     typeof activeVersion?.metrics?.mAP50 === "number" &&
@@ -209,7 +223,7 @@ export function DashboardAiStatusCard({
 
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="rounded-md bg-surface px-2 py-1 font-mono text-[10px] font-bold text-muted-foreground shadow-[2px_2px_4px_rgba(0,0,0,0.06),-2px_-2px_4px_rgba(255,255,255,0.7)] dark:bg-card dark:shadow-none">
-                {`v${versionTag}`}
+                {versionTag}
               </span>
               <span className="text-[10px] text-muted-foreground">/</span>
               <span className="font-mono text-[10px] font-bold text-primary">
@@ -231,7 +245,7 @@ export function DashboardAiStatusCard({
             {isVietnamese ? "Hiệu suất mô hình" : "Model Performance"}
           </span>
           <span className="text-[9px] font-semibold text-muted-foreground/70">
-            {isVietnamese ? "Real-time metrics" : "Real-time metrics"}
+            {t("dashboard.aiStatus.declaredBadge")}
           </span>
         </div>
 

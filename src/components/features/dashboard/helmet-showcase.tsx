@@ -107,7 +107,7 @@ export function HelmetShowcase({
       {/* Main showcase */}
       <div
         className={[
-          "relative min-h-[410px] flex-1 overflow-hidden rounded-[20px]",
+          "relative min-h-[480px] sm:min-h-[510px] flex-1 overflow-hidden rounded-[20px]",
           "border border-border/30 dark:border-white/[0.05]",
           "bg-background/80 dark:bg-background/30",
           "shadow-[inset_2px_2px_6px_rgba(0,0,0,0.03)] dark:shadow-none",
@@ -180,7 +180,7 @@ export function HelmetShowcase({
             3D CANVAS
         ================================================= */}
 
-        <div className="absolute inset-x-0 bottom-[65px] top-[65px] z-[2]">
+        <div className="absolute inset-x-0 bottom-[72px] top-[76px] z-[2]">
           <Canvas
             shadows
             dpr={[1, 1.75]}

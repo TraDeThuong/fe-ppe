@@ -53,5 +53,7 @@ export interface RecentExecutionState {
   durationMs: number;
   data?: Record<string, unknown>;
   error?: string;
+  triggerType?: "SCHEDULED" | "MANUAL";
+  fromAuditLog?: boolean;
 }
 

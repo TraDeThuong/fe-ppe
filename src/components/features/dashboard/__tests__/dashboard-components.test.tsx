@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LocaleProvider } from "@/providers/locale-provider";
 import {
   DashboardHeroHeader,
+  DashboardScopeFilterBar,
   DashboardKpiRibbon,
   DashboardLiveIncidents,
   DashboardAiStatusCard,
@@ -24,6 +25,7 @@ import {
   DashboardAuditMiniFeed,
   DashboardCronMiniCard,
 } from "../index";
+import { DashboardChartExplainButton } from "../charts/dashboard-chart-explain-modal";
 import { aggregateDashboard } from "@/lib/dashboard-data";
 import type { AuthUser, IncidentItem } from "@/types";
 
@@ -101,6 +103,92 @@ describe("Dashboard Components", () => {
       assert.ok(
         html.includes("Toàn bộ công trường") || html.includes("All Sites"),
       );
+    });
+
+    it("renders unified card with quick actions, domain tabs, and scope filter bar", () => {
+      const html = renderWithProviders(
+        <DashboardHeroHeader
+          user={MOCK_USER}
+          siteName="Công trường Landmark 81"
+          isRealtimeConnected={true}
+          onRefresh={() => {}}
+          pendingCount={5}
+          canExportReports={true}
+          onOpenExportReport={() => {}}
+          activeTab="safety"
+          onChangeTab={() => {}}
+          onlineCameras={8}
+          totalCameras={10}
+          healthyServices={11}
+          totalServices={12}
+          showFilterBar={true}
+          sites={[{ id: "site-1", name: "Công trường Landmark 81" }]}
+          siteId="site-1"
+          onSiteChange={() => {}}
+          canViewSites={true}
+          periodState={{
+            today: "2026-11-16",
+            preset: "7d",
+            setPreset: () => {},
+            customStart: "2026-11-10",
+            setCustomStart: () => {},
+            customEnd: "2026-11-16",
+            setCustomEnd: () => {},
+            period: {
+              startDate: "2026-11-10",
+              endDate: "2026-11-16",
+              fromDate: "2026-11-10T00:00:00+07:00",
+              toDate: "2026-11-16T23:59:59+07:00",
+              endExclusive: "2026-11-17T00:00:00+07:00",
+            },
+          }}
+        />,
+      );
+
+      assert.ok(html.includes("Xuất báo cáo") || html.includes("Export report"));
+      assert.ok(!html.includes("Video Wall"));
+      assert.ok(!html.includes("Duyệt sự cố") && !html.includes("Review incidents"));
+      assert.ok(html.includes("8/10"));
+      assert.ok(html.includes("11/12"));
+      assert.ok(html.includes("2026-11-10"));
+      assert.ok(html.includes("2026-11-16"));
+      assert.ok(html.includes("role=\"tablist\""));
+    });
+  });
+
+  describe("DashboardScopeFilterBar", () => {
+    it("renders custom date inputs and reset button when preset is custom", () => {
+      const html = renderWithProviders(
+        <DashboardScopeFilterBar
+          sites={[{ id: "site-1", name: "Site A" }]}
+          siteId="site-1"
+          siteName="Site A"
+          onSiteChange={() => {}}
+          canViewSites={true}
+          periodState={{
+            today: "2026-11-16",
+            preset: "custom",
+            setPreset: () => {},
+            customStart: "2026-11-01",
+            setCustomStart: () => {},
+            customEnd: "2026-11-15",
+            setCustomEnd: () => {},
+            period: {
+              startDate: "2026-11-01",
+              endDate: "2026-11-15",
+              fromDate: "2026-11-01T00:00:00+07:00",
+              toDate: "2026-11-15T23:59:59+07:00",
+              endExclusive: "2026-11-16T00:00:00+07:00",
+            },
+          }}
+        />,
+      );
+
+      assert.ok(html.includes("dashboard-period-from"));
+      assert.ok(html.includes("dashboard-period-to"));
+      assert.ok(html.includes("Đặt lại") || html.includes("Reset"));
+      assert.ok(html.includes("2026-11-01"));
+      assert.ok(html.includes("2026-11-15"));
     });
   });
 
@@ -180,30 +268,76 @@ describe("Dashboard Components", () => {
   });
 
   describe("DashboardLiveIncidents", () => {
-    it("renders empty compliant message when there are no incidents", () => {
+    it("renders empty compliant message when there are no unresolved incidents", () => {
       const html = renderWithProviders(
-        <DashboardLiveIncidents incidents={[]} loading={false} />,
+        <DashboardLiveIncidents
+          incidents={[
+            { ...MOCK_INCIDENT, id: "resolved-1", status: "RESOLVED" },
+            { ...MOCK_INCIDENT, id: "dismissed-1", status: "DISMISSED" },
+          ]}
+          loading={false}
+        />,
       );
 
       assert.ok(
-        html.includes("Không có vi phạm nào gần đây") ||
-          html.includes("No recent violations"),
+        html.includes("Không còn sự cố nào cần xử lý") ||
+          html.includes("No unresolved incidents remaining"),
       );
     });
 
-    it("renders incidents list with violation badges and camera name", () => {
+    it("renders incidents list with violation badges, camera name, positive CTA, and batch review controls", () => {
       const html = renderWithProviders(
         <DashboardLiveIncidents
           incidents={[MOCK_INCIDENT]}
           loading={false}
           canReview={true}
+          isRealtimeConnected={true}
           onReview={() => {}}
+          onBatchReview={async () => {}}
         />,
       );
 
       assert.ok(html.includes("Không đội mũ") || html.includes("No Helmet"));
       assert.ok(html.includes("CCTV Cổng Số 1"));
       assert.ok(html.includes("Duyệt nhanh") || html.includes("Quick Review"));
+      assert.ok(html.includes("bg-success"));
+      assert.ok(html.includes("role=\"checkbox\""));
+      assert.ok(html.includes("SSE Live"));
+      assert.ok(!html.includes("ppe.violation.detected"));
+    });
+
+    it("renders more than 5 unresolved incidents and shows Resolve Now CTA for confirmed items", () => {
+      const items: IncidentItem[] = [
+        ...Array.from({ length: 6 }, (_, i) => ({
+          ...MOCK_INCIDENT,
+          id: `pending-${i + 1}`,
+          cameraName: `Camera Pending ${i + 1}`,
+          status: "PENDING_REVIEW",
+        })),
+        {
+          ...MOCK_INCIDENT,
+          id: "confirmed-1",
+          cameraName: "Camera Confirmed 7",
+          status: "CONFIRMED",
+        },
+      ];
+
+      const html = renderWithProviders(
+        <DashboardLiveIncidents
+          incidents={items}
+          totalPendingCount={6}
+          totalConfirmedCount={1}
+          canReview={true}
+          canResolve={true}
+          onReview={() => {}}
+          onResolve={() => {}}
+        />,
+      );
+
+      assert.ok(html.includes("Camera Pending 6"));
+      assert.ok(html.includes("Camera Confirmed 7"));
+      assert.ok(html.includes("Xử lý ngay") || html.includes("Resolve now"));
+      assert.ok(html.includes("Cần xử lý ngay") || html.includes("Immediate action required"));
     });
   });
 
@@ -231,9 +365,66 @@ describe("Dashboard Components", () => {
       );
 
       assert.ok(html.includes("YOLO11m-PPE (FP16)"));
+      assert.ok(html.includes("v2.1.0"));
+      assert.ok(!html.includes("vv2.1.0"));
+      assert.ok(!html.includes("Real-time metrics"));
       assert.ok(html.includes("93.2%"));
       assert.ok(html.includes("18ms"));
       assert.ok(html.includes("28 FPS"));
+    });
+
+    it("resolves model name from prop or BE model relation when metrics is null", () => {
+      const fromProp = renderWithProviders(
+        <DashboardAiStatusCard
+          modelName="YOLOv11 Real-time PPE Detector"
+          activeVersion={{
+            id: "ver-2",
+            modelId: "model-2",
+            version: "1.0.0",
+            modelPath: "models/yolo_ppe_v11.pt",
+            framework: "PyTorch",
+            inputSize: "640x640",
+            status: "DEPLOYED",
+            metrics: null,
+            createdAt: "2026-01-01T00:00:00Z",
+          }}
+        />,
+      );
+
+      assert.ok(fromProp.includes("YOLOv11 Real-time PPE Detector"));
+      assert.ok(fromProp.includes("v1.0.0"));
+
+      const fromRelation = renderWithProviders(
+        <DashboardAiStatusCard
+          activeVersion={{
+            id: "ver-3",
+            modelId: "model-3",
+            model: {
+              id: "model-3",
+              name: "PPE Detector Pro",
+              code: "PPE_PRO",
+            },
+            version: "1.2.0",
+            framework: "ONNX",
+            inputSize: "640x640",
+            status: "DEPLOYED",
+            metrics: null,
+            createdAt: "2026-01-01T00:00:00Z",
+          }}
+        />,
+      );
+
+      assert.ok(fromRelation.includes("PPE Detector Pro"));
+      assert.ok(fromRelation.includes("v1.2.0"));
+    });
+
+    it("renders '--' without leading 'v' when no active model is deployed", () => {
+      const html = renderWithProviders(
+        <DashboardAiStatusCard activeVersion={null} />,
+      );
+
+      assert.ok(!html.includes("v--"));
+      assert.ok(html.includes("--"));
     });
   });
 
@@ -304,6 +495,7 @@ describe("Dashboard Components", () => {
       assert.ok(html.includes("00:00: 1"));
       assert.ok(html.includes("23:00"));
       assert.ok(html.includes("Ca đêm"));
+      assert.ok(html.includes("Giải thích"));
     });
     it("shows real duration samples and no SLA claims", () => {
       const html = renderWithProviders(
@@ -312,22 +504,193 @@ describe("Dashboard Components", () => {
       assert.ok(html.includes("20 phút"));
       assert.ok(html.includes("mẫu hợp lệ"));
       assert.ok(!html.includes("SLA"));
+      assert.ok(html.includes("Giải thích"));
     });
-    it("does not invent online status or safety for an unknown camera", () => {
+    it("renders friendly empty state copy for hourly and severity charts when period has zero incidents", () => {
+      const emptyAnalytics = aggregateDashboard([]);
+      const hourlyHtml = renderWithProviders(
+        <DashboardHourlyRiskChart analytics={emptyAnalytics} />,
+      );
+      assert.ok(hourlyHtml.includes("Chưa có sự cố vi phạm trong kỳ đang chọn"));
+      assert.ok(hourlyHtml.includes("Ca sáng"));
+
+      const severityHtml = renderWithProviders(
+        <DashboardSeveritySlaChart analytics={emptyAnalytics} />,
+      );
+      assert.ok(severityHtml.includes("Không có sự cố phát sinh hoặc tồn đọng"));
+      assert.ok(severityHtml.includes("Nguy cấp"));
+    });
+    it("does not invent online status or safety for an unknown camera and excludes dismissed from resolved", () => {
+      const mixed = aggregateDashboard([
+        { ...MOCK_INCIDENT, id: "cam-a-1", cameraId: "cam-a", status: "DISMISSED" },
+        { ...MOCK_INCIDENT, id: "cam-b-1", cameraId: "cam-b", status: "RESOLVED" },
+        { ...MOCK_INCIDENT, id: "cam-b-2", cameraId: "cam-b", status: "PENDING_REVIEW" },
+      ]);
       const html = renderWithProviders(
-        <DashboardZoneRiskChart cameraStats={analytics.cameras} />,
+        <DashboardZoneRiskChart
+          cameras={[
+            {
+              id: "cam-zero",
+              siteId: "site-1",
+              name: "Camera Zero",
+              code: "CAM-00",
+              sourceType: "RTSP",
+              streamUrl: "rtsp://example",
+              status: "ONLINE",
+              createdAt: "2026-11-03T00:00:00Z",
+              updatedAt: "2026-11-03T00:00:00Z",
+            },
+          ]}
+          cameraStats={mixed.cameras}
+        />,
       );
       assert.ok(html.includes("Chưa có trạng thái"));
       assert.ok(!html.includes("An toàn"));
-      assert.ok(!html.includes("Trực tuyến"));
+      assert.ok(html.includes("Giải thích"));
+      // cam-a has 1 DISMISSED out of 1 total -> 0/1 resolved, not 1/1
+      assert.ok(html.includes("0/1"));
+      // cam-b (2 incidents) comes before cam-a (1 incident) and Camera Zero (0 incidents)
+      assert.ok(html.indexOf("cam-b") < html.indexOf("cam-a"));
+      assert.ok(html.indexOf("cam-a") < html.indexOf("Camera Zero"));
     });
-    it("renders the suite with period analytics", () => {
+    it("shows only active catalog cameras and collapses deleted camera IDs into one archived row when catalogComplete is true", () => {
+      const mixed = aggregateDashboard([
+        { ...MOCK_INCIDENT, id: "a1", cameraId: "cam-1", status: "RESOLVED" },
+        { ...MOCK_INCIDENT, id: "a2", cameraId: "cam-1", status: "DISMISSED" },
+        { ...MOCK_INCIDENT, id: "d1", cameraId: "deleted-uuid-1", status: "PENDING_REVIEW" },
+        { ...MOCK_INCIDENT, id: "d2", cameraId: "deleted-uuid-2", status: "RESOLVED" },
+      ]);
+      const mkCam = (id: string, name: string) => ({
+        id,
+        siteId: "site-1",
+        name,
+        code: id.toUpperCase(),
+        sourceType: "RTSP" as const,
+        streamUrl: "rtsp://example",
+        status: "ONLINE" as const,
+        createdAt: "2026-11-03T00:00:00Z",
+        updatedAt: "2026-11-03T00:00:00Z",
+      });
+      const html = renderWithProviders(
+        <DashboardZoneRiskChart
+          catalogComplete={true}
+          cameras={[
+            mkCam("cam-1", "Camera Cổng 1"),
+            mkCam("cam-2", "Camera Kho 2"),
+            mkCam("cam-3", "Camera Xưởng 3"),
+          ]}
+          cameraStats={mixed.cameras}
+        />,
+      );
+      assert.ok(html.includes("Camera Cổng 1"));
+      assert.ok(html.includes("Camera Kho 2"));
+      assert.ok(html.includes("Camera Xưởng 3"));
+      assert.ok(html.includes("3/3"));
+      assert.ok(!html.includes("deleted-uuid-1"));
+      assert.ok(!html.includes("deleted-uuid-2"));
+      assert.ok(html.includes("Camera đã lưu trữ / xóa"));
+      assert.ok(html.includes("1 bác bỏ"));
+    });
+    it("renders loading skeleton and incidentUnavailable notice without inventing zero incident counts", () => {
+      const loadingHtml = renderWithProviders(
+        <DashboardZoneRiskChart cameras={[]} cameraStats={[]} loading={true} />,
+      );
+      assert.ok(loadingHtml.includes('aria-busy="true"'));
+
+      const unavailableHtml = renderWithProviders(
+        <DashboardZoneRiskChart
+          catalogComplete={true}
+          cameras={[
+            {
+              id: "cam-1",
+              siteId: "site-1",
+              name: "Camera Cổng 1",
+              code: "CAM-01",
+              sourceType: "RTSP",
+              streamUrl: "rtsp://example",
+              status: "ONLINE",
+              createdAt: "2026-11-03T00:00:00Z",
+              updatedAt: "2026-11-03T00:00:00Z",
+            },
+          ]}
+          cameraStats={[]}
+          incidentUnavailable="Không tải được sự cố"
+        />,
+      );
+      assert.ok(unavailableHtml.includes("Không tải được sự cố"));
+      assert.ok(unavailableHtml.includes("Camera Cổng 1"));
+      assert.ok(!unavailableHtml.includes("Không phát hiện vi phạm PPE"));
+
+      const zeroHtml = renderWithProviders(
+        <DashboardZoneRiskChart
+          catalogComplete={true}
+          cameras={[
+            {
+              id: "cam-1",
+              siteId: "site-1",
+              name: "Camera Cổng 1",
+              code: "CAM-01",
+              sourceType: "RTSP",
+              streamUrl: "rtsp://example",
+              status: "ONLINE",
+              createdAt: "2026-11-03T00:00:00Z",
+              updatedAt: "2026-11-03T00:00:00Z",
+            },
+          ]}
+          cameraStats={[]}
+          periodLabel="Hôm nay"
+          preset="today"
+          onChangePreset={() => {}}
+        />,
+      );
+      assert.ok(zeroHtml.includes("Chưa phát hiện vi phạm PPE nào trong kỳ đang chọn."));
+      assert.ok(zeroHtml.includes("Hôm nay"));
+      assert.ok(zeroHtml.includes("7 ngày gần nhất"));
+      assert.ok(!zeroHtml.includes("Vi phạm phát hiện"));
+    });
+    it("renders plain-language explanation modal content when opened and updates dynamically with live data", () => {
+      const html = renderWithProviders(
+        <DashboardChartExplainButton
+          defaultOpen={true}
+          content={{
+            title: "Mức độ & thời gian xử lý",
+            subtitle: "Mô tả ngắn",
+            summary: "Trong 10 sự cố của kỳ, hiện còn 3 sự cố tồn đọng.",
+            details: ["Ca Nguy cấp còn 1 vụ cần xử lý."],
+            meaning: "Card này phản chiếu tồn đọng và tốc độ xử lý.",
+          }}
+        />,
+      );
+      assert.ok(html.includes("Tình hình hiện tại"));
+      assert.ok(html.includes("Trong 10 sự cố của kỳ, hiện còn 3 sự cố tồn đọng."));
+      assert.ok(html.includes("Card này đang phản chiếu gì?"));
+      assert.ok(html.includes("max-w-[700px]"));
+
+      const updated = renderWithProviders(
+        <DashboardChartExplainButton
+          defaultOpen={true}
+          content={{
+            title: "Phân bố sự cố theo giờ",
+            subtitle: "Theo giờ Việt Nam",
+            summary: "Trong kỳ có tổng cộng 25 sự cố.",
+            details: [],
+            meaning: "Tổng hợp theo 24h.",
+          }}
+        />,
+      );
+      assert.ok(updated.includes("Trong kỳ có tổng cộng 25 sự cố."));
+      assert.ok(!updated.includes("Trong 10 sự cố của kỳ"));
+    });
+    it("renders streamlined 2-chart operational suite (Hourly + Severity & MTTR) without radar or cameras", () => {
       const html = renderWithProviders(
         <DashboardOperationalSuite analytics={analytics} />,
       );
       assert.ok(html.includes("Phân tích sự cố trong kỳ"));
-      assert.ok(html.includes("Lưới 2x2"));
-      assert.ok(html.includes("Radar"));
+      assert.ok(html.includes("Phân bố sự cố theo giờ"));
+      assert.ok(html.includes("Mức độ &amp; thời gian xử lý"));
+      assert.ok(!html.includes("Lưới 2x2"));
+      assert.ok(!html.includes("Radar số sự cố"));
+      assert.ok(!html.includes("Camera &amp; sự cố trong kỳ"));
     });
   });
 
@@ -392,6 +755,123 @@ describe("Dashboard Components", () => {
       assert.ok(html.includes("/system"));
     });
 
+    it("renders clear status badges, filter pills, and recheck control for health report", () => {
+      const html = renderWithProviders(
+        <DashboardSystemStatusCard
+          healthOverride={{
+            overallStatus: "DEGRADED",
+            healthyCount: 1,
+            totalServices: 3,
+            averageLatencyMs: 180,
+            checkedAt: "2026-11-16T08:00:00.000Z",
+            services: [
+              {
+                name: "MinIO S3 Object Storage",
+                serviceCode: "minio-storage",
+                port: 9000,
+                endpoint: "http://localhost:9000/minio/health/live",
+                type: "INFRASTRUCTURE",
+                status: "DOWN",
+                latencyMs: 2001,
+                uptime: "--",
+                lastChecked: "2026-11-16T08:00:00.000Z",
+                details: { reason: "Failed to fetch" },
+              },
+              {
+                name: "Reporting & Safety Analytics",
+                serviceCode: "reporting-service",
+                port: 8894,
+                endpoint: "/reports/health",
+                type: "SERVICE",
+                status: "DEGRADED",
+                latencyMs: 310,
+                uptime: "1h 20m",
+                lastChecked: "2026-11-16T08:00:00.000Z",
+              },
+              {
+                name: "Identity & Core Auth",
+                serviceCode: "identity-service",
+                port: 9999,
+                endpoint: "/health",
+                type: "SERVICE",
+                status: "HEALTHY",
+                latencyMs: 8,
+                uptime: "2d 4h",
+                lastChecked: "2026-11-16T08:00:00.000Z",
+              },
+            ],
+          }}
+        />,
+      );
+
+      assert.ok(html.includes("Ổn định") || html.includes("Healthy"));
+      assert.ok(html.includes("Chậm") || html.includes("Slow"));
+      assert.ok(html.includes("Mất kết nối") || html.includes("Down"));
+      assert.ok(html.includes("Cần chú ý") || html.includes("Issues"));
+      assert.ok(html.includes("Kiểm tra lại") || html.includes("Recheck"));
+      assert.ok(html.includes("1/3"));
+      // Impact banner & actionable controls
+      assert.ok(html.includes("Ảnh hưởng tới bạn"));
+      assert.ok(html.includes("Vẫn hoạt động bình thường"));
+      assert.ok(html.includes("Sao chép báo cáo gửi IT"));
+    });
+
+    it("hides misleading fast latency on DOWN services and tailors actions by role", () => {
+      const report = {
+        overallStatus: "DEGRADED" as const,
+        healthyCount: 1,
+        totalServices: 2,
+        averageLatencyMs: 9,
+        checkedAt: "2026-11-16T08:00:00.000Z",
+        services: [
+          {
+            name: "AI YOLO Inference Engine",
+            serviceCode: "ai-service",
+            port: 8000,
+            endpoint: "/api/models (:8000)",
+            type: "SERVICE" as const,
+            status: "DOWN" as const,
+            latencyMs: 7,
+            uptime: "--",
+            lastChecked: "2026-11-16T08:00:00.000Z",
+            details: {
+              failureKind: "CONNECTION_REFUSED",
+              reason: "Connection refused (ECONNREFUSED)",
+            },
+          },
+          {
+            name: "Identity & Core Auth",
+            serviceCode: "identity-service",
+            port: 9999,
+            endpoint: "/health",
+            type: "SERVICE" as const,
+            status: "HEALTHY" as const,
+            latencyMs: 11,
+            uptime: "2d 4h",
+            lastChecked: "2026-11-16T08:00:00.000Z",
+          },
+        ],
+      };
+
+      const userHtml = renderWithProviders(
+        <DashboardSystemStatusCard
+          healthOverride={report}
+          isAdminOverride={false}
+        />,
+      );
+      assert.ok(!userHtml.includes(">7ms<"));
+      assert.ok(!userHtml.includes("Mở Kiểm thử AI"));
+      assert.ok(userHtml.includes("Sao chép báo cáo gửi IT"));
+
+      const adminHtml = renderWithProviders(
+        <DashboardSystemStatusCard
+          healthOverride={report}
+          isAdminOverride={true}
+        />,
+      );
+      assert.ok(adminHtml.includes("Mở Kiểm thử AI"));
+    });
+
     it("renders users overview card with title and management links", () => {
       const html = renderWithProviders(<DashboardUsersOverviewCard />);
       assert.ok(
@@ -413,6 +893,55 @@ describe("Dashboard Components", () => {
       assert.ok(html.includes("/audit-logs"));
     });
 
+    it("renders real successRate (or '--' when null) and permission guard for audit mini feed", () => {
+      const emptyHtml = renderWithProviders(
+        <DashboardAuditMiniFeed
+          summaryOverride={{
+            totalLogs: 0,
+            configChangesCount: 0,
+            incidentReviewsCount: 0,
+            successRate: null,
+            recentActivity: [],
+          }}
+        />,
+      );
+      assert.ok(emptyHtml.includes("--"));
+      assert.ok(!emptyHtml.includes("100%"));
+
+      const populatedHtml = renderWithProviders(
+        <DashboardAuditMiniFeed
+          summaryOverride={{
+            totalLogs: 16,
+            configChangesCount: 3,
+            incidentReviewsCount: 5,
+            successRate: 87.5,
+            recentActivity: [
+              {
+                id: "log-fail",
+                userId: "u-1",
+                userName: "Trần Thanh Trà",
+                action: "ACCOUNT_LOCKED",
+                targetType: "USER",
+                targetId: "u-1",
+                status: "FAILED",
+                errorMessage: "Too many failed attempts",
+                createdAt: "2026-11-16T08:15:00.000Z",
+              },
+            ],
+          }}
+        />,
+      );
+      assert.ok(populatedHtml.includes("87.5%"));
+      assert.ok(populatedHtml.includes("ACCOUNT_LOCKED"));
+      assert.ok(populatedHtml.includes("bg-danger"));
+
+      const deniedHtml = renderWithProviders(<DashboardAuditMiniFeed enabled={false} />);
+      assert.ok(!deniedHtml.includes('href="/audit-logs"'));
+      assert.ok(
+        deniedHtml.includes("không có quyền") || deniedHtml.includes("do not have permission"),
+      );
+    });
+
     it("renders cron mini card with title and manage tasks link", () => {
       const html = renderWithProviders(<DashboardCronMiniCard />);
       assert.ok(
@@ -421,6 +950,69 @@ describe("Dashboard Components", () => {
           html.includes("Cron"),
       );
       assert.ok(html.includes("/scheduled-tasks"));
+    });
+
+    it("renders human-readable cron jobs, honest schedule badges, and quick actions when allowed", () => {
+      const recentTimestamp = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const html = renderWithProviders(
+        <DashboardCronMiniCard
+          canReadOverride={true}
+          canManageOverride={true}
+          jobsOverride={[
+            {
+              name: "cleanup-audit-logs",
+              cron: "0 2 * * *",
+              description: "Dọn dẹp các bản ghi Audit Logs cũ hơn 30 ngày",
+              isEnabled: true,
+            },
+            {
+              name: "cleanup-expired-tokens",
+              cron: "0 4 * * *",
+              description: "Dọn token hết hạn",
+              isEnabled: true,
+            },
+            {
+              name: "weekly-summary-digest",
+              cron: "0 8 * * 1",
+              description: "Báo cáo tổng hợp tuần",
+              isEnabled: false,
+            },
+          ]}
+          auditItemsOverride={[
+            {
+              id: "audit-cron-1",
+              userId: "admin-1",
+              actorId: "admin-1",
+              action: "TRIGGER_CRON_JOB",
+              targetType: "CRON_JOB",
+              targetId: "cleanup-audit-logs",
+              status: "SUCCESS",
+              details: { durationMs: 64, result: { deletedCount: 12 } },
+              createdAt: recentTimestamp,
+            },
+          ]}
+        />,
+      );
+
+      assert.ok(html.includes("Dọn audit log cũ"));
+      assert.ok(html.includes("Báo cáo hoạt động hằng tuần"));
+      assert.ok(html.includes("Hằng ngày lúc 02:00"));
+      assert.ok(html.includes("Tự động bật"));
+      assert.ok(html.includes("Tạm tắt"));
+      assert.equal(html.includes("Đang chạy"), false);
+      assert.ok(html.includes("Vừa mới chạy"));
+      assert.ok(html.includes("Đã xóa 12 nhật ký cũ"));
+      assert.ok(html.includes("Cần bấm chạy"));
+      assert.ok(html.includes("Chạy ngay"));
+      assert.ok(html.includes("Chạy lại"));
+      assert.ok(html.includes("64ms"));
+    });
+
+    it("renders permission message when user cannot read cron jobs", () => {
+      const html = renderWithProviders(
+        <DashboardCronMiniCard canReadOverride={false} />,
+      );
+      assert.ok(html.includes("CRON_JOB_READ"));
     });
   });
 });

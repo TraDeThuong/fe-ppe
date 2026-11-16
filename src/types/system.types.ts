@@ -63,6 +63,14 @@ export interface PublicConfigsResponse {
 
 export type ServiceHealthStatus = "HEALTHY" | "DEGRADED" | "DOWN";
 
+export type ServiceProbeFailureKind =
+  | "CONNECTION_REFUSED"
+  | "TIMEOUT"
+  | "HTTP_ERROR"
+  | "PAYLOAD_UNHEALTHY"
+  | "CORS_OR_NETWORK"
+  | "UNKNOWN";
+
 export interface ServiceHealthItem {
   name: string;
   serviceCode: string;

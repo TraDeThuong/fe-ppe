@@ -45,6 +45,22 @@ export function CronLastRunBadge({
   t: (key: string) => string;
 }) {
   if (execution) {
+    let label = `${t("cron.justRan")} (${execution.durationMs}ms)`;
+    if (execution.fromAuditLog) {
+      const date = new Date(execution.timestamp);
+      const timeText = Number.isNaN(date.getTime())
+        ? "—"
+        : new Intl.DateTimeFormat(undefined, {
+            timeZone: "Asia/Ho_Chi_Minh",
+            day: "2-digit",
+            month: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hourCycle: "h23",
+          }).format(date);
+      label = execution.durationMs > 0 ? `${timeText} (${execution.durationMs}ms)` : timeText;
+    }
+
     return (
       <Badge
         variant={execution.success ? "success" : "danger"}
@@ -52,7 +68,7 @@ export function CronLastRunBadge({
         size="sm"
         className="whitespace-nowrap"
       >
-        {t("cron.justRan")} ({execution.durationMs}ms)
+        {label}
       </Badge>
     );
   }

@@ -66,6 +66,7 @@ export function useCameraLiveSessions(options?: {
     }: {
       camera: CameraItem;
       overrides?: Partial<CameraLiveFormValues>;
+      silent?: boolean;
     }) => {
       const models = modelsQuery.data ?? [];
       const defaultModel =
@@ -90,16 +91,20 @@ export function useCameraLiveSessions(options?: {
 
       return aiTestService.startLiveStream(payload);
     },
-    onSuccess: (_res, { camera }) => {
+    onSuccess: (_res, { camera, silent }) => {
       const liveId = toSafeLiveCameraId(camera);
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.sessions() });
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.stats(liveId) });
-      toast.success(`Đã bật AI Live Tracking cho ${camera.code}`);
+      if (!silent) {
+        toast.success(`Đã bật AI Live Tracking cho ${camera.code}`);
+      }
     },
-    onError: (err) => {
-      toast.error(
-        err instanceof Error ? err.message : "Không thể khởi chạy AI Live Tracking",
-      );
+    onError: (err, { silent }) => {
+      if (!silent) {
+        toast.error(
+          err instanceof Error ? err.message : "Không thể khởi chạy AI Live Tracking",
+        );
+      }
     },
   });
 

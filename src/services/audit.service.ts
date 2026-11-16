@@ -21,6 +21,8 @@ function unwrapData<T>(res: any): T {
   return res as T;
 }
 
+const FAILED_ACTION_REGEX = /(^|_)(FAIL|FAILED|ERROR|DENIED|REJECTED)$/i;
+
 function normalizeAuditItem(raw: any): AuditLogItem {
   if (!raw || typeof raw !== "object") return raw;
   const actor = raw.actor;
@@ -29,13 +31,22 @@ function normalizeAuditItem(raw: any): AuditLogItem {
   let status: AuditLogStatus = "SUCCESS";
   if (raw.status) {
     status = String(raw.status).toUpperCase() === "FAILED" ? "FAILED" : "SUCCESS";
-  } else if (details.status) {
-    status = String(details.status).toUpperCase() === "FAILED" ? "FAILED" : "SUCCESS";
-  } else if (details.error || details.errorMessage || raw.errorMessage) {
+  } else if (typeof details.status === "string" && ["FAILED", "ERROR"].includes(details.status.trim().toUpperCase())) {
+    status = "FAILED";
+  } else if (details.success === false) {
+    status = "FAILED";
+  } else if (
+    (typeof details.errorMessage === "string" && details.errorMessage.trim().length > 0) ||
+    (details.error !== undefined &&
+      details.error !== null &&
+      details.error !== false &&
+      (typeof details.error !== "string" || details.error.trim().length > 0)) ||
+    raw.errorMessage
+  ) {
     status = "FAILED";
   } else if (
     typeof raw.action === "string" &&
-    (raw.action.includes("FAIL") || raw.action.includes("ERROR") || raw.action.includes("REJECT"))
+    (raw.action === "ACCOUNT_LOCKED" || FAILED_ACTION_REGEX.test(raw.action))
   ) {
     status = "FAILED";
   }
@@ -76,22 +87,50 @@ function normalizeAuditSummary(raw: any): AuditSummaryDto {
   if (!raw) {
     return {
       totalLogs: 0,
+      successCount: 0,
+      failedCount: 0,
       configChangesCount: 0,
       incidentReviewsCount: 0,
-      successRate: 100,
+      successRate: null,
+      recentActivity: [],
     };
   }
   const categoryCounts = raw.categoryCounts || {};
+  const totalLogs = raw.totalLogs ?? 0;
+  const successRate =
+    raw.successRate !== undefined
+      ? raw.successRate
+      : totalLogs === 0
+        ? null
+        : null;
+
   return {
     ...raw,
-    totalLogs: raw.totalLogs ?? 0,
+    totalLogs,
+    successCount: raw.successCount,
+    failedCount: raw.failedCount,
     configChangesCount: raw.configChangesCount ?? categoryCounts.config ?? 0,
     incidentReviewsCount: raw.incidentReviewsCount ?? categoryCounts.incidentReview ?? 0,
-    successRate: raw.successRate ?? 100,
+    successRate,
+    recentActivity: Array.isArray(raw.recentActivity)
+      ? raw.recentActivity.map(normalizeAuditItem)
+      : undefined,
     byAction: raw.byAction ?? (Array.isArray(raw.topActions)
       ? Object.fromEntries(raw.topActions.map((a: any) => [a.action, a.count]))
       : undefined),
     byTargetType: raw.byTargetType,
+  };
+}
+
+function mapAuditDateParams<T extends { fromDate?: string; toDate?: string; startDate?: string; endDate?: string }>(
+  params?: T,
+) {
+  if (!params) return undefined;
+  const { fromDate, toDate, ...rest } = params;
+  return {
+    ...rest,
+    startDate: params.startDate ?? fromDate,
+    endDate: params.endDate ?? toDate,
   };
 }
 
@@ -121,7 +160,7 @@ export const auditService = {
     params?: AuditLogQueryParams,
   ): Promise<{ items: AuditLogItem[]; meta: PaginationMeta }> {
     const res = await apiClient.get<any>("/audit-logs", {
-      params,
+      params: mapAuditDateParams(params),
     });
     return unwrapPaginated<AuditLogItem>(res, normalizeAuditItem);
   },
@@ -140,9 +179,9 @@ export const auditService = {
    * GET /api/v1/audit-logs/summary
    * Lấy số liệu thống kê KPI kiểm toán.
    */
-  async getSummary(params?: { fromDate?: string; toDate?: string; siteId?: string }): Promise<AuditSummaryDto> {
+  async getSummary(params?: { fromDate?: string; toDate?: string; startDate?: string; endDate?: string; siteId?: string }): Promise<AuditSummaryDto> {
     const res = await apiClient.get<unknown>("/audit-logs/summary", {
-      params,
+      params: mapAuditDateParams(params),
     });
     const data = unwrapData<any>(res);
     return normalizeAuditSummary(data);

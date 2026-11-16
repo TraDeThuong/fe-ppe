@@ -2,6 +2,14 @@ import type { ReportHistoryQueryDto, ReportingFilterParams } from "@/types";
 
 export const reportingKeys = {
   all: ["reporting"] as const,
+  dashboardKpi: (siteId?: string | null) =>
+    [...reportingKeys.all, "dashboardKpi", siteId || "all"] as const,
+  hourlyRisk: (params?: {
+    siteId?: string;
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+  }) => [...reportingKeys.all, "hourlyRisk", params] as const,
   summary: (params?: ReportingFilterParams) =>
     [...reportingKeys.all, "summary", params] as const,
   trends: (params?: ReportingFilterParams) =>

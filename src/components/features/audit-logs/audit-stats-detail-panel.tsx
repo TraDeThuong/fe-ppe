@@ -127,7 +127,9 @@ export function AuditStatsDetailPanel({
   const totalLogs = summary?.totalLogs ?? totalLogsCount;
   const configChangesCount = summary?.configChangesCount ?? configLogs.length;
   const incidentReviewsCount = summary?.incidentReviewsCount ?? reviewLogs.length;
-  const successRate = summary?.successRate ?? 99.8;
+  const successRate = summary?.successRate ?? null;
+  const successRateValue = successRate ?? 0;
+  const successRateLabel = successRate != null ? `${successRate}%` : "--";
 
   return (
     <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-white/60 bg-surface/95 p-3.5 sm:p-5 shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)] transition-all duration-300 dark:border-white/10 dark:bg-card/95 animate-in fade-in slide-in-from-top-2">
@@ -164,7 +166,7 @@ export function AuditStatsDetailPanel({
                 {activeStat === "totalLogs" && `${totalLogs.toLocaleString()}`}
                 {activeStat === "configChanges" && `${configChangesCount}`}
                 {activeStat === "incidentReviews" && `${incidentReviewsCount}`}
-                {activeStat === "successRate" && `${successRate}%`}
+                {activeStat === "successRate" && successRateLabel}
               </Badge>
             </div>
             <p className="text-[11px] sm:text-xs text-muted-foreground truncate hidden sm:block">
@@ -641,12 +643,12 @@ export function AuditStatsDetailPanel({
                 {isVietnamese ? "Tỷ lệ tác vụ thành công" : "Task Success Rate"}
               </span>
               <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-1">
-                {successRate}%
+                {successRateLabel}
               </p>
               <div className="mt-2 h-1.5 w-full rounded-full bg-muted/60 overflow-hidden">
                 <div
                   className="h-full bg-emerald-500 rounded-full"
-                  style={{ width: `${Math.min(100, successRate)}%` }}
+                  style={{ width: `${Math.min(100, successRateValue)}%` }}
                 />
               </div>
             </div>

@@ -1,4 +1,5 @@
 export * from "./dashboard-hero-header";
+export * from "./dashboard-scope-filter-bar";
 export * from "./dashboard-kpi-ribbon";
 export * from "./dashboard-live-incidents";
 export * from "./dashboard-ai-status-card";

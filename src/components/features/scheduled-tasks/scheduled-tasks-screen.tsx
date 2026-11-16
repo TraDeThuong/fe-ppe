@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarClock,
   Info,
@@ -13,8 +13,15 @@ import { ForbiddenView } from "@/components/features/app-shell/forbidden-view";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { useCronJobs, useCronMutations } from "@/hooks/cron/use-cron";
+import { useCronRecentExecutions } from "@/hooks/cron/use-cron-history";
 import { ApiError } from "@/lib/axios";
-import { canReadCron, CRON_TIMEZONE, filterCronJobs } from "@/lib/cron";
+import {
+  canReadCron,
+  CRON_TIMEZONE,
+  extractRecentCronExecutions,
+  filterCronJobs,
+  mergeRecentExecutions,
+} from "@/lib/cron";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
 import type {
@@ -41,7 +48,9 @@ export function ScheduledTasksScreen() {
 
   const canRead = canReadCron(status, user?.permissions ?? []);
   const canManage = canRead && Boolean(user?.permissions.includes("CRON_JOB_MANAGE"));
+  const canReadAudit = Boolean(user?.permissions.includes("AUDIT_LOG_READ"));
   const query = useCronJobs(canRead);
+  const recentAuditQuery = useCronRecentExecutions(canRead && canReadAudit);
   const { trigger, toggle } = useCronMutations();
 
   const [search, setSearch] = useState("");
@@ -81,8 +90,16 @@ export function ScheduledTasksScreen() {
   // Toggle confirm modal state
   const [toggleConfirmJob, setToggleConfirmJob] = useState<CronJobItem | null>(null);
 
-  // Lưu lịch sử các lần chạy ngay gần nhất trên giao diện
+  // Lưu lịch sử các lần chạy ngay gần nhất trên giao diện (kết hợp Audit Log lịch sử)
   const [recentExecutions, setRecentExecutions] = useState<Record<string, RecentExecutionState>>({});
+  const auditExecutions = useMemo(
+    () => extractRecentCronExecutions(recentAuditQuery.data?.items ?? []),
+    [recentAuditQuery.data?.items],
+  );
+  const mergedRecentExecutions = useMemo(
+    () => mergeRecentExecutions(auditExecutions, recentExecutions),
+    [auditExecutions, recentExecutions],
+  );
   const [lastSynced, setLastSynced] = useState<Date>(new Date());
 
   const [result, setResult] = useState<CronJobExecutionResult | null>(null);
@@ -229,7 +246,7 @@ export function ScheduledTasksScreen() {
   const taskListProps = {
     jobs: visible,
     allJobs: jobs,
-    recentExecutions,
+    recentExecutions: mergedRecentExecutions,
     loading: query.isPending,
     fetching: query.isFetching,
     error: query.error,
@@ -374,7 +391,7 @@ export function ScheduledTasksScreen() {
         <CronJobDetailModal
           job={detailJob}
           allJobs={jobs}
-          recentExecution={recentExecutions[detailJob.name]}
+          recentExecution={mergedRecentExecutions[detailJob.name]}
           canManage={canManage}
           blocked={blockedJobs.has(detailJob.name)}
           onTrigger={(job) => openTrigger(job)}

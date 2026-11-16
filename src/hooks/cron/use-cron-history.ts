@@ -19,3 +19,17 @@ export function useCronJobHistory(jobName: CronJobName | null, enabled = true) {
   });
 }
 
+/**
+ * Fetches recent CRON_JOB audit trail entries so cron views can display real
+ * historical last-run timestamps and durations without backend changes.
+ */
+export function useCronRecentExecutions(enabled = true) {
+  return useQuery({
+    queryKey: cronQueryKeys.recentAudit(),
+    queryFn: () => auditService.getLogs({ targetType: "CRON_JOB", limit: 30 }),
+    enabled,
+    staleTime: 15 * 1000,
+    retry: false,
+  });
+}
+

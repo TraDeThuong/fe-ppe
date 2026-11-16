@@ -1,9 +1,11 @@
+import type { AuditLogItem } from "@/types/audit.types";
 import type {
   CronJobItem,
   CronJobName,
   CronScheduleConflict,
   CronScheduleFilter,
   NextRunCalculation,
+  RecentExecutionState,
   TriggerCronJobPayload,
 } from "@/types/cron.types";
 
@@ -307,4 +309,254 @@ export function detectCronConflicts(
     conflictingJobNames: [],
     description: "",
   };
+}
+
+/**
+ * Finds the earliest upcoming enabled cron job based on `calculateNextRun`.
+ */
+export function findNextScheduledJob(
+  jobs: CronJobItem[],
+  now = new Date(),
+  locale = "vi-VN"
+): { job: CronJobItem; nextRun: NextRunCalculation } | null {
+  let earliest: { job: CronJobItem; nextRun: NextRunCalculation } | null = null;
+  for (const job of jobs) {
+    if (!job.isEnabled) continue;
+    const nextRun = calculateNextRun(job.cron, true, now, locale);
+    if (!nextRun.date) continue;
+    if (!earliest || nextRun.date.getTime() < earliest.nextRun.date!.getTime()) {
+      earliest = { job, nextRun };
+    }
+  }
+  return earliest;
+}
+
+const KNOWN_CRON_JOBS = new Set<string>([
+  "cleanup-audit-logs",
+  "cleanup-unconfirmed-uploads",
+  "cleanup-expired-tokens",
+  "daily-summary-digest",
+  "weekly-summary-digest",
+]);
+
+/**
+ * Derives the latest execution record per cron job from CRON_JOB audit logs.
+ * Prefers `TRIGGER_CRON_JOB` entries when timestamps are within 2 seconds of a
+ * domain log so `durationMs` and `actorId` are preserved.
+ */
+export function extractRecentCronExecutions(
+  auditItems: AuditLogItem[]
+): Record<string, RecentExecutionState> {
+  const result: Record<string, RecentExecutionState> = {};
+
+  for (const item of auditItems) {
+    if (item.targetType !== "CRON_JOB" || item.action === "TOGGLE_CRON_JOB") {
+      continue;
+    }
+    const jobName = item.targetId;
+    if (!jobName || !KNOWN_CRON_JOBS.has(jobName)) {
+      continue;
+    }
+
+    const itemTime = new Date(item.createdAt).getTime();
+    if (Number.isNaN(itemTime)) continue;
+
+    const details = (item.details ?? {}) as Record<string, unknown>;
+    const durationMs =
+      typeof details.durationMs === "number" && Number.isFinite(details.durationMs)
+        ? details.durationMs
+        : 0;
+    const resultData =
+      details.result && typeof details.result === "object"
+        ? (details.result as Record<string, unknown>)
+        : details;
+
+    const candidate: RecentExecutionState = {
+      timestamp: item.createdAt,
+      success: item.status !== "FAILED",
+      durationMs,
+      data: resultData,
+      error: item.errorMessage ?? undefined,
+      triggerType: item.actorId ? "MANUAL" : "SCHEDULED",
+      fromAuditLog: true,
+    };
+
+    const existing = result[jobName];
+    if (!existing) {
+      result[jobName] = candidate;
+      continue;
+    }
+
+    const existingTime = new Date(existing.timestamp).getTime();
+    const isPairedTriggerRecord =
+      item.action === "TRIGGER_CRON_JOB" &&
+      Math.abs(itemTime - existingTime) <= 2000 &&
+      existing.durationMs === 0;
+
+    if (itemTime > existingTime + 2000 || isPairedTriggerRecord) {
+      result[jobName] = candidate;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Merges historical audit executions with live in-session manual runs.
+ */
+export function mergeRecentExecutions(
+  auditExecutions: Record<string, RecentExecutionState>,
+  sessionExecutions: Record<string, RecentExecutionState>
+): Record<string, RecentExecutionState> {
+  const merged: Record<string, RecentExecutionState> = { ...auditExecutions };
+  for (const [jobName, sessionExec] of Object.entries(sessionExecutions)) {
+    const existing = merged[jobName];
+    if (!existing) {
+      merged[jobName] = sessionExec;
+      continue;
+    }
+    const existingTime = new Date(existing.timestamp).getTime();
+    const sessionTime = new Date(sessionExec.timestamp).getTime();
+    if (Number.isNaN(existingTime) || sessionTime >= existingTime) {
+      merged[jobName] = sessionExec;
+    }
+  }
+  return merged;
+}
+
+export type CronGuidanceState =
+  | "failed"
+  | "overdue"
+  | "never_ran"
+  | "paused"
+  | "just_ran"
+  | "healthy_idle"
+  | "unknown";
+
+export interface CronJobGuidance {
+  state: CronGuidanceState;
+  shouldClickRun: boolean;
+  isJustRan: boolean;
+  priorityRank: number;
+}
+
+const JUST_RAN_WINDOW_MS = 60 * 60 * 1000; // 60 minutes
+
+function getExpectedCycleMs(cron: string): number {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length === 5 && /^\d+$/.test(parts[4])) {
+    // Weekly schedule (+4h grace)
+    return 7 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000;
+  }
+  // Daily schedule (+2h grace)
+  return 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000;
+}
+
+/**
+ * Formats how long ago a cron execution ran in human-friendly relative text.
+ */
+export function formatCronRelativeAgo(
+  timestamp: string,
+  now = new Date(),
+  locale = "vi-VN"
+): string {
+  const time = new Date(timestamp).getTime();
+  if (Number.isNaN(time)) return "—";
+  const diffMs = Math.max(0, now.getTime() - time);
+  const isVi = locale === "vi-VN";
+
+  if (diffMs < 60_000) {
+    return isVi ? "Vừa xong" : "Just now";
+  }
+  if (diffMs < 3600_000) {
+    const mins = Math.max(1, Math.round(diffMs / 60_000));
+    return isVi ? `${mins} phút trước` : `${mins}m ago`;
+  }
+  if (diffMs < 86400_000) {
+    const hours = Math.max(1, Math.round(diffMs / 3600_000));
+    return isVi ? `${hours} giờ trước` : `${hours}h ago`;
+  }
+  const days = Math.max(1, Math.round(diffMs / 86400_000));
+  return isVi ? `${days} ngày trước` : `${days}d ago`;
+}
+
+/**
+ * Formats a concise human-readable outcome from verified cron execution result fields.
+ */
+export function formatCronOutcomeSummary(
+  jobName: CronJobName,
+  data?: Record<string, unknown>,
+  locale = "vi-VN"
+): string | null {
+  if (!data || typeof data !== "object") return null;
+  const isVi = locale === "vi-VN";
+
+  if (jobName === "cleanup-audit-logs" && typeof data.deletedCount === "number") {
+    return isVi
+      ? `Đã xóa ${data.deletedCount} nhật ký cũ`
+      : `Deleted ${data.deletedCount} old log(s)`;
+  }
+  if (
+    jobName === "cleanup-unconfirmed-uploads" &&
+    typeof data.scannedCount === "number" &&
+    typeof data.deletedCount === "number"
+  ) {
+    return isVi
+      ? `Quét ${data.scannedCount} tệp · xóa ${data.deletedCount} tệp rác`
+      : `Scanned ${data.scannedCount} · deleted ${data.deletedCount}`;
+  }
+  if (jobName === "cleanup-expired-tokens" && typeof data.totalDeleted === "number") {
+    return isVi
+      ? `Đã dọn ${data.totalDeleted} token/outbox`
+      : `Cleaned ${data.totalDeleted} token(s)`;
+  }
+  if (
+    (jobName === "daily-summary-digest" || jobName === "weekly-summary-digest") &&
+    typeof data.recipientCount === "number"
+  ) {
+    return isVi
+      ? `Tổng hợp cho ${data.recipientCount} quản trị viên`
+      : `Compiled for ${data.recipientCount} admin(s)`;
+  }
+  return null;
+}
+
+/**
+ * Evaluates a cron job using its schedule state and execution history to tell
+ * operators which job just ran, which needs a manual run click, and which is healthy.
+ */
+export function assessCronJobGuidance(
+  job: CronJobItem,
+  lastExec: RecentExecutionState | undefined,
+  options: { auditAvailable: boolean; now?: Date }
+): CronJobGuidance {
+  const now = options.now ?? new Date();
+  const lastTime = lastExec ? new Date(lastExec.timestamp).getTime() : NaN;
+  const hasValidLastTime = Boolean(lastExec) && !Number.isNaN(lastTime);
+  const ageMs = hasValidLastTime ? Math.max(0, now.getTime() - lastTime) : Infinity;
+  const isJustRan = hasValidLastTime && (!lastExec?.fromAuditLog || ageMs <= JUST_RAN_WINDOW_MS);
+
+  if (lastExec && !lastExec.success) {
+    return { state: "failed", shouldClickRun: true, isJustRan, priorityRank: 0 };
+  }
+
+  if (!job.isEnabled) {
+    return { state: "paused", shouldClickRun: false, isJustRan, priorityRank: 3 };
+  }
+
+  if (hasValidLastTime) {
+    if (ageMs > getExpectedCycleMs(job.cron)) {
+      return { state: "overdue", shouldClickRun: true, isJustRan: false, priorityRank: 1 };
+    }
+    if (isJustRan) {
+      return { state: "just_ran", shouldClickRun: false, isJustRan: true, priorityRank: 4 };
+    }
+    return { state: "healthy_idle", shouldClickRun: false, isJustRan: false, priorityRank: 5 };
+  }
+
+  if (options.auditAvailable) {
+    return { state: "never_ran", shouldClickRun: true, isJustRan: false, priorityRank: 2 };
+  }
+
+  return { state: "unknown", shouldClickRun: false, isJustRan: false, priorityRank: 6 };
 }

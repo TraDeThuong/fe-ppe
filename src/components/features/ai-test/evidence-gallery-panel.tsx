@@ -26,6 +26,7 @@ import {
   SegmentedControl,
   type SegmentedControlOption,
 } from "@/components/ui/segmented-control";
+import { useLocale } from "@/providers/locale-provider";
 import {
   filterEvidenceItems,
   groupEvidenceByTrack,
@@ -68,13 +69,6 @@ const NM = {
     "border border-white/50 dark:border-white/[0.06] transition-all cursor-pointer",
 };
 
-const SORT_OPTIONS: SelectOption[] = [
-  { value: "newest", label: "Mới nhất / Frame cao → thấp" },
-  { value: "time_asc", label: "Dòng thời gian (Sớm → Muộn)" },
-  { value: "track_asc", label: "Theo Track ID (# nhỏ → lớn)" },
-  { value: "type_asc", label: "Theo Loại vi phạm (A → Z)" },
-];
-
 export interface EvidenceGalleryPanelProps {
   items: EvidenceItem[];
   onInspectEvidence: (items: EvidenceItem[], index: number) => void;
@@ -90,6 +84,7 @@ export function EvidenceGalleryPanel({
   hideSourceFilter = false,
   emptyDescription,
 }: EvidenceGalleryPanelProps) {
+  const { t } = useLocale();
   const [sourceFilter, setSourceFilter] = useState<EvidenceSourceFilter>("all");
   const [violationFilter, setViolationFilter] =
     useState<ViolationFilterType>("ALL");
@@ -148,13 +143,26 @@ export function EvidenceGalleryPanel({
       return a.localeCompare(b);
     });
     return [
-      { value: "all", label: `Tất cả Track (${sortedTracks.length})` },
+      {
+        value: "all",
+        label: t("aiTest.gallery.filters.allTracks", { count: sortedTracks.length }),
+      },
       ...sortedTracks.map(([tid, count]) => ({
         value: tid,
-        label: `Track #${tid} (${count} ảnh)`,
+        label: t("aiTest.gallery.filters.trackItem", { id: tid, count }),
       })),
     ];
-  }, [sourceScoped]);
+  }, [sourceScoped, t]);
+
+  const sortOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "newest", label: t("aiTest.gallery.sort.newest") },
+      { value: "time_asc", label: t("aiTest.gallery.sort.timeAsc") },
+      { value: "track_asc", label: t("aiTest.gallery.sort.trackAsc") },
+      { value: "type_asc", label: t("aiTest.gallery.sort.typeAsc") },
+    ],
+    [t],
+  );
 
   const effectiveTrackFilter = useMemo(() => {
     if (trackFilter === "all") return "all";
@@ -240,47 +248,47 @@ export function EvidenceGalleryPanel({
   };
 
   const sourceOptions: SegmentedControlOption<EvidenceSourceFilter>[] = [
-    { value: "all", label: "Tất cả", badge: String(counts.totalAll) },
+    { value: "all", label: t("aiTest.gallery.filters.sourceAll"), badge: String(counts.totalAll) },
     {
       value: "live",
-      label: "Live",
+      label: t("aiTest.gallery.filters.sourceLive"),
       icon: <Radio className="size-3.5 text-accent" />,
       badge: String(counts.live),
     },
     {
       value: "job",
-      label: "Offline Job",
+      label: t("aiTest.gallery.filters.sourceJob"),
       icon: <Film className="size-3.5 text-primary" />,
       badge: String(counts.job),
     },
   ];
 
   const violationOptions: SegmentedControlOption<ViolationFilterType>[] = [
-    { value: "ALL", label: "Tất cả", badge: String(counts.scopedTotal) },
-    { value: "NO_HELMET", label: "Thiếu mũ", badge: String(counts.noHelmet) },
-    { value: "NO_VEST", label: "Thiếu áo", badge: String(counts.noVest) },
+    { value: "ALL", label: t("aiTest.gallery.filters.violationAll"), badge: String(counts.scopedTotal) },
+    { value: "NO_HELMET", label: t("aiTest.gallery.filters.violationNoHelmet"), badge: String(counts.noHelmet) },
+    { value: "NO_VEST", label: t("aiTest.gallery.filters.violationNoVest"), badge: String(counts.noVest) },
     {
       value: "RESTRICTED_AREA",
-      label: "Vùng cấm",
+      label: t("aiTest.gallery.filters.violationRestricted"),
       badge: String(counts.restricted),
     },
   ];
 
   const pairOptions: SegmentedControlOption<EvidencePairFilter>[] = [
-    { value: "all", label: "Tất cả", badge: String(counts.scopedTotal) },
-    { value: "pair", label: "Before / After", badge: String(counts.pair) },
-    { value: "single", label: "Ảnh đơn", badge: String(counts.single) },
+    { value: "all", label: t("aiTest.gallery.filters.formatAll"), badge: String(counts.scopedTotal) },
+    { value: "pair", label: t("aiTest.gallery.filters.formatPair"), badge: String(counts.pair) },
+    { value: "single", label: t("aiTest.gallery.filters.formatSingle"), badge: String(counts.single) },
   ];
 
   const viewOptions: SegmentedControlOption<GalleryViewMode>[] = [
     {
       value: "grid",
-      label: "Lưới thẻ",
+      label: t("aiTest.gallery.viewGrid"),
       icon: <LayoutGrid className="size-3.5" />,
     },
     {
       value: "grouped",
-      label: "Gom theo Track",
+      label: t("aiTest.gallery.viewGrouped"),
       icon: <Layers className="size-3.5" />,
       badge: String(groupedByTrack.length),
     },
@@ -288,7 +296,7 @@ export function EvidenceGalleryPanel({
 
   return (
     <section
-      aria-label="Thư viện Ảnh Bằng Chứng"
+      aria-label={t("aiTest.gallery.ariaLabel")}
       className={`rounded-[30px] p-5 sm:p-7 space-y-6 ${NM.chassis}`}
     >
       {/* =================================================================
@@ -304,16 +312,16 @@ export function EvidenceGalleryPanel({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-extrabold tracking-tight text-foreground">
-                Thư viện Ảnh Bằng Chứng
+                {t("aiTest.gallery.title")}
               </h2>
               <span className="rounded-full bg-accent/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent">
-                Before / After Evidence
+                {t("aiTest.gallery.badge")}
               </span>
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {hideSourceFilter
-                ? "Đối chiếu ảnh trước & khoảnh khắc xác nhận vi phạm từ Phiên Live hiện tại và Lịch sử Incident DB của camera."
-                : "Đối chiếu ảnh trước & khoảnh khắc xác nhận vi phạm từ Live Session và Offline Job đang nạp."}
+                ? t("aiTest.gallery.descCamera")
+                : t("aiTest.gallery.descDefault")}
             </p>
           </div>
         </div>
@@ -326,11 +334,11 @@ export function EvidenceGalleryPanel({
               className={`inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold text-accent ${NM.tactileBtn}`}
             >
               <RotateCcw className="size-3.5" />
-              Đặt lại lọc
+              {t("aiTest.gallery.resetFilters")}
             </button>
           )}
           <SegmentedControl<GalleryViewMode>
-            aria-label="Chế độ hiển thị thư viện"
+            aria-label={t("aiTest.gallery.viewModeAriaLabel")}
             options={viewOptions}
             value={viewMode}
             onValueChange={setViewMode}
@@ -349,7 +357,7 @@ export function EvidenceGalleryPanel({
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Kết quả khớp lọc
+              {t("aiTest.gallery.stats.matchedResults")}
             </p>
             <p className="font-mono text-lg font-extrabold text-foreground">
               {filteredStats.total}
@@ -368,12 +376,12 @@ export function EvidenceGalleryPanel({
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Cặp Before / After
+              {t("aiTest.gallery.stats.beforeAfterPairs")}
             </p>
             <p className="font-mono text-lg font-extrabold text-foreground">
               {filteredStats.pairs}
               <span className="ml-1.5 text-[11px] font-medium text-muted-foreground">
-                ({filteredStats.singles} đơn)
+                {t("aiTest.gallery.stats.singlesSuffix", { count: filteredStats.singles })}
               </span>
             </p>
           </div>
@@ -387,12 +395,12 @@ export function EvidenceGalleryPanel({
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Nhóm đối tượng
+              {t("aiTest.gallery.stats.personGroups")}
             </p>
             <p className="font-mono text-lg font-extrabold text-foreground">
               {filteredStats.tracks}
               <span className="ml-1.5 text-[11px] font-medium text-muted-foreground">
-                tracks
+                {t("aiTest.gallery.stats.tracksUnit")}
               </span>
             </p>
           </div>
@@ -406,24 +414,26 @@ export function EvidenceGalleryPanel({
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              {hideSourceFilter ? "Phân bổ vi phạm" : "Phân bổ nguồn"}
+              {hideSourceFilter
+                ? t("aiTest.gallery.stats.violationBreakdown")
+                : t("aiTest.gallery.stats.sourceBreakdown")}
             </p>
             {hideSourceFilter ? (
               <div className="mt-0.5 flex flex-wrap items-center gap-1.5 font-mono text-xs font-bold">
                 <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-accent">
-                  Mũ {counts.noHelmet}
+                  {t("aiTest.gallery.stats.helmetTag", { count: counts.noHelmet })}
                 </span>
                 <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-primary">
-                  Áo {counts.noVest}
+                  {t("aiTest.gallery.stats.vestTag", { count: counts.noVest })}
                 </span>
               </div>
             ) : (
               <div className="mt-0.5 flex items-center gap-2 font-mono text-xs font-bold">
                 <span className="rounded-md bg-accent/15 px-1.5 py-0.5 text-accent">
-                  Live {counts.live}
+                  {t("aiTest.gallery.stats.liveTag", { count: counts.live })}
                 </span>
                 <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-primary">
-                  Job {counts.job}
+                  {t("aiTest.gallery.stats.jobTag", { count: counts.job })}
                 </span>
               </div>
             )}
@@ -440,10 +450,10 @@ export function EvidenceGalleryPanel({
           {!hideSourceFilter && (
             <div className="space-y-1.5 xl:col-span-4">
               <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                1. Nguồn dữ liệu
+                {t("aiTest.gallery.filters.source")}
               </span>
               <SegmentedControl<EvidenceSourceFilter>
-                aria-label="Lọc theo nguồn bằng chứng"
+                aria-label={t("aiTest.gallery.filters.sourceAriaLabel")}
                 options={sourceOptions}
                 value={sourceFilter}
                 onValueChange={(next) => {
@@ -462,10 +472,10 @@ export function EvidenceGalleryPanel({
             }`}
           >
             <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              {hideSourceFilter ? "1. Loại vi phạm" : "2. Loại vi phạm"}
+              {t("aiTest.gallery.filters.violation", { step: hideSourceFilter ? 1 : 2 })}
             </span>
             <SegmentedControl<ViolationFilterType>
-              aria-label="Lọc theo loại vi phạm"
+              aria-label={t("aiTest.gallery.filters.violationAriaLabel")}
               options={violationOptions}
               value={violationFilter}
               onValueChange={(next) => {
@@ -483,10 +493,10 @@ export function EvidenceGalleryPanel({
             }`}
           >
             <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              {hideSourceFilter ? "2. Định dạng ảnh" : "3. Định dạng ảnh"}
+              {t("aiTest.gallery.filters.format", { step: hideSourceFilter ? 2 : 3 })}
             </span>
             <SegmentedControl<EvidencePairFilter>
-              aria-label="Lọc theo cặp Before/After"
+              aria-label={t("aiTest.gallery.filters.formatAriaLabel")}
               options={pairOptions}
               value={pairFilter}
               onValueChange={(next) => {
@@ -509,7 +519,7 @@ export function EvidenceGalleryPanel({
               htmlFor="evidence-search-input"
               className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
             >
-              Tìm kiếm nhanh (Track #, Camera / Job ID, Frame)
+              {t("aiTest.gallery.filters.searchLabel")}
             </label>
             <Input
               id="evidence-search-input"
@@ -524,7 +534,7 @@ export function EvidenceGalleryPanel({
                       setSearchQuery("");
                       setPage(1);
                     }}
-                    aria-label="Xóa từ khóa"
+                    aria-label={t("aiTest.gallery.filters.clearSearch")}
                     className="text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     <X className="size-3.5" />
@@ -536,13 +546,13 @@ export function EvidenceGalleryPanel({
                 setSearchQuery(e.target.value);
                 setPage(1);
               }}
-              placeholder="Ví dụ: #12, CAM-01, Frame #240..."
+              placeholder={t("aiTest.gallery.filters.searchPlaceholder")}
             />
           </div>
 
           <div className="space-y-1.5 md:col-span-3">
             <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Lọc theo Track ID
+              {t("aiTest.gallery.filters.trackLabel")}
             </span>
             <Select
               size="sm"
@@ -552,24 +562,24 @@ export function EvidenceGalleryPanel({
                 setTrackFilter(next);
                 setPage(1);
               }}
-              placeholder="Tất cả Track"
+              placeholder={t("aiTest.gallery.filters.trackPlaceholder")}
             />
           </div>
 
           <div className="space-y-1.5 md:col-span-4">
             <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
               <ArrowUpDown className="size-3 text-primary" />
-              Sắp xếp theo
+              {t("aiTest.gallery.filters.sortLabel")}
             </span>
             <Select
               size="sm"
-              options={SORT_OPTIONS}
+              options={sortOptions}
               value={sortOrder}
               onValueChange={(next) => {
                 setSortOrder(next as EvidenceSortOrder);
                 setPage(1);
               }}
-              placeholder="Chọn thứ tự sắp xếp"
+              placeholder={t("aiTest.gallery.filters.sortPlaceholder")}
             />
           </div>
         </div>
@@ -583,14 +593,13 @@ export function EvidenceGalleryPanel({
           <Images className="mx-auto size-11 text-muted-foreground/45" />
           <p className="mt-3 text-sm font-bold text-foreground">
             {counts.totalAll === 0
-              ? "Chưa có ảnh bằng chứng nào được ghi nhận"
-              : "Không tìm thấy bằng chứng phù hợp với bộ lọc"}
+              ? t("aiTest.gallery.empty.noItemsTitle")
+              : t("aiTest.gallery.empty.noMatchTitle")}
           </p>
           <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
             {counts.totalAll === 0
-              ? emptyDescription ??
-                "Hãy bật Live Stream hoặc chọn một Job đã phân tích xong ở tab Offline Analysis để hệ thống trích xuất cặp ảnh Before / After."
-              : "Thử nới lỏng bộ lọc loại vi phạm, cặp ảnh hoặc xóa từ khóa tìm kiếm."}
+              ? emptyDescription ?? t("aiTest.gallery.empty.defaultDesc")
+              : t("aiTest.gallery.empty.filteredDesc")}
           </p>
           {hasActiveFilters && (
             <button
@@ -599,7 +608,7 @@ export function EvidenceGalleryPanel({
               className={`mt-4 inline-flex h-9 items-center gap-1.5 rounded-xl px-4 text-xs font-bold text-primary ${NM.tactileBtn}`}
             >
               <RotateCcw className="size-3.5" />
-              Đặt lại toàn bộ bộ lọc
+              {t("aiTest.gallery.resetAllFilters")}
             </button>
           )}
         </div>
@@ -655,10 +664,10 @@ export function EvidenceGalleryPanel({
                 </div>
 
                 <div className="flex items-center gap-2 font-mono text-[11px] font-semibold text-muted-foreground">
-                  <span>{group.items.length} bằng chứng</span>
+                  <span>{t("aiTest.gallery.group.evidenceCount", { count: group.items.length })}</span>
                   {group.pairCount > 0 && (
                     <span className="rounded-md bg-primary/10 px-2 py-0.5 text-primary">
-                      {group.pairCount} Before/After
+                      {t("aiTest.gallery.group.pairCount", { count: group.pairCount })}
                     </span>
                   )}
                 </div>
@@ -710,20 +719,15 @@ export function EvidenceGalleryPanel({
               className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 ${NM.recessed}`}
             >
               <span className="text-xs font-medium text-muted-foreground">
-                Hiển thị{" "}
-                <span className="font-mono font-bold text-foreground">
-                  {showAll
+                {t("aiTest.gallery.pagination.showing", {
+                  range: showAll
                     ? `1–${filteredAndSorted.length}`
                     : `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(
                         safePage * PAGE_SIZE,
                         filteredAndSorted.length,
-                      )}`}
-                </span>{" "}
-                trong tổng số{" "}
-                <span className="font-mono font-bold text-foreground">
-                  {filteredAndSorted.length}
-                </span>{" "}
-                bằng chứng
+                      )}`,
+                  total: filteredAndSorted.length,
+                })}
               </span>
 
               <div className="flex items-center gap-2">
@@ -736,7 +740,7 @@ export function EvidenceGalleryPanel({
                       className={`inline-flex h-8 items-center gap-1 rounded-xl px-2.5 text-xs font-semibold text-foreground disabled:opacity-40 ${NM.tactileBtn}`}
                     >
                       <ChevronLeft className="size-3.5" />
-                      Trước
+                      {t("aiTest.common.prev")}
                     </button>
                     <span className="px-2 font-mono text-xs font-bold text-foreground">
                       {safePage} / {totalPages}
@@ -749,7 +753,7 @@ export function EvidenceGalleryPanel({
                       }
                       className={`inline-flex h-8 items-center gap-1 rounded-xl px-2.5 text-xs font-semibold text-foreground disabled:opacity-40 ${NM.tactileBtn}`}
                     >
-                      Sau
+                      {t("aiTest.common.next")}
                       <ChevronRight className="size-3.5" />
                     </button>
                   </>
@@ -763,7 +767,9 @@ export function EvidenceGalleryPanel({
                   }}
                   className={`inline-flex h-8 items-center rounded-xl px-3 text-xs font-semibold text-primary ${NM.tactileBtn}`}
                 >
-                  {showAll ? `Thu gọn (${PAGE_SIZE}/trang)` : "Hiện tất cả"}
+                  {showAll
+                    ? t("aiTest.gallery.pagination.collapse", { pageSize: PAGE_SIZE })
+                    : t("aiTest.gallery.pagination.showAll")}
                 </button>
               </div>
             </div>

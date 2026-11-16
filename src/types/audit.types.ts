@@ -34,9 +34,12 @@ export interface AuditLogDetail extends AuditLogItem {
 
 export interface AuditSummaryDto {
   totalLogs: number;
+  successCount?: number;
+  failedCount?: number;
   configChangesCount: number;
   incidentReviewsCount: number;
-  successRate: number;
+  successRate: number | null;
+  recentActivity?: AuditLogItem[];
   byAction?: Record<string, number>;
   byTargetType?: Record<string, number>;
 }
@@ -50,6 +53,8 @@ export interface AuditLogQueryParams {
   targetType?: string;
   targetId?: string;
   status?: AuditLogStatus;
+  startDate?: string;
+  endDate?: string;
   fromDate?: string;
   toDate?: string;
   search?: string;

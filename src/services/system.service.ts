@@ -1,8 +1,10 @@
 import { apiClient } from "@/lib/axios";
+import { env } from "@/config/env";
 import type {
   CreateSystemConfigPayload,
   PublicConfigsResponse,
   ServiceHealthItem,
+  ServiceProbeFailureKind,
   SystemConfigDetailResponse,
   SystemConfigItem,
   SystemConfigQueryParams,
@@ -146,8 +148,9 @@ export const systemService = {
       code: string;
       port: number;
       path: string;
+      displayEndpoint?: string;
       type: "SERVICE" | "INFRASTRUCTURE";
-      isDirectUrl?: boolean;
+      probeTarget?: "ai" | "traefik" | "minio";
       isDbProbe?: boolean;
     }
 
@@ -159,17 +162,43 @@ export const systemService = {
       { name: "Media & Snapshot Storage", code: "media-service", port: 8890, path: "/files/health", type: "SERVICE" },
       { name: "Reporting & Safety Analytics", code: "reporting-service", port: 8894, path: "/reports/health", type: "SERVICE" },
       { name: "Notification & Realtime Hub", code: "notification-service", port: 8889, path: "/notifications/health", type: "SERVICE" },
-      { name: "AI YOLO Inference Engine", code: "ai-service", port: 8000, path: "http://localhost:8000/health", type: "SERVICE", isDirectUrl: true },
+      {
+        name: "AI YOLO Inference Engine",
+        code: "ai-service",
+        port: 8000,
+        path: "/api/system/health-probe?target=ai",
+        displayEndpoint: "/api/models (:8000)",
+        type: "SERVICE",
+        probeTarget: "ai",
+      },
     ];
 
     const infraTargets: HealthTarget[] = [
       { name: "PostgreSQL Database", code: "postgres-db", port: 5432, path: "/health/readiness", type: "INFRASTRUCTURE", isDbProbe: true },
       { name: "Apache Kafka EventBus", code: "kafka-broker", port: 9092, path: "/incidents/health", type: "INFRASTRUCTURE" },
-      { name: "MinIO S3 Object Storage", code: "minio-storage", port: 9000, path: "http://localhost:9000/minio/health/live", type: "INFRASTRUCTURE", isDirectUrl: true },
-      { name: "Traefik Reverse Proxy", code: "traefik-gateway", port: 80, path: "http://localhost:8080/ping", type: "INFRASTRUCTURE", isDirectUrl: true },
+      {
+        name: "MinIO S3 Object Storage",
+        code: "minio-storage",
+        port: 9000,
+        path: "/api/system/health-probe?target=minio",
+        displayEndpoint: "/minio/health/live (:9000)",
+        type: "INFRASTRUCTURE",
+        probeTarget: "minio",
+      },
+      {
+        name: "Traefik Reverse Proxy",
+        code: "traefik-gateway",
+        port: 80,
+        path: "/api/system/health-probe?target=traefik",
+        displayEndpoint: "/ping (:8080) · gateway (:80)",
+        type: "INFRASTRUCTURE",
+        probeTarget: "traefik",
+      },
     ];
 
     const allTargets: HealthTarget[] = [...serviceTargets, ...infraTargets];
+    const HEALTHY_THRESHOLD_MS = 250;
+    const probeRequestOptions = { timeout: 3000, suppressToast: true };
 
     const formatUptimeStr = (seconds?: number): string => {
       if (typeof seconds !== "number" || isNaN(seconds) || seconds <= 0) return "--";
@@ -181,6 +210,48 @@ export const systemService = {
       return `${minutes}m ${Math.floor(seconds % 60)}s`;
     };
 
+    const classifyProbeError = (
+      error: unknown,
+      isServerProbe?: boolean,
+    ): { failureKind: ServiceProbeFailureKind; reason: string } => {
+      if (error && typeof error === "object") {
+        const err = error as {
+          name?: string;
+          code?: string;
+          status?: number;
+          message?: string;
+        };
+        if (err.name === "AbortError" || err.code === "ECONNABORTED") {
+          return {
+            failureKind: "TIMEOUT",
+            reason: isServerProbe ? "Timeout (> 2s)" : "Timeout (> 3s)",
+          };
+        }
+        if (typeof err.status === "number" && err.status > 0) {
+          return {
+            failureKind: "HTTP_ERROR",
+            reason: `HTTP ${err.status}${err.message ? ` · ${err.message}` : ""}`,
+          };
+        }
+        if (err.code === "ERR_NETWORK" || err.message === "Network Error") {
+          return {
+            failureKind: "CONNECTION_REFUSED",
+            reason: err.message || "Network unreachable",
+          };
+        }
+        if (err.message) {
+          return {
+            failureKind: isServerProbe ? "UNKNOWN" : "CORS_OR_NETWORK",
+            reason: err.message,
+          };
+        }
+      }
+      return {
+        failureKind: "CONNECTION_REFUSED",
+        reason: "Connection failed",
+      };
+    };
+
     const results = await Promise.allSettled(
       allTargets.map(async (tgt) => {
         const start = performance.now();
@@ -188,39 +259,109 @@ export const systemService = {
           let resData: Record<string, unknown> | undefined;
           let isHealthy = false;
           let probeLatency = 0;
+          let failureReason: string | undefined;
+          let failureKind: ServiceProbeFailureKind | undefined;
 
-          if (tgt.isDirectUrl) {
+          if (tgt.probeTarget) {
             const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 2000);
-            const response = await fetch(tgt.path, { signal: controller.signal });
-            clearTimeout(timer);
-            probeLatency = Math.round(performance.now() - start);
-            isHealthy = response.ok;
-            if (response.ok) {
-              try {
-                resData = await response.json();
-              } catch {
-                resData = { status: "ok" };
+            const timer = setTimeout(() => controller.abort(), 2500);
+            try {
+              const response = await fetch(tgt.path, {
+                cache: "no-store",
+                signal: controller.signal,
+              });
+              probeLatency = Math.round(performance.now() - start);
+              if (!response.ok) {
+                failureKind = "HTTP_ERROR";
+                failureReason = `HTTP ${response.status}`;
+              } else {
+                try {
+                  const parsed = (await response.json()) as Record<string, unknown>;
+                  if (typeof parsed.ok === "boolean") {
+                    isHealthy = parsed.ok;
+                    if (typeof parsed.latencyMs === "number") {
+                      probeLatency = parsed.latencyMs;
+                    }
+                    if (!parsed.ok) {
+                      failureKind =
+                        (parsed.failureKind as ServiceProbeFailureKind) ||
+                        "CONNECTION_REFUSED";
+                      failureReason =
+                        typeof parsed.reason === "string"
+                          ? parsed.reason
+                          : "Target unreachable";
+                    } else {
+                      resData =
+                        typeof parsed.uptime === "number"
+                          ? { uptime: parsed.uptime }
+                          : { status: "ok" };
+                    }
+                  } else {
+                    isHealthy = true;
+                    resData = parsed;
+                  }
+                } catch {
+                  isHealthy = true;
+                  resData = { status: "ok" };
+                }
               }
+            } finally {
+              clearTimeout(timer);
             }
           } else {
-            const res = await apiClient.get(tgt.path, { timeout: 3000 });
+            // apiClient interceptor đã unwrap response.data thành JSON body (không còn .status HTTP).
+            // Nếu promise resolve không ném ApiError nghĩa là HTTP 2xx thành công.
+            const res = await apiClient.get<never, unknown>(tgt.path, {
+              ...probeRequestOptions,
+            });
             probeLatency = Math.round(performance.now() - start);
-            isHealthy = res.status >= 200 && res.status < 300;
-            resData = res.data as Record<string, unknown>;
+            resData =
+              res && typeof res === "object"
+                ? (res as Record<string, unknown>)
+                : undefined;
+            const rawStatus =
+              typeof resData?.status === "string"
+                ? resData.status.toLowerCase()
+                : undefined;
+            const isPayloadError =
+              rawStatus === "down" ||
+              rawStatus === "error" ||
+              rawStatus === "unhealthy";
+            isHealthy = !isPayloadError;
+            if (isPayloadError) {
+              failureKind = "PAYLOAD_UNHEALTHY";
+              failureReason = `Service status: ${rawStatus}`;
+            }
           }
 
           let uptimeStr = "--";
           if (resData && typeof resData.uptime === "number") {
             uptimeStr = formatUptimeStr(resData.uptime);
-          } else if (resData && typeof (resData.metrics as any)?.uptimeSeconds === "number") {
-            uptimeStr = formatUptimeStr((resData.metrics as any).uptimeSeconds);
+          } else if (
+            resData &&
+            typeof (resData.metrics as { uptimeSeconds?: unknown } | undefined)
+              ?.uptimeSeconds === "number"
+          ) {
+            uptimeStr = formatUptimeStr(
+              (resData.metrics as { uptimeSeconds: number }).uptimeSeconds,
+            );
           }
 
           if (tgt.isDbProbe && resData?.checks) {
-            const dbCheck = (resData.checks as any).database;
-            if (dbCheck && dbCheck.status !== "healthy") {
+            const dbCheck = (
+              resData.checks as {
+                database?: { status?: string; latencyMs?: number };
+              }
+            ).database;
+            if (
+              dbCheck &&
+              dbCheck.status &&
+              dbCheck.status !== "healthy" &&
+              dbCheck.status !== "ok"
+            ) {
               isHealthy = false;
+              failureKind = "PAYLOAD_UNHEALTHY";
+              failureReason = `Database status: ${dbCheck.status}`;
             }
             if (dbCheck && typeof dbCheck.latencyMs === "number") {
               probeLatency = dbCheck.latencyMs;
@@ -228,54 +369,126 @@ export const systemService = {
           }
 
           const latencyMs = Math.max(probeLatency, 1);
+          const status: ServiceHealthItem["status"] = isHealthy
+            ? latencyMs < HEALTHY_THRESHOLD_MS
+              ? "HEALTHY"
+              : "DEGRADED"
+            : "DOWN";
+
+          if (status === "DEGRADED" && !failureReason) {
+            failureReason = `High latency (${latencyMs}ms >= ${HEALTHY_THRESHOLD_MS}ms)`;
+          }
 
           return {
             name: tgt.name,
             serviceCode: tgt.code,
             port: tgt.port,
-            endpoint: tgt.path,
+            endpoint: tgt.displayEndpoint ?? tgt.path,
             type: tgt.type,
-            status: isHealthy
-              ? latencyMs < 250
-                ? "HEALTHY"
-                : "DEGRADED"
-              : "DOWN",
+            status,
             latencyMs,
             uptime: uptimeStr,
             lastChecked: new Date().toISOString(),
+            details: {
+              thresholdMs: HEALTHY_THRESHOLD_MS,
+              ...(status === "DOWN" ? { probeDurationMs: latencyMs } : {}),
+              ...(failureKind ? { failureKind } : {}),
+              ...(failureReason ? { reason: failureReason } : {}),
+            },
           } as ServiceHealthItem;
-        } catch {
-          const latencyMs = Math.round(performance.now() - start);
+        } catch (error) {
+          const latencyMs = Math.min(
+            Math.max(Math.round(performance.now() - start), 1),
+            3000,
+          );
+          const classified = classifyProbeError(error, Boolean(tgt.probeTarget));
           return {
             name: tgt.name,
             serviceCode: tgt.code,
             port: tgt.port,
-            endpoint: tgt.path,
+            endpoint: tgt.displayEndpoint ?? tgt.path,
             type: tgt.type,
             status: "DOWN",
-            latencyMs: Math.min(latencyMs, 3000),
+            latencyMs,
             uptime: "--",
             lastChecked: new Date().toISOString(),
+            details: {
+              thresholdMs: HEALTHY_THRESHOLD_MS,
+              probeDurationMs: latencyMs,
+              failureKind: classified.failureKind,
+              reason: classified.reason,
+            },
           } as ServiceHealthItem;
         }
       }),
     );
 
-    const services: ServiceHealthItem[] = results.map((r, idx) => {
+    const statusPriority: Record<ServiceHealthItem["status"], number> = {
+      DOWN: 0,
+      DEGRADED: 1,
+      HEALTHY: 2,
+    };
+
+    const rawServices: ServiceHealthItem[] = results.map((r, idx) => {
       if (r.status === "fulfilled") return r.value;
       const tgt = allTargets[idx];
       return {
         name: tgt.name,
         serviceCode: tgt.code,
         port: tgt.port,
-        endpoint: tgt.path,
+        endpoint: tgt.displayEndpoint ?? tgt.path,
         type: tgt.type,
-        status: "DOWN",
+        status: "DOWN" as const,
         latencyMs: 3000,
         uptime: "--",
         lastChecked: new Date().toISOString(),
+        details: {
+          thresholdMs: HEALTHY_THRESHOLD_MS,
+          probeDurationMs: 3000,
+          failureKind: "UNKNOWN",
+          reason: "Probe rejected",
+        },
       };
     });
+
+    // Nếu cổng admin :8080/ping không mở hoặc chặn nhưng các service đi qua Traefik (:80) vẫn phản hồi 2xx,
+    // Traefik Reverse Proxy vẫn đang phục vụ lưu lượng bình thường.
+    const traefikIdx = rawServices.findIndex(
+      (s) => s.serviceCode === "traefik-gateway",
+    );
+    const usesGateway = !env.apiBaseUrl.includes(":9999");
+    if (
+      traefikIdx >= 0 &&
+      rawServices[traefikIdx].status === "DOWN" &&
+      usesGateway
+    ) {
+      const gatewayServices = rawServices.filter(
+        (s) =>
+          s.type === "SERVICE" &&
+          s.serviceCode !== "ai-service" &&
+          s.status !== "DOWN",
+      );
+      if (gatewayServices.length > 0) {
+        const minGatewayLatency = Math.min(
+          ...gatewayServices.map((s) => s.latencyMs),
+        );
+        rawServices[traefikIdx] = {
+          ...rawServices[traefikIdx],
+          status:
+            minGatewayLatency < HEALTHY_THRESHOLD_MS ? "HEALTHY" : "DEGRADED",
+          latencyMs: minGatewayLatency,
+          details: {
+            thresholdMs: HEALTHY_THRESHOLD_MS,
+            verifiedVia: "active-gateway-traffic",
+            note: "Gateway (:80) đang chuyển tiếp bình thường; cổng ping nội bộ (:8080) không phản hồi.",
+          },
+        };
+      }
+    }
+
+    const services = [...rawServices].sort(
+      (a, b) => statusPriority[a.status] - statusPriority[b.status],
+    );
 
     const healthyCount = services.filter((s) => s.status === "HEALTHY").length;
     const totalLatency = services.reduce((acc, s) => acc + s.latencyMs, 0);

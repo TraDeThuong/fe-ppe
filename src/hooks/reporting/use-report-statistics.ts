@@ -6,17 +6,52 @@ import { reportingKeys } from "./reporting.query-keys";
 import type {
   AiPerformanceStatDto,
   CameraStatDto,
+  DashboardKpiDto,
+  HourlyRiskResponseDto,
   ReportingFilterParams,
   StatisticsSummaryDto,
   TrendItemDto,
   ViolationTypeStatDto,
 } from "@/types";
 
-export function useReportSummary(params?: ReportingFilterParams) {
+export function useDashboardKpi(
+  siteId?: string | null,
+  options?: { enabled?: boolean },
+) {
+  return useQuery<DashboardKpiDto | null>({
+    queryKey: reportingKeys.dashboardKpi(siteId),
+    queryFn: () => reportingService.getDashboardKpi(siteId || undefined),
+    staleTime: 30 * 1000,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+export function useHourlyRisk(
+  params?: {
+    siteId?: string;
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+  },
+  options?: { enabled?: boolean },
+) {
+  return useQuery<HourlyRiskResponseDto | null>({
+    queryKey: reportingKeys.hourlyRisk(params),
+    queryFn: () => reportingService.getHourlyRisk(params),
+    staleTime: 30 * 1000,
+    enabled: options?.enabled ?? true,
+  });
+}
+
+export function useReportSummary(
+  params?: ReportingFilterParams,
+  options?: { enabled?: boolean },
+) {
   return useQuery<StatisticsSummaryDto>({
     queryKey: reportingKeys.summary(params),
     queryFn: () => reportingService.getSummary(params),
     staleTime: 30 * 1000,
+    enabled: options?.enabled ?? true,
   });
 }
 
