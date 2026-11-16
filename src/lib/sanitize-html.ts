@@ -38,7 +38,7 @@ export function sanitizeHtml(
   const win = targetWindow ?? (typeof window !== "undefined" ? window : undefined);
   if (!win) return "";
 
-  const purifier = !targetWindow && DOMPurify.isSupported ? DOMPurify : DOMPurify(win);
+  const purifier = !targetWindow && DOMPurify.isSupported ? DOMPurify : DOMPurify(win as unknown as SanitizerWindow);
   if (!purifier.isSupported) return "";
 
   purifier.addHook("afterSanitizeAttributes", (node) => {

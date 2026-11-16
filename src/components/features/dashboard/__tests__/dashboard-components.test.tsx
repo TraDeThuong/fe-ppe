@@ -300,7 +300,7 @@ describe("Dashboard Components", () => {
       assert.ok(html.includes("Không đội mũ") || html.includes("No Helmet"));
       assert.ok(html.includes("CCTV Cổng Số 1"));
       assert.ok(html.includes("Duyệt nhanh") || html.includes("Quick Review"));
-      assert.ok(html.includes("bg-success"));
+      assert.ok(html.includes("bg-primary"));
       assert.ok(html.includes("role=\"checkbox\""));
       assert.ok(html.includes("SSE Live"));
       assert.ok(!html.includes("ppe.violation.detected"));
