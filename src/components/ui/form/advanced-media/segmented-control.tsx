@@ -2,6 +2,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface SegmentedOption<T extends string = string> {
   label: string;
@@ -31,11 +32,14 @@ export function SegmentedControl<T extends string = string>({
   value,
   defaultValue,
   onValueChange,
-  ariaLabel = "Chọn chế độ",
+  ariaLabel,
   disabled = false,
   className = "",
   size = "md",
 }: SegmentedControlProps<T>) {
+  const { locale } = useLocale();
+  const resolvedAriaLabel =
+    ariaLabel ?? (locale === "vi-VN" ? "Chọn chế độ" : "Select option");
   const id = useId();
 
   const initialValue =
@@ -117,7 +121,7 @@ export function SegmentedControl<T extends string = string>({
   return (
     <div
       role="radiogroup"
-      aria-label={ariaLabel}
+      aria-label={resolvedAriaLabel}
       aria-disabled={disabled || undefined}
       className={[
         "relative grid w-full items-stretch gap-1 rounded-2xl",

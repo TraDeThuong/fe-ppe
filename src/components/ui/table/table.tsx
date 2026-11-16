@@ -13,6 +13,7 @@ import { TableError } from "./table-error";
 import { TableBulkActions } from "./table-bulk-actions";
 import type { TableContextValue } from "./table-context";
 import type { TableProps } from "./types";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface TableComponentProps<TData extends RowData>
   extends TableProps<TData> {
@@ -33,7 +34,7 @@ export function Table<TData extends RowData>({
   totalRowCount,
   filterKey,
   getRowClassName,
-  emptyMessage = "Không có dữ liệu để hiển thị.",
+  emptyMessage,
   className = "",
   hideTopHighlight = false,
   getRowId,
@@ -61,6 +62,12 @@ export function Table<TData extends RowData>({
   onCellEdit,
   children,
 }: TableComponentProps<TData>) {
+  const { locale } = useLocale();
+  const resolvedEmptyMessage =
+    emptyMessage ??
+    (locale === "vi-VN"
+      ? "Không có dữ liệu để hiển thị."
+      : "No data available to display.");
   // Internal state for uncontrolled mode
   const [internalSorting, setInternalSorting] = useState<SortingState>([]);
   const [internalColumnFilters, setInternalColumnFilters] = useState<ColumnFiltersState>([]);
@@ -216,7 +223,7 @@ export function Table<TData extends RowData>({
     variant,
     features,
     manualPagination,
-    emptyMessage,
+    emptyMessage: resolvedEmptyMessage,
     getRowClassName,
   };
 
@@ -237,7 +244,7 @@ export function Table<TData extends RowData>({
     rowCount,
     totalRowCount,
     getRowClassName,
-    emptyMessage,
+    emptyMessage: resolvedEmptyMessage,
     onRowClick,
     onCellEdit: features.editing === false ? undefined : onCellEdit,
   };

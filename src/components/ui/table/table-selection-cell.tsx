@@ -4,6 +4,7 @@
 import type { Row } from "@tanstack/react-table";
 
 import { useTableContext } from "./table-context";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface TableSelectionCellProps {
   checked: boolean;
@@ -55,6 +56,8 @@ export function TableSelectionCell({
 
 export function TableSelectionHeader() {
   const { table, loading, fetching } = useTableContext();
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const rows = table.getRowModel().rows;
   const checked = table.getIsAllPageRowsSelected();
@@ -69,7 +72,11 @@ export function TableSelectionHeader() {
       checked={checked}
       indeterminate={indeterminate}
       disabled={!hasSelectableRows || loading || fetching}
-      ariaLabel="Chọn tất cả dòng trên trang hiện tại"
+      ariaLabel={
+        isVietnamese
+          ? "Chọn tất cả dòng trên trang hiện tại"
+          : "Select all rows on current page"
+      }
       onChange={(nextChecked) =>
         table.toggleAllPageRowsSelected(nextChecked)
       }
@@ -88,11 +95,13 @@ export interface TableSelectionRowProps {
 
 export function TableSelectionRow({ row }: TableSelectionRowProps) {
   const { loading, fetching } = useTableContext();
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   return (
     <TableSelectionCell
       checked={row.getIsSelected()}
       disabled={!row.getCanSelect() || loading || fetching}
-      ariaLabel={`Chọn dòng ${row.id}`}
+      ariaLabel={isVietnamese ? `Chọn dòng ${row.id}` : `Select row ${row.id}`}
       onChange={(checked) => row.toggleSelected(checked)}
     />
   );

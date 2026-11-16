@@ -17,7 +17,8 @@ import { ROLE_LABELS } from "@/config/navigation";
 
 export function UserMenu() {
   const { user, logout } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -140,7 +141,7 @@ export function UserMenu() {
 
             <div className="mt-3 flex items-center justify-between border-t border-border/40 pt-2.5">
               <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                Account role
+                {isVietnamese ? "Vai trò tài khoản" : "Account role"}
               </span>
               <span className="rounded-lg border border-primary/10 bg-primary/[0.07] px-2.5 py-1 text-[11px] font-semibold text-primary">
                 {t(roleLabelKey)}

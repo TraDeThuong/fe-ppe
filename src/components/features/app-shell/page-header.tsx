@@ -6,7 +6,6 @@ import { ChevronRight, Home } from "lucide-react";
 
 import { Typography } from "@ui/typography";
 import { useLocale } from "@/providers/locale-provider";
-import { MobileHeaderSettings } from "./mobile-header-settings";
 
 export interface BreadcrumbItem {
   label: string;
@@ -42,7 +41,7 @@ export function PageHeader({
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav
           aria-label="Breadcrumb"
-          className="flex items-center gap-1.5 text-xs text-muted-foreground"
+          className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground"
         >
           <Link
             href="/dashboard"
@@ -73,12 +72,12 @@ export function PageHeader({
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3">
           {Icon && (
-            <div className="flex size-15 shrink-0 items-center justify-center rounded-2xl border border-border/40 bg-background text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
-              <Icon className="size-8" strokeWidth={1.8} aria-hidden="true" />
+            <div className="flex size-12 sm:size-15 shrink-0 items-center justify-center rounded-2xl border border-border/40 bg-background text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
+              <Icon className="size-6 sm:size-8" strokeWidth={1.8} aria-hidden="true" />
             </div>
           )}
 
-          <div className="min-w-0 mb-3">
+          <div className="min-w-0">
             <Typography
               as="h1"
               variant="embossed"

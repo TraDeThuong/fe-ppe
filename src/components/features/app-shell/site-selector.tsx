@@ -49,13 +49,13 @@ export function SiteSelector() {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-label={currentSite ? currentSite.name : t("siteSelector.all")}
-        className="flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-surface-elevated/60"
+        className="flex min-h-9 max-w-full items-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-semibold text-foreground transition hover:bg-surface-elevated/60 sm:gap-2 sm:px-3"
       >
-        <Building2 className="h-3.5 w-3.5 text-primary" />
-        <span className="hidden sm:inline max-w-[140px] truncate">
+        <Building2 className="h-3.5 w-3.5 shrink-0 text-primary" />
+        <span className="hidden min-[390px]:inline max-w-[96px] truncate sm:max-w-[140px]">
           {currentSite ? currentSite.name : t("siteSelector.all")}
         </span>
-        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       </button>
 
       {open && (

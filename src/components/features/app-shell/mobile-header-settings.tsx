@@ -83,7 +83,7 @@ export function MobileHeaderSettings() {
         >
           <div className="px-2 pb-2 pt-1">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-              Preferences
+              {isVietnamese ? "Tùy chọn" : "Preferences"}
             </p>
             <p className="mt-0.5 text-sm font-semibold text-foreground">
               {isVietnamese ? "Tùy chỉnh giao diện" : "Display settings"}

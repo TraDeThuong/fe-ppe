@@ -6,6 +6,7 @@ import type { Row, RowData } from "@tanstack/react-table";
 import { MoreVertical, MoreHorizontal } from "lucide-react";
 import { useTableContext } from "./table-context";
 import type { TableFeatureSet } from "./table-config";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface TableRowAction<TData extends RowData = any> {
   id: string;
@@ -36,11 +37,13 @@ export function TableRowActions<TData extends RowData = any>({
   row,
   actions,
   className = "",
-  label = "Thao tác",
+  label,
   showLabels = false,
   mode = "dropdown",
   triggerIcon,
 }: TableRowActionsProps<TData>) {
+  const { locale } = useLocale();
+  const resolvedLabel = label ?? (locale === "vi-VN" ? "Thao tác" : "Actions");
   const [isOpen, setIsOpen] = useState(false);
   const [coords, setCoords] = useState<{
     top?: number;
@@ -71,15 +74,19 @@ export function TableRowActions<TData extends RowData = any>({
     const spaceBelow = window.innerHeight - rect.bottom;
     const preferTop = spaceBelow < menuEstimatedHeight && rect.top > menuEstimatedHeight;
 
+    const clampedRight = Math.max(
+      8,
+      Math.min(window.innerWidth - rect.right, window.innerWidth - 216),
+    );
     if (preferTop) {
       setCoords({
         bottom: window.innerHeight - rect.top + 6,
-        right: window.innerWidth - rect.right,
+        right: clampedRight,
       });
     } else {
       setCoords({
         top: rect.bottom + 6,
-        right: window.innerWidth - rect.right,
+        right: clampedRight,
       });
     }
   };
@@ -189,8 +196,8 @@ export function TableRowActions<TData extends RowData = any>({
           type="button"
           aria-haspopup="menu"
           aria-expanded={isOpen}
-          aria-label={label}
-          title={label}
+          aria-label={resolvedLabel}
+          title={resolvedLabel}
           onClick={handleToggle}
           className={[
             "inline-flex size-8 shrink-0 items-center justify-center rounded-xl",
@@ -215,7 +222,7 @@ export function TableRowActions<TData extends RowData = any>({
               ref={menuRef}
               role="menu"
               aria-orientation="vertical"
-              aria-label={label}
+              aria-label={resolvedLabel}
               style={{
                 position: "fixed",
                 top: coords.top !== undefined ? `${coords.top}px` : undefined,

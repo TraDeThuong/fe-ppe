@@ -32,7 +32,8 @@ export interface AppSidebarProps {
 
 export function AppSidebar({ badges: badgesProp }: AppSidebarProps = {}) {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const pathname = usePathname();
   const contextBadges = useSidebarBadges();
   const badges = badgesProp ?? contextBadges;
@@ -418,7 +419,7 @@ export function AppSidebar({ badges: badgesProp }: AppSidebarProps = {}) {
               </span>
 
               <span className="mt-0.5 block text-[9px] text-muted-foreground">
-                Safety workspace
+                {isVietnamese ? "Không gian an toàn" : "Safety workspace"}
               </span>
             </span>
 
@@ -435,10 +436,24 @@ export function AppSidebar({ badges: badgesProp }: AppSidebarProps = {}) {
           variant="outline"
           onClick={toggle}
           aria-label={
-            collapsed ? "Expand sidebar" : "Collapse sidebar"
+            collapsed
+              ? isVietnamese
+                ? "Mở rộng menu"
+                : "Expand sidebar"
+              : isVietnamese
+                ? "Thu gọn menu"
+                : "Collapse sidebar"
           }
           aria-expanded={!collapsed}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={
+            collapsed
+              ? isVietnamese
+                ? "Mở rộng menu"
+                : "Expand sidebar"
+              : isVietnamese
+                ? "Thu gọn menu"
+                : "Collapse sidebar"
+          }
           className="hidden h-10 w-full items-center justify-center gap-2
             rounded-2xl border border-white/40 bg-background
             text-muted-foreground
@@ -454,7 +469,7 @@ export function AppSidebar({ badges: badgesProp }: AppSidebarProps = {}) {
             <>
               <ChevronsLeft className="h-4 w-4" />
               <span className="text-[11px] font-semibold">
-                Thu gọn menu
+                {isVietnamese ? "Thu gọn menu" : "Collapse menu"}
               </span>
             </>
           )}

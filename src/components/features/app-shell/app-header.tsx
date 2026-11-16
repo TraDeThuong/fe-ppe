@@ -105,14 +105,18 @@ export function AppHeader() {
               type="button"
               aria-label={
                 mobileMenuOpen
-                  ? "Đóng menu điều hướng"
-                  : "Mở menu điều hướng"
+                  ? isVietnamese
+                    ? "Đóng menu điều hướng"
+                    : "Close navigation menu"
+                  : isVietnamese
+                    ? "Mở menu điều hướng"
+                    : "Open navigation menu"
               }
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-navigation"
               onClick={() => setMobileMenuOpen((previous) => !previous)}
               className="
-                relative z-20 flex h-9 w-9 shrink-0 items-center justify-center
+                relative z-20 flex h-10 w-10 shrink-0 items-center justify-center
                 rounded-xl border
                 border-[color-mix(in_srgb,var(--shadow-light)_35%,transparent)]
                 bg-background text-muted-foreground
@@ -134,7 +138,7 @@ export function AppHeader() {
             </button>
 
             {/* Site selector */}
-            <div className="relative z-10 min-w-0 max-w-[55%] sm:max-w-none">
+            <div className="relative z-10 min-w-0 max-w-[45%] sm:max-w-none">
               <SiteSelector />
             </div>
 
@@ -143,7 +147,7 @@ export function AppHeader() {
             {/* Notifications */}
             <div
               className="
-                relative z-10 flex h-8 w-8 shrink-0 items-center justify-center
+                relative z-10 flex h-9 w-9 shrink-0 items-center justify-center
                 sm:h-9 sm:w-auto sm:rounded-xl sm:border sm:px-1
                 sm:border-[color-mix(in_srgb,var(--shadow-light)_30%,transparent)]
                 sm:bg-background
@@ -162,11 +166,15 @@ export function AppHeader() {
             <button
               type="button"
               id="locale-toggle-btn"
-              aria-label="Toggle language"
+              aria-label={
+                isVietnamese
+                  ? "Chuyển ngôn ngữ sang tiếng Anh"
+                  : "Switch language to Vietnamese"
+              }
               title={
                 isVietnamese
                   ? "Chuyển sang English"
-                  : "Chuyển sang tiếng Việt"
+                  : "Switch to Tiếng Việt"
               }
               onClick={() => setLocale(isVietnamese ? "en-US" : "vi-VN")}
               className={`

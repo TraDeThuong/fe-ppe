@@ -114,10 +114,10 @@ export function NotFoundView({ mode = "auto" }: NotFoundViewProps) {
 
   return (
     <div
-      className={`relative flex flex-col justify-between bg-background transition-colors duration-200 ${
+      className={`relative flex flex-col justify-between overflow-hidden bg-background transition-colors duration-200 ${
         isFullscreen
-          ? "min-h-screen"
-          : "h-full min-h-[calc(100vh-140px)] p-4 sm:p-6 lg:p-8"
+          ? "min-h-[100dvh]"
+          : "h-full min-h-[calc(100dvh-140px)] p-4 sm:p-6 lg:p-8"
       }`}
     >
       {/* Ambient background lighting */}

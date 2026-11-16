@@ -225,7 +225,7 @@ export function MobileSidebar({
                       text-muted-foreground
                     "
                   >
-                    Safety workspace
+                    {isVietnamese ? "Không gian an toàn" : "Safety workspace"}
                   </span>
                 </div>
               </div>
@@ -261,17 +261,17 @@ export function MobileSidebar({
                 tracking-[0.24em] text-muted-foreground
               "
             >
-              Navigation
+              {isVietnamese ? "Điều hướng" : "Navigation"}
             </p>
 
             <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground">
-              Explore workspace
+              {isVietnamese ? "Danh mục chức năng" : "Explore workspace"}
             </h2>
           </div>
 
           {/* Navigation items */}
           <nav
-            aria-label="Mobile main navigation"
+            aria-label={isVietnamese ? "Menu điều hướng di động" : "Mobile main navigation"}
             className="
               min-h-0 flex-1 overflow-y-auto overscroll-contain
               px-4 pb-5 pt-2
@@ -380,7 +380,7 @@ export function MobileSidebar({
 
                                 {active && (
                                   <span className="mt-1 block text-[10px] font-medium text-muted-foreground">
-                                    Current page
+                                    {isVietnamese ? "Trang hiện tại" : "Current page"}
                                   </span>
                                 )}
                               </span>
@@ -451,7 +451,7 @@ export function MobileSidebar({
                   Smart PPE
                 </p>
                 <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  Construction safety monitoring
+                  {isVietnamese ? "Giám sát an toàn công trường" : "Construction safety monitoring"}
                 </p>
               </div>
 

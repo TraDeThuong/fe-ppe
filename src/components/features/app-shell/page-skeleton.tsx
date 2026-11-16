@@ -1,6 +1,7 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface PageSkeletonProps {
   /**
@@ -17,10 +18,12 @@ export function PageSkeleton({
   variant = "table",
   className = "",
 }: PageSkeletonProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   return (
     <div
       aria-busy="true"
-      aria-label="Đang tải trang…"
+      aria-label={isVietnamese ? "Đang tải trang…" : "Loading page…"}
       className={`space-y-6 animate-in fade-in duration-200 ${className}`}
     >
       {/* 1. Page Header Skeleton */}

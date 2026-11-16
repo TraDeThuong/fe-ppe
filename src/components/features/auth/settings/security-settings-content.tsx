@@ -33,7 +33,8 @@ const TABS: { id: SecurityTab; icon: typeof ShieldCheck }[] = [
 ];
 
 export function SecuritySettingsContent() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const { user } = useAuth();
   const [tab, setTab] = useState<SecurityTab>("2fa");
 
@@ -58,7 +59,7 @@ export function SecuritySettingsContent() {
         icon={ShieldCheck}
         title={t("security.title")}
         description={t("security.subtitle")}
-        badge="Account preferences"
+        badge={isVietnamese ? "Tùy chọn tài khoản" : "Account preferences"}
         breadcrumbs={[
           { label: t("nav.settings") || "Cài đặt tài khoản" },
           { label: t("security.title") },

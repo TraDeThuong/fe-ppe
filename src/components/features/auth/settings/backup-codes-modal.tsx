@@ -18,7 +18,8 @@ export interface BackupCodesModalProps {
  * Bắt buộc xác nhận "đã lưu" mới đóng được (spec 7.2) + nút tải .txt.
  */
 export function BackupCodesModal({ codes, onClose }: BackupCodesModalProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [confirmed, setConfirmed] = useState(false);
 
   // Mỗi bộ mã mới phải xác nhận lại từ đầu
@@ -33,7 +34,7 @@ export function BackupCodesModal({ codes, onClose }: BackupCodesModalProps) {
   function handleDownload() {
     const content = [
       "Smart PPE Monitoring — Backup codes",
-      `Ngày tạo: ${new Date().toLocaleString()}`,
+      `${isVietnamese ? "Ngày tạo" : "Generated"}: ${new Date().toLocaleString(locale)}`,
       "",
       ...codeList,
     ].join("\n");

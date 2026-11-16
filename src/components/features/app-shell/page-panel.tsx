@@ -35,7 +35,7 @@ export function PagePanel({
       {...props}
     >
       <div
-        className={`min-w-0 rounded-xl border border-border/20 bg-background p-4 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:p-5 lg:p-6 ${innerClassName}`}
+        className={`min-w-0 rounded-xl border border-border/20 bg-background p-3 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:p-5 lg:p-6 ${innerClassName}`}
       >
         {children ? (
           children

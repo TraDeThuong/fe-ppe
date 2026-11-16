@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { HardHat, Languages, Sun, Moon } from "lucide-react";
+import { HardHat, Languages } from "lucide-react";
 
 import { Typography } from "@ui/typography";
 import { NeumorphicSurface } from "@ui/neumorphic-surface";
@@ -14,7 +14,6 @@ import {
 } from "@ui/card";
 
 import { useLocale } from "@/providers/locale-provider";
-import { useTheme } from "@/providers/theme-provider";
 import { ThemeToggle } from "@ui/theme-toggle";
 
 export interface AuthShellProps {
@@ -157,37 +156,23 @@ function AuthImageSlideshow() {
 
     async function discoverImages() {
       const foundImages: string[] = [];
-      const batchSize = 10;
 
-      for (
-        let start = 1;
-        start <= MAX_IMAGES;
-        start += batchSize
-      ) {
+      for (let number = 1; number <= MAX_IMAGES; number += 1) {
         if (cancelled) return;
-
-        const end = Math.min(start + batchSize - 1, MAX_IMAGES);
-
-        const results = await Promise.all(
-          Array.from({ length: end - start + 1 }, async (_, index) => {
-            const number = start + index;
-            const src = `${IMAGE_PREFIX}${number}${IMAGE_EXTENSION}`;
-
-            const exists = await new Promise<boolean>((resolve) => {
-              const image = new window.Image();
-
-              image.onload = () => resolve(true);
-              image.onerror = () => resolve(false);
-              image.src = src;
-            });
-
-            return exists ? src : null;
-          }),
-        );
-
-        foundImages.push(
-          ...results.filter((src): src is string => src !== null),
-        );
+        const src = `${IMAGE_PREFIX}${number}${IMAGE_EXTENSION}`;
+        const exists = await new Promise<boolean>((resolve) => {
+          const image = new window.Image();
+          image.onload = () => resolve(true);
+          image.onerror = () => resolve(false);
+          image.src = src;
+        });
+        if (!exists) break;
+        foundImages.push(src);
+        if (foundImages.length === 1 && !cancelled) {
+          // Render the first illustration immediately instead of waiting for remaining checks
+          setImages([...foundImages]);
+          setActiveIndex(0);
+        }
       }
 
       if (!cancelled) {
@@ -284,21 +269,15 @@ export function AuthShell({
   cardClassName,
 }: AuthShellProps) {
   const { locale, setLocale } = useLocale();
-  const { resolvedTheme, setTheme } = useTheme();
 
   const isVietnamese = locale === "vi-VN";
-  const isDark = resolvedTheme === "dark";
 
   function toggleLocale() {
     setLocale(isVietnamese ? "en-US" : "vi-VN");
   }
 
-  function toggleTheme() {
-    setTheme(isDark ? "light" : "dark");
-  }
-
   return (
-    <main className="relative isolate flex min-h-screen flex-col items-center justify-center overflow-x-hidden bg-background px-4 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-10">
+    <main className="relative isolate flex min-h-[100dvh] flex-col items-center justify-center overflow-x-hidden bg-background px-4 pt-[max(2rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-10">
       {/* Ambient background */}
       <div
         aria-hidden="true"
@@ -325,7 +304,7 @@ export function AuthShell({
                 SMART PPE
               </span>
               <span className="text-[9px] sm:text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
-                Monitoring System
+                {isVietnamese ? "Hệ thống giám sát" : "Monitoring System"}
               </span>
             </div>
           </div>

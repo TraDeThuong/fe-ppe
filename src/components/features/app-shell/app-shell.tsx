@@ -30,7 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarBadgesProvider>
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex h-[100dvh] overflow-hidden bg-background">
         {/* Top navigation progress bar */}
         <Suspense fallback={null}>
           <NavigationProgressBar />
@@ -62,7 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <main
             data-page-scroll
-            className="relative z-10 flex-1 overflow-y-auto bg-background p-3 sm:p-6 lg:p-8"
+            className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden bg-background p-3 sm:p-6 lg:p-8"
           >
             {forbidden ? <ForbiddenView /> : children}
           </main>

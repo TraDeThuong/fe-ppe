@@ -9,6 +9,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface SegmentedControlOption<T extends string = string> {
   value: T;
@@ -68,10 +69,13 @@ export function SegmentedControl<T extends string = string>({
   fullWidth = false,
   disabled = false,
   loading = false,
-  emptyLabel = "Không có lựa chọn",
+  emptyLabel,
   className = "",
   id,
 }: SegmentedControlProps<T>) {
+  const { locale } = useLocale();
+  const resolvedEmptyLabel =
+    emptyLabel ?? (locale === "vi-VN" ? "Không có lựa chọn" : "No options available");
   const isControlled = value !== undefined;
   const [internalValue, setInternalValue] = useState<T | undefined>(
     defaultValue
@@ -171,7 +175,7 @@ export function SegmentedControl<T extends string = string>({
         className={`inline-flex items-center rounded-xl border border-[var(--border)]/50 px-4 py-3 text-sm text-[var(--muted-foreground)] ${className}`}
         role="status"
       >
-        {emptyLabel}
+        {resolvedEmptyLabel}
       </div>
     ) : null;
   }
