@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { AuthContext, type AuthStatus } from "@/contexts/AuthContext";
 import type { MeDto } from "@/types/auth.types";
 import { authService } from "@/services/auth.service";
-import { ApiError, purgeSessionCookies } from "@/lib/axios";
-import { tokenStore } from "@/lib/token";
+import { ApiError, ensureFreshAccessToken, purgeSessionCookies } from "@/lib/axios";
+import { getAccessTokenSiteIds, tokenStore } from "@/lib/token";
 import { queryClient } from "@/lib/query-client";
 import { eventBus } from "@/lib/event-bus";
 import { authKeys } from "@/hooks/auth/auth.query-keys";
@@ -16,6 +16,13 @@ import {
   recordActivity,
   shouldRestoreSession,
 } from "@/lib/session-manager";
+
+function haveSameSiteIds(a?: readonly string[] | null, b?: readonly string[] | null): boolean {
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  const setB = new Set(b);
+  return a.every((id) => setB.has(id));
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<MeDto | null>(null);
@@ -92,6 +99,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           queryKey: authKeys.me(),
           queryFn: () => authService.getMe(),
         });
+        // Đồng bộ JWT accessToken nếu memory trống hoặc siteIds trong JWT cũ lệch với DB (GET /auth/me)
+        const tokenSiteIds = getAccessTokenSiteIds();
+        if (!haveSameSiteIds(tokenSiteIds, me.siteIds ?? [])) {
+          await ensureFreshAccessToken();
+        }
         if (!cancelled) {
           setUser(me);
           setStatus("authenticated");
@@ -123,6 +135,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       unsubscribe();
     };
   }, [handleSessionExpired]);
+
+  // Tự động đồng bộ lại phạm vi công trường (siteIds) và làm mới JWT khi người dùng chuyển tab/cửa sổ
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    let syncing = false;
+
+    const handleVisibilityOrFocus = async () => {
+      if (document.visibilityState === "hidden" || syncing) return;
+      syncing = true;
+      try {
+        const me = await authService.getMe();
+        queryClient.setQueryData(authKeys.me(), me);
+        const tokenSiteIds = getAccessTokenSiteIds();
+        const meSiteIds = me.siteIds ?? [];
+        const userSiteIds = user?.siteIds ?? [];
+
+        if (!haveSameSiteIds(tokenSiteIds, meSiteIds) || !haveSameSiteIds(userSiteIds, meSiteIds)) {
+          await ensureFreshAccessToken();
+          setUser(me);
+          void queryClient.invalidateQueries();
+        }
+      } catch {
+        // Bỏ qua lỗi mạng tạm thời khi focus tab
+      } finally {
+        syncing = false;
+      }
+    };
+
+    window.addEventListener("focus", handleVisibilityOrFocus);
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+    return () => {
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+    };
+  }, [status, user?.siteIds]);
 
   // Khi đang đăng nhập và không bật "Ghi nhớ đăng nhập", duy trì timestamp hoạt động
   useEffect(() => {

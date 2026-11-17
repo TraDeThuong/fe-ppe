@@ -12,4 +12,6 @@ export const auditQueryKeys = {
     [...auditQueryKeys.all, "config-changes", params ?? {}] as const,
   incidentReviews: (params?: { page?: number; limit?: number }) =>
     [...auditQueryKeys.all, "incident-reviews", params ?? {}] as const,
+  resourceTrail: (targetType: string, targetId: string, limit?: number) =>
+    [...auditQueryKeys.all, "resource", targetType, targetId, limit ?? 20] as const,
 };

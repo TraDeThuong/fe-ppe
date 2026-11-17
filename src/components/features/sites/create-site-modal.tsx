@@ -15,6 +15,7 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useUsers } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
+import { groupUsersBySafetyRole, suggestSiteRoleTitle } from "./site-helpers";
 import type { CreateSitePayload, SiteContactOfficer, UserResponseDto } from "@/types";
 
 export interface CreateSiteModalProps {
@@ -46,25 +47,11 @@ export function CreateSiteModal({
   const { data: usersData, isLoading: usersLoading } = useUsers({ limit: 100 });
   const allUsers: UserResponseDto[] = useMemo(() => usersData?.data ?? [], [usersData]);
 
-  // Group safety personnel first
-  const { safetyUsers, otherUsers } = useMemo(() => {
-    const safety: UserResponseDto[] = [];
-    const other: UserResponseDto[] = [];
-    allUsers.forEach((u) => {
-      const roleName = u.role?.name?.toUpperCase() || "";
-      if (
-        roleName.includes("SAFETY") ||
-        roleName.includes("OFFICER") ||
-        roleName.includes("MANAGER") ||
-        roleName.includes("ADMIN")
-      ) {
-        safety.push(u);
-      } else {
-        other.push(u);
-      }
-    });
-    return { safetyUsers: safety, otherUsers: other };
-  }, [allUsers]);
+  // Group personnel by hierarchy: SAFETY_MANAGER -> SAFETY_OFFICER -> Others
+  const { managers: safetyManagers, officers: safetyOfficers, others: otherUsers } = useMemo(
+    () => groupUsersBySafetyRole(allUsers),
+    [allUsers],
+  );
 
   // Form states
   const [name, setName] = useState("");
@@ -139,6 +126,12 @@ export function CreateSiteModal({
         const found = allUsers.find((u) => u.id === value);
         const userName = found ? found.fullName || found.email || "" : "";
         const userPhone = found?.phoneNumber || "";
+        const suggestedTitle = suggestSiteRoleTitle(found?.role?.name, isVietnamese);
+        const shouldKeepSelectedRole =
+          off.roleTitle.includes("Deputy") ||
+          off.roleTitle.includes("Phó ban") ||
+          off.roleTitle.includes("Chỉ huy trưởng") ||
+          off.roleTitle.includes("Commander");
 
         // If phones has empty first element, auto-populate user's phone
         const updatedPhones = [...off.phones];
@@ -150,6 +143,9 @@ export function CreateSiteModal({
           ...off,
           userId: value,
           name: userName,
+          roleTitle: shouldKeepSelectedRole
+            ? off.roleTitle
+            : suggestedTitle || off.roleTitle,
           isManualName: false,
           phones: updatedPhones,
         };
@@ -443,17 +439,33 @@ export function CreateSiteModal({
                           className="w-full rounded-xl border border-border/50 bg-surface px-3 py-2 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
                         >
                           <option value="">{t("sites.form.selectUser")}</option>
-                          {safetyUsers.length > 0 && (
+                          {safetyManagers.length > 0 && (
                             <optgroup
                               label={
                                 isVietnamese
-                                  ? "Cán bộ chuyên trách an toàn"
-                                  : "Dedicated Safety Officers"
+                                  ? "Quản lý an toàn công trường (SAFETY_MANAGER)"
+                                  : "Site Safety Managers (SAFETY_MANAGER)"
                               }
                             >
-                              {safetyUsers.map((u) => (
+                              {safetyManagers.map((u) => (
                                 <option key={u.id} value={u.id}>
-                                  {u.fullName || u.email} ({u.role?.name || "User"}
+                                  {u.fullName || u.email} ({u.role?.name || "Manager"}
+                                  {u.phoneNumber ? ` - ${u.phoneNumber}` : ""})
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {safetyOfficers.length > 0 && (
+                            <optgroup
+                              label={
+                                isVietnamese
+                                  ? "Cán bộ trực ban an toàn (SAFETY_OFFICER)"
+                                  : "Field Safety Officers (SAFETY_OFFICER)"
+                              }
+                            >
+                              {safetyOfficers.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                  {u.fullName || u.email} ({u.role?.name || "Officer"}
                                   {u.phoneNumber ? ` - ${u.phoneNumber}` : ""})
                                 </option>
                               ))}

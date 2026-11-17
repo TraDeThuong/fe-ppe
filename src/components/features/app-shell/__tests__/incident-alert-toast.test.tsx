@@ -10,7 +10,11 @@ import assert from "node:assert";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { resolveEvidenceUrl } from "@/lib/evidence-url";
+import {
+  extractEvidenceIdFromApiPath,
+  isDockerInternalMinioUrl,
+  resolveEvidenceUrl,
+} from "@/lib/evidence-url";
 import {
   IncidentAlertToast,
   type IncidentAlertPayload,
@@ -87,6 +91,33 @@ describe("IncidentAlertToast & Evidence URL Normalizer", () => {
       assert.strictEqual(resolveEvidenceUrl(null as any), "");
       assert.strictEqual(resolveEvidenceUrl(undefined), "");
     });
+
+    it("extracts UUID from BE virtual evidence download paths", () => {
+      const id = "01a1b59b-b6a9-7864-bec6-5bae898fa2fd";
+      assert.strictEqual(
+        extractEvidenceIdFromApiPath(`/api/v1/incidents/evidences/${id}/download`),
+        id,
+      );
+      assert.strictEqual(
+        extractEvidenceIdFromApiPath(`http://localhost/api/v1/evidences/${id}/download-url?action=VIEW`),
+        id,
+      );
+      assert.strictEqual(
+        extractEvidenceIdFromApiPath("http://localhost:9000/ppe-evidences/snap.jpg"),
+        null,
+      );
+    });
+
+    it("detects Docker internal MinIO URLs", () => {
+      assert.strictEqual(
+        isDockerInternalMinioUrl("http://ppe-minio:9000/ppe-evidences/test.jpg"),
+        true,
+      );
+      assert.strictEqual(
+        isDockerInternalMinioUrl("http://localhost:9000/ppe-evidences/test.jpg"),
+        false,
+      );
+    });
   });
 
   describe("IncidentAlertToast Component", () => {
@@ -148,6 +179,22 @@ describe("IncidentAlertToast & Evidence URL Normalizer", () => {
 
       assert.ok(html.includes("Đối chiếu") || html.includes("Compare"));
       assert.ok(html.includes("Xem sự cố") || html.includes("Details"));
+    });
+
+    it("does not render broken 404 virtual BE download path directly in img src", () => {
+      const html = renderWithProviders(
+        <IncidentAlertToast
+          visible={true}
+          data={{
+            ...mockPayload,
+            evidenceUrl: "/api/v1/incidents/evidences/01a1b59b-b6a9-7864-bec6-5bae898fa2fd/download",
+          }}
+          onClose={() => {}}
+          onOpenIncident={() => {}}
+        />
+      );
+
+      assert.ok(!html.includes("/api/v1/incidents/evidences/"));
     });
   });
 });

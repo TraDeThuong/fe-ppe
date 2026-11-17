@@ -16,6 +16,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import { stripEmojis } from "@/lib/strip-emojis";
 import type { NotificationItemDto, NotificationSeverity } from "@/types";
 
 export interface NotificationItemProps {
@@ -187,11 +188,11 @@ export function NotificationItem({
               isUnread ? "text-foreground" : "text-foreground/80"
             }`}
           >
-            {notification.title}
+            {stripEmojis(notification.title)}
           </h3>
 
           <p className="text-xs sm:text-sm leading-relaxed text-muted-foreground">
-            {notification.content}
+            {stripEmojis(notification.content)}
           </p>
 
           {/* Metadata chips (Location, Camera, Violation) */}

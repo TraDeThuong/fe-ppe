@@ -12,6 +12,7 @@ import {
   Sliders,
   Square,
   Upload,
+  X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -831,7 +832,7 @@ export function LiveStreamPanel({
                                 }`}
                               title={t("aiTest.live.stopSessionTitle", { cameraId: sess.camera_id })}
                             >
-                              ✕
+                              <X className="size-3" />
                             </button>
                           )}
                         </div>

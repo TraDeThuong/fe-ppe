@@ -98,6 +98,16 @@ export interface EvidenceMetadataItem {
   createdAt: string;
 }
 
+export interface EvidenceIncidentSummary {
+  id: string;
+  siteId: string;
+  cameraId: string;
+  violationType: ViolationType | string;
+  severity: IncidentSeverity | string;
+  status: IncidentStatus | string;
+  detectedAt: string;
+}
+
 export interface EvidenceItem {
   id: string;
   incidentId: string;
@@ -111,6 +121,7 @@ export interface EvidenceItem {
   createdAt: string;
   metadata?: EvidenceMetadataItem | null;
   url?: string;
+  incident?: EvidenceIncidentSummary | null;
 }
 
 export interface IncidentAssignmentItem {
@@ -242,11 +253,13 @@ export interface CreateAssignmentPayload {
 }
 
 export interface ChecksumVerifyResult {
-  isTampered: boolean;
+  evidenceId?: string;
+  isValid?: boolean;
+  isTampered?: boolean;
   expectedChecksum: string;
   actualChecksum: string;
   verifiedAt: string;
-  algorithm: string;
+  algorithm?: string;
 }
 
 export interface UpdateIncidentPayload {
@@ -297,6 +310,13 @@ export interface EvidenceQueryParams {
   evidenceType?: EvidenceType | string;
   sortBy?: "capturedAt" | "createdAt";
   sortOrder?: "asc" | "desc";
+}
+
+export interface EvidenceVaultCounts {
+  total: number;
+  snapshot: number;
+  referenceSnapshot: number;
+  videoClip: number;
 }
 
 /**

@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/providers/locale-provider";
 import { useRealtime } from "@/contexts/RealtimeContext";
+import { stripEmojis } from "@/lib/strip-emojis";
 import { useNotificationSound } from "@/hooks/notifications/use-notification-sound";
 import type { NotificationItemDto, NotificationSeverity, NotificationChannel } from "@/types";
 
@@ -360,14 +361,14 @@ export function NotificationStatsDetailPanel({
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs font-bold text-foreground truncate max-w-[220px] sm:max-w-md">
-                        {item.title}
+                        {stripEmojis(item.title)}
                       </span>
                       {getSeverityBadge(item.severity, isVietnamese)}
                       <span className="font-mono text-[9px] text-muted-foreground px-1 py-0.2 rounded bg-muted/40">
                         {item.channel}
                       </span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground line-clamp-1">{item.content}</p>
+                    <p className="text-[11px] text-muted-foreground line-clamp-1">{stripEmojis(item.content)}</p>
                   </div>
                 </div>
 
@@ -422,11 +423,11 @@ export function NotificationStatsDetailPanel({
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-xs font-bold text-foreground truncate max-w-[200px] sm:max-w-md">
-                          {item.title}
+                          {stripEmojis(item.title)}
                         </span>
                         {getSeverityBadge(item.severity, isVietnamese)}
                       </div>
-                      <p className="text-[11px] text-muted-foreground line-clamp-1">{item.content}</p>
+                      <p className="text-[11px] text-muted-foreground line-clamp-1">{stripEmojis(item.content)}</p>
                     </div>
                   </div>
 
@@ -481,7 +482,7 @@ export function NotificationStatsDetailPanel({
                   <div className="flex items-center justify-between gap-1">
                     <div className="flex items-center gap-2 min-w-0">
                       <ShieldAlert className="size-4 text-rose-500 shrink-0" />
-                      <span className="text-xs font-bold text-foreground truncate">{item.title}</span>
+                      <span className="text-xs font-bold text-foreground truncate">{stripEmojis(item.title)}</span>
                       {getSeverityBadge(item.severity, isVietnamese)}
                     </div>
 
@@ -509,7 +510,7 @@ export function NotificationStatsDetailPanel({
                     </div>
                   </div>
 
-                  <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">{item.content}</p>
+                  <p className="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">{stripEmojis(item.content)}</p>
 
                   <div className="flex items-center justify-between text-[10px] text-muted-foreground border-t border-border/20 pt-1">
                     <span className="font-mono">

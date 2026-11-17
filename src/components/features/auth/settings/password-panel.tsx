@@ -4,8 +4,11 @@
 import { KeyRound } from "lucide-react";
 
 import { ChangePasswordForm } from "@/components/features/auth/forms/change-password-form";
+import { useLocale } from "@/providers/locale-provider";
 
 export function PasswordPanel() {
+  const { t } = useLocale();
+
   return (
     <div
       data-testid="password-panel"
@@ -23,11 +26,11 @@ export function PasswordPanel() {
           </div>
 
           <h3 className="text-lg font-bold tracking-tight text-foreground">
-            Change password
+            {t("settings.security.passwordPanel.title")}
           </h3>
 
           <p className="mt-1.5 max-w-xs text-xs leading-5 text-muted-foreground">
-            Create a strong password to keep your account secure.
+            {t("settings.security.passwordPanel.subtitle")}
           </p>
         </div>
 
@@ -39,7 +42,7 @@ export function PasswordPanel() {
         {/* Security note */}
         <div className="mt-4 flex items-center justify-center gap-2 text-center">
           <p className="text-[10px] leading-4 text-muted-foreground">
-            Your password is protected by secure authentication.
+            {t("settings.security.passwordPanel.note")}
           </p>
         </div>
       </section>

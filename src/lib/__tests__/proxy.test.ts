@@ -18,7 +18,7 @@ describe("proxy route guard (Layer 1)", () => {
       .map((entry) => `/${entry.name}`)
       .sort();
 
-    assert.equal(routeDirs.length, 15);
+    assert.equal(routeDirs.length, 17);
     for (const prefix of routeDirs) {
       assert.ok(
         (PROTECTED_AUTH_PREFIXES as readonly string[]).includes(prefix),
@@ -38,7 +38,7 @@ describe("proxy route guard (Layer 1)", () => {
     }
   });
 
-  it("redirects unauthenticated requests across all 15 protected routes and nested paths to /login?next=...", () => {
+  it("redirects unauthenticated requests across all 17 protected routes and nested paths to /login?next=...", () => {
     const testPaths = [
       ...PROTECTED_AUTH_PREFIXES,
       "/incidents/inc-123",

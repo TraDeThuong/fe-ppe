@@ -7,6 +7,7 @@ import { useEmailLogs, useRetryEmail } from "@/hooks/notifications";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
+import { stripEmojis } from "@/lib/strip-emojis";
 
 export function NotificationEmailLogsTab({ className = "" }: { className?: string }) {
   const canRetry = useCan()("NOTIFICATION_UPDATE");
@@ -119,7 +120,7 @@ export function NotificationEmailLogsTab({ className = "" }: { className?: strin
       cell: ({ row }) => {
         const log = row.original;
         return <div className={"font-semibold max-w-xs truncate"}>
-          {log.subject}
+          {stripEmojis(log.subject)}
           {log.lastError && (
             <p className="mt-0.5 truncate text-[10px] text-destructive">
               {log.lastError}

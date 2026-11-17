@@ -21,6 +21,8 @@ export interface MeDto {
   phoneNumber: string | null;
   role: string;
   roleId: string;
+  siteId?: string | null;
+  siteIds?: string[];
   permissions: string[];
   isActive: boolean;
   twoFactorEnabled: boolean;
@@ -40,6 +42,8 @@ export interface AuthUser {
   fullName: string | null;
   role: string;
   roleId: string;
+  siteId?: string | null;
+  siteIds?: string[];
   permissions: string[];
   mustChangePassword?: boolean;
 }

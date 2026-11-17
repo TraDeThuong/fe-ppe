@@ -3,12 +3,11 @@
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Building2, MapPin, ShieldAlert } from "lucide-react";
-import { Table, TablePagination } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { mapTableSort } from "@/lib/table-utils";
 import { useTableState } from "@/hooks/use-table-state";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuth } from "@/contexts/AuthContext";
-import { userService } from "@/services/user.service";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import {
   CreateSiteModal,
@@ -22,6 +21,10 @@ import {
   SiteZonesDrawer,
   type SiteStatKey,
 } from "@/components/features/sites";
+import {
+  parseSiteContactOfficers,
+  syncSiteOfficersAccess,
+} from "@/components/features/sites/site-helpers";
 import {
   useCreateSite,
   useDeleteSite,
@@ -139,51 +142,24 @@ export default function SitesContent() {
 
   const handleCreateSubmit = async (payload: CreateSitePayload) => {
     const createdSite = await createSite.mutateAsync(payload);
-
-    // Nếu người tạo là Admin, tự động đồng bộ gán quyền công trường cho các cán bộ được chọn
-    const officerUserIds = (payload.contactOfficers || [])
-      .map((o) => o.userId)
-      .filter((id): id is string => Boolean(id));
-
-    if (createdSite?.id && officerUserIds.length > 0 && currentUser?.role === "ADMIN") {
-      try {
-        await Promise.allSettled(
-          officerUserIds.map(async (userId) => {
-            const officerDetail = await userService.getUserById(userId);
-            const currentSites = officerDetail.siteIds || [];
-            if (!currentSites.includes(createdSite.id)) {
-              await userService.assignUserSites(userId, [...currentSites, createdSite.id]);
-            }
-          })
-        );
-      } catch (err) {
-        console.warn("Could not auto-assign site to selected officers:", err);
-      }
+    if (createdSite?.id) {
+      await syncSiteOfficersAccess(
+        createdSite.id,
+        payload.contactOfficers,
+        currentUser?.role === "ADMIN",
+      );
     }
   };
 
   const handleEditSubmit = async (id: string, payload: UpdateSitePayload) => {
+    const previousOfficers = parseSiteContactOfficers(selectedSite?.contactOfficers);
     await updateSite.mutateAsync({ id, payload });
-
-    const officerUserIds = (payload.contactOfficers || [])
-      .map((o) => o.userId)
-      .filter((userId): userId is string => Boolean(userId));
-
-    if (id && officerUserIds.length > 0 && currentUser?.role === "ADMIN") {
-      try {
-        await Promise.allSettled(
-          officerUserIds.map(async (userId) => {
-            const officerDetail = await userService.getUserById(userId);
-            const currentSites = officerDetail.siteIds || [];
-            if (!currentSites.includes(id)) {
-              await userService.assignUserSites(userId, [...currentSites, id]);
-            }
-          })
-        );
-      } catch (err) {
-        console.warn("Could not auto-assign site to selected officers:", err);
-      }
-    }
+    await syncSiteOfficersAccess(
+      id,
+      payload.contactOfficers,
+      currentUser?.role === "ADMIN",
+      previousOfficers,
+    );
   };
 
   const handleDeleteConfirm = async (id: string, name?: string) => {
@@ -329,21 +305,46 @@ export default function SitesContent() {
         />
       )}
 
-      {viewMode !== "table" ? <Table
-        data={[]}
-        columns={[]}
-        manualPagination
-        rowCount={data?.meta?.total ?? sites.length}
-        pageCount={data?.meta?.totalPages ?? 1}
-        pagination={tableState.pagination}
-        onPaginationChange={tableState.onPaginationChange}
-        loading={isLoading}
-        fetching={isFetching}
-        error={error}
-        onRetry={() => {
-          void refetch();
-        }}
-      ><TablePagination /></Table> : null}
+      {viewMode !== "table" && (data?.meta?.totalPages ?? 1) > 1 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3 text-xs text-muted-foreground shadow-nm-sm">
+          <span>
+            {isVietnamese
+              ? `Trang ${tableState.pagination.pageIndex + 1}/${data?.meta?.totalPages ?? 1} (${data?.meta?.total ?? sites.length} công trường)`
+              : `Page ${tableState.pagination.pageIndex + 1}/${data?.meta?.totalPages ?? 1} (${data?.meta?.total ?? sites.length} sites)`}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={tableState.pagination.pageIndex <= 0 || isFetching}
+              onClick={() =>
+                tableState.onPaginationChange((prev) => ({
+                  ...prev,
+                  pageIndex: Math.max(0, prev.pageIndex - 1),
+                }))
+              }
+            >
+              {isVietnamese ? "Trước" : "Prev"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={
+                tableState.pagination.pageIndex + 1 >= (data?.meta?.totalPages ?? 1) ||
+                isFetching
+              }
+              onClick={() =>
+                tableState.onPaginationChange((prev) => ({
+                  ...prev,
+                  pageIndex: prev.pageIndex + 1,
+                }))
+              }
+            >
+              {isVietnamese ? "Sau" : "Next"}
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Create Site Modal */}
       <CreateSiteModal

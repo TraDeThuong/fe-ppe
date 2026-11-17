@@ -1,4 +1,6 @@
-import { apiClient } from "@/lib/axios";
+import { apiClient, ensureFreshAccessToken } from "@/lib/axios";
+import { getAccessTokenSiteIds } from "@/lib/token";
+import { authService } from "./auth.service";
 import type {
   ArchiveSiteResponse,
   CameraSafetyConfigItem,
@@ -37,6 +39,30 @@ function unwrapData<T>(res: any): T {
   return res as T;
 }
 
+function mapSiteResponse(res: any): { items: SiteItem[]; meta?: PaginationMeta } {
+  if (res && typeof res === "object") {
+    const rawItems = Array.isArray(res.data)
+      ? res.data
+      : Array.isArray(res.items)
+        ? res.items
+        : Array.isArray(res.data?.data)
+          ? res.data.data
+          : Array.isArray(res)
+            ? res
+            : [];
+    const items: SiteItem[] = rawItems.map((s: any) => ({
+      ...s,
+      zoneCount: s.zoneCount ?? s._count?.zones ?? (s.zones?.length || 0),
+      restrictedAreaCount:
+        s.restrictedAreaCount ?? s._count?.restrictedAreas ?? (s.restrictedAreas?.length || 0),
+      cameraCount: s.cameraCount ?? s._count?.cameras ?? (s.cameras?.length || 0),
+    }));
+    const meta = res.meta ?? res.data?.meta;
+    return { items, meta };
+  }
+  return { items: [], meta: undefined };
+}
+
 export const siteService = {
   /**
    * GET /api/v1/sites
@@ -48,26 +74,33 @@ export const siteService = {
     const res = await apiClient.get<unknown, any>("/sites", {
       params,
     });
-    if (res && typeof res === "object") {
-      const rawItems = Array.isArray(res.data)
-        ? res.data
-        : Array.isArray(res.items)
-          ? res.items
-          : Array.isArray(res.data?.data)
-            ? res.data.data
-            : Array.isArray(res)
-              ? res
-              : [];
-      const items: SiteItem[] = rawItems.map((s: any) => ({
-        ...s,
-        zoneCount: s.zoneCount ?? s._count?.zones ?? (s.zones?.length || 0),
-        restrictedAreaCount: s.restrictedAreaCount ?? s._count?.restrictedAreas ?? (s.restrictedAreas?.length || 0),
-        cameraCount: s.cameraCount ?? s._count?.cameras ?? (s.cameras?.length || 0),
-      }));
-      const meta = res.meta ?? res.data?.meta;
-      return { items, meta };
+    const parsed = mapSiteResponse(res);
+
+    // Nếu danh sách trống do JWT accessToken cũ (hạn 8h) chưa cập nhật siteIds mới được Admin gán,
+    // kiểm tra lại với /auth/me để tự động refresh JWT và lấy lại danh sách công trường ngay lập tức.
+    if (parsed.items.length === 0 && !params?.search && !params?.status) {
+      try {
+        const me = await authService.getMe();
+        const dbSiteIds = me.siteIds ?? [];
+        const tokenSiteIds = getAccessTokenSiteIds();
+        if (
+          dbSiteIds.length > 0 &&
+          (!tokenSiteIds || tokenSiteIds.length !== dbSiteIds.length)
+        ) {
+          const refreshed = await ensureFreshAccessToken();
+          if (refreshed) {
+            const retryRes = await apiClient.get<unknown, any>("/sites", {
+              params,
+            });
+            return mapSiteResponse(retryRes);
+          }
+        }
+      } catch {
+        // Bỏ qua nếu không thể kiểm tra /auth/me
+      }
     }
-    return { items: [], meta: undefined };
+
+    return parsed;
   },
 
   /**
@@ -107,7 +140,7 @@ export const siteService = {
    * DELETE /api/v1/sites/:id
    * Xóa công trường khỏi hệ thống.
    */
-  async deleteSite(id: string, force = false): Promise<{ message: string }> {
+  async deleteSite(id: string, force = true): Promise<{ message: string }> {
     const res = await apiClient.delete<unknown, any>(`/sites/${id}`, {
       params: force ? { force: "true" } : undefined,
     });

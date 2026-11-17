@@ -20,6 +20,7 @@ export interface IncidentActionGuideProps {
   status: IncidentStatus | string;
   hasAssignments?: boolean;
   assignedOfficerName?: string;
+  awaitingDispatch?: boolean;
   onReview?: () => void;
   onAssign?: () => void;
   onResolve?: () => void;
@@ -30,6 +31,7 @@ export function IncidentActionGuide({
   status,
   hasAssignments = false,
   assignedOfficerName,
+  awaitingDispatch = false,
   onReview,
   onAssign,
   onResolve,
@@ -146,30 +148,50 @@ export function IncidentActionGuide({
               </div>
 
               <h4 className="text-sm font-extrabold tracking-tight text-foreground sm:text-base">
-                {isVietnamese
-                  ? "Phân công cán bộ điều phối hiện trường"
-                  : "Dispatch Field Safety Coordinator"}
+                {awaitingDispatch
+                  ? isVietnamese
+                    ? "Đang chờ Quản lý phát tín hiệu điều phối"
+                    : "Awaiting Manager Dispatch Signal"
+                  : isVietnamese
+                    ? "Phân công cán bộ điều phối hiện trường"
+                    : "Dispatch Field Safety Coordinator"}
               </h4>
 
               <p className="text-xs leading-relaxed text-muted-foreground">
-                {isVietnamese
-                  ? "Sự cố đã được thẩm duyệt. Hãy phân công cán bộ an toàn tại hiện trường để tiếp cận và xử lý vi phạm."
-                  : "Violation confirmed. Dispatch a safety officer to the scene to resolve this violation."}
+                {awaitingDispatch
+                  ? isVietnamese
+                    ? "Sự cố đã được xác nhận. Khi Quản lý an toàn phân công cho bạn, bạn có thể báo cáo khắc phục và đính kèm ảnh tại đây."
+                    : "Violation is confirmed. Once the Safety Manager assigns this incident to you, you can submit your remediation report here."
+                  : isVietnamese
+                    ? "Sự cố đã được thẩm duyệt. Phát tín hiệu giao cán bộ an toàn hiện trường xử lý, hoặc bấm Khắc phục ngay nếu bạn tự xử lý."
+                    : "Violation confirmed. Dispatch a safety officer with a realtime signal, or resolve directly if handled yourself."}
               </p>
             </div>
           </div>
 
-          {onAssign && (
-            <div className="shrink-0 self-end sm:self-center">
-              <Button
-                variant="primary"
-                onClick={onAssign}
-                className="animate-gentle-pulse-ring gap-2 font-bold shadow-md"
-              >
-                <UserCheck className="h-4 w-4" />
-                <span>{isVietnamese ? "Phân công cán bộ" : "Assign Officer"}</span>
-                <ArrowRight className="h-4 w-4 opacity-75" />
-              </Button>
+          {!awaitingDispatch && (onAssign || onResolve) && (
+            <div className="flex flex-wrap items-center gap-2 shrink-0 self-end sm:self-center">
+              {onAssign && (
+                <Button
+                  variant="primary"
+                  onClick={onAssign}
+                  className="animate-gentle-pulse-ring gap-2 font-bold shadow-md"
+                >
+                  <UserCheck className="h-4 w-4" />
+                  <span>{isVietnamese ? "Giao Officer & Phát tín hiệu" : "Dispatch Officer"}</span>
+                  <ArrowRight className="h-4 w-4 opacity-75" />
+                </Button>
+              )}
+              {onResolve && (
+                <Button
+                  variant="outline"
+                  onClick={onResolve}
+                  className="gap-1.5 text-emerald-600 hover:text-emerald-700"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>{isVietnamese ? "Tự khắc phục ngay" : "Resolve Now"}</span>
+                </Button>
+              )}
             </div>
           )}
         </div>

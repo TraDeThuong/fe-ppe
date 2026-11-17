@@ -11,6 +11,7 @@ export const PROTECTED_AUTH_PREFIXES = [
   "/change-password",
   "/settings",
   "/incidents",
+  "/evidences",
   "/cameras",
   "/users",
   "/roles",
@@ -22,6 +23,7 @@ export const PROTECTED_AUTH_PREFIXES = [
   "/maintenance",
   "/system",
   "/scheduled-tasks",
+  "/integrations",
 ] as const;
 
 // /2fa nằm trong nhóm (public): giữa luồng 2FA user CHƯA có session cookie

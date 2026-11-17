@@ -9,6 +9,8 @@ export interface SystemConfigToolbarProps {
   onSearchChange: (value: string) => void;
   category: string;
   onCategoryChange: (value: string) => void;
+  isPublicFilter?: string;
+  onIsPublicFilterChange?: (value: string) => void;
   onAddConfig: () => void;
   canManage?: boolean;
 }
@@ -18,10 +20,13 @@ export function SystemConfigToolbar({
   onSearchChange,
   category,
   onCategoryChange,
+  isPublicFilter = "all",
+  onIsPublicFilterChange,
   onAddConfig,
   canManage = true,
 }: SystemConfigToolbarProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVi = locale === "vi-VN";
 
   const categories = [
     { value: "", label: t("system.configs.categoryAll") },
@@ -60,6 +65,19 @@ export function SystemConfigToolbar({
               </option>
             ))}
           </select>
+
+          {onIsPublicFilterChange && (
+            <select
+              value={isPublicFilter}
+              onChange={(e) => onIsPublicFilterChange(e.target.value)}
+              aria-label={isVi ? "Phạm vi công khai" : "Visibility scope"}
+              className="w-full sm:w-auto rounded-xl border border-border/40 bg-surface px-3 py-1.5 text-xs text-foreground shadow-[inset_1px_1px_2px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:border-black/50 dark:bg-card/70"
+            >
+              <option value="all">{isVi ? "Mọi phạm vi" : "All visibility"}</option>
+              <option value="true">{isVi ? "Công khai (Public)" : "Public only"}</option>
+              <option value="false">{isVi ? "Nội bộ (Private)" : "Private only"}</option>
+            </select>
+          )}
         </div>
       </div>
 

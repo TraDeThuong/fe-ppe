@@ -12,6 +12,9 @@ export interface NotificationFilterState {
   isRead?: boolean;
   severity?: NotificationSeverity;
   channel?: NotificationChannel;
+  type?: string;
+  fromDate?: string;
+  toDate?: string;
 }
 
 export interface NotificationFilterToolbarProps {
@@ -49,7 +52,10 @@ export function NotificationFilterToolbar({
     filter.search ||
       filter.isRead !== undefined ||
       filter.severity ||
-      filter.channel,
+      filter.channel ||
+      filter.type ||
+      filter.fromDate ||
+      filter.toDate,
   );
 
   const handleResetFilters = () => {
@@ -59,6 +65,9 @@ export function NotificationFilterToolbar({
       isRead: undefined,
       severity: undefined,
       channel: undefined,
+      type: undefined,
+      fromDate: undefined,
+      toDate: undefined,
     });
   };
 
@@ -193,6 +202,26 @@ export function NotificationFilterToolbar({
           <option value="IN_APP">Web (In-App)</option>
           <option value="EMAIL">Email</option>
         </select>
+
+        {/* Khoảng ngày */}
+        <input
+          type="date"
+          value={filter.fromDate || ""}
+          onChange={(e) =>
+            onFilterChange({ ...filter, fromDate: e.target.value || undefined })
+          }
+          aria-label={isVietnamese ? "Từ ngày" : "From date"}
+          className="rounded-lg border border-border/40 bg-background px-2 py-1 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
+        />
+        <input
+          type="date"
+          value={filter.toDate || ""}
+          onChange={(e) =>
+            onFilterChange({ ...filter, toDate: e.target.value || undefined })
+          }
+          aria-label={isVietnamese ? "Đến ngày" : "To date"}
+          className="rounded-lg border border-border/40 bg-background px-2 py-1 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
+        />
 
         {/* Reset filter button */}
         {hasActiveFilters && (

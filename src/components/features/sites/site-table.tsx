@@ -160,7 +160,7 @@ export function SiteTable({
         {
           id: 'archive',
           label: isVietnamese ? 'Lưu trữ công trường' : 'Archive site',
-          hidden: !onArchive || !can('PPE_SITE_MANAGE'),
+          hidden: !onArchive || !can('PPE_SITE_MANAGE') || row.original.status === 'ARCHIVED',
           onClick: site => onArchive?.(site)
         },
         {

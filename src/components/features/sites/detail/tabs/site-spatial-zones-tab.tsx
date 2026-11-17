@@ -19,7 +19,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { RestrictedAreaDrawer } from "@/components/features/sites/restricted-area-drawer";
+import {
+  extractPlottedBoundaryPoints,
+  RestrictedAreaDrawer,
+} from "@/components/features/sites/restricted-area-drawer";
 import { useCameras } from "@/hooks/cameras";
 import {
   useCreateZone,
@@ -775,9 +778,7 @@ export function SiteSpatialZonesTab({
                 {filteredAreas.map((area) => {
                   const parentZone = zones.find((z) => z.id === area.zoneId);
                   const isAreaActive = area.status !== "INACTIVE";
-                  const pointCount = Array.isArray(area.boundary)
-                    ? area.boundary.length
-                    : 0;
+                  const pointCount = extractPlottedBoundaryPoints(area.boundary).length;
 
                   return (
                     <div
@@ -851,7 +852,7 @@ export function SiteSpatialZonesTab({
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 font-mono text-[9px] font-semibold text-amber-600 dark:text-amber-400">
-                                {isVietnamese ? "Chưa vẽ ranh giới" : "No boundary"}
+                                {isVietnamese ? "Chưa vẽ trên camera" : "Not plotted on camera"}
                               </span>
                             )}
                           </div>

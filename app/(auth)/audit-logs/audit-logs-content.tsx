@@ -344,6 +344,14 @@ export default function AuditLogsContent() {
 
         onExport={handleExecuteExport}
 
+        activeFilters={{
+          category: effectiveCategory,
+          search: debouncedSearch || undefined,
+          action: actionFilter || undefined,
+          targetType: targetTypeFilter || undefined,
+          status: (statusFilter as AuditLogStatus) || undefined,
+        }}
+
         loading={isExporting}
 
       />

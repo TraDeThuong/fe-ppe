@@ -5,7 +5,9 @@ import {
   FileSpreadsheet,
   FileText,
   LayoutTemplate,
+  Plus,
   SendHorizontal,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
@@ -14,6 +16,8 @@ import type { ReportTemplateDto } from "@/types";
 export interface ReportTemplateCardsProps {
   templates: ReportTemplateDto[];
   onSelectTemplate: (template: ReportTemplateDto) => void;
+  onCreateTemplate?: () => void;
+  onDeleteTemplate?: (template: ReportTemplateDto) => void;
   canExport?: boolean;
   hideHeader?: boolean;
 }
@@ -21,6 +25,8 @@ export interface ReportTemplateCardsProps {
 export function ReportTemplateCards({
   templates,
   onSelectTemplate,
+  onCreateTemplate,
+  onDeleteTemplate,
   canExport = true,
   hideHeader = false,
 }: ReportTemplateCardsProps) {
@@ -30,26 +36,43 @@ export function ReportTemplateCards({
   return (
     <section className="space-y-4">
       {/* Section Header */}
-      {!hideHeader && (
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-background text-primary shadow-[3px_3px_7px_rgba(0,0,0,0.10),-3px_-3px_7px_rgba(255,255,255,0.75)] dark:shadow-[3px_3px_7px_rgba(0,0,0,0.35),-2px_-2px_6px_rgba(255,255,255,0.035)]">
-              <LayoutTemplate className="h-[17px] w-[17px]" />
-            </div>
+      {(!hideHeader || (canExport && onCreateTemplate)) && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {!hideHeader ? (
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-background text-primary shadow-[3px_3px_7px_rgba(0,0,0,0.10),-3px_-3px_7px_rgba(255,255,255,0.75)] dark:shadow-[3px_3px_7px_rgba(0,0,0,0.35),-2px_-2px_6px_rgba(255,255,255,0.035)]">
+                <LayoutTemplate className="h-[17px] w-[17px]" />
+              </div>
 
-            <div>
-              <h4 className="text-sm font-bold tracking-tight text-foreground">
-                {t("reports.templates.title")}
-              </h4>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                {t("reports.templates.desc")}
-              </p>
+              <div>
+                <h4 className="text-sm font-bold tracking-tight text-foreground">
+                  {t("reports.templates.title")}
+                </h4>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {t("reports.templates.desc")}
+                </p>
+              </div>
             </div>
+          ) : (
+            <div />
+          )}
+
+          <div className="flex items-center gap-2">
+            {canExport && onCreateTemplate && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onCreateTemplate}
+                className="gap-1.5 text-xs"
+              >
+                <Plus className="h-3.5 w-3.5 text-primary" />
+                <span>{isVietnamese ? "Tạo mẫu mới" : "New Template"}</span>
+              </Button>
+            )}
+            <span className="flex h-7 items-center rounded-lg bg-background px-2.5 text-[11px] font-bold tabular-nums text-primary shadow-[inset_2px_2px_4px_rgba(0,0,0,0.07),inset_-2px_-2px_4px_rgba(255,255,255,0.65)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.025)]">
+              {templates.length} {isVietnamese ? "mẫu" : "templates"}
+            </span>
           </div>
-
-          <span className="flex h-7 items-center rounded-lg bg-background px-2.5 text-[11px] font-bold tabular-nums text-primary shadow-[inset_2px_2px_4px_rgba(0,0,0,0.07),inset_-2px_-2px_4px_rgba(255,255,255,0.65)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3),inset_-1px_-1px_3px_rgba(255,255,255,0.025)]">
-            {templates.length} {isVietnamese ? "mẫu" : "templates"}
-          </span>
         </div>
       )}
 
@@ -149,14 +172,14 @@ export function ReportTemplateCards({
 
                 {/* Footer Action */}
                 {canExport && (
-                  <div className="relative mt-3 border-t border-border/20 pt-3">
+                  <div className="relative mt-3 flex items-center gap-2 border-t border-border/20 pt-3">
                     <Button
                       size="sm"
                       variant="ghost"
                       disabled={isInactive}
                       onClick={() => onSelectTemplate(tpl)}
                       className="
-                        h-9 w-full justify-center gap-2 rounded-xl
+                        h-9 flex-1 justify-center gap-2 rounded-xl
                         bg-primary/10 text-primary
                         text-[11px] font-bold
                         shadow-[3px_3px_7px_rgba(0,0,0,0.07),-3px_-3px_7px_rgba(255,255,255,0.7)]
@@ -173,6 +196,17 @@ export function ReportTemplateCards({
                         ? t("reports.templates.inactiveBadge")
                         : t("reports.templates.generate")}
                     </Button>
+                    {onDeleteTemplate && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => onDeleteTemplate(tpl)}
+                        title={isVietnamese ? "Xóa mẫu" : "Delete template"}
+                        className="h-9 w-9 shrink-0 rounded-xl text-danger hover:bg-danger/10"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 )}
               </article>

@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { AlertOctagon, Plus, Sliders, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { RestrictedAreaDrawer } from "./restricted-area-drawer";
+import {
+  extractPlottedBoundaryPoints,
+  RestrictedAreaDrawer,
+} from "./restricted-area-drawer";
 import { useDeleteRestrictedArea, useRestrictedAreas } from "@/hooks/sites";
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
@@ -70,7 +73,7 @@ export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
           </div>
         ) : (
           areas.map((area) => {
-            const pointCount = Array.isArray(area.boundary) ? area.boundary.length : 0;
+            const pointCount = extractPlottedBoundaryPoints(area.boundary).length;
             const hasValidBoundary = pointCount >= 3;
 
             return (
@@ -101,7 +104,7 @@ export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
                         </span>
                       ) : (
                         <span className="rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                          {isVietnamese ? "Chưa vẽ ranh giới" : "No boundary"}
+                          {isVietnamese ? "Chưa vẽ trên camera" : "Not plotted on camera"}
                         </span>
                       )}
                     </div>

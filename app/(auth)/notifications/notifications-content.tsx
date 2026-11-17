@@ -119,6 +119,9 @@ export default function NotificationsContent() {
     isRead: filter.isRead,
     severity: filter.severity,
     channel: filter.channel,
+    type: filter.type,
+    fromDate: filter.fromDate,
+    toDate: filter.toDate,
   });
 
   const { data: unreadCount = 0 } = useUnreadCount();

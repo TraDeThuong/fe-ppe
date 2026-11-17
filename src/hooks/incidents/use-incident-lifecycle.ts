@@ -11,6 +11,7 @@ import type {
   CreateIncidentPayload,
   ResolveIncidentPayload,
   ReviewIncidentPayload,
+  UpdateIncidentPayload,
 } from "@/types";
 
 function invalidateIncidentListsAndCounts(
@@ -168,6 +169,35 @@ export function useCloseIncident() {
         err instanceof Error
           ? err.message
           : pickLocaleText("Không thể đóng sự cố.", "Unable to close incident.");
+      toast.error(msg);
+    },
+  });
+}
+
+export function useUpdateIncident() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateIncidentPayload }) =>
+      incidentService.updateIncident(id, payload),
+    onSuccess: (updatedIncident, { id }) => {
+      invalidateIncidentListsAndCounts(queryClient);
+      queryClient.setQueryData(incidentKeys.detail(id), updatedIncident);
+      toast.success(
+        pickLocaleText(
+          "Đã cập nhật thông tin sự cố thành công.",
+          "Incident updated successfully.",
+        ),
+      );
+    },
+    onError: (err: unknown) => {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể cập nhật sự cố.",
+              "Unable to update incident.",
+            );
       toast.error(msg);
     },
   });

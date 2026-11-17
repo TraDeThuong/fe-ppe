@@ -195,9 +195,18 @@ export function UserTable({
   });
   const [detailUser, setDetailUser] = useState<UserResponseDto | null>(null);
 
-  const tableData = usersData?.data ?? [];
+  const tableData = useMemo(() => {
+    const raw = usersData?.data ?? [];
+    if (statusFilter === "twoFactor") {
+      return raw.filter((u) => Boolean(u.twoFactorEnabled));
+    }
+    return raw;
+  }, [usersData?.data, statusFilter]);
 
-  const totalCount = usersData?.meta?.total ?? tableData.length;
+  const totalCount =
+    statusFilter === "twoFactor"
+      ? tableData.length
+      : (usersData?.meta?.total ?? tableData.length);
   const pageCount = usersData?.meta?.totalPages ?? Math.ceil(totalCount / pagination.pageSize);
 
   const hasActiveFilters =

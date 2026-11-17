@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { ArrowUpRight, Edit2, Key, Lock, Shield, Trash2, Users } from "lucide-react";
 import type { RoleDto } from "@/types";
 import { Button } from "@/components/ui/button";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 
 export interface RoleCardGridProps {
@@ -24,6 +25,10 @@ export function RoleCardGrid({
   const { t, locale } = useLocale();
   const router = useRouter();
   const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canAssignPerms = can("ROLE_PERMISSION_ASSIGN");
+  const canUpdateRole = can("ROLE_UPDATE");
+  const canDeleteRole = can("ROLE_DELETE");
 
   if (loading) {
     return (
@@ -126,53 +131,61 @@ export function RoleCardGrid({
             </div>
 
             {/* Actions Footer */}
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center justify-between border-t border-border/30 dark:border-black/40 pt-2.5 sm:pt-3.5 mt-2.5 sm:mt-4"
-            >
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onConfigurePermissions(role);
-                }}
-                className="flex items-center gap-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs h-7 sm:h-8 px-2.5 sm:px-3 dark:border-black/60 dark:hover:border-black"
+            {(canAssignPerms || canUpdateRole || canDeleteRole) && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center justify-between border-t border-border/30 dark:border-black/40 pt-2.5 sm:pt-3.5 mt-2.5 sm:mt-4"
               >
-                <Key className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-primary" />
-                <span>{t("roles.actions.permissions")}</span>
-              </Button>
-
-              <div className="flex items-center gap-1 sm:gap-1.5">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit(role);
-                  }}
-                  className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary dark:border-black/50 dark:hover:border-black dark:bg-background/40"
-                  aria-label={`${t("roles.actions.edit")} ${role.name}`}
-                  title={`${t("roles.actions.edit")} ${role.name}`}
-                >
-                  <Edit2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                </button>
-
-                {!role.isSystem && (
-                  <button
-                    type="button"
+                {canAssignPerms ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onDelete(role);
+                      onConfigurePermissions(role);
                     }}
-                    className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-danger hover:text-danger dark:border-black/50 dark:hover:border-black dark:bg-background/40"
-                    aria-label={`${t("roles.actions.delete")} ${role.name}`}
-                    title={`${t("roles.actions.delete")} ${role.name}`}
+                    className="flex items-center gap-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs h-7 sm:h-8 px-2.5 sm:px-3 dark:border-black/60 dark:hover:border-black"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                    <Key className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-primary" />
+                    <span>{t("roles.actions.permissions")}</span>
+                  </Button>
+                ) : (
+                  <div />
                 )}
+
+                <div className="flex items-center gap-1 sm:gap-1.5">
+                  {canUpdateRole && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(role);
+                      }}
+                      className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary dark:border-black/50 dark:hover:border-black dark:bg-background/40"
+                      aria-label={`${t("roles.actions.edit")} ${role.name}`}
+                      title={`${t("roles.actions.edit")} ${role.name}`}
+                    >
+                      <Edit2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    </button>
+                  )}
+
+                  {canDeleteRole && !role.isSystem && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(role);
+                      }}
+                      className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-danger hover:text-danger dark:border-black/50 dark:hover:border-black dark:bg-background/40"
+                      aria-label={`${t("roles.actions.delete")} ${role.name}`}
+                      title={`${t("roles.actions.delete")} ${role.name}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         );
       })}

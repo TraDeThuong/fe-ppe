@@ -1,3 +1,4 @@
+import axios from "axios";
 import { apiClient } from "@/lib/axios";
 import type {
   ChecksumVerifyResult,
@@ -163,7 +164,7 @@ export const incidentService = {
   async resolveIncident(id: string, payload: ResolveIncidentPayload): Promise<IncidentItem> {
     const res = await apiClient.post<unknown>(
       `/incidents/${id}/resolve`,
-      payload,
+      { resolutionNote: payload.resolutionNote },
     );
     return unwrapData<IncidentItem>(res);
   },
@@ -201,9 +202,6 @@ export const incidentService = {
   ): Promise<IncidentAssignmentItem> {
     const finalPayload = {
       assignedTo: payload.assignedTo || payload.assignedToUserId,
-      priority: payload.priority,
-      deadline: payload.deadline,
-      note: payload.note,
     };
     const res = await apiClient.post<unknown>(
       `/incidents/${id}/assignments`,
@@ -236,14 +234,36 @@ export const incidentService = {
   },
 
   /**
-   * GET /api/v1/evidences/:id/download-url
-   * Lấy link presigned tải ảnh bằng chứng gốc từ MinIO.
+   * GET /api/v1/evidences/:id
+   * Lấy thông tin chi tiết một tệp bằng chứng số.
    */
-  async getEvidenceDownloadUrl(evidenceId: string): Promise<{ downloadUrl: string; expiresIn: number }> {
+  async getEvidenceById(evidenceId: string): Promise<EvidenceItem> {
+    const res = await apiClient.get<unknown>(`/evidences/${evidenceId}`);
+    return unwrapData<EvidenceItem>(res);
+  },
+
+  /**
+   * GET /api/v1/evidences/:id/download-url
+   * Lấy link presigned tải ảnh bằng chứng gốc từ MinIO (hỗ trợ action VIEW | DOWNLOAD).
+   */
+  async getEvidenceDownloadUrl(
+    evidenceId: string,
+    params?: { action?: "VIEW" | "DOWNLOAD"; expiresInSeconds?: number },
+  ): Promise<{ downloadUrl: string; expiresInSeconds?: number; expiresIn?: number; fileName?: string; mimeType?: string }> {
     const res = await apiClient.get<unknown>(
       `/evidences/${evidenceId}/download-url`,
+      { params },
     );
-    return unwrapData<{ downloadUrl: string; expiresIn: number }>(res);
+    return unwrapData<{ downloadUrl: string; expiresInSeconds?: number; expiresIn?: number; fileName?: string; mimeType?: string }>(res);
+  },
+
+  /**
+   * PUT <presignedEvidenceUploadUrl>
+   */
+  async uploadEvidenceToPresignedUrl(uploadUrl: string, file: File): Promise<void> {
+    await axios.put(uploadUrl, file, {
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+    });
   },
 
   /**

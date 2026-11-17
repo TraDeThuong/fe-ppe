@@ -473,8 +473,8 @@ export function PerClassMetricsCard({
               </span>
             </div>
 
-            {/* Nút toggle mock data khi backend chưa có telemetry */}
-            {(!metrics || metrics.length === 0) && (
+            {/* Nút toggle mock data khi backend chưa có telemetry (chỉ hiện ở dev) */}
+            {process.env.NODE_ENV === "development" && (!metrics || metrics.length === 0) && (
               <button
                 type="button"
                 onClick={() => setShowMockData((prev) => !prev)}

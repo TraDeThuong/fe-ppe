@@ -15,6 +15,7 @@ import {
   CameraStatsDetailPanel,
   type CameraKpiFilterKey,
 } from "./camera-stats-detail-panel";
+import { filterSessionsForCameras } from "./camera-live-helpers";
 import type { LiveSessionInfo } from "@/types/ai-test.types";
 import type { CameraItem } from "@/types";
 
@@ -45,6 +46,17 @@ export function CameraKpiSummary({
     null,
   );
 
+  const effectiveSessions = useMemo(() => {
+    const total = statusCounts?.total ?? cameras.length;
+    if (total === 0) {
+      return [];
+    }
+    if (cameras.length > 0 && cameras.length >= total) {
+      return filterSessionsForCameras(sessions, cameras).matchedSessions;
+    }
+    return sessions;
+  }, [cameras, sessions, statusCounts]);
+
   const stats = useMemo(() => {
     const total = statusCounts?.total ?? cameras.length;
     const online =
@@ -52,7 +64,9 @@ export function CameraKpiSummary({
       cameras.filter((c) => c.status === "ONLINE").length;
     const offline = statusCounts?.offline ?? Math.max(0, total - online);
 
-    const runningSessions = sessions.filter((s) => s.status === "running");
+    const runningSessions = effectiveSessions.filter(
+      (s) => s.status === "running",
+    );
     let activePersons = 0;
     let activeViolations = 0;
 
@@ -70,7 +84,7 @@ export function CameraKpiSummary({
       activePersons,
       activeViolations,
     };
-  }, [cameras, sessions, statusCounts]);
+  }, [cameras, effectiveSessions, statusCounts]);
 
   const handleToggle = (key: CameraKpiFilterKey) => {
     setSelectedStat((prev) => {
@@ -194,7 +208,7 @@ export function CameraKpiSummary({
         <CameraStatsDetailPanel
           activeStat={selectedStat}
           cameras={cameras}
-          sessions={sessions}
+          sessions={effectiveSessions}
           isFleetFilteredByThisStat={activeFilter === selectedStat}
           onToggleFleetFilter={(key) =>
             onSelectFilter(activeFilter === key ? "all" : key)

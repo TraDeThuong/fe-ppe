@@ -62,10 +62,10 @@ export function useDeleteSite() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, force }: { id: string; name?: string; force?: boolean }) =>
+    mutationFn: ({ id, force = true }: { id: string; name?: string; force?: boolean }) =>
       siteService.deleteSite(id, force),
     onSuccess: (_, { name }) => {
-      queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: siteKeys.all });
       toast.success(
         name
           ? pickLocaleText(

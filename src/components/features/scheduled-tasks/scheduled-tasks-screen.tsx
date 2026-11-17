@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import { useCronJobs, useCronMutations } from "@/hooks/cron/use-cron";
 import { useCronRecentExecutions } from "@/hooks/cron/use-cron-history";
+import { useDebounce } from "@/hooks/use-debounce";
 import { ApiError } from "@/lib/axios";
 import {
   canReadCron,
@@ -46,17 +47,18 @@ export function ScheduledTasksScreen() {
   const { user, status } = useAuth();
   const { t, locale } = useLocale();
 
-  const canRead = canReadCron(status, user?.permissions ?? []);
-  const canManage = canRead && Boolean(user?.permissions.includes("CRON_JOB_MANAGE"));
-  const canReadAudit = Boolean(user?.permissions.includes("AUDIT_LOG_READ"));
-  const query = useCronJobs(canRead);
-  const recentAuditQuery = useCronRecentExecutions(canRead && canReadAudit);
-  const { trigger, toggle } = useCronMutations();
-
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
   const [filter, setFilter] = useState<CronScheduleFilter>("all");
   const [viewMode, setViewMode] = useState<CronViewMode>("table");
   const [selectedStat, setSelectedStat] = useState<CronStatKey | null>(null);
+
+  const canRead = canReadCron(status, user?.permissions ?? []);
+  const canManage = canRead && Boolean(user?.permissions.includes("CRON_JOB_MANAGE"));
+  const canReadAudit = Boolean(user?.permissions.includes("AUDIT_LOG_READ"));
+  const query = useCronJobs(canRead, debouncedSearch);
+  const recentAuditQuery = useCronRecentExecutions(canRead && canReadAudit);
+  const { trigger, toggle } = useCronMutations();
 
   useEffect(() => {
     try {

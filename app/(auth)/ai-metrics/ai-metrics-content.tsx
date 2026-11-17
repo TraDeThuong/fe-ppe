@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Cpu, FlaskConical, RefreshCw, Zap } from "lucide-react";
+import { Activity, Cpu, Eye, FlaskConical, Layers, Plus, RefreshCw, Zap } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
+import { useCan } from "@/hooks/use-can";
 import {
   AiMetricsKpiSummary,
   ActiveModelBanner,
@@ -16,13 +17,21 @@ import {
   LatencyChartCard,
   ModelGovernanceTable,
   DeployModelDialog,
+  CreateAiModelModal,
+  CreateModelVersionModal,
+  RecordAiBenchmarkModal,
+  ModelDetailModal,
   type AiMetricStatKey,
 } from "@/components/features/ai-metrics";
 import {
   useAiPerformance,
   useActiveModelVersion,
   useAiModels,
+  useCameras,
+  useCreateAiModel,
+  useCreateAiModelVersion,
   useDeployModelVersion,
+  useRecordAiPerformance,
 } from "@/hooks";
 import type { AiModelVersionDto, AiPerformanceFilter } from "@/types";
 
@@ -64,15 +73,39 @@ export default function AiMetricsContent() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
+  const canManageModels = useCan()("PPE_MODEL_MANAGE");
+
   // Filters
   const [selectedModelId, setSelectedModelId] = useState("");
+  const [selectedCameraId, setSelectedCameraId] = useState("");
   const [period, setPeriod] = useState("7d");
+  const [selectedClass, setSelectedClass] = useState<string | null>(null);
+
+  const dateRange = useMemo(() => {
+    const end = new Date();
+    const start = new Date();
+    if (period === "24h") {
+      start.setDate(end.getDate() - 1);
+    } else if (period === "30d") {
+      start.setDate(end.getDate() - 30);
+    } else {
+      start.setDate(end.getDate() - 7);
+    }
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    return { startDate: fmt(start), endDate: fmt(end) };
+  }, [period]);
 
   const filter: AiPerformanceFilter = {
     modelId: selectedModelId || undefined,
+    cameraId: selectedCameraId || undefined,
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate,
   };
 
   // Queries
+  const { data: camerasData } = useCameras({ limit: 100 });
+  const cameras = camerasData?.items ?? [];
+
   const {
     data: performance,
     isLoading: isPerfLoading,
@@ -92,12 +125,19 @@ export default function AiMetricsContent() {
     refetch: refetchModels,
   } = useAiModels();
 
-  // Deploy Mutation
+  // Mutations
   const deployMutation = useDeployModelVersion();
+  const createModelMutation = useCreateAiModel();
+  const createVersionMutation = useCreateAiModelVersion();
+  const recordTelemetryMutation = useRecordAiPerformance();
 
   // Dialog State
   const [selectedCandidate, setSelectedCandidate] = useState<AiModelVersionDto | null>(null);
   const [isDeployOpen, setIsDeployOpen] = useState(false);
+  const [isCreateModelOpen, setIsCreateModelOpen] = useState(false);
+  const [isCreateVersionOpen, setIsCreateVersionOpen] = useState(false);
+  const [isRecordTelemetryOpen, setIsRecordTelemetryOpen] = useState(false);
+  const [detailModelId, setDetailModelId] = useState<string | null>(null);
 
   const handleOpenDeploy = (_modelId: string, version: AiModelVersionDto) => {
     setSelectedCandidate(version);
@@ -133,6 +173,45 @@ export default function AiMetricsContent() {
         badgeIcon={Zap}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {canManageModels && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsCreateModelOpen(true)}
+                  className="gap-1.5 text-xs sm:text-sm h-8 sm:h-9"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{isVietnamese ? "Đăng ký Model" : "New Model"}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={models.length === 0}
+                  onClick={() => setIsCreateVersionOpen(true)}
+                  className="gap-1.5 text-xs sm:text-sm h-8 sm:h-9"
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>{isVietnamese ? "Thêm Version" : "New Version"}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsRecordTelemetryOpen(true)}
+                  className="gap-1.5 text-xs sm:text-sm h-8 sm:h-9"
+                >
+                  <Activity className="h-3.5 w-3.5 text-primary" />
+                  <span>{isVietnamese ? "Ghi Telemetry" : "Record Benchmark"}</span>
+                </Button>
+              </>
+            )}
+            {selectedModelId && (
+              <Button
+                variant="outline"
+                onClick={() => setDetailModelId(selectedModelId)}
+                className="gap-1.5 text-xs sm:text-sm h-8 sm:h-9"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                <span>{isVietnamese ? "Chi tiết Model" : "Model Info"}</span>
+              </Button>
+            )}
             <Link href="/ai-metrics/test">
               <Button
                 variant="primary"
@@ -178,6 +257,9 @@ export default function AiMetricsContent() {
         models={models}
         selectedModelId={selectedModelId}
         onModelChange={setSelectedModelId}
+        cameras={cameras}
+        selectedCameraId={selectedCameraId}
+        onCameraChange={setSelectedCameraId}
         period={period}
         onPeriodChange={setPeriod}
         onRefresh={handleRefreshAll}
@@ -190,6 +272,8 @@ export default function AiMetricsContent() {
           <PerClassMetricsCard
             metrics={performance?.perClassMetrics}
             loading={isPerfLoading}
+            selectedClass={selectedClass}
+            onSelectClass={setSelectedClass}
           />
         </div>
 
@@ -215,7 +299,7 @@ export default function AiMetricsContent() {
         <ModelGovernanceTable
           models={models}
           onDeploy={handleOpenDeploy}
-          canDeploy={true}
+          canDeploy={canManageModels}
           loading={isModelsLoading}
         />
       </div>
@@ -230,6 +314,36 @@ export default function AiMetricsContent() {
         onConfirm={async (modelId, versionId) => {
           await deployMutation.mutateAsync({ modelId, versionId });
         }}
+      />
+
+      <CreateAiModelModal
+        open={isCreateModelOpen}
+        onOpenChange={setIsCreateModelOpen}
+        loading={createModelMutation.isPending}
+        onSubmit={(dto) => createModelMutation.mutateAsync(dto)}
+      />
+
+      <CreateModelVersionModal
+        open={isCreateVersionOpen}
+        onOpenChange={setIsCreateVersionOpen}
+        models={models}
+        loading={createVersionMutation.isPending}
+        onSubmit={(modelId, dto) =>
+          createVersionMutation.mutateAsync({ modelId, dto })
+        }
+      />
+
+      <RecordAiBenchmarkModal
+        open={isRecordTelemetryOpen}
+        onOpenChange={setIsRecordTelemetryOpen}
+        models={models}
+        loading={recordTelemetryMutation.isPending}
+        onSubmit={(dto) => recordTelemetryMutation.mutateAsync(dto)}
+      />
+
+      <ModelDetailModal
+        modelId={detailModelId}
+        onClose={() => setDetailModelId(null)}
       />
     </div>
   );

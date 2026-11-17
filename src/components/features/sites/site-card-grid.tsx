@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteSafetyBadges } from "./site-safety-badges";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import type { SiteItem } from "@/types";
 
@@ -41,6 +42,10 @@ export function SiteCardGrid({
   const router = useRouter();
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canReadZones = can("PPE_ZONE_READ") || can("PPE_RESTRICTED_AREA_READ");
+  const canReadSafety = can("PPE_SAFETY_CONFIG_READ");
+  const canManageSite = can("PPE_SITE_MANAGE");
 
   if (loading) {
     return (
@@ -213,75 +218,81 @@ export function SiteCardGrid({
             {/* Actions Footer */}
             <div className="flex items-center justify-between border-t border-border/30 dark:border-black/40 pt-2.5 sm:pt-3.5 mt-2.5 sm:mt-4 gap-1.5 flex-wrap">
               <div className="flex items-center gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onManageZones(site);
-                  }}
-                  className="flex items-center gap-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs h-7 sm:h-8 px-2 sm:px-2.5 text-primary hover:text-primary dark:border-black/60 dark:hover:border-black"
-                >
-                  <Layers className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                  <span>{t("sites.card.zonesAndRestricted")}</span>
-                </Button>
+                {canReadZones && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onManageZones(site);
+                    }}
+                    className="flex items-center gap-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs h-7 sm:h-8 px-2 sm:px-2.5 text-primary hover:text-primary dark:border-black/60 dark:hover:border-black"
+                  >
+                    <Layers className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    <span>{t("sites.card.zonesAndRestricted")}</span>
+                  </Button>
+                )}
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSafetyConfig(site);
-                  }}
-                  className="flex items-center gap-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs h-7 sm:h-8 px-2 sm:px-2.5 text-muted-foreground hover:text-foreground dark:border-black/60 dark:hover:border-black"
-                >
-                  <Shield className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-accent" />
-                  <span>{t("sites.card.ppeRules")}</span>
-                </Button>
+                {canReadSafety && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSafetyConfig(site);
+                    }}
+                    className="flex items-center gap-1 rounded-lg sm:rounded-xl text-[11px] sm:text-xs h-7 sm:h-8 px-2 sm:px-2.5 text-muted-foreground hover:text-foreground dark:border-black/60 dark:hover:border-black"
+                  >
+                    <Shield className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-accent" />
+                    <span>{t("sites.card.ppeRules")}</span>
+                  </Button>
+                )}
               </div>
 
-              <div className="flex items-center gap-1 sm:gap-1.5 ml-auto">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit(site);
-                  }}
-                  aria-label={`${t("sites.actions.edit")} ${site.name}`}
-                  title={`${t("sites.actions.edit")} ${site.name}`}
-                  className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary dark:border-black/50 dark:hover:border-black dark:bg-background/40"
-                >
-                  <Edit2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                </button>
-
-                {onArchive && (
+              {canManageSite && (
+                <div className="flex items-center gap-1 sm:gap-1.5 ml-auto">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onArchive(site);
+                      onEdit(site);
                     }}
-                    aria-label={isVietnamese ? `Lưu trữ ${site.name}` : `Archive ${site.name}`}
-                    title={isVietnamese ? `Lưu trữ công trường` : `Archive site`}
-                    className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-amber-500 hover:text-amber-500 dark:border-black/50 dark:hover:border-black dark:bg-background/40"
+                    aria-label={`${t("sites.actions.edit")} ${site.name}`}
+                    title={`${t("sites.actions.edit")} ${site.name}`}
+                    className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary dark:border-black/50 dark:hover:border-black dark:bg-background/40"
                   >
-                    <Archive className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    <Edit2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   </button>
-                )}
 
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete(site);
-                  }}
-                  aria-label={`${t("sites.actions.delete")} ${site.name}`}
-                  title={`${t("sites.actions.delete")} ${site.name}`}
-                  className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary dark:border-black/50 dark:hover:border-black dark:bg-background/40"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
+                  {onArchive && site.status !== "ARCHIVED" && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onArchive(site);
+                      }}
+                      aria-label={isVietnamese ? `Lưu trữ ${site.name}` : `Archive ${site.name}`}
+                      title={isVietnamese ? `Lưu trữ công trường` : `Archive site`}
+                      className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-amber-500 hover:text-amber-500 dark:border-black/50 dark:hover:border-black dark:bg-background/40"
+                    >
+                      <Archive className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(site);
+                    }}
+                    aria-label={`${t("sites.actions.delete")} ${site.name}`}
+                    title={`${t("sites.actions.delete")} ${site.name}`}
+                    className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition hover:border-primary hover:text-primary dark:border-black/50 dark:hover:border-black dark:bg-background/40"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         );

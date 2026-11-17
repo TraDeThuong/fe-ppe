@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
   ShieldAlert,
+  Images,
   Cctv,
   Building2,
   BarChart3,
@@ -14,6 +15,7 @@ import {
   KeyRound,
   Wrench,
   CalendarClock,
+  Webhook,
 } from "lucide-react";
 
 export type NavGroupKey = "monitoring" | "analytics" | "admin" | "personal";
@@ -25,6 +27,10 @@ export interface NavItem {
   i18nKey: string;
   /** Quyền bắt buộc — user.permissions phải chứa giá trị này mới hiển thị */
   permission?: string;
+  /** Hoặc user.permissions chứa ít nhất 1 quyền trong danh sách này */
+  anyPermissions?: readonly string[];
+  /** Tạm ẩn khỏi sidebar/menu điều hướng nhưng vẫn giữ route */
+  hidden?: boolean;
   group: NavGroupKey;
 }
 
@@ -55,6 +61,14 @@ export const NAV_ITEMS: readonly NavItem[] = [
     route: "/incidents",
     icon: ShieldAlert,
     i18nKey: "nav.incidents",
+    permission: "PPE_INCIDENT_READ",
+    group: "monitoring",
+  },
+  {
+    key: "evidences",
+    route: "/evidences",
+    icon: Images,
+    i18nKey: "nav.evidences",
     permission: "PPE_INCIDENT_READ",
     group: "monitoring",
   },
@@ -140,6 +154,15 @@ export const NAV_ITEMS: readonly NavItem[] = [
     permission: "CRON_JOB_READ",
     group: "admin",
   },
+  {
+    key: "integrations",
+    route: "/integrations",
+    icon: Webhook,
+    i18nKey: "nav.integrations",
+    anyPermissions: ["API_KEY_READ", "WEBHOOK_READ"],
+    hidden: true,
+    group: "admin",
+  },
   // Nhóm Cá nhân
   {
     key: "notifications",
@@ -160,14 +183,19 @@ export const NAV_ITEMS: readonly NavItem[] = [
 
 /** Lọc menu theo permissions của user hiện tại */
 export function getVisibleNavItems(permissions: string[]): NavItem[] {
-  return NAV_ITEMS.filter(
-    (item) => !item.permission || permissions.includes(item.permission),
-  );
+  return NAV_ITEMS.filter((item) => {
+    if (item.hidden) return false;
+    if (item.anyPermissions && item.anyPermissions.length > 0) {
+      return item.anyPermissions.some((p) => permissions.includes(p));
+    }
+    return !item.permission || permissions.includes(item.permission);
+  });
 }
 
 /** Guard 403: route → quyền bắt buộc. Route không nằm trong map = mở cho mọi user đã đăng nhập. */
 export const ROUTE_PERMISSIONS: Record<string, string> = {
   "/incidents": "PPE_INCIDENT_READ",
+  "/evidences": "PPE_INCIDENT_READ",
   "/cameras": "PPE_CAMERA_READ",
   "/sites": "PPE_SITE_READ",
   "/reports": "PPE_REPORTING_READ",
@@ -181,6 +209,11 @@ export const ROUTE_PERMISSIONS: Record<string, string> = {
   "/scheduled-tasks": "CRON_JOB_READ",
 };
 
+/** Guard 403 cho các route chỉ cần ít nhất 1 quyền trong danh sách */
+export const ROUTE_ANY_PERMISSIONS: Record<string, readonly string[]> = {
+  "/integrations": ["API_KEY_READ", "WEBHOOK_READ"],
+};
+
 /** Tìm quyền bắt buộc của route hiện tại — khớp route cha dài nhất (hỗ trợ /incidents/:id) */
 export function resolveRoutePermission(pathname: string): string | undefined {
   const candidates = Object.keys(ROUTE_PERMISSIONS).filter(
@@ -189,6 +222,27 @@ export function resolveRoutePermission(pathname: string): string | undefined {
   candidates.sort((a, b) => b.length - a.length);
   const matched = candidates[0];
   return matched ? ROUTE_PERMISSIONS[matched] : undefined;
+}
+
+/** Kiểm tra quyền truy cập route (hỗ trợ cả single permission và anyPermissions) */
+export function hasRouteAccess(
+  pathname: string,
+  permissions: readonly string[] = [],
+  role?: string,
+): boolean {
+  if (role === "ADMIN" || role === "SUPER_ADMIN") return true;
+
+  const anyCandidates = Object.keys(ROUTE_ANY_PERMISSIONS).filter(
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
+  );
+  anyCandidates.sort((a, b) => b.length - a.length);
+  if (anyCandidates[0]) {
+    const allowed = ROUTE_ANY_PERMISSIONS[anyCandidates[0]];
+    return allowed.some((p) => permissions.includes(p));
+  }
+
+  const required = resolveRoutePermission(pathname);
+  return required === undefined || permissions.includes(required);
 }
 
 /** Map role → i18n key hiển thị badge */

@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GenerateReportModal } from "@/components/features/reports";
+import { ResourceAuditTrailCard } from "@/components/features/audit-logs";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useSite } from "@/contexts/SiteContext";
@@ -189,8 +190,9 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
   }, [lastAlert, siteId, queryClient]);
 
   const handleUpdateSite = async (id: string, payload: UpdateSitePayload) => {
+    const previousOfficers = Array.isArray(site?.contactOfficers) ? site.contactOfficers : [];
     await updateSiteMutation.mutateAsync({ id, payload });
-    await syncSiteOfficersAccess(id, payload.contactOfficers, isAdmin);
+    await syncSiteOfficersAccess(id, payload.contactOfficers, isAdmin, previousOfficers);
     setEditModalOpen(false);
   };
 
@@ -363,6 +365,12 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
           />
         )}
       </div>
+
+      <ResourceAuditTrailCard
+        targetType="SITE"
+        targetId={site.id}
+        title={isVietnamese ? "Nhật ký Tác động Công trường" : "Site Audit Trail"}
+      />
 
       {/* Modals & Drawers */}
       <EditSiteModal

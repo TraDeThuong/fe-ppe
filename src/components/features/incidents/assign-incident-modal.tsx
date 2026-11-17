@@ -85,8 +85,6 @@ export function AssignIncidentModal({
   }, [allUsers, currentSite]);
 
   const [assignedToUserId, setAssignedToUserId] = useState<string>("");
-  const [priority, setPriority] = useState<"URGENT" | "HIGH" | "NORMAL">("HIGH");
-  const [deadlineMinutes, setDeadlineMinutes] = useState(30);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -108,16 +106,14 @@ export function AssignIncidentModal({
     if (!incident) return;
     setError(null);
 
-    const deadlineDate = new Date(Date.now() + deadlineMinutes * 60 * 1000).toISOString();
-
     try {
       await onSubmit(incident.id, {
+        assignedTo: assignedToUserId,
         assignedToUserId,
-        priority,
-        deadline: deadlineDate,
         note: note.trim() || undefined,
       });
 
+      setNote("");
       onOpenChange(false);
     } catch (err: unknown) {
       const msg =
@@ -271,53 +267,12 @@ export function AssignIncidentModal({
           </select>
         </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {/* Priority */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground">
-              {isVietnamese ? "Mức độ ưu tiên" : "Priority Level"}
-            </label>
-            <select
-              value={priority}
-              onChange={(e) => setPriority(e.target.value as "URGENT" | "HIGH" | "NORMAL")}
-              className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
-              disabled={loading}
-            >
-              <option value="URGENT">
-                {isVietnamese ? "Khẩn cấp (Xử lý ngay)" : "Urgent (Immediate)"}
-              </option>
-              <option value="HIGH">
-                {isVietnamese ? "Ưu tiên cao" : "High Priority"}
-              </option>
-              <option value="NORMAL">
-                {isVietnamese ? "Bình thường" : "Normal"}
-              </option>
-            </select>
-          </div>
-
-          {/* Deadline */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground">
-              {isVietnamese ? "Thời hạn giải quyết" : "Resolution SLA / Deadline"}
-            </label>
-            <select
-              value={deadlineMinutes}
-              onChange={(e) => setDeadlineMinutes(Number(e.target.value))}
-              className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
-              disabled={loading}
-            >
-              <option value={15}>{isVietnamese ? "15 phút" : "15 minutes"}</option>
-              <option value={30}>{isVietnamese ? "30 phút" : "30 minutes"}</option>
-              <option value={60}>{isVietnamese ? "1 giờ" : "1 hour"}</option>
-              <option value={120}>{isVietnamese ? "2 giờ" : "2 hours"}</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Note */}
+        {/* Note sent with realtime [ĐIỀU PHỐI] signal */}
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-muted-foreground">
-            {isVietnamese ? "Chỉ đạo & Ghi chú cho cán bộ" : "Directives & Instructions for Officer"}
+            {isVietnamese
+              ? "Chỉ đạo gửi kèm tín hiệu cho cán bộ (tùy chọn)"
+              : "Dispatch Directive Sent with Signal (optional)"}
           </label>
           <textarea
             value={note}

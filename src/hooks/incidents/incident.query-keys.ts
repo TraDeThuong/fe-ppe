@@ -36,4 +36,7 @@ export const incidentKeys = {
   assignments: (id: string) => [...incidentKeys.all, "assignments", id] as const,
   comments: (id: string) => [...incidentKeys.all, "comments", id] as const,
   integrity: (evidenceId: string) => [...incidentKeys.all, "integrity", evidenceId] as const,
+  evidences: () => [...incidentKeys.all, "evidences"] as const,
+  evidenceList: (params?: unknown) => [...incidentKeys.evidences(), "list", params ?? {}] as const,
+  evidenceDetail: (id: string) => [...incidentKeys.evidences(), "detail", id] as const,
 };

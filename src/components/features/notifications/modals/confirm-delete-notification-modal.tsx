@@ -1,6 +1,7 @@
 "use client";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { stripEmojis } from "@/lib/strip-emojis";
 import { useLocale } from "@/providers/locale-provider";
 import type { NotificationItemDto } from "@/types";
 
@@ -30,7 +31,7 @@ export function ConfirmDeleteNotificationModal({
       variant="danger"
       loading={loading}
       title={isVietnamese ? "Xóa thông báo khỏi hộp thư" : "Delete Notification"}
-      itemName={notification?.title}
+      itemName={stripEmojis(notification?.title)}
       description={
         isVietnamese
           ? "Hành động này sẽ xóa vĩnh viễn thông báo này khỏi hòm thư cá nhân của bạn. Dữ liệu sự cố vi phạm an toàn lao động vẫn được lưu trữ nguyên vẹn trên hệ thống."

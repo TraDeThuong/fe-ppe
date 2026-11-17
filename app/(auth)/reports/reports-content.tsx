@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   BarChart3,
+  Calculator,
   FilePlus2,
   FileText,
   History,
@@ -13,8 +14,10 @@ import {
 import { useTableState } from "@/hooks/use-table-state";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/dialog";
 import { toast } from "@/lib/toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import { reportingService } from "@/services/reporting.service";
 import {
@@ -22,10 +25,13 @@ import {
   ReportFilterToolbar,
   ReportTrendChart,
   ReportViolationDonut,
+  ReportCameraRanking,
   ReportTemplateCards,
   ReportHistoryTable,
   GenerateReportModal,
   ReportPreviewModal,
+  CreateReportTemplateModal,
+  AggregateDailyModal,
   type ReportStatKey,
   type TrendGroupBy,
 } from "@/components/features/reports";
@@ -35,6 +41,9 @@ import {
   useViolationDistribution,
   useCameraRankings,
   useReportTemplates,
+  useCreateReportTemplate,
+  useDeleteReportTemplate,
+  useAggregateDaily,
   useReportHistory,
   useGenerateReport,
   useIncidents,
@@ -101,10 +110,20 @@ function computeDateRange(period: string): { startDate: string; endDate: string 
 
 export default function ReportsContent() {
   const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const { user } = useAuth();
+  const canExportReports = useCan()("PPE_REPORTING_EXPORT");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const createTemplateMutation = useCreateReportTemplate();
+  const deleteTemplateMutation = useDeleteReportTemplate();
+  const aggregateDailyMutation = useAggregateDaily();
+  const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
+  const [isAggregateOpen, setIsAggregateOpen] = useState(false);
+  const [deleteTemplateTarget, setDeleteTemplateTarget] =
+    useState<ReportTemplateDto | null>(null);
 
   // URL state synchronization for stats
   const statParam = searchParams.get("stat");
@@ -574,7 +593,7 @@ export default function ReportsContent() {
         badge="Analytics & Exports"
         badgeIcon={BarChart3}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="ghost"
               onClick={handleRefreshAll}
@@ -585,14 +604,26 @@ export default function ReportsContent() {
               <span>{t("common.refresh")}</span>
             </Button>
 
-            <Button
-              variant="primary"
-              onClick={() => handleOpenGenerate()}
-              className="gap-1.5"
-            >
-              <FilePlus2 className="h-4 w-4" />
-              <span>{t("reports.toolbar.generateBtn")}</span>
-            </Button>
+            {canExportReports && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAggregateOpen(true)}
+                  className="gap-1.5"
+                >
+                  <Calculator className="h-4 w-4 text-primary" />
+                  <span>{isVietnamese ? "Tổng hợp ngày" : "Aggregate Daily"}</span>
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => handleOpenGenerate()}
+                  className="gap-1.5"
+                >
+                  <FilePlus2 className="h-4 w-4" />
+                  <span>{t("reports.toolbar.generateBtn")}</span>
+                </Button>
+              </>
+            )}
           </div>
         }
       />
@@ -668,6 +699,12 @@ export default function ReportsContent() {
             />
           </div>
         </div>
+
+        {/* Camera Violations Ranking */}
+        <ReportCameraRanking
+          rankings={cameraRankings}
+          loading={isOverallLoading}
+        />
       </section>
 
       {/* ===================================================================== */}
@@ -793,7 +830,14 @@ export default function ReportsContent() {
           <ReportTemplateCards
             templates={templates}
             hideHeader
+            canExport={canExportReports}
             onSelectTemplate={(tpl) => handleOpenGenerate(tpl)}
+            onCreateTemplate={
+              canExportReports ? () => setIsCreateTemplateOpen(true) : undefined
+            }
+            onDeleteTemplate={
+              canExportReports ? (tpl) => setDeleteTemplateTarget(tpl) : undefined
+            }
           />
         )}
       </section>
@@ -829,6 +873,37 @@ export default function ReportsContent() {
         onOpenChange={setIsPreviewOpen}
         report={previewReport}
         onDownload={(report) => reportingService.downloadReportFile(report)}
+      />
+
+      <CreateReportTemplateModal
+        open={isCreateTemplateOpen}
+        onOpenChange={setIsCreateTemplateOpen}
+        loading={createTemplateMutation.isPending}
+        onSubmit={(dto) => createTemplateMutation.mutateAsync(dto)}
+      />
+
+      <AggregateDailyModal
+        open={isAggregateOpen}
+        onOpenChange={setIsAggregateOpen}
+        sites={sites}
+        defaultSiteId={selectedSiteId}
+        loading={aggregateDailyMutation.isPending}
+        onSubmit={(payload) => aggregateDailyMutation.mutateAsync(payload)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteTemplateTarget)}
+        onClose={() => setDeleteTemplateTarget(null)}
+        onConfirm={async () => {
+          if (!deleteTemplateTarget) return;
+          await deleteTemplateMutation.mutateAsync(deleteTemplateTarget.id);
+          setDeleteTemplateTarget(null);
+        }}
+        variant="danger"
+        loading={deleteTemplateMutation.isPending}
+        title={isVietnamese ? "Xóa mẫu báo cáo?" : "Delete report template?"}
+        description={deleteTemplateTarget?.name || ""}
+        confirmText={t("common.delete")}
       />
     </div>
   );

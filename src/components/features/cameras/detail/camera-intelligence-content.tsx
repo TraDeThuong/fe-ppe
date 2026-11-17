@@ -14,6 +14,10 @@ import {
   EditCameraModal,
 } from "@/components/features/cameras";
 import {
+  extractPlottedBoundaryPoints,
+  RestrictedAreaDrawer,
+} from "@/components/features/sites/restricted-area-drawer";
+import {
   buildCameraHotConfigPayload,
   buildCameraStartPayload,
   canAutoStartCameraSource,
@@ -21,6 +25,7 @@ import {
   mergeCameraEvidences,
   normalizeIncidentEvidences,
   resolveCameraSourceIssue,
+  toLiveRoiPolygons,
   toSafeLiveCameraId,
 } from "@/components/features/cameras/camera-live-helpers";
 import {
@@ -30,6 +35,11 @@ import {
   useUpdateCamera,
   useUpdateCameraConfig,
 } from "@/hooks/cameras";
+import {
+  useDeleteCameraSafetyConfig,
+  useEffectiveSafetyConfig,
+  useUpdateCameraSafetyConfig,
+} from "@/hooks/sites/use-site-safety-config";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
@@ -48,7 +58,7 @@ import {
   type CameraStudioTab,
 } from "./camera-studio-header";
 import type { EvidenceItem, LiveStatsResponse } from "@/types/ai-test.types";
-import type { UpdateCameraPayload } from "@/types";
+import type { RestrictedAreaPoint, UpdateCameraPayload } from "@/types";
 
 export interface CameraIntelligenceContentProps {
   cameraId: string;
@@ -119,6 +129,14 @@ export function CameraIntelligenceContent({
   const updateCameraMutation = useUpdateCamera();
   const updateConfigMutation = useUpdateCameraConfig();
 
+  // Effective safety rules: Camera Override -> Site Level -> System Default
+  const { data: effectiveSafety } = useEffectiveSafetyConfig(
+    { siteId: camera?.siteId ?? "", cameraId: camera?.id },
+    Boolean(camera?.siteId && camera?.id),
+  );
+  const updateCameraSafetyMutation = useUpdateCameraSafetyConfig();
+  const deleteCameraSafetyMutation = useDeleteCameraSafetyConfig();
+
   const {
     engineOnline,
     engineError,
@@ -170,6 +188,7 @@ export function CameraIntelligenceContent({
 
   const [pingOpen, setPingOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [restrictedModalOpen, setRestrictedModalOpen] = useState(false);
   const [lightbox, setLightbox] = useState<{
     open: boolean;
     items: EvidenceItem[];
@@ -194,10 +213,10 @@ export function CameraIntelligenceContent({
     }
   }, [models, selectedModel]);
 
-  // Hydrate live defaults from CameraConfigItem once
+  // Hydrate live defaults from CameraConfigItem once (FPS / processing)
   useEffect(() => {
     if (!cameraConfig || configHydrated) return;
-    const defaults = deriveLiveDefaultsFromConfig(cameraConfig);
+    const defaults = deriveLiveDefaultsFromConfig(cameraConfig, effectiveSafety);
     setTargetFps(defaults.targetFps);
     setAiFps(defaults.aiFps);
     setEnableNoHelmet(defaults.enableNoHelmet);
@@ -205,7 +224,19 @@ export function CameraIntelligenceContent({
     setEnableRestrictedArea(defaults.enableRestrictedArea);
     setEnableSceneCut(defaults.enableSceneCut);
     setConfigHydrated(true);
-  }, [cameraConfig, configHydrated]);
+  }, [cameraConfig, configHydrated, effectiveSafety]);
+
+  // Re-sync safety rules whenever effective config (Site / Camera override) changes
+  useEffect(() => {
+    if (!effectiveSafety) return;
+    const defaults = deriveLiveDefaultsFromConfig(cameraConfig, effectiveSafety);
+    setEnableNoHelmet(defaults.enableNoHelmet);
+    setEnableNoVest(defaults.enableNoVest);
+    setEnableRestrictedArea(defaults.enableRestrictedArea);
+    setConfirmHelmetSec(defaults.confirmHelmetSec);
+    setConfirmVestSec(defaults.confirmVestSec);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveSafety]);
 
   const runningSession = useMemo(
     () => (camera ? getSessionForCamera(camera) : undefined),
@@ -322,6 +353,7 @@ export function CameraIntelligenceContent({
             enableNoVest,
             enableRestrictedArea,
             enableSceneCut,
+            roiPolygon: cameraConfig?.roiPolygon,
           },
           { productionMode },
         );
@@ -499,6 +531,7 @@ export function CameraIntelligenceContent({
         enableNoVest,
         enableRestrictedArea,
         enableSceneCut,
+        roiPolygon: cameraConfig?.roiPolygon,
       });
       await aiTestService.updateLiveConfig(liveCameraId, payload);
       toast.success(
@@ -564,14 +597,66 @@ export function CameraIntelligenceContent({
           enableNoHelmet || enableNoVest || enableRestrictedArea,
       },
     });
+    if (camera.siteId) {
+      await updateCameraSafetyMutation.mutateAsync({
+        cameraId: camera.id,
+        payload: {
+          confirmationDuration: confirmHelmetSec,
+          enableNoHelmet,
+          enableNoVest,
+          enableRestrictedArea,
+        },
+      });
+    }
   }, [
     camera,
+    confirmHelmetSec,
     enableNoHelmet,
     enableNoVest,
     enableRestrictedArea,
     targetFps,
+    updateCameraSafetyMutation,
     updateConfigMutation,
   ]);
+
+  const handleResetToSiteRules = useCallback(() => {
+    if (!camera) return;
+    void deleteCameraSafetyMutation.mutateAsync(camera.id).catch(() => undefined);
+  }, [camera, deleteCameraSafetyMutation]);
+
+  const handleSaveCameraPolygon = useCallback(
+    async (points: RestrictedAreaPoint[]) => {
+      if (!camera) return;
+      await updateConfigMutation.mutateAsync({
+        cameraId: camera.id,
+        payload: {
+          roiPolygon: points.length >= 3 ? points : null,
+          processingEnabled: true,
+        },
+      });
+      setEnableRestrictedArea(true);
+      if (stats?.status === "running") {
+        const roiPolygons = toLiveRoiPolygons(points);
+        await aiTestService
+          .updateLiveConfig(liveCameraId, {
+            roi_polygons: roiPolygons ?? undefined,
+            enable_restricted_area: true,
+          })
+          .catch(() => undefined);
+      }
+      toast.success(
+        isVietnamese
+          ? `Đã lưu & áp dụng Vùng cấm (${points.length} điểm) cho ${camera.name}`
+          : `Saved & applied Restricted Area (${points.length} pts) for ${camera.name}`,
+      );
+    },
+    [camera, isVietnamese, liveCameraId, stats?.status, updateConfigMutation],
+  );
+
+  const cameraRoiPointsCount = useMemo(
+    () => extractPlottedBoundaryPoints(cameraConfig?.roiPolygon).length,
+    [cameraConfig?.roiPolygon],
+  );
 
   const handleOpenLightbox = useCallback(
     (items: EvidenceItem[], index: number) => {
@@ -759,13 +844,18 @@ export function CameraIntelligenceContent({
           isStarting={isStarting}
           isApplyingConfig={isApplyingConfig}
           isStopping={isStopping}
-          isSavingDb={updateConfigMutation.isPending}
+          isSavingDb={updateConfigMutation.isPending || updateCameraSafetyMutation.isPending}
           canManageCamera={canManage}
           onStartStream={handleStartDefaultStream}
           onHotConfig={handleHotConfigClick}
           onStopStream={handleStopStreamClick}
           onSaveToDb={handleSaveToDbClick}
           onOpenDeviceTab={handleJumpToOverrideTab}
+          roiPointsCount={cameraRoiPointsCount}
+          onOpenRestrictedAreaModal={() => setRestrictedModalOpen(true)}
+          safetySource={effectiveSafety?.source}
+          onResetToSiteRules={handleResetToSiteRules}
+          isResettingRules={deleteCameraSafetyMutation.isPending}
         />
 
         <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12">
@@ -823,6 +913,7 @@ export function CameraIntelligenceContent({
           onApplyOverrideStream={handleApplyOverrideClick}
           onUploadOverrideStream={handleUploadOverrideClick}
           onClearOverride={handleClearOverride}
+          onOpenRestrictedAreaModal={() => setRestrictedModalOpen(true)}
         />
       </section>
 
@@ -854,6 +945,26 @@ export function CameraIntelligenceContent({
         camera={camera}
         onSubmit={handleEditCamera}
         loading={updateCameraMutation.isPending}
+      />
+
+      {/* Camera-specific Restricted Area (ROI) Plotting Modal */}
+      <RestrictedAreaDrawer
+        open={restrictedModalOpen}
+        onOpenChange={setRestrictedModalOpen}
+        siteId={camera.siteId}
+        siteName={camera.siteName || getSiteName(camera.siteId)}
+        defaultZoneId={camera.zoneId || undefined}
+        mode="camera-polygon"
+        fixedCamera={{
+          id: camera.id,
+          name: camera.name,
+          code: camera.code,
+          zoneId: camera.zoneId,
+          streamUrl: effectiveSource || camera.streamUrl,
+          snapshotUrl: camera.snapshotUrl,
+        }}
+        initialPoints={cameraConfig?.roiPolygon ?? null}
+        onSaveCameraPolygon={handleSaveCameraPolygon}
       />
     </div>
   );

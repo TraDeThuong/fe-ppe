@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { resolveRoutePermission } from "@/config/navigation";
+import { hasRouteAccess } from "@/config/navigation";
 import { MaintenanceAdminBanner } from "@/components/features/maintenance";
 import { useMaintenanceStatus } from "@/hooks/maintenance";
 import { SidebarBadgesProvider } from "@/hooks/app-shell";
@@ -24,9 +24,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
   const isMaintenanceActive = Boolean(maintenanceStatus?.enabled);
 
-  const required = resolveRoutePermission(pathname);
-  const forbidden =
-    required !== undefined && !user?.permissions.includes(required);
+  const forbidden = !hasRouteAccess(
+    pathname,
+    user?.permissions ?? [],
+    user?.role,
+  );
 
   return (
     <SidebarBadgesProvider>

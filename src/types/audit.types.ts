@@ -86,6 +86,8 @@ export interface ExportAuditParams {
   toDate?: string;
   startDate?: string;
   endDate?: string;
+  category?: string;
+  search?: string;
   action?: string;
   targetType?: string;
   status?: AuditLogStatus;

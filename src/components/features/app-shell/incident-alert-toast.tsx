@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   ShieldAlert,
   AlertTriangle,
@@ -15,7 +15,18 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
-import { resolveEvidenceUrl } from "@/lib/evidence-url";
+import {
+  extractEvidenceIdFromApiPath,
+  isDockerInternalMinioUrl,
+  resolveEvidenceUrl,
+} from "@/lib/evidence-url";
+import {
+  DISPATCH_SIGNAL_PREFIX,
+  RESOLVED_REPORT_PREFIX,
+} from "@/lib/incident-workflow";
+import { stripEmojis } from "@/lib/strip-emojis";
+import { incidentService } from "@/services/incident.service";
+import { EVIDENCE_TYPE } from "@/types/incident.types";
 
 export interface IncidentAlertPayload {
   incidentId?: string;
@@ -81,12 +92,12 @@ export function IncidentAlertToast({
   const severity = (data.severity || "CRITICAL").toUpperCase();
 
   const title =
-    data.title ||
+    stripEmojis(data.title) ||
     (isVietnamese
       ? `Phát hiện ${violationLabel}`
       : `${violationLabel} Detected`);
   const content =
-    data.content ||
+    stripEmojis(data.content) ||
     (isVietnamese
       ? "Hệ thống AI camera vừa phát hiện sự cố vi phạm an toàn lao động tại hiện trường."
       : "AI camera system detected a workplace safety compliance violation.");
@@ -124,8 +135,8 @@ export function IncidentAlertToast({
     return rawSite;
   }, [data.siteName, data.siteId, rawSite, getSiteName, isVietnamese]);
 
-  // Chuẩn hóa và fallback ảnh bằng chứng từ sessionStorage nếu payload SSE chưa kịp có evidenceUrl
-  const resolvedEvidenceUrl = useMemo(() => {
+  // Chuẩn hóa và fallback ảnh bằng chứng từ sessionStorage hoặc API /evidences/:id khi SSE gửi đường dẫn ảo
+  const directEvidenceInfo = useMemo(() => {
     let raw = data.evidenceUrl;
     if (!raw && typeof window !== "undefined" && incidentId) {
       try {
@@ -134,8 +145,73 @@ export function IncidentAlertToast({
         raw = undefined;
       }
     }
-    return raw ? resolveEvidenceUrl(raw) : null;
+    if (!raw) {
+      return { directUrl: null as string | null, virtualEvidenceId: null as string | null };
+    }
+    const virtualId = extractEvidenceIdFromApiPath(raw);
+    if (virtualId) {
+      return { directUrl: null, virtualEvidenceId: virtualId };
+    }
+    return { directUrl: resolveEvidenceUrl(raw), virtualEvidenceId: null };
   }, [data.evidenceUrl, incidentId]);
+
+  const [fetchedEvidenceUrl, setFetchedEvidenceUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    setFetchedEvidenceUrl(null);
+    if (directEvidenceInfo.directUrl) return;
+    const evId = directEvidenceInfo.virtualEvidenceId;
+    if (!evId && !incidentId) return;
+
+    let cancelled = false;
+    const loadEvidencePreview = async () => {
+      try {
+        let storageKeyOrUrl: string | undefined;
+        let resolvedEvId: string | undefined = evId || undefined;
+
+        if (evId) {
+          const ev = await incidentService.getEvidenceById(evId);
+          storageKeyOrUrl = ev.url || ev.storageKey;
+          resolvedEvId = ev.id;
+        } else if (incidentId) {
+          const inc = await incidentService.getIncidentById(incidentId);
+          const snap =
+            inc.evidences?.find((e) => e.evidenceType === EVIDENCE_TYPE.SNAPSHOT) ||
+            inc.evidences?.[0];
+          if (snap) {
+            storageKeyOrUrl = snap.url || snap.storageKey;
+            resolvedEvId = snap.id;
+          }
+        }
+
+        if (cancelled) return;
+        if (storageKeyOrUrl) {
+          setFetchedEvidenceUrl(resolveEvidenceUrl(storageKeyOrUrl));
+          return;
+        }
+
+        if (resolvedEvId) {
+          const dl = await incidentService.getEvidenceDownloadUrl(resolvedEvId, { action: "VIEW" });
+          if (!cancelled && dl.downloadUrl && !isDockerInternalMinioUrl(dl.downloadUrl)) {
+            setFetchedEvidenceUrl(dl.downloadUrl);
+          }
+        }
+      } catch {
+        // Bỏ qua lỗi mạng/quyền khi lấy thumbnail toast để không làm gián đoạn cảnh báo
+      }
+    };
+
+    void loadEvidencePreview();
+    return () => {
+      cancelled = true;
+    };
+  }, [directEvidenceInfo.directUrl, directEvidenceInfo.virtualEvidenceId, incidentId]);
+
+  const resolvedEvidenceUrl = directEvidenceInfo.directUrl || fetchedEvidenceUrl;
+
+  useEffect(() => {
+    setImgError(false);
+  }, [resolvedEvidenceUrl]);
 
   const handleClickCard = () => {
     if (incidentId) {
@@ -168,6 +244,19 @@ export function IncidentAlertToast({
   };
 
   const isCritical = severity === "CRITICAL";
+  const isManagerDispatch = content.trim().startsWith(DISPATCH_SIGNAL_PREFIX);
+  const isOfficerResolvedReport = content.trim().startsWith(RESOLVED_REPORT_PREFIX);
+  const headerTitleText = isOfficerResolvedReport
+    ? isVietnamese
+      ? "Báo cáo đã khắc phục"
+      : "Remediation Completed"
+    : isManagerDispatch
+      ? isVietnamese
+        ? "Nhiệm vụ từ Quản lý"
+        : "Manager Dispatch"
+      : isVietnamese
+        ? "Cảnh báo vi phạm an toàn"
+        : "Safety Violation Alert";
 
   return (
     <>
@@ -226,12 +315,14 @@ export function IncidentAlertToast({
               )}
               <span
                 className={`text-xs font-black tracking-wider uppercase ${
-                  isCritical
-                    ? "text-rose-600 dark:text-rose-400"
-                    : "text-amber-600 dark:text-amber-400"
+                  isOfficerResolvedReport
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : isCritical
+                      ? "text-rose-600 dark:text-rose-400"
+                      : "text-amber-600 dark:text-amber-400"
                 }`}
               >
-                {isVietnamese ? "Cảnh báo vi phạm an toàn" : "Safety Violation Alert"}
+                {headerTitleText}
               </span>
             </div>
 

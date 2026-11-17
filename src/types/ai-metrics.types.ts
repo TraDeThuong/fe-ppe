@@ -117,7 +117,10 @@ export interface AiPerformanceFilter {
   modelId?: string;
   versionId?: string;
   siteId?: string;
+  cameraId?: string;
   cameraCode?: string;
+  startDate?: string;
+  endDate?: string;
   fromDate?: string;
   toDate?: string;
 }

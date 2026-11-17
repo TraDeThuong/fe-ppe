@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertOctagon,
@@ -8,7 +9,6 @@ import {
   Clock,
   Cpu,
   HardHat,
-  Layers,
   Loader2,
   RefreshCw,
   RotateCcw,
@@ -21,13 +21,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { useCameras } from "@/hooks/cameras";
 import {
-  useCameraSafetyConfig,
-  useDeleteCameraSafetyConfig,
-  useEffectiveSafetyConfig,
   useInvalidateSafetyRuleCache,
   useSiteSafetyConfig,
   useSystemDefaultSafetyConfig,
-  useUpdateCameraSafetyConfig,
   useUpdateSiteSafetyConfig,
 } from "@/hooks/sites/use-site-safety-config";
 import { useCan } from "@/hooks/use-can";
@@ -36,7 +32,6 @@ import { aiMetricsService } from "@/services/ai-metrics.service";
 import type {
   AiModelDto,
   SiteItem,
-  UpdateCameraSafetyConfigPayload,
   UpdateSiteSafetyConfigPayload,
 } from "@/types";
 
@@ -159,111 +154,9 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
     setModelVersionId(systemDefault.modelVersionId ?? "");
   };
 
-  // ── Per-Camera Safety Rule Override & Effective Resolution ──────────────────
+  // ── Cameras inheriting this site standard ─────────────────────────────────
   const { data: camerasData } = useCameras({ siteId: site.id, limit: 100 });
   const cameras = useMemo(() => camerasData?.items ?? [], [camerasData]);
-  const [selectedCameraId, setSelectedCameraId] = useState<string>("");
-
-  useEffect(() => {
-    if (cameras.length > 0 && !cameras.some((c) => c.id === selectedCameraId)) {
-      setSelectedCameraId(cameras[0].id);
-    }
-  }, [cameras, selectedCameraId]);
-
-  const { data: cameraOverride } = useCameraSafetyConfig(
-    selectedCameraId,
-    Boolean(selectedCameraId),
-  );
-  const { data: effectiveConfig, isFetching: effectiveFetching } =
-    useEffectiveSafetyConfig(
-      { siteId: site.id, cameraId: selectedCameraId || undefined },
-      Boolean(site.id),
-    );
-  const updateCameraMutation = useUpdateCameraSafetyConfig();
-  const deleteCameraMutation = useDeleteCameraSafetyConfig();
-
-  // Camera override form states (null = inherit from site)
-  const [camConf, setCamConf] = useState<string>("");
-  const [camConfirm, setCamConfirm] = useState<string>("");
-  const [camCooldown, setCamCooldown] = useState<string>("");
-  const [camHelmet, setCamHelmet] = useState<"INHERIT" | "ON" | "OFF">("INHERIT");
-  const [camVest, setCamVest] = useState<"INHERIT" | "ON" | "OFF">("INHERIT");
-  const [camRestricted, setCamRestricted] = useState<"INHERIT" | "ON" | "OFF">("INHERIT");
-
-  useEffect(() => {
-    if (!cameraOverride) {
-      setCamConf("");
-      setCamConfirm("");
-      setCamCooldown("");
-      setCamHelmet("INHERIT");
-      setCamVest("INHERIT");
-      setCamRestricted("INHERIT");
-      return;
-    }
-    setCamConf(
-      cameraOverride.confidenceThreshold != null
-        ? String(cameraOverride.confidenceThreshold)
-        : "",
-    );
-    setCamConfirm(
-      cameraOverride.confirmationDuration != null
-        ? String(cameraOverride.confirmationDuration)
-        : "",
-    );
-    setCamCooldown(
-      cameraOverride.cooldownDuration != null
-        ? String(cameraOverride.cooldownDuration)
-        : "",
-    );
-    setCamHelmet(
-      cameraOverride.enableNoHelmet === null || cameraOverride.enableNoHelmet === undefined
-        ? "INHERIT"
-        : cameraOverride.enableNoHelmet
-          ? "ON"
-          : "OFF",
-    );
-    setCamVest(
-      cameraOverride.enableNoVest === null || cameraOverride.enableNoVest === undefined
-        ? "INHERIT"
-        : cameraOverride.enableNoVest
-          ? "ON"
-          : "OFF",
-    );
-    setCamRestricted(
-      cameraOverride.enableRestrictedArea === null ||
-        cameraOverride.enableRestrictedArea === undefined
-        ? "INHERIT"
-        : cameraOverride.enableRestrictedArea
-          ? "ON"
-          : "OFF",
-    );
-  }, [cameraOverride, selectedCameraId]);
-
-  const handleSaveCameraOverride = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCameraId || !canManage) return;
-
-    const payload: UpdateCameraSafetyConfigPayload = {
-      confidenceThreshold: camConf !== "" ? Number(camConf) : null,
-      confirmationDuration: camConfirm !== "" ? Number(camConfirm) : null,
-      cooldownDuration: camCooldown !== "" ? Math.round(Number(camCooldown)) : null,
-      enableNoHelmet:
-        camHelmet === "INHERIT" ? null : camHelmet === "ON",
-      enableNoVest: camVest === "INHERIT" ? null : camVest === "ON",
-      enableRestrictedArea:
-        camRestricted === "INHERIT" ? null : camRestricted === "ON",
-    };
-
-    await updateCameraMutation.mutateAsync({
-      cameraId: selectedCameraId,
-      payload,
-    });
-  };
-
-  const handleResetCameraOverride = async () => {
-    if (!selectedCameraId || !canManage) return;
-    await deleteCameraMutation.mutateAsync(selectedCameraId);
-  };
 
   const ppeRules = [
     {
@@ -688,244 +581,53 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
       </div>
 
       {/* =========================================================
-          4. PER-CAMERA OVERRIDES & EFFECTIVE RESOLUTION INSPECTOR
+      {/* =========================================================
+          4. INHERITANCE SUMMARY: Site standard -> all cameras
       ========================================================= */}
-      <section className="rounded-[22px] p-4 sm:p-5 border border-border/20 bg-surface shadow-[7px_7px_15px_var(--shadow-dark),-6px_-6px_15px_rgba(255,255,255,0.82)] dark:border-transparent dark:bg-card space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/20 pb-3.5">
-          <div className="flex items-center gap-3">
+      <section className="rounded-[22px] p-4 sm:p-5 border border-border/20 bg-surface shadow-[7px_7px_15px_var(--shadow-dark),-6px_-6px_15px_rgba(255,255,255,0.82)] dark:border-transparent dark:bg-card space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Camera className="h-5 w-5" />
             </div>
-            <div>
+            <div className="space-y-1">
               <h4 className="text-sm font-extrabold text-foreground">
                 {isVietnamese
-                  ? "Ghi đè Quy tắc Theo Camera & Kiểm tra Cấu hình Hiệu lực"
-                  : "Per-Camera Rule Overrides & Effective Config Resolution"}
+                  ? "Phạm vi áp dụng cho Camera"
+                  : "Camera Application Scope"}
               </h4>
               <p className="text-[11px] text-muted-foreground">
                 {isVietnamese
-                  ? "Phân tầng kế thừa: Camera Override → Cấu hình Công trường → Mặc định Hệ thống."
-                  : "Inheritance hierarchy: Camera Override → Site Level → System Default."}
+                  ? `Tiêu chuẩn trên tự động áp dụng cho toàn bộ ${cameras.length} camera thuộc công trường này. Nếu một camera cần cấu hình riêng (ví dụ góc quay khu vực cẩu tháp), hãy vào Camera Studio của camera đó để ghi đè — có thể khôi phục về chuẩn công trường bất cứ lúc nào.`
+                  : `This standard automatically applies to all ${cameras.length} cameras at this site. To customize a single camera, open its Camera Studio and override there — you can reset to the site standard anytime.`}
+              </p>
+              <p className="flex flex-wrap items-center gap-1.5 pt-1 font-mono text-[10px] font-bold text-muted-foreground">
+                <span className="rounded-md bg-foreground/[0.05] px-1.5 py-0.5">
+                  {isVietnamese ? "Mặc định hệ thống" : "System Default"}
+                </span>
+                <span>→</span>
+                <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-primary">
+                  {isVietnamese ? "Chuẩn Công trường" : "Site Standard"}
+                </span>
+                <span>→</span>
+                <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-amber-600 dark:text-amber-400">
+                  {isVietnamese ? "Ghi đè riêng Camera (tuỳ chọn)" : "Camera Override (optional)"}
+                </span>
               </p>
             </div>
           </div>
-
-          {cameras.length > 0 && (
-            <select
-              value={selectedCameraId}
-              onChange={(e) => setSelectedCameraId(e.target.value)}
-              aria-label={isVietnamese ? "Chọn camera" : "Select camera"}
-              className="rounded-xl border border-border/40 bg-surface-elevated px-3 py-2 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
-            >
-              {cameras.map((cam) => (
-                <option key={cam.id} value={cam.id}>
-                  {cam.code} — {cam.name}
-                </option>
-              ))}
-            </select>
-          )}
+          <Link
+            href={`/cameras?siteId=${site.id}`}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-border/40 bg-surface-elevated px-3 py-2 text-xs font-bold text-primary hover:bg-primary/10"
+          >
+            <Camera className="h-3.5 w-3.5" />
+            <span>
+              {isVietnamese
+                ? `Xem ${cameras.length} camera`
+                : `View ${cameras.length} cameras`}
+            </span>
+          </Link>
         </div>
-
-        {cameras.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-4 text-center">
-            {isVietnamese
-              ? "Công trường chưa có camera nào để cấu hình ghi đè."
-              : "No cameras registered at this site yet."}
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {/* Effective Config Preview */}
-            <div className="rounded-2xl border border-border/30 bg-background/50 p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 text-primary" />
-                  {isVietnamese ? "Cấu hình Hiệu lực (Effective)" : "Effective Resolved Config"}
-                </span>
-                {effectiveConfig?.source && (
-                  <span className="rounded-md bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
-                    {effectiveConfig.source}
-                  </span>
-                )}
-              </div>
-
-              {effectiveFetching && !effectiveConfig ? (
-                <div className="h-24 animate-pulse rounded-xl bg-surface-elevated/40" />
-              ) : effectiveConfig ? (
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-xl bg-surface p-2.5 border border-border/20">
-                    <span className="text-[10px] text-muted-foreground">Confidence</span>
-                    <p className="font-mono font-bold text-foreground">
-                      {Math.round((effectiveConfig.confidenceThreshold ?? 0.8) * 100)}%
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-surface p-2.5 border border-border/20">
-                    <span className="text-[10px] text-muted-foreground">Confirm / Cooldown</span>
-                    <p className="font-mono font-bold text-foreground">
-                      {effectiveConfig.confirmationDuration}s / {effectiveConfig.cooldownDuration}s
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-surface p-2.5 border border-border/20">
-                    <span className="text-[10px] text-muted-foreground">Rules Active</span>
-                    <p className="font-mono font-semibold text-[11px] text-primary">
-                      {[
-                        effectiveConfig.rules?.enableNoHelmet && "HELMET",
-                        effectiveConfig.rules?.enableNoVest && "VEST",
-                        effectiveConfig.rules?.enableRestrictedArea && "ZONE",
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "NONE"}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-surface p-2.5 border border-border/20">
-                    <span className="text-[10px] text-muted-foreground">
-                      {isVietnamese ? "Vùng cấm / FPS" : "Danger Zones / FPS"}
-                    </span>
-                    <p className="font-mono font-bold text-foreground">
-                      {effectiveConfig.restrictedAreas?.length ?? 0} zones ·{" "}
-                      {effectiveConfig.captureFps ?? "--"} FPS
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            {/* Per-Camera Override Editor */}
-            <form
-              onSubmit={handleSaveCameraOverride}
-              className="rounded-2xl border border-border/30 bg-background/50 p-4 space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-foreground">
-                  {isVietnamese ? "Ghi đè riêng cho Camera" : "Camera Override Values"}
-                </span>
-                {canManage && (
-                  <button
-                    type="button"
-                    onClick={() => void handleResetCameraOverride()}
-                    disabled={deleteCameraMutation.isPending}
-                    className="text-[11px] font-semibold text-danger hover:underline disabled:opacity-50"
-                  >
-                    {isVietnamese ? "Xóa ghi đè (Kế thừa Site)" : "Reset to Site"}
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
-                <div>
-                  <label className="text-[10px] text-muted-foreground">
-                    Confidence (0.1–0.99)
-                  </label>
-                  <input
-                    type="number"
-                    min="0.1"
-                    max="0.99"
-                    step="0.05"
-                    placeholder="Inherit"
-                    disabled={!canManage}
-                    value={camConf}
-                    onChange={(e) => setCamConf(e.target.value)}
-                    className="mt-1 h-8 w-full rounded-lg border border-border/40 bg-surface px-2 font-mono text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-muted-foreground">
-                    Confirm (s)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="60"
-                    step="0.5"
-                    placeholder="Inherit"
-                    disabled={!canManage}
-                    value={camConfirm}
-                    onChange={(e) => setCamConfirm(e.target.value)}
-                    className="mt-1 h-8 w-full rounded-lg border border-border/40 bg-surface px-2 font-mono text-xs"
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] text-muted-foreground">
-                    Cooldown (s)
-                  </label>
-                  <input
-                    type="number"
-                    min="5"
-                    max="300"
-                    step="5"
-                    placeholder="Inherit"
-                    disabled={!canManage}
-                    value={camCooldown}
-                    onChange={(e) => setCamCooldown(e.target.value)}
-                    className="mt-1 h-8 w-full rounded-lg border border-border/40 bg-surface px-2 font-mono text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
-                <div>
-                  <label className="text-[10px] text-muted-foreground">NO_HELMET</label>
-                  <select
-                    value={camHelmet}
-                    disabled={!canManage}
-                    onChange={(e) => setCamHelmet(e.target.value as any)}
-                    className="mt-1 h-8 w-full rounded-lg border border-border/40 bg-surface px-2 text-xs"
-                  >
-                    <option value="INHERIT">Inherit</option>
-                    <option value="ON">ON</option>
-                    <option value="OFF">OFF</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] text-muted-foreground">NO_VEST</label>
-                  <select
-                    value={camVest}
-                    disabled={!canManage}
-                    onChange={(e) => setCamVest(e.target.value as any)}
-                    className="mt-1 h-8 w-full rounded-lg border border-border/40 bg-surface px-2 text-xs"
-                  >
-                    <option value="INHERIT">Inherit</option>
-                    <option value="ON">ON</option>
-                    <option value="OFF">OFF</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[10px] text-muted-foreground">RESTRICTED</label>
-                  <select
-                    value={camRestricted}
-                    disabled={!canManage}
-                    onChange={(e) => setCamRestricted(e.target.value as any)}
-                    className="mt-1 h-8 w-full rounded-lg border border-border/40 bg-surface px-2 text-xs"
-                  >
-                    <option value="INHERIT">Inherit</option>
-                    <option value="ON">ON</option>
-                    <option value="OFF">OFF</option>
-                  </select>
-                </div>
-              </div>
-
-              {canManage && (
-                <div className="flex justify-end pt-1">
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="sm"
-                    disabled={updateCameraMutation.isPending}
-                    className="h-8 gap-1.5 rounded-xl text-xs"
-                  >
-                    {updateCameraMutation.isPending ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Save className="h-3.5 w-3.5" />
-                    )}
-                    <span>
-                      {isVietnamese ? "Lưu ghi đè Camera" : "Save Camera Override"}
-                    </span>
-                  </Button>
-                </div>
-              )}
-            </form>
-          </div>
-        )}
       </section>
     </div>
   );

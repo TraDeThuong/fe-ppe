@@ -13,3 +13,4 @@ export * from "./sound.service";
 export * from "./maintenance.service";
 export * from "./media.service";
 export * from "./cron.service";
+export * from "./integration.service";

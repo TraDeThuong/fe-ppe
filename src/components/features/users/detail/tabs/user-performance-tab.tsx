@@ -315,7 +315,7 @@ export function UserPerformanceTab({
               {feedback.comment}
             </p>
             <p className="mt-2.5 inline-block rounded-lg bg-background px-2.5 py-1 text-[11px] font-bold text-primary shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]">
-              💡 {isVietnamese ? "Khuyến nghị: " : "Recommendation: "}
+              {isVietnamese ? "Khuyến nghị: " : "Recommendation: "}
               {feedback.recommendation}
             </p>
           </div>

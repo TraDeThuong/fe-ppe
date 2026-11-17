@@ -1,22 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { mapTableSort } from "@/lib/table-utils";
 import { useTableState } from "@/hooks/use-table-state";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  Plus,
   RefreshCw,
   ShieldAlert,
   Trash2,
+  UserCheck,
 } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { useLocale } from "@/providers/locale-provider";
+import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
+import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
+import { toast } from "@/lib/toast";
+import { incidentService } from "@/services/incident.service";
+import {
+  dispatchIncidentsWithSignal,
+  resolveIncidentsWithReport,
+} from "@/lib/incident-actions";
+import {
+  isIncidentAssignedToUser,
+  runInBatches,
+} from "@/lib/incident-workflow";
 import {
   IncidentKpiSummary,
   IncidentFilterToolbar,
@@ -25,11 +39,17 @@ import {
   AssignIncidentModal,
   ResolveIncidentModal,
   CloseIncidentDialog,
+  CreateIncidentModal,
+  EditIncidentModal,
+  BatchDispatchModal,
+  BatchResolveModal,
   type IncidentStatKey,
 } from "@/components/features/incidents";
 import {
   useIncidents,
   useIncidentStatusCounts,
+  useCreateIncident,
+  useUpdateIncident,
   useReviewIncident,
   useBatchReviewIncidents,
   useAssignOfficer,
@@ -37,6 +57,7 @@ import {
   useCloseIncident,
   useDeleteIncident,
 } from "@/hooks";
+import { useCan } from "@/hooks/use-can";
 import { useSite } from "@/contexts/SiteContext";
 import type { IncidentItem, IncidentQueryParams } from "@/types";
 
@@ -63,7 +84,10 @@ export default function IncidentsContent() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { siteId: globalSiteId, setSiteId: setGlobalSiteId } = useSite();
+  const { user } = useAuth();
   const { lastAlert, isConnected } = useRealtime();
+  const isOfficerRole = (user?.role || "").toUpperCase() === "SAFETY_OFFICER";
+  const [assignedToMeOnly, setAssignedToMeOnly] = useState(false);
 
   const urlCameraId = searchParams.get("cameraId") || "";
   const urlSiteId = searchParams.get("siteId") || "";
@@ -194,6 +218,11 @@ export default function IncidentsContent() {
   const incidents = incidentData?.items || [];
   const meta = incidentData?.meta;
 
+  const displayedIncidents = useMemo(() => {
+    if (!assignedToMeOnly || !user?.id) return incidents;
+    return incidents.filter((inc) => isIncidentAssignedToUser(inc, user.id));
+  }, [assignedToMeOnly, incidents, user?.id]);
+
   // Tự động làm mới dữ liệu thời gian thực khi AI Camera phát hiện vi phạm PPE mới
   useEffect(() => {
     if (!lastAlert) return;
@@ -236,15 +265,20 @@ export default function IncidentsContent() {
   const overviewIncidents = statsOverviewData?.items || incidents;
 
   // Mutations
+  const can = useCan();
+  const canCreateIncident = can("PPE_INCIDENT_MANAGE");
+  const canCloseIncident = can("PPE_INCIDENT_MANAGE");
+  const createMutation = useCreateIncident();
+  const updateMutation = useUpdateIncident();
   const reviewMutation = useReviewIncident();
   const batchReviewMutation = useBatchReviewIncidents();
-  const assignMutation = useAssignOfficer();
-  const resolveMutation = useResolveIncident();
   const closeMutation = useCloseIncident();
   const deleteMutation = useDeleteIncident();
 
   // Modals state
   const [selectedIncident, setSelectedIncident] = useState<IncidentItem | null>(null);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [isResolveOpen, setIsResolveOpen] = useState(false);
@@ -253,6 +287,16 @@ export default function IncidentsContent() {
   const [batchRejectIds, setBatchRejectIds] = useState<string[] | null>(null);
   const [batchRejectNote, setBatchRejectNote] = useState("");
   const [batchRejectError, setBatchRejectError] = useState<string | null>(null);
+  const [batchDispatchItems, setBatchDispatchItems] = useState<IncidentItem[] | null>(null);
+  const [batchResolveItems, setBatchResolveItems] = useState<IncidentItem[] | null>(null);
+  const [batchActionPending, setBatchActionPending] = useState(false);
+  const [singleActionPending, setSingleActionPending] = useState(false);
+
+  const invalidateAllIncidentQueries = () => {
+    void queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: incidentKeys.statusCountsRoot() });
+    void queryClient.invalidateQueries({ queryKey: reportingKeys.all });
+  };
 
   // Actions
   const handleOpenReview = (incident: IncidentItem) => {
@@ -316,6 +360,112 @@ export default function IncidentsContent() {
   const handleOpenClose = (incident: IncidentItem) => {
     setSelectedIncident(incident);
     setIsCloseOpen(true);
+  };
+
+  const handleConfirmBatchDispatch = async (payload: {
+    assignedTo: string;
+    note?: string;
+  }) => {
+    if (!batchDispatchItems || batchDispatchItems.length === 0) return;
+    setBatchActionPending(true);
+    try {
+      const res = await dispatchIncidentsWithSignal({
+        incidents: batchDispatchItems,
+        assignedTo: payload.assignedTo,
+        note: payload.note,
+        managerName: user?.fullName || user?.email || undefined,
+      });
+      invalidateAllIncidentQueries();
+      if (res.assignedCount > 0) {
+        toast.success(
+          isVietnamese
+            ? `Đã duyệt & giao ${res.assignedCount} sự cố cho cán bộ${res.signalSent ? " (đã gửi 1 tín hiệu điều phối)" : ""}.`
+            : `Confirmed & dispatched ${res.assignedCount} incidents${res.signalSent ? " (1 signal sent)" : ""}.`,
+        );
+      }
+      if (res.failedCount > 0) {
+        toast.error(
+          isVietnamese
+            ? `${res.failedCount} sự cố chưa thể phân công.`
+            : `${res.failedCount} incidents failed to assign.`,
+        );
+      }
+      setBatchDispatchItems(null);
+    } finally {
+      setBatchActionPending(false);
+    }
+  };
+
+  const handleConfirmBatchResolve = async (payload: {
+    resolutionNote: string;
+    afterFixFile?: File | null;
+    closeImmediately?: boolean;
+  }) => {
+    if (!batchResolveItems || batchResolveItems.length === 0) return;
+    setBatchActionPending(true);
+    try {
+      const res = await resolveIncidentsWithReport({
+        incidents: batchResolveItems,
+        resolutionNote: payload.resolutionNote,
+        afterFixFile: payload.afterFixFile,
+        closeImmediately: payload.closeImmediately,
+        officerName: user?.fullName || user?.email || undefined,
+      });
+      invalidateAllIncidentQueries();
+      if (res.resolvedCount > 0) {
+        toast.success(
+          res.closedCount > 0
+            ? isVietnamese
+              ? `Đã khắc phục & đóng ${res.closedCount} sự cố.`
+              : `Resolved & closed ${res.closedCount} incidents.`
+            : isVietnamese
+              ? `Đã báo cáo khắc phục ${res.resolvedCount} sự cố${res.reportSignalSent ? " và gửi tín hiệu tới Quản lý" : ""}.`
+              : `Reported remediation for ${res.resolvedCount} incidents.`,
+        );
+      }
+      if (res.failedCount > 0) {
+        toast.error(
+          isVietnamese
+            ? `${res.failedCount} sự cố chưa thể cập nhật (kiểm tra quyền phân công).`
+            : `${res.failedCount} incidents failed to resolve.`,
+        );
+      }
+      setBatchResolveItems(null);
+    } finally {
+      setBatchActionPending(false);
+    }
+  };
+
+  const handleBatchClose = async (items: IncidentItem[]) => {
+    if (items.length === 0) return;
+    setBatchActionPending(true);
+    try {
+      const { succeeded, failed } = await runInBatches(items, 4, (inc) =>
+        incidentService.closeIncident(inc.id, {}),
+      );
+      invalidateAllIncidentQueries();
+      if (succeeded.length > 0) {
+        toast.success(
+          isVietnamese
+            ? `Đã nghiệm thu và đóng ${succeeded.length} hồ sơ sự cố.`
+            : `Accepted and closed ${succeeded.length} incidents.`,
+        );
+      }
+      if (failed.length > 0) {
+        toast.error(
+          isVietnamese
+            ? `${failed.length} sự cố chưa thể đóng.`
+            : `${failed.length} incidents failed to close.`,
+        );
+      }
+    } finally {
+      setBatchActionPending(false);
+    }
+  };
+
+  const handleOpenEdit = (incident: IncidentItem) => {
+    setSelectedIncident(incident);
+    setIsEditOpen(true);
   };
 
   const handleOpenDelete = (incident: IncidentItem) => {
@@ -446,6 +596,28 @@ export default function IncidentsContent() {
               </span>
             </span>
             <Button
+              type="button"
+              variant={assignedToMeOnly ? "primary" : "outline"}
+              onClick={() => setAssignedToMeOnly((v) => !v)}
+              className="gap-1.5"
+              title={
+                isVietnamese
+                  ? "Lọc các sự cố đang được phân công cho tài khoản của bạn"
+                  : "Filter incidents assigned to your account"
+              }
+            >
+              <UserCheck className="h-4 w-4" />
+              <span>
+                {isOfficerRole
+                  ? isVietnamese
+                    ? "Việc được giao cho tôi"
+                    : "Assigned to Me"
+                  : isVietnamese
+                    ? "Việc của tôi"
+                    : "My Tasks"}
+              </span>
+            </Button>
+            <Button
 
               variant="ghost"
 
@@ -459,6 +631,16 @@ export default function IncidentsContent() {
               <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
               <span>{t("common.refresh")}</span>
             </Button>
+            {canCreateIncident && (
+              <Button
+                variant="primary"
+                onClick={() => setIsCreateOpen(true)}
+                className="gap-1.5"
+              >
+                <Plus className="h-4 w-4" />
+                <span>{isVietnamese ? "Báo cáo Sự cố" : "Report Incident"}</span>
+              </Button>
+            )}
           </div>
         }
 
@@ -512,7 +694,7 @@ export default function IncidentsContent() {
       <div className="min-w-0">
         <IncidentTable
 
-          incidents={incidents}
+          incidents={displayedIncidents}
 
           loading={isLoading}
 
@@ -522,11 +704,23 @@ export default function IncidentsContent() {
 
           onBatchReview={handleBatchReview}
 
+          onBatchDispatch={(items) => setBatchDispatchItems(items)}
+
+          onBatchResolve={(items) => setBatchResolveItems(items)}
+
+          onBatchClose={handleBatchClose}
+
           batchReviewPending={batchReviewMutation.isPending}
+
+          batchActionPending={batchActionPending}
 
           onAssign={handleOpenAssign}
 
           onResolve={handleOpenResolve}
+
+          onClose={handleOpenClose}
+
+          onEdit={handleOpenEdit}
 
           onDelete={handleOpenDelete}
 
@@ -589,10 +783,30 @@ export default function IncidentsContent() {
 
         incident={selectedIncident}
 
-        loading={assignMutation.isPending}
+        loading={singleActionPending}
 
-        onSubmit={async (incidentId, payload) => {
-          await assignMutation.mutateAsync({ incidentId, payload });
+        onSubmit={async (_incidentId, payload) => {
+          if (!selectedIncident) return;
+          const targetId = payload.assignedTo || payload.assignedToUserId || "";
+          setSingleActionPending(true);
+          try {
+            const res = await dispatchIncidentsWithSignal({
+              incidents: [selectedIncident],
+              assignedTo: targetId,
+              note: payload.note,
+              managerName: user?.fullName || user?.email || undefined,
+            });
+            invalidateAllIncidentQueries();
+            if (res.assignedCount > 0) {
+              toast.success(
+                isVietnamese
+                  ? `Đã phân công & phát tín hiệu xử lý cho sự cố #${selectedIncident.id.slice(0, 8)}.`
+                  : `Dispatched incident #${selectedIncident.id.slice(0, 8)} to officer.`,
+              );
+            }
+          } finally {
+            setSingleActionPending(false);
+          }
         }}
 
       />
@@ -605,12 +819,65 @@ export default function IncidentsContent() {
 
         incident={selectedIncident}
 
-        loading={resolveMutation.isPending}
+        loading={singleActionPending}
 
-        onSubmit={async (id, payload) => {
-          await resolveMutation.mutateAsync({ id, payload });
+        canClose={canCloseIncident}
+
+        onSubmit={async (_id, payload) => {
+          if (!selectedIncident) return;
+          setSingleActionPending(true);
+          try {
+            const res = await resolveIncidentsWithReport({
+              incidents: [selectedIncident],
+              resolutionNote: payload.resolutionNote,
+              afterFixFile: payload.afterFixFile,
+              closeImmediately: payload.closeImmediately,
+              officerName: user?.fullName || user?.email || undefined,
+            });
+            invalidateAllIncidentQueries();
+            if (res.resolvedCount > 0) {
+              toast.success(
+                res.closedCount > 0
+                  ? isVietnamese
+                    ? "Đã xác nhận khắc phục và đóng hồ sơ sự cố."
+                    : "Incident resolved and closed."
+                  : isVietnamese
+                    ? "Đã gửi báo cáo khắc phục tới Quản lý chờ nghiệm thu."
+                    : "Remediation report sent to Manager.",
+              );
+            } else if (res.failedCount > 0) {
+              throw new Error(
+                isVietnamese
+                  ? "Không thể báo cáo khắc phục (kiểm tra quyền phân công)."
+                  : "Unable to resolve incident.",
+              );
+            }
+          } finally {
+            setSingleActionPending(false);
+          }
         }}
 
+      />
+
+      <BatchDispatchModal
+        open={Boolean(batchDispatchItems?.length)}
+        onOpenChange={(open) => {
+          if (!open) setBatchDispatchItems(null);
+        }}
+        incidents={batchDispatchItems || []}
+        loading={batchActionPending}
+        onSubmit={handleConfirmBatchDispatch}
+      />
+
+      <BatchResolveModal
+        open={Boolean(batchResolveItems?.length)}
+        onOpenChange={(open) => {
+          if (!open) setBatchResolveItems(null);
+        }}
+        incidents={batchResolveItems || []}
+        loading={batchActionPending}
+        canClose={canCloseIncident}
+        onSubmit={handleConfirmBatchResolve}
       />
 
       <CloseIncidentDialog
@@ -733,6 +1000,26 @@ export default function IncidentsContent() {
           </Button>
         </div>
       </Dialog>
+
+      <CreateIncidentModal
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        defaultSiteId={siteIdFilter}
+        loading={createMutation.isPending}
+        onSubmit={async (payload) => {
+          await createMutation.mutateAsync(payload);
+        }}
+      />
+
+      <EditIncidentModal
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        incident={selectedIncident}
+        loading={updateMutation.isPending}
+        onSubmit={async (id, payload) => {
+          await updateMutation.mutateAsync({ id, payload });
+        }}
+      />
     </div>
   );
 }

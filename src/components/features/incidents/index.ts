@@ -15,3 +15,8 @@ export * from "./assign-incident-modal";
 export * from "./resolve-incident-modal";
 export * from "./incident-stats-detail-panel";
 export * from "./close-incident-dialog";
+export * from "./create-incident-modal";
+export * from "./edit-incident-modal";
+export * from "./attach-evidence-modal";
+export * from "./batch-dispatch-modal";
+export * from "./batch-resolve-modal";

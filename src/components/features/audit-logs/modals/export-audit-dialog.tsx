@@ -11,6 +11,7 @@ export interface ExportAuditDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onExport: (params: ExportAuditParams) => Promise<void>;
+  activeFilters?: Partial<ExportAuditParams>;
   loading?: boolean;
 }
 
@@ -18,13 +19,24 @@ export function ExportAuditDialog({
   open,
   onOpenChange,
   onExport,
+  activeFilters,
   loading = false,
 }: ExportAuditDialogProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVi = locale === "vi-VN";
 
   const [format, setFormat] = useState<"csv" | "json">("csv");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [applyActiveFilters, setApplyActiveFilters] = useState(true);
+
+  const hasToolbarFilters = Boolean(
+    activeFilters?.action ||
+      activeFilters?.targetType ||
+      activeFilters?.status ||
+      activeFilters?.search ||
+      (activeFilters?.category && activeFilters.category !== "ALL"),
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,6 +44,7 @@ export function ExportAuditDialog({
       format,
       fromDate: fromDate || undefined,
       toDate: toDate || undefined,
+      ...(applyActiveFilters && activeFilters ? activeFilters : {}),
     });
     onOpenChange(false);
   };
@@ -110,6 +123,22 @@ export function ExportAuditDialog({
             />
           </div>
         </div>
+
+        {hasToolbarFilters && (
+          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border/30 bg-surface p-2.5 text-xs text-foreground">
+            <input
+              type="checkbox"
+              checked={applyActiveFilters}
+              onChange={(e) => setApplyActiveFilters(e.target.checked)}
+              className="accent-primary"
+            />
+            <span>
+              {isVi
+                ? "Áp dụng bộ lọc tìm kiếm / danh mục hiện tại"
+                : "Apply current toolbar filters"}
+            </span>
+          </label>
+        )}
 
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-border/30">
           <Button

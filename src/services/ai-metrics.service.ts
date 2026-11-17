@@ -10,6 +10,7 @@ import type {
   CreateAiModelVersionDto,
   LatencyDataPoint,
   PerClassMetric,
+  RecordAiPerformanceDto,
 } from "@/types";
 
 interface ApiResponse<T> {
@@ -63,8 +64,21 @@ export const aiMetricsService = {
    */
   async getAiPerformance(filter?: AiPerformanceFilter): Promise<AiPerformanceDto | null> {
     try {
+      const apiParams = filter
+        ? {
+            ...(filter.cameraId ? { cameraId: filter.cameraId } : {}),
+            ...(filter.startDate || filter.fromDate
+              ? { startDate: filter.startDate ?? filter.fromDate }
+              : {}),
+            ...(filter.endDate || filter.toDate
+              ? { endDate: filter.endDate ?? filter.toDate }
+              : {}),
+          }
+        : undefined;
       const [statsRes, modelsRes, activeVersionRes] = await Promise.all([
-        apiClient.get<unknown>("/statistics/ai-performance", { params: filter }).catch(() => null),
+        apiClient
+          .get<unknown>("/statistics/ai-performance", { params: apiParams })
+          .catch(() => null),
         this.getAiModels(),
         this.getActiveModelVersion(),
       ]);
@@ -294,5 +308,14 @@ export const aiMetricsService = {
       `/ai-models/${modelId}/versions/${versionId}/deploy`
     );
     return unwrapData<AiModelVersionDto>(res);
+  },
+
+  /**
+   * POST /api/v1/statistics/record-ai-performance
+   * Ghi nhận benchmark hiệu năng FPS / Latency thực tế của camera & model version
+   */
+  async recordAiPerformance(dto: RecordAiPerformanceDto): Promise<AiPerformanceStatDto> {
+    const res = await apiClient.post<unknown>("/statistics/record-ai-performance", dto);
+    return unwrapData<AiPerformanceStatDto>(res);
   },
 };

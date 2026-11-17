@@ -177,7 +177,7 @@ export interface UpdateCameraConfigPayload {
   captureFps?: number;
   resolution?: string;
   processingEnabled?: boolean;
-  roiPolygon?: RoiPolygon;
+  roiPolygon?: RoiPolygon | null;
   motionSensitivity?: number;
 }
 

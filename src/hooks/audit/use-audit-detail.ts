@@ -12,3 +12,18 @@ export function useAuditDetail(id: string | null) {
     staleTime: 60 * 1000,
   });
 }
+
+export function useResourceAuditTrail(
+  targetType: string,
+  targetId: string | undefined | null,
+  limit = 20,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: auditQueryKeys.resourceTrail(targetType, targetId ?? "", limit),
+    queryFn: () =>
+      auditService.getResourceTrail(targetType, targetId!, { limit }),
+    enabled: Boolean(targetType && targetId) && enabled,
+    staleTime: 30 * 1000,
+  });
+}

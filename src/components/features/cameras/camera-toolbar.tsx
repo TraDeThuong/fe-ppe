@@ -16,6 +16,8 @@ export interface CameraToolbarProps {
   onSearchChange: (value: string) => void;
   statusFilter: string;
   onStatusFilterChange: (value: string) => void;
+  sourceTypeFilter?: string;
+  onSourceTypeFilterChange?: (value: string) => void;
   siteFilter?: string;
   onSiteFilterChange?: (value: string) => void;
   zoneFilter?: string;
@@ -34,6 +36,8 @@ export function CameraToolbar({
   onSearchChange,
   statusFilter,
   onStatusFilterChange,
+  sourceTypeFilter = "",
+  onSourceTypeFilterChange,
   siteFilter = "",
   onSiteFilterChange,
   zoneFilter = "",
@@ -99,16 +103,28 @@ export function CameraToolbar({
   );
 
   const hasFilter = Boolean(
-    search.trim() || statusFilter || siteFilter || zoneFilter || hasExtraFilter,
+    search.trim() || statusFilter || sourceTypeFilter || siteFilter || zoneFilter || hasExtraFilter,
   );
 
   const handleClearFilters = () => {
     onSearchChange("");
     onStatusFilterChange("");
+    onSourceTypeFilterChange?.("");
     onSiteFilterChange?.("");
     onZoneFilterChange?.("");
     onResetAll?.();
   };
+
+  const sourceTypeOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "", label: isVietnamese ? "Tất cả nguồn" : "All Sources" },
+      { value: "RTSP", label: "RTSP" },
+      { value: "HLS", label: "HLS" },
+      { value: "HTTP", label: "HTTP" },
+      { value: "FILE", label: "FILE" },
+    ],
+    [isVietnamese],
+  );
 
   return (
     <section
@@ -117,7 +133,7 @@ export function CameraToolbar({
     >
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         {/* Search Input + Portal Select Filters */}
-        <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -166,6 +182,14 @@ export function CameraToolbar({
             value={statusFilter}
             onValueChange={onStatusFilterChange}
             placeholder={isVietnamese ? "Trạng thái DB" : "DB Status"}
+          />
+
+          <Select
+            size="sm"
+            options={sourceTypeOptions}
+            value={sourceTypeFilter}
+            onValueChange={(val) => onSourceTypeFilterChange?.(val)}
+            placeholder={isVietnamese ? "Loại nguồn" : "Source Type"}
           />
         </div>
 

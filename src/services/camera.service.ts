@@ -220,7 +220,7 @@ export const cameraService = {
    */
   async getHealthLogs(
     id: string,
-    params?: { page?: number; limit?: number },
+    params?: { page?: number; limit?: number; status?: string; sortOrder?: "asc" | "desc" },
   ): Promise<CameraHealthLogItem[]> {
     const res = await apiClient.get<unknown, any>(
       `/cameras/${id}/health-logs`,

@@ -5,4 +5,5 @@ export * from "./audit-action-badge";
 export * from "./audit-diff-viewer";
 export * from "./audit-filter-toolbar";
 export * from "./audit-log-table";
+export * from "./resource-audit-trail-card";
 export * from "./modals";

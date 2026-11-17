@@ -50,3 +50,50 @@ export function useUpdateCameraConfig() {
     },
   });
 }
+
+export function useResetCameraConfig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (cameraId: string) => cameraService.resetCameraConfig(cameraId),
+    onSuccess: (res, cameraId) => {
+      queryClient.setQueryData(cameraKeys.config(cameraId), res);
+      void queryClient.invalidateQueries({ queryKey: cameraKeys.config(cameraId) });
+      void queryClient.invalidateQueries({ queryKey: cameraKeys.detail(cameraId) });
+      toast.success(
+        pickLocaleText(
+          "Đã khôi phục cấu hình camera về mặc định.",
+          "Camera configuration reset to defaults.",
+        ),
+      );
+    },
+    onError: (err: unknown) => {
+      toast.error(
+        err instanceof Error ? err.message : "Unable to reset camera config.",
+      );
+    },
+  });
+}
+
+export function useClearCameraConfig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (cameraId: string) => cameraService.clearCameraConfig(cameraId),
+    onSuccess: (_res, cameraId) => {
+      void queryClient.invalidateQueries({ queryKey: cameraKeys.config(cameraId) });
+      void queryClient.invalidateQueries({ queryKey: cameraKeys.detail(cameraId) });
+      toast.success(
+        pickLocaleText(
+          "Đã xóa cấu hình DB riêng của camera.",
+          "Cleared custom camera configuration.",
+        ),
+      );
+    },
+    onError: (err: unknown) => {
+      toast.error(
+        err instanceof Error ? err.message : "Unable to clear camera config.",
+      );
+    },
+  });
+}

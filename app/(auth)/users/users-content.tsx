@@ -30,6 +30,8 @@ export default function UsersContent() {
       setStatusFilter("all");
     } else if (type === "active") {
       setStatusFilter((prev) => (prev === "active" ? "all" : "active"));
+    } else if (type === "twoFactor") {
+      setStatusFilter((prev) => (prev === "twoFactor" ? "all" : "twoFactor"));
     } else if (type === "locked") {
       setStatusFilter((prev) => (prev === "inactive" ? "all" : "inactive"));
     }

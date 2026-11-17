@@ -37,6 +37,7 @@ import {
   DashboardAiStatusCard,
   DashboardQuickActions,
   DashboardOperationalSuite,
+  DashboardPpeRadarChart,
   type DashboardTabKey,
   DashboardExecutiveKpi,
   DashboardSystemStatusCard,
@@ -515,6 +516,7 @@ export default function DashboardContent() {
                   canResolve={canResolveIncidents}
                   isRealtimeConnected={isConnected}
                   batchReviewPending={batchReview.isPending}
+                  dateRangeLabel={period ? `${period.startDate} → ${period.endDate}` : null}
                   onBatchReview={canReviewIncidents ? handleBatchReview : undefined}
                   viewAllHref={dashboardIncidentHref(siteId)}
                   onReview={(incident) => {
@@ -614,8 +616,9 @@ export default function DashboardContent() {
           {/* Operational Analytics Suite (Hourly & Severity & MTTR) */}
           {canViewReports &&
             (analytics ? (
-              <div className="space-y-2">
+              <div className="space-y-6">
                 <DashboardOperationalSuite analytics={analytics} />
+                <DashboardPpeRadarChart distribution={analytics.distribution} />
                 <DashboardDataState
                   stale={periodQuery.isRefetchError}
                   updatedAt={periodQuery.dataUpdatedAt}
@@ -642,6 +645,7 @@ export default function DashboardContent() {
                 canResolve={canResolveIncidents}
                 isRealtimeConnected={isConnected}
                 batchReviewPending={batchReview.isPending}
+                dateRangeLabel={period ? `${period.startDate} → ${period.endDate}` : null}
                 onBatchReview={canReviewIncidents ? handleBatchReview : undefined}
                 viewAllHref={dashboardIncidentHref(siteId)}
                 onReview={(incident) => {

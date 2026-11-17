@@ -86,12 +86,14 @@ export interface ImageTransformPayload extends ImageTransformQuery {
 }
 
 export interface CleanupFilesPayload {
-  unconfirmedOlderThanMinutes?: number;
-  softDeletedOlderThanDays?: number;
+  unconfirmedMaxAgeHours?: number;
+  softDeletedRetentionDays?: number;
 }
 
 export interface CleanupFilesResponse {
-  unconfirmedCleaned: number;
-  softDeletedCleaned: number;
-  cleanedAt: string;
+  unconfirmedCleaned?: number;
+  softDeletedCleaned?: number;
+  unconfirmedDeleted?: number;
+  softDeletedPurged?: number;
+  cleanedAt?: string;
 }

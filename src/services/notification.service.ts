@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/axios";
+import { stripEmojis } from "@/lib/strip-emojis";
 import type {
   BroadcastNotificationPayload,
   CreateNotificationTemplatePayload,
@@ -29,6 +30,29 @@ import type {
  * 2. Gọi axios và unwrap dữ liệu an toàn.
  * 3. Không chứa side-effects (toast, navigation) ở tầng service.
  */
+/** Chuẩn hóa item thông báo từ API, loại bỏ emoji khỏi title/content hiển thị */
+function sanitizeNotificationItem(item: NotificationItemDto): NotificationItemDto {
+  return {
+    ...item,
+    title: stripEmojis(item.title),
+    content: stripEmojis(item.content),
+  };
+}
+
+/** Chuẩn hóa mẫu thông báo từ API, loại bỏ emoji khỏi tên/tiêu đề/nội dung */
+function sanitizeTemplateItem(
+  tpl: NotificationTemplateItemDto,
+): NotificationTemplateItemDto {
+  return {
+    ...tpl,
+    name: stripEmojis(tpl.name),
+    subjectTemplate: tpl.subjectTemplate
+      ? stripEmojis(tpl.subjectTemplate)
+      : tpl.subjectTemplate,
+    contentTemplate: stripEmojis(tpl.contentTemplate),
+  };
+}
+
 export const notificationService = {
   // ==========================================================================
   // 1. HỘP THƯ THÔNG BÁO (NOTIFICATION INBOX)
@@ -54,12 +78,16 @@ export const notificationService = {
       "data" in res &&
       Array.isArray((res as NotificationListResponse).data)
     ) {
-      return res as NotificationListResponse;
+      const typed = res as NotificationListResponse;
+      return {
+        ...typed,
+        data: typed.data.map(sanitizeNotificationItem),
+      };
     }
 
     if (Array.isArray(res)) {
       return {
-        data: res,
+        data: res.map(sanitizeNotificationItem),
         meta: {
           page: params?.page ?? 1,
           limit: params?.limit ?? res.length,
@@ -213,12 +241,16 @@ export const notificationService = {
       "data" in res &&
       Array.isArray((res as TemplateListResponse).data)
     ) {
-      return res as TemplateListResponse;
+      const typed = res as TemplateListResponse;
+      return {
+        ...typed,
+        data: typed.data.map(sanitizeTemplateItem),
+      };
     }
 
     if (Array.isArray(res)) {
       return {
-        data: res,
+        data: res.map(sanitizeTemplateItem),
         meta: {
           page: params?.page ?? 1,
           limit: params?.limit ?? res.length,
@@ -241,9 +273,10 @@ export const notificationService = {
   async getTemplateByCode(
     code: string,
   ): Promise<NotificationTemplateItemDto> {
-    return (await apiClient.get(
+    const res = (await apiClient.get(
       `/notifications/templates/${code}`,
     )) as NotificationTemplateItemDto;
+    return sanitizeTemplateItem(res);
   },
 
   /**
@@ -253,10 +286,11 @@ export const notificationService = {
   async createTemplate(
     payload: CreateNotificationTemplatePayload,
   ): Promise<NotificationTemplateItemDto> {
-    return (await apiClient.post(
+    const res = (await apiClient.post(
       "/notifications/templates",
       payload,
     )) as NotificationTemplateItemDto;
+    return sanitizeTemplateItem(res);
   },
 
   /**
@@ -267,10 +301,11 @@ export const notificationService = {
     id: string,
     payload: UpdateNotificationTemplatePayload,
   ): Promise<NotificationTemplateItemDto> {
-    return (await apiClient.put(
+    const res = (await apiClient.put(
       `/notifications/templates/${id}`,
       payload,
     )) as NotificationTemplateItemDto;
+    return sanitizeTemplateItem(res);
   },
 
   /**
@@ -291,10 +326,16 @@ export const notificationService = {
     code: string,
     payload: PreviewTemplatePayload,
   ): Promise<PreviewTemplateResponse> {
-    return (await apiClient.post(
+    const res = (await apiClient.post(
       `/notifications/templates/${code}/preview`,
       payload,
     )) as PreviewTemplateResponse;
+    return {
+      ...res,
+      subject: res.subject ? stripEmojis(res.subject) : res.subject,
+      content: stripEmojis(res.content),
+      html: res.html ? stripEmojis(res.html) : res.html,
+    };
   },
 
   /**
@@ -333,12 +374,22 @@ export const notificationService = {
       "data" in res &&
       Array.isArray((res as EmailLogsListResponse).data)
     ) {
-      return res as EmailLogsListResponse;
+      const typed = res as EmailLogsListResponse;
+      return {
+        ...typed,
+        data: typed.data.map((log) => ({
+          ...log,
+          subject: stripEmojis(log.subject),
+        })),
+      };
     }
 
     if (Array.isArray(res)) {
       return {
-        data: res,
+        data: res.map((log) => ({
+          ...log,
+          subject: stripEmojis(log.subject),
+        })),
         meta: {
           page: params?.page ?? 1,
           limit: params?.limit ?? res.length,

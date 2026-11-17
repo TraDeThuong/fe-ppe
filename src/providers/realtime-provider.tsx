@@ -1,16 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { RealtimeContext, type PpeAlertEvent } from "@/contexts/RealtimeContext";
 import { env } from "@/config/env";
 import { apiClient } from "@/lib/axios";
+import { stripEmojis } from "@/lib/strip-emojis";
+import { notificationKeys } from "@/hooks/notifications/notification.query-keys";
 
 // Event type từ notification-service (notification.service.ts)
 const ALERT_EVENTS = [
   "notification:ppe_violation",
   "notification:new",
   "notification:broadcast",
+] as const;
+
+const READ_SYNC_EVENTS = [
+  "notification:read",
+  "notification:read_all",
 ] as const;
 
 /** SSE không gửi được header/cookie an toàn → backend cấp ticket 1 lần qua REST */
@@ -28,6 +36,7 @@ async function fetchStreamTicket(): Promise<string> {
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { status } = useAuth();
+  const queryClient = useQueryClient();
   const [isConnected, setIsConnected] = useState(false);
   const [lastAlert, setLastAlert] = useState<PpeAlertEvent | null>(null);
 
@@ -80,10 +89,29 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             const raw = msg.data;
             const eventId = msg.lastEventId || `alert-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
             try {
-              setLastAlert({ type: eventName, data: JSON.parse(raw), id: eventId });
+              const parsed = JSON.parse(raw);
+              if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                const record = parsed as Record<string, unknown>;
+                for (const key of ["title", "content", "description", "subject"]) {
+                  if (typeof record[key] === "string") {
+                    record[key] = stripEmojis(record[key] as string);
+                  }
+                }
+              }
+              setLastAlert({ type: eventName, data: parsed, id: eventId });
             } catch {
-              setLastAlert({ type: eventName, data: raw, id: eventId });
+              setLastAlert({
+                type: eventName,
+                data: typeof raw === "string" ? stripEmojis(raw) : raw,
+                id: eventId,
+              });
             }
+          });
+        }
+
+        for (const eventName of READ_SYNC_EVENTS) {
+          source.addEventListener(eventName, () => {
+            void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
           });
         }
       } catch (err: unknown) {
@@ -107,7 +135,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       source?.close();
       setIsConnected(false);
     };
-  }, [status]);
+  }, [status, queryClient]);
 
   const contextValue = useMemo(
     () => ({ isConnected, lastAlert }),

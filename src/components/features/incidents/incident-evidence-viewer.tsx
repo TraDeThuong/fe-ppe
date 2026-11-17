@@ -301,6 +301,11 @@ export function IncidentEvidenceViewer({
   const isPreAnnotated = useMemo(() => {
     const url = (activePhoto?.url || "").toLowerCase();
     const title = (activePhoto?.title || "").toLowerCase();
+    const primaryAiMeta = (
+      evidence?.metadata?.aiDetections ||
+      evidences?.find((e) => e.evidenceType === EVIDENCE_TYPE.SNAPSHOT)?.metadata?.aiDetections
+    ) as { annotatedInImage?: boolean } | null | undefined;
+
     return (
       url.includes("-evidence") ||
       url.includes("evidence_") ||
@@ -312,9 +317,10 @@ export function IncidentEvidenceViewer({
       url.startsWith("data:image/") ||
       title.includes("tô đỏ") ||
       title.includes("annotated") ||
-      activePhoto?.category === "reference"
+      activePhoto?.category === "reference" ||
+      Boolean(activePhoto?.category === "annotated" && primaryAiMeta?.annotatedInImage === true)
     );
-  }, [activePhoto?.url, activePhoto?.title, activePhoto?.category]);
+  }, [activePhoto?.url, activePhoto?.title, activePhoto?.category, evidence, evidences]);
 
   // Xử lý chuyển đổi qua lại giữa các tab ảnh
   const handleSelectPhoto = (idx: number) => {
@@ -361,6 +367,7 @@ export function IncidentEvidenceViewer({
     const targetEvidence =
       evidence ||
       evidences?.find((e) => (e.metadata as any)?.aiDetections?.violations?.[0]?.box) ||
+      evidences?.find((e) => (e.metadata as any)?.aiDetections?.violation?.box) ||
       evidences?.find((e) => (e.metadata as any)?.aiDetections?.box) ||
       evidences?.[0];
 

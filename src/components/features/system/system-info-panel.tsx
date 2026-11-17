@@ -1,6 +1,7 @@
 "use client";
 
-import { Activity, Clock, Database, HardDrive, Info, Layers, Radio, Server, Shield } from "lucide-react";
+import { Activity, Clock, Database, ExternalLink, FileText, HardDrive, Info, Layers, Radio, Server, Shield } from "lucide-react";
+import { env } from "@/config/env";
 import { useLocale } from "@/providers/locale-provider";
 import type { SystemHealthReport } from "@/types";
 
@@ -12,71 +13,119 @@ export function SystemInfoPanel({ healthReport }: SystemInfoPanelProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  const healthy = healthReport?.healthyCount ?? 12;
-  const total = healthReport?.totalServices ?? 12;
-  const latency = healthReport?.averageLatencyMs ?? 24;
+  const healthy = healthReport?.healthyCount ?? 0;
+  const total = healthReport?.totalServices ?? 0;
+  const latency = healthReport?.averageLatencyMs ?? 0;
+  const readinessService = healthReport?.services?.find(
+    (s) => s.name.toLowerCase().includes("identity") || s.endpoint.includes("health"),
+  );
+  const readinessVersion =
+    typeof readinessService?.details?.version === "string"
+      ? readinessService.details.version
+      : undefined;
+  const gatewayRoot = env.apiBaseUrl.replace(/\/api\/v1\/?$/, "");
+  const docsUrl = `${gatewayRoot}/api/docs`;
+  const securityTxtUrl = `${gatewayRoot}/.well-known/security.txt`;
 
   const infoItems = [
     {
       label: t("system.platform.version"),
-      value: "v2.1.0 (Build 2026.10.28)",
+      value: readinessVersion
+        ? `v${readinessVersion}`
+        : isVietnamese
+          ? "Đang đồng bộ từ Gateway..."
+          : "Syncing from Gateway...",
       icon: Layers,
     },
     {
       label: t("system.platform.contract"),
-      value: "2.1.0-PPE-STABLE",
+      value: healthReport?.overallStatus ?? "UNKNOWN",
       icon: Shield,
     },
     {
       label: t("system.platform.environment"),
-      value: "Production (Docker Swarm / Traefik Gateway)",
+      value: gatewayRoot || "Traefik Gateway",
       icon: Info,
     },
     {
       label: t("system.platform.timezone"),
-      value: "Asia/Ho_Chi_Minh (UTC+07:00)",
+      value: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Ho_Chi_Minh",
       icon: Clock,
     },
     {
       label: t("system.platform.database"),
-      value: "PostgreSQL 16 (HA Cluster / Port 5432)",
+      value:
+        readinessService?.status === "HEALTHY"
+          ? isVietnamese
+            ? `PostgreSQL Sẵn sàng (${readinessService.latencyMs ?? "--"}ms)`
+            : `PostgreSQL Healthy (${readinessService.latencyMs ?? "--"}ms)`
+          : readinessService?.status ?? "CHECKING",
       icon: Database,
     },
     {
       label: t("system.platform.broker"),
-      value: "Apache Kafka 3.7 (EventBus Cluster :9092)",
+      value: "Kafka / Redis EventBus",
       icon: Radio,
     },
     {
       label: t("system.platform.storage"),
-      value: "MinIO S3 Compatible Storage (:9000)",
+      value:
+        healthReport?.services?.find((s) => s.name.toLowerCase().includes("minio"))
+          ?.status ?? "MinIO / R2 S3",
       icon: HardDrive,
     },
     {
       label: t("system.platform.clusterHealth"),
-      value: t("system.platform.clusterHealthValue", { healthy, total }),
+      value: total > 0 ? t("system.platform.clusterHealthValue", { healthy, total }) : "--",
       icon: Server,
     },
     {
       label: t("system.platform.networkLatency"),
-      value: t("system.platform.networkLatencyValue", { latency }),
+      value: total > 0 ? t("system.platform.networkLatencyValue", { latency }) : "-- ms",
       icon: Activity,
     },
   ];
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2.5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/15">
-          <Info className="h-4.5 w-4.5" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/15">
+            <Info className="h-4.5 w-4.5" />
+          </div>
+          <div>
+            <h3 className="text-sm sm:text-base font-bold text-foreground">
+              {t("system.platform.title")}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {t("system.platform.subTitle")}
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-sm sm:text-base font-bold text-foreground">
-            {t("system.platform.title")}
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            {t("system.platform.subTitle")}
-          </p>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {process.env.NODE_ENV !== "production" && (
+            <a
+              href={docsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-border/40 bg-surface px-3 py-1.5 text-xs font-semibold text-primary hover:bg-surface-elevated/60"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              <span>Swagger API Docs</span>
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+          <a
+            href={securityTxtUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-border/40 bg-surface px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+          >
+            <Shield className="h-3.5 w-3.5" />
+            <span>security.txt</span>
+            <ExternalLink className="h-3 w-3" />
+          </a>
         </div>
       </div>
 

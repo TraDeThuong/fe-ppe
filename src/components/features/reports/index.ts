@@ -8,3 +8,4 @@ export * from "./report-history-table";
 export * from "./generate-report-modal";
 export * from "./report-preview-modal";
 export * from "./report-stats-detail-panel";
+export * from "./report-template-actions-modals";

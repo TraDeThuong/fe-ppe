@@ -1,6 +1,12 @@
 import { resolveEvidenceUrl } from "@/lib/evidence-url";
 import { pickLocaleText } from "@/lib/i18n-runtime";
-import { EVIDENCE_TYPE, type CameraConfigItem, type CameraItem, type IncidentItem } from "@/types";
+import {
+  EVIDENCE_TYPE,
+  type CameraConfigItem,
+  type CameraItem,
+  type EffectiveSafetyConfigResponse,
+  type IncidentItem,
+} from "@/types";
 import type {
   EvidenceItem,
   LiveConfigPayload,
@@ -346,6 +352,34 @@ export interface CameraLiveFormValues {
   enableNoVest: boolean;
   enableRestrictedArea: boolean;
   enableSceneCut: boolean;
+  roiPolygon?: ReadonlyArray<{ x: number; y: number }> | null;
+}
+
+/**
+ * Chuyển đổi mảng điểm `{ x, y }` từ CameraConfig.roiPolygon hoặc RestrictedArea.boundary
+ * sang định dạng `number[][][]` (`[[[x, y], ...]]`) của AI Engine.
+ * Tự động bỏ qua đa giác placeholder (0,0) có diện tích bằng 0.
+ */
+export function toLiveRoiPolygons(
+  points?: ReadonlyArray<{ x: number; y: number }> | unknown,
+): number[][][] | null {
+  if (!Array.isArray(points) || points.length < 3 || points.length > 50) {
+    return null;
+  }
+  const coords: number[][] = [];
+  for (const item of points) {
+    if (item && typeof item === "object" && "x" in item && "y" in item) {
+      const x = Number((item as { x: unknown }).x);
+      const y = Number((item as { y: unknown }).y);
+      if (Number.isFinite(x) && Number.isFinite(y) && x >= 0 && y >= 0) {
+        coords.push([x, y]);
+      }
+    }
+  }
+  if (coords.length < 3) return null;
+  const hasNonZero = coords.some(([x, y]) => x > 0.0001 || y > 0.0001);
+  if (!hasNonZero) return null;
+  return [coords];
 }
 
 function clampFps(value: number, fallback: number): number {
@@ -359,23 +393,50 @@ function clampConfirmSec(value: number, fallback: number): number {
 }
 
 /**
- * Maps optional camera DB config into initial Live form defaults.
+ * Maps optional camera DB config and effective safety config into initial Live form defaults.
+ * Priority: Effective Safety Config (Camera Override or Site Level) -> CameraConfigItem -> Fallback defaults.
  */
 export function deriveLiveDefaultsFromConfig(
   config?: CameraConfigItem | null,
+  effectiveSafety?: EffectiveSafetyConfigResponse | null,
 ): Omit<CameraLiveFormValues, "source" | "model"> {
-  const targetFps = clampFps(config?.captureFps ?? 25, 25);
+  const targetFps = clampFps(
+    effectiveSafety?.captureFps ?? config?.captureFps ?? 25,
+    25,
+  );
   const aiFps = clampFps(Math.min(targetFps, 15), 15);
   const processingEnabled = config?.processingEnabled ?? true;
+
+  const confirmHelmetSec =
+    effectiveSafety?.confirmationDuration != null
+      ? clampConfirmSec(effectiveSafety.confirmationDuration, 2.0)
+      : 2.0;
+
+  const confirmVestSec = clampConfirmSec(confirmHelmetSec * 2, 4.0);
+
+  const enableNoHelmet =
+    effectiveSafety?.rules?.enableNoHelmet !== undefined
+      ? Boolean(effectiveSafety.rules.enableNoHelmet)
+      : processingEnabled;
+
+  const enableNoVest =
+    effectiveSafety?.rules?.enableNoVest !== undefined
+      ? Boolean(effectiveSafety.rules.enableNoVest)
+      : processingEnabled;
+
+  const enableRestrictedArea =
+    effectiveSafety?.rules?.enableRestrictedArea !== undefined
+      ? Boolean(effectiveSafety.rules.enableRestrictedArea)
+      : processingEnabled;
 
   return {
     targetFps,
     aiFps,
-    confirmHelmetSec: 2.0,
-    confirmVestSec: 4.0,
-    enableNoHelmet: processingEnabled,
-    enableNoVest: processingEnabled,
-    enableRestrictedArea: processingEnabled,
+    confirmHelmetSec,
+    confirmVestSec,
+    enableNoHelmet,
+    enableNoVest,
+    enableRestrictedArea,
     enableSceneCut: true,
   };
 }
@@ -391,6 +452,7 @@ export function buildCameraStartPayload(
   options: LiveSourceModeOptions = {},
 ): LiveStartPayload {
   const trimmedSource = values.source.trim();
+  const roiPolygons = toLiveRoiPolygons(values.roiPolygon);
   const base: LiveStartPayload = {
     camera_id: toSafeLiveCameraId(camera),
     source: trimmedSource,
@@ -404,6 +466,10 @@ export function buildCameraStartPayload(
     enable_restricted_area: values.enableRestrictedArea,
     enable_scene_cut: values.enableSceneCut,
   };
+
+  if (roiPolygons) {
+    base.roi_polygons = roiPolygons;
+  }
 
   if (options.productionMode) {
     const camUuid =
@@ -425,7 +491,8 @@ export function buildCameraStartPayload(
 export function buildCameraHotConfigPayload(
   values: Omit<CameraLiveFormValues, "source" | "model">,
 ): LiveConfigPayload {
-  return {
+  const roiPolygons = toLiveRoiPolygons(values.roiPolygon);
+  const payload: LiveConfigPayload = {
     target_fps: clampFps(values.targetFps, 25),
     ai_fps: clampFps(values.aiFps, 15),
     enable_no_helmet: values.enableNoHelmet,
@@ -435,6 +502,10 @@ export function buildCameraHotConfigPayload(
     confirmation_duration_s: clampConfirmSec(values.confirmHelmetSec, 2.0),
     confirmation_duration_vest_s: clampConfirmSec(values.confirmVestSec, 4.0),
   };
+  if (roiPolygons) {
+    payload.roi_polygons = roiPolygons;
+  }
+  return payload;
 }
 
 /**
@@ -450,6 +521,49 @@ export function findSessionForCamera(
     sessionMap.get(camera.code) ??
     sessionMap.get(camera.id)
   );
+}
+
+/**
+ * Splits AI Engine live sessions into those matching existing DB cameras and
+ * orphaned sessions whose camera records have been deleted.
+ */
+export function filterSessionsForCameras(
+  sessions: readonly LiveSessionInfo[],
+  cameras: readonly Pick<CameraItem, "id" | "code">[],
+): {
+  matchedSessions: LiveSessionInfo[];
+  orphanedSessions: LiveSessionInfo[];
+} {
+  if (sessions.length === 0) {
+    return { matchedSessions: [], orphanedSessions: [] };
+  }
+  if (cameras.length === 0) {
+    return { matchedSessions: [], orphanedSessions: [...sessions] };
+  }
+
+  const validKeys = new Set<string>();
+  for (const cam of cameras) {
+    if (cam.id) validKeys.add(cam.id);
+    if (cam.code) validKeys.add(cam.code);
+    validKeys.add(toSafeLiveCameraId(cam));
+  }
+
+  const matchedSessions: LiveSessionInfo[] = [];
+  const orphanedSessions: LiveSessionInfo[] = [];
+
+  for (const s of sessions) {
+    const isMatched =
+      validKeys.has(s.camera_id) ||
+      validKeys.has(toSafeLiveCameraId(s.camera_id)) ||
+      Boolean(s.camera_uuid && validKeys.has(s.camera_uuid));
+    if (isMatched) {
+      matchedSessions.push(s);
+    } else {
+      orphanedSessions.push(s);
+    }
+  }
+
+  return { matchedSessions, orphanedSessions };
 }
 
 /**

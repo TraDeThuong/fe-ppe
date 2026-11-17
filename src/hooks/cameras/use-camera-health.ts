@@ -7,10 +7,14 @@ import { cameraService } from "@/services/camera.service";
 import { cameraKeys } from "./camera.query-keys";
 import type { CameraHealthLogItem, PingCameraResult } from "@/types";
 
-export function useCameraHealthLogs(cameraId: string, enabled = true) {
+export function useCameraHealthLogs(
+  cameraId: string,
+  enabled = true,
+  params?: { page?: number; limit?: number; status?: string; sortOrder?: "asc" | "desc" },
+) {
   return useQuery<CameraHealthLogItem[]>({
-    queryKey: cameraKeys.healthLogs(cameraId),
-    queryFn: () => cameraService.getHealthLogs(cameraId),
+    queryKey: [...cameraKeys.healthLogs(cameraId), params ?? {}],
+    queryFn: () => cameraService.getHealthLogs(cameraId, params),
     enabled: Boolean(cameraId) && enabled,
     staleTime: 15 * 1000,
   });

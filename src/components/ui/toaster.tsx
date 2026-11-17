@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Check, Info, Loader2, X } from "lucide-react";
 import { Toaster, toast } from "react-hot-toast";
+import { stripEmojis } from "@/lib/strip-emojis";
 
 type ToastType = "success" | "error" | "loading" | "blank";
 
 const toastTheme: Record<
   ToastType,
   {
-    icon: string;
+    icon: ReactNode;
     accent: string;
     titleVi: string;
     titleEn: string;
@@ -16,28 +18,28 @@ const toastTheme: Record<
   }
 > = {
   success: {
-    icon: "✓",
+    icon: <Check className="size-5 stroke-[2.5]" />,
     accent: "#648747",
     titleVi: "Thành công",
     titleEn: "Success",
     shadow: "rgba(100, 135, 71, 0.24)",
   },
   error: {
-    icon: "×",
+    icon: <X className="size-5 stroke-[2.5]" />,
     accent: "#c45e52",
     titleVi: "Đã xảy ra lỗi",
     titleEn: "Error Occurred",
     shadow: "rgba(196, 94, 82, 0.24)",
   },
   loading: {
-    icon: "◌",
+    icon: <Loader2 className="size-5 animate-spin stroke-[2.3]" />,
     accent: "#9b9664",
     titleVi: "Đang xử lý",
     titleEn: "Processing",
     shadow: "rgba(155, 150, 100, 0.2)",
   },
   blank: {
-    icon: "i",
+    icon: <Info className="size-5 stroke-[2.3]" />,
     accent: "#718b54",
     titleVi: "Thông báo",
     titleEn: "Notification",
@@ -165,10 +167,10 @@ function WoodenToast({
         }}
       >
         {type === "loading" ? (
-          <span className="ppe-toast-spinner">{theme.icon}</span>
+          <span className="inline-flex items-center justify-center">{theme.icon}</span>
         ) : (
           <span
-            className="transition-transform duration-300 group-hover:scale-110"
+            className="inline-flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
             aria-hidden="true"
           >
             {theme.icon}
@@ -186,7 +188,7 @@ function WoodenToast({
         </p>
 
         <p className="break-words text-[13px] font-medium leading-[1.65] tracking-[0.005em]">
-          {message}
+          {stripEmojis(message)}
         </p>
       </div>
 

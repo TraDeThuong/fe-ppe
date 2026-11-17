@@ -5,6 +5,7 @@ import {
   buildCameraStartPayload,
   canAutoStartCameraSource,
   deriveLiveDefaultsFromConfig,
+  filterSessionsForCameras,
   findSessionForCamera,
   getYouTubeEmbedUrl,
   hasMaskedCredentials,
@@ -15,6 +16,7 @@ import {
   resolveCameraSourceIssue,
   resolveInitialCameraSource,
   selectAutoStartCandidates,
+  toLiveRoiPolygons,
   toSafeLiveCameraId,
 } from "../camera-live-helpers";
 import type { EvidenceItem, LiveSessionInfo, LiveVideoItem } from "@/types/ai-test.types";
@@ -148,6 +150,41 @@ test("deriveLiveDefaultsFromConfig & findSessionForCamera map config and running
   };
   const map = new Map<string, LiveSessionInfo>([[sess.camera_id, sess]]);
   assert.deepEqual(findSessionForCamera(map, sampleCamera), sess);
+});
+
+test("deriveLiveDefaultsFromConfig hydrates safety rules from effective site/camera config", () => {
+  const defaults = deriveLiveDefaultsFromConfig(
+    {
+      id: "cfg-1",
+      cameraId: sampleCamera.id,
+      enabled: true,
+      captureFps: 20,
+      resolution: "1280x720",
+      processingEnabled: true,
+      createdAt: "",
+      updatedAt: "",
+    },
+    {
+      siteId: "site-1",
+      siteName: null,
+      siteCode: null,
+      cameraId: sampleCamera.id,
+      cameraName: null,
+      cameraCode: null,
+      confidenceThreshold: 0.8,
+      confirmationDuration: 3,
+      cooldownDuration: 30,
+      rules: { enableNoHelmet: true, enableNoVest: false, enableRestrictedArea: false },
+      source: "SITE_LEVEL",
+      resolvedAt: "",
+    },
+  );
+  assert.equal(defaults.targetFps, 20);
+  assert.equal(defaults.enableNoHelmet, true);
+  assert.equal(defaults.enableNoVest, false);
+  assert.equal(defaults.enableRestrictedArea, false);
+  assert.equal(defaults.confirmHelmetSec, 3);
+  assert.equal(defaults.confirmVestSec, 6);
 });
 
 test("hasMaskedCredentials, canAutoStartCameraSource & resolveCameraSourceIssue reject masked RTSP and HTTPS .mp4", () => {
@@ -384,4 +421,74 @@ test("productionMode supports masked RTSP via M2M camera_uuid lookup and dynamic
     selectedProd.map((c) => c.id),
     ["cam-uuid-masked-1"],
   );
+});
+
+test("filterSessionsForCameras separates matched DB camera sessions from orphaned sessions", () => {
+  const sessions: LiveSessionInfo[] = [
+    { camera_id: "CAM-01-Zone-A", status: "running", metrics: { active_persons: 3 } },
+    { camera_id: "DELETED-CAM-1", status: "running", metrics: { active_persons: 4 } },
+    { camera_id: "DELETED-CAM-2", camera_uuid: "deleted-uuid", status: "running" },
+  ];
+
+  // When cameras exist, only matching sessions are kept
+  const withCam = filterSessionsForCameras(sessions, [sampleCamera]);
+  assert.deepEqual(
+    withCam.matchedSessions.map((s) => s.camera_id),
+    ["CAM-01-Zone-A"],
+  );
+  assert.deepEqual(
+    withCam.orphanedSessions.map((s) => s.camera_id),
+    ["DELETED-CAM-1", "DELETED-CAM-2"],
+  );
+
+  // When all cameras are deleted (empty array), all sessions are classified as orphaned
+  const whenEmpty = filterSessionsForCameras(sessions, []);
+  assert.equal(whenEmpty.matchedSessions.length, 0);
+  assert.equal(whenEmpty.orphanedSessions.length, 3);
+});
+
+test("toLiveRoiPolygons ignores zero-area site placeholders and converts plotted camera polygons", () => {
+  // Placeholder [{0,0}, {0,0}, {0,0}] created at Site level -> null (unplotted)
+  assert.equal(
+    toLiveRoiPolygons([
+      { x: 0, y: 0 },
+      { x: 0, y: 0 },
+      { x: 0, y: 0 },
+    ]),
+    null,
+  );
+
+  // Plotted polygon on camera -> [[[x, y], ...]]
+  const plotted = [
+    { x: 0.2, y: 0.3 },
+    { x: 0.8, y: 0.3 },
+    { x: 0.7, y: 0.85 },
+  ];
+  assert.deepEqual(toLiveRoiPolygons(plotted), [
+    [
+      [0.2, 0.3],
+      [0.8, 0.3],
+      [0.7, 0.85],
+    ],
+  ]);
+
+  const startWithRoi = buildCameraStartPayload(sampleCamera, {
+    source: "rtsp://10.0.0.5/live",
+    targetFps: 25,
+    aiFps: 15,
+    confirmHelmetSec: 2,
+    confirmVestSec: 4,
+    enableNoHelmet: true,
+    enableNoVest: true,
+    enableRestrictedArea: true,
+    enableSceneCut: true,
+    roiPolygon: plotted,
+  });
+  assert.deepEqual(startWithRoi.roi_polygons, [
+    [
+      [0.2, 0.3],
+      [0.8, 0.3],
+      [0.7, 0.85],
+    ],
+  ]);
 });

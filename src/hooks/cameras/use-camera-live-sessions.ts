@@ -218,6 +218,24 @@ export function useCameraLiveSessions(options?: {
     },
   });
 
+  const updateRuntimeConfigMutation = useMutation({
+    mutationFn: (payload: { max_sessions?: number; trigger_sync?: boolean }) =>
+      aiTestService.updateLiveRuntimeConfig(payload),
+    onSuccess: (res) => {
+      void queryClient.invalidateQueries({ queryKey: liveEngineKeys.runtimeConfig() });
+      void queryClient.invalidateQueries({ queryKey: liveEngineKeys.sessions() });
+      toast.success(
+        pickLocaleText(
+          `Đã cập nhật AI Engine Runtime (${res.max_sessions} slot tối đa)`,
+          `Updated AI Engine Runtime (${res.max_sessions} max slots)`,
+        ),
+      );
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Failed to update AI runtime config");
+    },
+  });
+
   const sessions = useMemo(
     () => sessionsQuery.data?.sessions ?? [],
     [sessionsQuery.data?.sessions],
@@ -235,6 +253,18 @@ export function useCameraLiveSessions(options?: {
     (camera: Pick<CameraItem, "id" | "code">) =>
       findSessionForCamera(sessionMap, camera),
     [sessionMap],
+  );
+
+  const stopOrphanedSessions = useCallback(
+    async (liveIds: string[]) => {
+      if (liveIds.length === 0) return;
+      await Promise.allSettled(
+        liveIds.map((id) => aiTestService.stopLiveStream(toSafeLiveCameraId(id))),
+      );
+      void queryClient.invalidateQueries({ queryKey: liveEngineKeys.sessions() });
+      void queryClient.invalidateQueries({ queryKey: liveEngineKeys.runtimeConfig() });
+    },
+    [queryClient],
   );
 
   const refreshAll = useCallback(async () => {
@@ -273,9 +303,12 @@ export function useCameraLiveSessions(options?: {
     isStartingLive: startMutation.isPending,
     startingCameraId: startMutation.variables?.camera.id ?? null,
     stopLive: stopMutation.mutateAsync,
+    stopOrphanedSessions,
     isStoppingLive: stopMutation.isPending,
     triggerSync: triggerSyncMutation.mutateAsync,
     isSyncingLive: triggerSyncMutation.isPending,
+    updateRuntimeConfig: updateRuntimeConfigMutation.mutateAsync,
+    isUpdatingRuntimeConfig: updateRuntimeConfigMutation.isPending,
     refreshAll,
   };
 }

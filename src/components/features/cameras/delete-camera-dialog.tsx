@@ -10,7 +10,7 @@ export interface DeleteCameraDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   camera: CameraItem | null;
-  onConfirm: (id: string, name?: string) => Promise<void>;
+  onConfirm: (id: string, name?: string, code?: string) => Promise<void>;
   loading?: boolean;
 }
 
@@ -26,7 +26,7 @@ export function DeleteCameraDialog({
 
   const handleConfirm = async () => {
     if (!camera) return;
-    await onConfirm(camera.id, camera.name);
+    await onConfirm(camera.id, camera.name, camera.code);
     onOpenChange(false);
   };
 

@@ -6,10 +6,11 @@ import { auditQueryKeys } from "@/hooks/audit/audit.query-keys";
 import type { CronJobItem, CronJobName, TriggerCronJobPayload } from "@/types/cron.types";
 import { cronQueryKeys } from "./cron.query-keys";
 
-export function useCronJobs(enabled: boolean) {
+export function useCronJobs(enabled: boolean, search?: string) {
+  const normalized = search?.trim() || undefined;
   return useQuery({
-    queryKey: cronQueryKeys.list(),
-    queryFn: () => cronService.listJobs(),
+    queryKey: normalized ? [...cronQueryKeys.list(), normalized] : cronQueryKeys.list(),
+    queryFn: () => cronService.listJobs(normalized),
     enabled,
     staleTime: 15_000,
     refetchOnMount: "always",

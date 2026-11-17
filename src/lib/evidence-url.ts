@@ -1,5 +1,27 @@
 import { env } from "@/config/env";
 
+const VIRTUAL_EVIDENCE_API_PATH_RE =
+  /\/api\/v1\/(?:incidents\/)?evidences\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/download(?:-url)?(?:\?.*)?$/i;
+
+/**
+ * Trích xuất evidenceId nếu BE truyền đường dẫn tải ảo qua SSE/notification
+ * (VD: `/api/v1/incidents/evidences/:id/download`), vì route thực tế trên BE là
+ * `/api/v1/evidences/:id` và `/api/v1/evidences/:id/download-url`.
+ */
+export function extractEvidenceIdFromApiPath(keyOrUrl?: string | null): string | null {
+  if (!keyOrUrl || typeof keyOrUrl !== "string") return null;
+  const match = keyOrUrl.trim().match(VIRTUAL_EVIDENCE_API_PATH_RE);
+  return match?.[1] ?? null;
+}
+
+/**
+ * Kiểm tra URL có trỏ tới hostname nội bộ Docker (`ppe-minio` / `minio`) mà trình duyệt không phân giải được.
+ */
+export function isDockerInternalMinioUrl(url?: string | null): boolean {
+  if (!url || typeof url !== "string") return false;
+  return /^https?:\/\/(?:ppe-minio|minio)(?::\d+)?\//i.test(url.trim());
+}
+
 /**
  * Chuẩn hóa URL ảnh bằng chứng vi phạm PPE để tải chính xác trên trình duyệt.
  *

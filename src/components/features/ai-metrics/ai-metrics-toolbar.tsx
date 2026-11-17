@@ -1,14 +1,17 @@
 "use client";
 
-import { Calendar, Cpu, RefreshCw, SlidersHorizontal } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
-import type { AiModelDto } from "@/types";
+import type { AiModelDto, CameraItem } from "@/types";
 
 export interface AiMetricsToolbarProps {
   models: AiModelDto[];
   selectedModelId: string;
   onModelChange: (modelId: string) => void;
+  cameras?: CameraItem[];
+  selectedCameraId?: string;
+  onCameraChange?: (cameraId: string) => void;
   period: string;
   onPeriodChange: (period: string) => void;
   onRefresh: () => void;
@@ -19,12 +22,16 @@ export function AiMetricsToolbar({
   models,
   selectedModelId,
   onModelChange,
+  cameras = [],
+  selectedCameraId = "",
+  onCameraChange,
   period,
   onPeriodChange,
   onRefresh,
   loading = false,
 }: AiMetricsToolbarProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVi = locale === "vi-VN";
 
   return (
     <div className="flex flex-col gap-2.5 sm:gap-3 rounded-2xl border border-border/40 bg-surface p-3 sm:p-3.5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
@@ -58,6 +65,26 @@ export function AiMetricsToolbar({
             <option value="30d">{t("aiMetrics.toolbar.period30d")}</option>
           </select>
         </div>
+
+        {/* Camera Telemetry Filter */}
+        {onCameraChange && (
+          <div className="relative flex-1 min-w-[150px] sm:flex-none">
+            <select
+              value={selectedCameraId}
+              onChange={(e) => onCameraChange(e.target.value)}
+              className="w-full sm:w-auto rounded-xl border border-border/40 bg-surface px-3 py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
+            >
+              <option value="">
+                {isVi ? "Tất cả Camera" : "All Cameras"}
+              </option>
+              {cameras.map((cam) => (
+                <option key={cam.id} value={cam.id}>
+                  {cam.code} — {cam.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Refresh Action */}

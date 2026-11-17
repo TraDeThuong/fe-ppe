@@ -94,6 +94,7 @@ export default function SystemContent() {
   // State tìm kiếm và lọc danh mục
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
+  const [isPublicFilter, setIsPublicFilter] = useState("all");
   const debouncedSearch = useDebounce(search, 350);
 
   // State phân trang cho bảng cấu hình
@@ -107,6 +108,11 @@ export default function SystemContent() {
 
   const handleCategoryChange = (val: string) => {
     setCategory(val);
+    setPage(1);
+  };
+
+  const handleIsPublicChange = (val: string) => {
+    setIsPublicFilter(val);
     setPage(1);
   };
 
@@ -124,6 +130,7 @@ export default function SystemContent() {
   const { data: configsData, isLoading: isLoadingConfigs, isFetching: configsFetching, error: configsError, refetch: refetchConfigs } = useSystemConfigs({
     search: debouncedSearch || undefined,
     category: category || undefined,
+    isPublic: isPublicFilter === "all" ? undefined : isPublicFilter === "true",
     page,
     limit,
 
@@ -421,6 +428,10 @@ export default function SystemContent() {
                 category={category}
 
                 onCategoryChange={handleCategoryChange}
+
+                isPublicFilter={isPublicFilter}
+
+                onIsPublicFilterChange={handleIsPublicChange}
 
                 onAddConfig={() => setCreateModalOpen(true)}
 

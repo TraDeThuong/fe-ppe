@@ -154,8 +154,8 @@ export function SiteLiveCamerasTab({
     setEditTarget(null);
   };
 
-  const handleDeleteCamera = async (id: string, name?: string) => {
-    await deleteCameraMutation.mutateAsync({ id, name });
+  const handleDeleteCamera = async (id: string, name?: string, code?: string) => {
+    await deleteCameraMutation.mutateAsync({ id, name, code });
     setDeleteTarget(null);
   };
 

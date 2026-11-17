@@ -3,10 +3,13 @@
 import { memo, useMemo, useState } from "react";
 import {
   Activity,
+  AlertOctagon,
   ChevronDown,
   Link2,
   Play,
+  RotateCcw,
   Save,
+  ShieldCheck,
   Sliders,
   Square,
   Wrench,
@@ -57,6 +60,11 @@ export interface CameraLiveControlDeckProps {
   onStopStream: () => void;
   onSaveToDb: () => void;
   onOpenDeviceTab?: () => void;
+  roiPointsCount?: number;
+  onOpenRestrictedAreaModal?: () => void;
+  safetySource?: string;
+  onResetToSiteRules?: () => void;
+  isResettingRules?: boolean;
 }
 
 export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
@@ -96,6 +104,11 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
   onStopStream,
   onSaveToDb,
   onOpenDeviceTab,
+  roiPointsCount = 0,
+  onOpenRestrictedAreaModal,
+  safetySource,
+  onResetToSiteRules,
+  isResettingRules = false,
 }: CameraLiveControlDeckProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -215,6 +228,24 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                 <span className="rounded-lg bg-primary/10 px-2 py-0.5 font-mono font-semibold text-primary">
                   {enabledRulesCount}/4 Rules
                 </span>
+                {safetySource && (
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 font-mono text-[10px] font-bold ${
+                      safetySource === "CAMERA_OVERRIDE"
+                        ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                        : "bg-primary/10 text-primary"
+                    }`}
+                  >
+                    <ShieldCheck className="size-3" />
+                    {safetySource === "CAMERA_OVERRIDE"
+                      ? isVietnamese
+                        ? "Cấu hình riêng Camera"
+                        : "Camera Override"
+                      : isVietnamese
+                        ? "Kế thừa từ Site"
+                        : "Site Inherited"}
+                  </span>
+                )}
               </div>
             </div>
           </button>
@@ -274,8 +305,8 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                 onClick={onSaveToDb}
                 title={
                   isVietnamese
-                    ? "Lưu cấu hình FPS & xử lý AI vào hồ sơ Camera DB"
-                    : "Save FPS & AI settings to Camera DB"
+                    ? "Lưu cấu hình FPS & Quy tắc an toàn riêng cho Camera này vào Database"
+                    : "Save FPS & Camera-specific Safety Rule overrides to Database"
                 }
                 className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-foreground hover:text-primary disabled:pointer-events-none disabled:opacity-40 ${NM.tactileBtn}`}
               >
@@ -288,6 +319,56 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                     : isVietnamese
                       ? "Lưu DB"
                       : "Save DB"}
+                </span>
+              </button>
+            )}
+
+            {canManageCamera && safetySource === "CAMERA_OVERRIDE" && onResetToSiteRules && (
+              <button
+                type="button"
+                disabled={isResettingRules}
+                onClick={onResetToSiteRules}
+                title={
+                  isVietnamese
+                    ? "Xoá cấu hình riêng của camera này để khôi phục kế thừa quy tắc an toàn từ công trường"
+                    : "Reset camera overrides and restore inherited site safety rules"
+                }
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 disabled:pointer-events-none disabled:opacity-40 ${NM.tactileBtn}`}
+              >
+                <RotateCcw className={`size-3.5 ${isResettingRules ? "animate-spin" : ""}`} />
+                <span>
+                  {isResettingRules
+                    ? isVietnamese
+                      ? "Đang đặt lại..."
+                      : "Resetting..."
+                    : isVietnamese
+                      ? "Khôi phục theo Site"
+                      : "Reset to Site"}
+                </span>
+              </button>
+            )}
+
+            {canManageCamera && onOpenRestrictedAreaModal && (
+              <button
+                type="button"
+                onClick={onOpenRestrictedAreaModal}
+                title={
+                  isVietnamese
+                    ? "Thiết lập và vẽ đa giác Vùng cấm nguy hiểm (ROI) theo góc nhìn của Camera này"
+                    : "Plot Restricted Area (ROI) danger polygon on this camera's perspective"
+                }
+                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-danger hover:text-danger ${NM.tactileBtn}`}
+              >
+                <AlertOctagon className="size-3.5 text-danger" />
+                <span>
+                  {isVietnamese ? "Vẽ Vùng cấm (ROI)" : "Plot ROI Area"}
+                </span>
+                <span className="rounded-md bg-danger/15 px-1.5 py-0.5 font-mono text-[10px] font-extrabold text-danger">
+                  {roiPointsCount >= 3
+                    ? `${roiPointsCount} pts`
+                    : isVietnamese
+                      ? "Chưa vẽ"
+                      : "None"}
                 </span>
               </button>
             )}
@@ -462,16 +543,57 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
             <div className={`rounded-[22px] p-4 ${NM.recessed}`}>
               <div className={`space-y-3.5 rounded-2xl p-4 ${NM.extruded}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-foreground/[0.06] pb-2">
-                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                    {isVietnamese
-                      ? "03. Luật & Ngưỡng Sustain (Hot-Config)"
-                      : "03. Rules & Sustain Thresholds (Hot-Config)"}
-                  </span>
-                  <span className="rounded-full bg-accent/15 px-2.5 py-0.5 text-[10px] font-bold text-accent">
-                    {isVietnamese
-                      ? "Set mềm trực tiếp không cần restart"
-                      : "Live apply without restart"}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
+                      {isVietnamese
+                        ? "03. Luật & Ngưỡng Sustain (Hot-Config)"
+                        : "03. Rules & Sustain Thresholds (Hot-Config)"}
+                    </span>
+                    {safetySource && (
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          safetySource === "CAMERA_OVERRIDE"
+                            ? "border border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                            : "border border-primary/20 bg-primary/10 text-primary"
+                        }`}
+                      >
+                        <ShieldCheck className="size-3" />
+                        {safetySource === "CAMERA_OVERRIDE"
+                          ? isVietnamese
+                            ? "Cấu hình riêng Camera"
+                            : "Camera Override"
+                          : isVietnamese
+                            ? "Kế thừa từ Công trường"
+                            : "Inherited from Site"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canManageCamera && safetySource === "CAMERA_OVERRIDE" && onResetToSiteRules && (
+                      <button
+                        type="button"
+                        disabled={isResettingRules}
+                        onClick={onResetToSiteRules}
+                        className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 disabled:opacity-50 ${NM.tactileBtn}`}
+                      >
+                        <RotateCcw className={`size-3 ${isResettingRules ? "animate-spin" : ""}`} />
+                        <span>
+                          {isResettingRules
+                            ? isVietnamese
+                              ? "Đang đặt lại..."
+                              : "Resetting..."
+                            : isVietnamese
+                              ? "Khôi phục theo Site"
+                              : "Reset to Site"}
+                        </span>
+                      </button>
+                    )}
+                    <span className="rounded-full bg-accent/15 px-2.5 py-0.5 text-[10px] font-bold text-accent">
+                      {isVietnamese
+                        ? "Set mềm trực tiếp không cần restart"
+                        : "Live apply without restart"}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Sustain Timers */}

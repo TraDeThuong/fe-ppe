@@ -11,7 +11,10 @@ import { useSite } from "@/contexts/SiteContext";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useLocale } from "@/providers/locale-provider";
 import { NM } from "@/components/features/ai-test/nm-styles";
-import { selectAutoStartCandidates } from "@/components/features/cameras/camera-live-helpers";
+import {
+  filterSessionsForCameras,
+  selectAutoStartCandidates,
+} from "@/components/features/cameras/camera-live-helpers";
 import {
   CameraCard,
   CameraFleetHeader,
@@ -58,6 +61,7 @@ export default function CamerasContent() {
 
   const [search, setSearch] = useState(urlSearch);
   const [statusFilter, setStatusFilter] = useState("");
+  const [sourceTypeFilter, setSourceTypeFilter] = useState("");
   const [kpiFilter, setKpiFilter] = useState<CameraKpiFilterKey>("all");
   const [siteFilter, setSiteFilter] = useState(urlSiteId || globalSiteId || "");
   const [zoneFilter, setZoneFilter] = useState("");
@@ -104,7 +108,7 @@ export default function CamerasContent() {
 
   const debouncedSearch = useDebounce(search, 300);
 
-  const filterKey = `${debouncedSearch}:${siteFilter}:${zoneFilter}:${statusFilter}:${kpiFilter}`;
+  const filterKey = `${debouncedSearch}:${siteFilter}:${zoneFilter}:${statusFilter}:${sourceTypeFilter}:${kpiFilter}`;
   const tableState = useTableState(
     [{ id: "createdAt", desc: true }],
     filterKey,
@@ -129,14 +133,12 @@ export default function CamerasContent() {
 
   const [kpiDetailOpen, setKpiDetailOpen] = useState(false);
 
-  // Queries: Status Counts (lightweight KPI), Lazy Catalog (only when KPI detail panel opens), Filtered Page (Grid/Wall/Table), Live AI Sessions
+  // Queries: Status Counts (lightweight KPI), Lazy Catalog (when KPI detail opens or sessions need reconciliation), Filtered Page (Grid/Wall/Table), Live AI Sessions
   const {
     data: cameraStatusCounts,
     isLoading: statusCountsLoading,
     refetch: refetchStatusCounts,
   } = useCameraStatusCounts(siteFilter || undefined);
-  const { data: catalogCameras = [], refetch: refetchCatalog } =
-    useCamerasCatalog({ enabled: kpiDetailOpen });
 
   const {
     data: camerasResponse,
@@ -150,6 +152,7 @@ export default function CamerasContent() {
     siteId: siteFilter || undefined,
     zoneId: zoneFilter || undefined,
     status: statusFilter || (kpiFilter === "online" ? "ONLINE" : undefined),
+    sourceType: sourceTypeFilter || undefined,
     sortBy: sortParams.sortBy,
     sortOrder: sortParams.order,
   });
@@ -167,6 +170,7 @@ export default function CamerasContent() {
     isLoadingSessions,
     startLive,
     stopLive,
+    stopOrphanedSessions,
     triggerSync,
     isSyncingLive,
     startingCameraId,
@@ -174,7 +178,32 @@ export default function CamerasContent() {
     refreshAll: refreshAiEngine,
   } = useCameraLiveSessions({ enabled: true, pollIntervalMs: 2500 });
 
+  const rawCameras = useMemo(
+    () => camerasResponse?.items || [],
+    [camerasResponse?.items],
+  );
+  const meta = camerasResponse?.meta;
+
+  const hasActiveQueryFilters = Boolean(
+    debouncedSearch || zoneFilter || statusFilter || sourceTypeFilter,
+  );
+  const totalFleetCameras =
+    cameraStatusCounts?.total ?? (!hasActiveQueryFilters ? meta?.total : undefined);
+
+  const shouldLoadCatalog =
+    kpiDetailOpen ||
+    (sessions.length > 0 &&
+      (hasActiveQueryFilters ||
+        (totalFleetCameras !== undefined && totalFleetCameras > rawCameras.length)));
+
+  const {
+    data: catalogCameras = [],
+    isLoading: catalogLoading,
+    refetch: refetchCatalog,
+  } = useCamerasCatalog({ enabled: shouldLoadCatalog });
+
   const autoAttemptedIdsRef = useRef<Set<string>>(new Set());
+  const stoppedOrphanIdsRef = useRef<Set<string>>(new Set());
   const autoStartRunningRef = useRef(false);
   const isMountedRef = useRef(true);
 
@@ -195,11 +224,68 @@ export default function CamerasContent() {
   const [deleteTarget, setDeleteTarget] = useState<CameraItem | null>(null);
   const [healthTarget, setHealthTarget] = useState<CameraItem | null>(null);
 
-  const rawCameras = useMemo(
-    () => camerasResponse?.items || [],
-    [camerasResponse?.items],
+  const allKnownCameras = useMemo(
+    () => (catalogCameras.length > 0 ? catalogCameras : rawCameras),
+    [catalogCameras, rawCameras],
   );
-  const meta = camerasResponse?.meta;
+
+  const hasCompleteCameraCatalog =
+    !camerasLoading &&
+    !statusCountsLoading &&
+    (totalFleetCameras === 0 ||
+      (!catalogLoading && catalogCameras.length > 0 && !siteFilter) ||
+      (!hasActiveQueryFilters &&
+        totalFleetCameras !== undefined &&
+        rawCameras.length >= totalFleetCameras));
+
+  const { activeFleetSessions, orphanedSessions } = useMemo(() => {
+    if (totalFleetCameras === 0) {
+      return { activeFleetSessions: [], orphanedSessions: sessions };
+    }
+    if (hasCompleteCameraCatalog) {
+      const { matchedSessions, orphanedSessions: orphans } =
+        filterSessionsForCameras(sessions, allKnownCameras);
+      return { activeFleetSessions: matchedSessions, orphanedSessions: orphans };
+    }
+    return { activeFleetSessions: sessions, orphanedSessions: [] };
+  }, [allKnownCameras, hasCompleteCameraCatalog, sessions, totalFleetCameras]);
+
+  // Automatically stop orphaned AI Live sessions whose cameras were deleted from DB
+  useEffect(() => {
+    if (
+      !engineOnline ||
+      isLoadingSessions ||
+      !hasCompleteCameraCatalog ||
+      !canCreate ||
+      siteFilter
+    ) {
+      return;
+    }
+    const orphanIdsToStop = orphanedSessions
+      .filter(
+        (s) =>
+          (s.status === "running" ||
+            s.status === "initializing" ||
+            s.status === "reconnecting") &&
+          !stoppedOrphanIdsRef.current.has(s.camera_id),
+      )
+      .map((s) => s.camera_id);
+
+    if (orphanIdsToStop.length === 0) return;
+
+    for (const id of orphanIdsToStop) {
+      stoppedOrphanIdsRef.current.add(id);
+    }
+    void stopOrphanedSessions(orphanIdsToStop);
+  }, [
+    canCreate,
+    engineOnline,
+    hasCompleteCameraCatalog,
+    isLoadingSessions,
+    orphanedSessions,
+    siteFilter,
+    stopOrphanedSessions,
+  ]);
 
   const camerasWithSite = useMemo(
     () =>
@@ -227,8 +313,8 @@ export default function CamerasContent() {
   }, [camerasWithSite, getSessionForCamera, kpiFilter]);
 
   const runningSessionsCount = useMemo(
-    () => sessions.filter((s) => s.status === "running").length,
-    [sessions],
+    () => activeFleetSessions.filter((s) => s.status === "running").length,
+    [activeFleetSessions],
   );
 
   const totalCount = meta?.total ?? visibleCameras.length;
@@ -236,10 +322,11 @@ export default function CamerasContent() {
 
   const handleRefreshAll = () => {
     autoAttemptedIdsRef.current.clear();
+    stoppedOrphanIdsRef.current.clear();
     void Promise.all([
       refetchCameras(),
       refetchStatusCounts(),
-      kpiDetailOpen ? refetchCatalog() : Promise.resolve(),
+      shouldLoadCatalog ? refetchCatalog() : Promise.resolve(),
       refreshAiEngine(),
     ]);
   };
@@ -261,8 +348,8 @@ export default function CamerasContent() {
     await updateMutation.mutateAsync({ id, payload });
   };
 
-  const handleDeleteConfirm = async (id: string, name?: string) => {
-    await deleteMutation.mutateAsync({ id, name });
+  const handleDeleteConfirm = async (id: string, name?: string, code?: string) => {
+    await deleteMutation.mutateAsync({ id, name, code });
   };
 
   const handleStartLive = useCallback((camera: CameraItem) => {
@@ -362,7 +449,7 @@ export default function CamerasContent() {
       <CameraKpiSummary
         cameras={catalogCameras.length > 0 ? catalogCameras : rawCameras}
         statusCounts={cameraStatusCounts}
-        sessions={sessions}
+        sessions={activeFleetSessions}
         activeFilter={kpiFilter}
         onSelectFilter={handleKpiSelect}
         onDetailOpenChange={setKpiDetailOpen}
@@ -378,6 +465,8 @@ export default function CamerasContent() {
           setStatusFilter(val);
           if (val !== "ONLINE" && kpiFilter === "online") setKpiFilter("all");
         }}
+        sourceTypeFilter={sourceTypeFilter}
+        onSourceTypeFilterChange={setSourceTypeFilter}
         siteFilter={siteFilter}
         onSiteFilterChange={setSiteFilter}
         zoneFilter={zoneFilter}

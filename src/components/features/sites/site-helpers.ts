@@ -1,5 +1,38 @@
 import { userService } from "@/services/user.service";
-import type { SiteContactOfficer, SiteItem } from "@/types";
+import type { SiteContactOfficer, SiteItem, UserResponseDto } from "@/types";
+
+export function groupUsersBySafetyRole(allUsers: readonly UserResponseDto[]) {
+  const managers: UserResponseDto[] = [];
+  const officers: UserResponseDto[] = [];
+  const others: UserResponseDto[] = [];
+
+  for (const u of allUsers) {
+    const roleName = (u.role?.name || "").toUpperCase();
+    if (roleName === "SAFETY_MANAGER" || roleName === "MANAGER" || roleName === "ADMIN") {
+      managers.push(u);
+    } else if (roleName === "SAFETY_OFFICER" || roleName.includes("SAFETY") || roleName.includes("OFFICER")) {
+      officers.push(u);
+    } else {
+      others.push(u);
+    }
+  }
+
+  return { managers, officers, others };
+}
+
+export function suggestSiteRoleTitle(
+  roleName: string | undefined,
+  isVietnamese: boolean,
+): string | null {
+  const upper = (roleName || "").toUpperCase();
+  if (upper === "SAFETY_MANAGER" || upper === "MANAGER") {
+    return isVietnamese ? "Trưởng ban an toàn (Lead)" : "Lead Safety Officer";
+  }
+  if (upper === "SAFETY_OFFICER") {
+    return isVietnamese ? "Cán bộ giám sát an toàn (Officer)" : "Safety Supervision Officer";
+  }
+  return null;
+}
 
 /**
  * Safely parses `site.contactOfficers` whether it arrives as an array or JSON string.
@@ -74,30 +107,53 @@ export function toDateInputValue(value?: string | null): string {
 }
 
 /**
- * Syncs `User.siteIds` when an Admin assigns officers with `userId` to a site.
+ * Syncs `User.siteIds` when an Admin assigns or removes officers with `userId` on a site.
  */
 export async function syncSiteOfficersAccess(
   siteId: string,
   contactOfficers: SiteContactOfficer[] | undefined,
   isAdmin: boolean,
+  previousOfficers?: SiteContactOfficer[] | null,
 ): Promise<void> {
-  if (!siteId || !isAdmin || !contactOfficers?.length) return;
-  const officerUserIds = contactOfficers
-    .map((o) => o.userId)
-    .filter((id): id is string => Boolean(id));
-  if (officerUserIds.length === 0) return;
+  if (!siteId || !isAdmin) return;
+
+  const nextUserIds = new Set(
+    (contactOfficers || [])
+      .map((o) => o.userId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const prevUserIds = new Set(
+    (previousOfficers || [])
+      .map((o) => o.userId)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  const toAdd = Array.from(nextUserIds);
+  const toRemove = Array.from(prevUserIds).filter((id) => !nextUserIds.has(id));
+
+  if (toAdd.length === 0 && toRemove.length === 0) return;
 
   try {
-    await Promise.allSettled(
-      officerUserIds.map(async (userId) => {
+    await Promise.allSettled([
+      ...toAdd.map(async (userId) => {
         const officerDetail = await userService.getUserById(userId);
         const currentSites = officerDetail.siteIds || [];
         if (!currentSites.includes(siteId)) {
           await userService.assignUserSites(userId, [...currentSites, siteId]);
         }
       }),
-    );
+      ...toRemove.map(async (userId) => {
+        const officerDetail = await userService.getUserById(userId);
+        const currentSites = officerDetail.siteIds || [];
+        if (currentSites.includes(siteId)) {
+          await userService.assignUserSites(
+            userId,
+            currentSites.filter((id) => id !== siteId),
+          );
+        }
+      }),
+    ]);
   } catch (err) {
-    console.warn("Could not auto-assign site to selected officers:", err);
+    console.warn("Could not auto-sync site access for officers:", err);
   }
 }

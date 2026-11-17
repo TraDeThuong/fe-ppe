@@ -2,32 +2,54 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Archive,
   ArrowLeft,
+  BellRing,
   Building2,
   CheckCircle2,
   CheckSquare,
+  Download,
+  Edit3,
+  FilePlus2,
   Loader2,
   RefreshCw,
   ShieldAlert,
+  Trash2,
   UserCheck,
   Video,
 } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
+import { ResourceAuditTrailCard } from "@/components/features/audit-logs";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/providers/locale-provider";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
+import { useCan } from "@/hooks/use-can";
+import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
+import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
+import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
 import { toast } from "@/lib/toast";
+import { isDockerInternalMinioUrl, resolveEvidenceUrl } from "@/lib/evidence-url";
+import {
+  dispatchIncidentsWithSignal,
+  resolveIncidentsWithReport,
+} from "@/lib/incident-actions";
+import { isIncidentAssignedToUser } from "@/lib/incident-workflow";
+import { incidentService, notificationService } from "@/services";
 import {
   EVIDENCE_TYPE,
+  type EvidenceItem,
   type IncidentItem,
   type IncidentCommentItem,
   type IncidentAssignmentItem,
   type IncidentStatusHistoryItem,
+  type NotificationSeverity,
 } from "@/types";
 import {
   IncidentLifecycleStepper,
@@ -41,15 +63,19 @@ import {
   AssignIncidentModal,
   ResolveIncidentModal,
   CloseIncidentDialog,
+  EditIncidentModal,
+  AttachEvidenceModal,
 } from "@/components/features/incidents";
 import {
   useIncidentDetail,
   useIncidentComments,
   useAddIncidentComment,
+  useUpdateIncident,
   useReviewIncident,
   useAssignOfficer,
   useResolveIncident,
   useCloseIncident,
+  useEvidenceMutations,
 } from "@/hooks";
 
 interface IncidentDetailContentProps {
@@ -61,6 +87,8 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
   const isVietnamese = locale === "vi-VN";
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { getCamera } = useEntityLookup();
 
   const [isHighlightCompare, setIsHighlightCompare] = useState(false);
@@ -122,18 +150,47 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
     return incidentCamera?.snapshotUrl || null;
   }, [incident?.cameraId, incidentCamera]);
 
-  // Mutations
+  // Mutations & Permissions
+  const can = useCan();
+  const canReview = can("PPE_INCIDENT_REVIEW");
+  const canAssign = can("PPE_INCIDENT_MANAGE");
+  const canResolve = can("PPE_INCIDENT_UPDATE");
+  const canClose = can("PPE_INCIDENT_MANAGE");
+  const canUpdate = can("PPE_INCIDENT_UPDATE");
+  const canDeleteEvidence = can("PPE_INCIDENT_DELETE");
+  const canTriggerAlert =
+    can("PPE_INCIDENT_UPDATE") || can("PPE_INCIDENT_MANAGE") || can("NOTIFICATION_CREATE");
+
   const addCommentMutation = useAddIncidentComment();
+  const updateMutation = useUpdateIncident();
   const reviewMutation = useReviewIncident();
   const assignMutation = useAssignOfficer();
   const resolveMutation = useResolveIncident();
   const closeMutation = useCloseIncident();
+  const evidenceMutations = useEvidenceMutations();
 
   // Modals
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isAttachOpen, setIsAttachOpen] = useState(false);
+  const [deleteEvidenceTarget, setDeleteEvidenceTarget] = useState<EvidenceItem | null>(null);
+  const [isNotifying, setIsNotifying] = useState(false);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [isResolveOpen, setIsResolveOpen] = useState(false);
   const [isCloseOpen, setIsCloseOpen] = useState(false);
+  const [isActionPending, setIsActionPending] = useState(false);
+
+  const isOfficerRole = (user?.role || "").toUpperCase() === "SAFETY_OFFICER";
+  const isOfficerAssigned = incident ? isIncidentAssignedToUser(incident, user?.id) : false;
+  const awaitingDispatch = isOfficerRole && !isOfficerAssigned;
+  const canSelfOrAssignedResolve = canResolve && (!isOfficerRole || isOfficerAssigned);
+
+  const refreshDetailAndLists = () => {
+    void refetch();
+    void queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
+    void queryClient.invalidateQueries({ queryKey: incidentKeys.statusCountsRoot() });
+    void queryClient.invalidateQueries({ queryKey: reportingKeys.all });
+  };
 
   // Handlers gọi trực tiếp API Backend qua React Query mutations
   const handleSendComment = async (comment: string) => {
@@ -150,21 +207,69 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
     }
   };
 
-  const handleAssign = async (incidentId: string, payload: any) => {
+  const handleAssign = async (_incidentId: string, payload: any) => {
+    if (!incident) return;
+    const targetId = payload.assignedTo || payload.assignedToUserId || "";
+    setIsActionPending(true);
     try {
-      await assignMutation.mutateAsync({ incidentId, payload });
+      const res = await dispatchIncidentsWithSignal({
+        incidents: [incident],
+        assignedTo: targetId,
+        note: payload.note,
+        managerName: user?.fullName || user?.email || undefined,
+      });
+      refreshDetailAndLists();
+      if (res.assignedCount > 0) {
+        toast.success(
+          isVietnamese
+            ? `Đã giao cán bộ xử lý${res.signalSent ? " và phát tín hiệu thông báo" : ""}.`
+            : `Assigned officer${res.signalSent ? " and sent dispatch signal" : ""}.`,
+        );
+      }
       setIsAssignOpen(false);
     } catch (err) {
       console.error("Failed to assign incident:", err);
+      throw err;
+    } finally {
+      setIsActionPending(false);
     }
   };
 
-  const handleResolve = async (resolveId: string, payload: any) => {
+  const handleResolve = async (_resolveId: string, payload: any) => {
+    if (!incident) return;
+    setIsActionPending(true);
     try {
-      await resolveMutation.mutateAsync({ id: resolveId, payload });
-      setIsResolveOpen(false);
+      const res = await resolveIncidentsWithReport({
+        incidents: [incident],
+        resolutionNote: payload.resolutionNote,
+        afterFixFile: payload.afterFixFile,
+        closeImmediately: payload.closeImmediately,
+        officerName: user?.fullName || user?.email || undefined,
+      });
+      refreshDetailAndLists();
+      if (res.resolvedCount > 0) {
+        toast.success(
+          res.closedCount > 0
+            ? isVietnamese
+              ? "Đã xác nhận khắc phục và đóng hồ sơ sự cố."
+              : "Incident resolved and closed."
+            : isVietnamese
+              ? `Đã báo cáo khắc phục${res.reportSignalSent ? " và gửi tín hiệu tới Quản lý" : ""}.`
+              : "Remediation report sent.",
+        );
+        setIsResolveOpen(false);
+      } else if (res.failedCount > 0) {
+        throw new Error(
+          isVietnamese
+            ? "Không thể xác nhận khắc phục sự cố."
+            : "Unable to resolve incident.",
+        );
+      }
     } catch (err) {
       console.error("Failed to resolve incident:", err);
+      throw err;
+    } finally {
+      setIsActionPending(false);
     }
   };
 
@@ -174,6 +279,47 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
       setIsCloseOpen(false);
     } catch (err) {
       console.error("Failed to close incident:", err);
+    }
+  };
+
+  const handleTriggerAlert = async () => {
+    if (!incident) return;
+    setIsNotifying(true);
+    try {
+      await notificationService.triggerIncidentNotification({
+        incidentId: incident.id,
+        siteId: incident.siteId,
+        cameraId: incident.cameraId,
+        violationType: incident.violationType,
+        severity: (incident.severity || "HIGH") as NotificationSeverity,
+        channels: ["IN_APP", "EMAIL"],
+        evidenceUrl:
+          incident.evidences?.[0]?.url || incident.snapshotUrl || undefined,
+      });
+      toast.success(
+        isVietnamese
+          ? "Đã gửi lại thông báo cảnh báo tới cán bộ phụ trách."
+          : "Re-dispatched incident alert to safety officers.",
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to dispatch alert");
+    } finally {
+      setIsNotifying(false);
+    }
+  };
+
+  const handleDownloadEvidence = async (ev: EvidenceItem) => {
+    try {
+      const res = await incidentService.getEvidenceDownloadUrl(ev.id, {
+        action: "DOWNLOAD",
+      });
+      const targetUrl =
+        isDockerInternalMinioUrl(res.downloadUrl) && ev.storageKey
+          ? resolveEvidenceUrl(ev.storageKey)
+          : res.downloadUrl;
+      window.open(targetUrl, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Download failed");
     }
   };
 
@@ -351,7 +497,31 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
               </Button>
             )}
 
-            {incident.status === "PENDING_REVIEW" && (
+            {canUpdate && incident.status !== "CLOSED" && (
+              <Button
+                variant="outline"
+                onClick={() => setIsEditOpen(true)}
+                className="gap-1.5"
+              >
+                <Edit3 className="h-4 w-4 text-primary" />
+                <span className="hidden sm:inline">{isVietnamese ? "Sửa" : "Edit"}</span>
+              </Button>
+            )}
+
+            {canTriggerAlert && incident.status !== "CLOSED" && (
+              <Button
+                variant="outline"
+                disabled={isNotifying}
+                onClick={handleTriggerAlert}
+                className="gap-1.5"
+                title={isVietnamese ? "Gửi lại cảnh báo sự cố qua App & Email" : "Re-notify officers"}
+              >
+                <BellRing className="h-4 w-4 text-amber-500" />
+                <span className="hidden sm:inline">{isVietnamese ? "Báo động lại" : "Re-notify"}</span>
+              </Button>
+            )}
+
+            {incident.status === "PENDING_REVIEW" && canReview && (
               <Button
                 variant="primary"
                 onClick={() => setIsReviewOpen(true)}
@@ -367,53 +537,61 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
 
             {incident.status === "CONFIRMED" && !hasAssignments && (
               <>
-                <Button
-                  variant="primary"
-                  onClick={() => setIsAssignOpen(true)}
-                  className="animate-gentle-pulse-ring gap-1.5 font-bold shadow-md"
-                >
-                  <UserCheck className="h-4 w-4" />
-                  <span>{t("incidents.actions.assign")}</span>
-                  <span className="hidden xl:inline-block rounded bg-primary-foreground/20 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider">
-                    {isVietnamese ? "Bước tiếp theo" : "Next"}
-                  </span>
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsResolveOpen(true)}
-                  className="gap-1.5 text-emerald-600 hover:text-emerald-700"
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span>{t("incidents.actions.resolve")}</span>
-                </Button>
+                {canAssign && (
+                  <Button
+                    variant="primary"
+                    onClick={() => setIsAssignOpen(true)}
+                    className="animate-gentle-pulse-ring gap-1.5 font-bold shadow-md"
+                  >
+                    <UserCheck className="h-4 w-4" />
+                    <span>{t("incidents.actions.assign")}</span>
+                    <span className="hidden xl:inline-block rounded bg-primary-foreground/20 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider">
+                      {isVietnamese ? "Bước tiếp theo" : "Next"}
+                    </span>
+                  </Button>
+                )}
+                {canSelfOrAssignedResolve && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsResolveOpen(true)}
+                    className="gap-1.5 text-emerald-600 hover:text-emerald-700"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>{t("incidents.actions.resolve")}</span>
+                  </Button>
+                )}
               </>
             )}
 
             {incident.status === "CONFIRMED" && hasAssignments && (
               <>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsAssignOpen(true)}
-                  className="gap-1.5"
-                >
-                  <UserCheck className="h-4 w-4 text-primary" />
-                  <span>{t("incidents.actions.assign")}</span>
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => setIsResolveOpen(true)}
-                  className="animate-gentle-pulse-ring gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md dark:bg-emerald-600 font-bold"
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span>{t("incidents.actions.resolve")}</span>
-                  <span className="hidden xl:inline-block rounded bg-white/20 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider">
-                    {isVietnamese ? "Bước tiếp theo" : "Next"}
-                  </span>
-                </Button>
+                {canAssign && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsAssignOpen(true)}
+                    className="gap-1.5"
+                  >
+                    <UserCheck className="h-4 w-4 text-primary" />
+                    <span>{t("incidents.actions.assign")}</span>
+                  </Button>
+                )}
+                {canSelfOrAssignedResolve && (
+                  <Button
+                    variant="primary"
+                    onClick={() => setIsResolveOpen(true)}
+                    className="animate-gentle-pulse-ring gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md dark:bg-emerald-600 font-bold"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>{t("incidents.actions.resolve")}</span>
+                    <span className="hidden xl:inline-block rounded bg-white/20 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider">
+                      {isVietnamese ? "Bước tiếp theo" : "Next"}
+                    </span>
+                  </Button>
+                )}
               </>
             )}
 
-            {incident.status === "RESOLVED" && (
+            {(incident.status === "RESOLVED" || incident.status === "DISMISSED") && canClose && (
               <Button
                 variant="primary"
                 onClick={() => setIsCloseOpen(true)}
@@ -442,10 +620,11 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
         status={incident.status}
         hasAssignments={hasAssignments}
         assignedOfficerName={assignedOfficerName}
-        onReview={() => setIsReviewOpen(true)}
-        onAssign={() => setIsAssignOpen(true)}
-        onResolve={() => setIsResolveOpen(true)}
-        onClose={() => setIsCloseOpen(true)}
+        awaitingDispatch={awaitingDispatch}
+        onReview={canReview ? () => setIsReviewOpen(true) : undefined}
+        onAssign={canAssign ? () => setIsAssignOpen(true) : undefined}
+        onResolve={canSelfOrAssignedResolve ? () => setIsResolveOpen(true) : undefined}
+        onClose={canClose ? () => setIsCloseOpen(true) : undefined}
       />
 
       {/* Main Content Layout: 2 Columns */}
@@ -474,6 +653,84 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
             evidenceId={primaryEvidence?.id}
             expectedChecksum={primaryEvidence?.metadata?.checksum}
           />
+
+          {/* Attached Evidence Files Management */}
+          <section className="rounded-2xl border border-border/30 bg-surface p-4 shadow-nm-sm space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h4 className="text-xs font-extrabold text-foreground">
+                  {isVietnamese
+                    ? `Tệp Minh chứng Đính kèm (${incident.evidences?.length ?? 0})`
+                    : `Attached Evidence Files (${incident.evidences?.length ?? 0})`}
+                </h4>
+                <p className="text-[11px] text-muted-foreground">
+                  {isVietnamese
+                    ? "Tải bản gốc có ghi nhận EvidenceAccessLog hoặc đính kèm thêm ảnh/video clip."
+                    : "Download originals with access logging or attach additional snapshots/clips."}
+                </p>
+              </div>
+              {canUpdate && incident.status !== "CLOSED" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsAttachOpen(true)}
+                  className="gap-1.5"
+                >
+                  <FilePlus2 className="h-3.5 w-3.5 text-primary" />
+                  <span>{isVietnamese ? "Đính kèm" : "Attach"}</span>
+                </Button>
+              )}
+            </div>
+
+            {(!incident.evidences || incident.evidences.length === 0) ? (
+              <p className="rounded-xl p-4 text-center text-xs text-muted-foreground shadow-nm-inset">
+                {isVietnamese ? "Chưa có tệp minh chứng nào trong DB." : "No evidence files stored yet."}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {incident.evidences.map((ev) => (
+                  <div
+                    key={ev.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/20 bg-background/60 px-3 py-2 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="info" className="text-[10px]">
+                          {ev.evidenceType}
+                        </Badge>
+                        <span className="truncate font-mono font-bold text-foreground">
+                          {ev.fileName}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">
+                        {new Date(ev.capturedAt).toLocaleString(locale)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDownloadEvidence(ev)}
+                        title={isVietnamese ? "Tải bản gốc" : "Download original"}
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </Button>
+                      {canDeleteEvidence && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-danger hover:text-danger"
+                          onClick={() => setDeleteEvidenceTarget(ev)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
 
         {/* Right Column (Metadata, Assignment & Comments): 5 Cols */}
@@ -482,8 +739,8 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
 
           <IncidentAssignmentCard
             assignments={incident.assignments}
-            onAssign={() => setIsAssignOpen(true)}
-            canManage={incident.status !== "CLOSED"}
+            onAssign={canAssign ? () => setIsAssignOpen(true) : undefined}
+            canManage={canAssign && incident.status !== "CLOSED"}
             isNextAction={incident.status === "CONFIRMED" && !hasAssignments}
           />
 
@@ -491,6 +748,12 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
             comments={comments.length > 0 ? comments : incident.comments}
             onSendComment={handleSendComment}
             loading={addCommentMutation.isPending}
+          />
+
+          <ResourceAuditTrailCard
+            targetType="INCIDENT"
+            targetId={incident.id}
+            title={isVietnamese ? "Nhật ký Tác động Sự cố" : "Incident Audit Trail"}
           />
         </div>
       </div>
@@ -508,7 +771,7 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
         open={isAssignOpen}
         onOpenChange={setIsAssignOpen}
         incident={incident}
-        loading={assignMutation.isPending}
+        loading={assignMutation.isPending || isActionPending}
         onSubmit={handleAssign}
       />
 
@@ -516,7 +779,8 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
         open={isResolveOpen}
         onOpenChange={setIsResolveOpen}
         incident={incident}
-        loading={resolveMutation.isPending}
+        loading={resolveMutation.isPending || isActionPending}
+        canClose={canClose}
         onSubmit={handleResolve}
       />
 
@@ -526,6 +790,50 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
         incident={incident}
         loading={closeMutation.isPending}
         onConfirm={handleClose}
+      />
+
+      <EditIncidentModal
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
+        incident={incident}
+        loading={updateMutation.isPending}
+        onSubmit={async (targetId, payload) => {
+          await updateMutation.mutateAsync({ id: targetId, payload });
+        }}
+      />
+
+      <AttachEvidenceModal
+        open={isAttachOpen}
+        onOpenChange={setIsAttachOpen}
+        incidentId={incident.id}
+        cameraId={incident.cameraId}
+        siteId={incident.siteId}
+        loading={
+          evidenceMutations.uploadDirect.isPending ||
+          evidenceMutations.uploadViaPresigned.isPending
+        }
+        onUploadDirect={(args) => evidenceMutations.uploadDirect.mutateAsync(args)}
+        onUploadPresigned={(args) =>
+          evidenceMutations.uploadViaPresigned.mutateAsync(args)
+        }
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteEvidenceTarget)}
+        onClose={() => setDeleteEvidenceTarget(null)}
+        onConfirm={async () => {
+          if (!deleteEvidenceTarget) return;
+          await evidenceMutations.deleteEvidence.mutateAsync({
+            evidenceId: deleteEvidenceTarget.id,
+            incidentId: incident.id,
+          });
+          setDeleteEvidenceTarget(null);
+        }}
+        variant="danger"
+        loading={evidenceMutations.deleteEvidence.isPending}
+        title={isVietnamese ? "Xóa tệp minh chứng?" : "Delete evidence file?"}
+        description={deleteEvidenceTarget?.fileName || ""}
+        confirmText={t("common.delete")}
       />
     </div>
   );

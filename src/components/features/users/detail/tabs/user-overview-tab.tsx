@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
+import { ResourceAuditTrailCard } from "@/components/features/audit-logs";
 import { toast } from "@/lib/toast";
 import { getSiteRoleDetails, type UserIncidentStats } from "../user-detail-utils";
 import type { UserResponseDto, SiteItem, IncidentItem } from "@/types";
@@ -248,8 +249,8 @@ export function UserOverviewTab({
               >
                 {stats.performanceTier === "EXCELLENT"
                   ? isVietnamese
-                    ? "★ Xuất sắc"
-                    : "★ Excellent"
+                    ? "Xuất sắc"
+                    : "Excellent"
                   : stats.performanceTier === "GOOD"
                     ? isVietnamese
                       ? "Tốt"
@@ -609,6 +610,12 @@ export function UserOverviewTab({
           </div>
         </div>
       </div>
+
+      <ResourceAuditTrailCard
+        targetType="USER"
+        targetId={user.id}
+        title={isVietnamese ? "Nhật ký Tác động Tài khoản" : "User Audit Trail"}
+      />
     </div>
   );
 }

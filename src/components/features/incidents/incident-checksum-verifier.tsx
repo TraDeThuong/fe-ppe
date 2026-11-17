@@ -2,6 +2,7 @@
 
 import { CheckCircle2, FileCheck, Key, Loader2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { isChecksumVerifyValid } from "@/lib/evidence-utils";
 import { useLocale } from "@/providers/locale-provider";
 import { useVerifyEvidenceMutation } from "@/hooks/incidents";
 
@@ -65,7 +66,7 @@ export function IncidentChecksumVerifier({
       </div>
 
       {result ? (
-        result.isTampered ? (
+        !isChecksumVerifyValid(result) ? (
           <div className="flex items-center gap-2 rounded-xl border border-danger/40 bg-danger/10 p-3 text-xs text-danger font-semibold">
             <ShieldAlert className="h-4 w-4 shrink-0" />
             <span>

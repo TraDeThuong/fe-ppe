@@ -17,7 +17,10 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useLocale } from "@/providers/locale-provider";
+import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
+import { classifyIncidentAlert } from "@/lib/incident-workflow";
+import { stripEmojis } from "@/lib/strip-emojis";
 import {
   useUnreadCount,
   useNotifications,
@@ -71,6 +74,7 @@ export function NotificationBell() {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const router = useRouter();
+  const { user } = useAuth();
 
   const [open, setOpen] = useState(false);
   const [isRinging, setIsRinging] = useState(false);
@@ -90,19 +94,21 @@ export function NotificationBell() {
 
   const notifications = notificationData?.data || [];
 
-  // Lắng nghe sự kiện Realtime SSE để phát chuông âm thanh cảnh báo, rung chuông & hiện Toast
+  // Lắng nghe sự kiện Realtime SSE: lọc theo vai trò (Manager nhận cảnh báo AI & báo cáo xong; Officer nhận tín hiệu [ĐIỀU PHỐI])
   useEffect(() => {
     if (!lastAlert) return;
 
-    let alertSeverity: NotificationSeverity = "NORMAL";
-    if (lastAlert.type === "notification:ppe_violation") {
-      alertSeverity = "CRITICAL";
-    } else if (lastAlert.data && typeof lastAlert.data === "object" && "severity" in lastAlert.data) {
-      alertSeverity = (lastAlert.data as { severity: NotificationSeverity }).severity || "HIGH";
+    const classified = classifyIncidentAlert(
+      lastAlert.data,
+      lastAlert.type,
+      user?.role,
+    );
+    if (!classified.shouldTriggerBellAndToast) {
+      return;
     }
 
     // Phát âm thanh tương ứng
-    playAlert(alertSeverity);
+    playAlert(classified.toastSeverity);
 
     // Kích hoạt hiệu ứng rung lắc biểu tượng chuông
     setIsRinging(true);
@@ -115,12 +121,15 @@ export function NotificationBell() {
         : null;
 
     if (alertData && (lastAlert.type === "notification:ppe_violation" || alertData.incidentId)) {
-      const toastKey = `ppe-incident-${alertData.incidentId || Date.now()}`;
+      const toastKey = `ppe-incident-${classified.kind}-${alertData.incidentId || Date.now()}`;
       toast.custom(
         (t) => (
           <IncidentAlertToast
             visible={t.visible}
-            data={alertData}
+            data={{
+              ...alertData,
+              severity: classified.toastSeverity,
+            }}
             onClose={() => toast.dismiss(t.id)}
             onOpenIncident={(incidentId) => {
               toast.dismiss(t.id);
@@ -145,7 +154,7 @@ export function NotificationBell() {
     }
 
     return () => clearTimeout(timer);
-  }, [lastAlert, playAlert, router]);
+  }, [lastAlert, playAlert, router, user?.role]);
 
   useEffect(() => {
     if (!open) return;
@@ -282,14 +291,14 @@ export function NotificationBell() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <p className="truncate text-xs font-bold text-foreground group-hover:text-primary">
-                        {item.title}
+                        {stripEmojis(item.title)}
                       </p>
                       <span className="shrink-0 text-[10px] text-muted-foreground font-mono">
                         {formatRelativeTimeShort(item.createdAt, isVietnamese)}
                       </span>
                     </div>
                     <p className="line-clamp-2 text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                      {item.content}
+                      {stripEmojis(item.content)}
                     </p>
                     {item.incidentId && (
                       <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-primary">

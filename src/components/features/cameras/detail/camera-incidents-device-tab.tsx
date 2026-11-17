@@ -32,6 +32,8 @@ import {
 import { useCameraHealthLogs, usePingCamera } from "@/hooks/cameras";
 import { useLocale } from "@/providers/locale-provider";
 import { getDbIncidentSnapshotUrl } from "../camera-live-helpers";
+import { CameraLiveControlDeck } from "./camera-live-control-deck";
+import { CameraDeviceAdvancedPanels } from "./camera-device-advanced-panels";
 import type { LiveVideoItem } from "@/types/ai-test.types";
 import type { CameraConfigItem, CameraItem, IncidentItem } from "@/types";
 
@@ -50,6 +52,7 @@ export interface CameraIncidentsDeviceTabProps {
   onApplyOverrideStream: (nextSource: string) => void;
   onUploadOverrideStream: (file: File) => void;
   onClearOverride: () => void;
+  onOpenRestrictedAreaModal?: () => void;
 }
 
 
@@ -68,6 +71,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
   onApplyOverrideStream,
   onUploadOverrideStream,
   onClearOverride,
+  onOpenRestrictedAreaModal,
 }: CameraIncidentsDeviceTabProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -108,6 +112,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
 
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [severityFilter, setSeverityFilter] = useState<string>("ALL");
+  const [healthStatusFilter, setHealthStatusFilter] = useState<string>("");
   const [overrideExpanded, setOverrideExpanded] = useState<boolean>(
     Boolean(overrideSource),
   );
@@ -132,7 +137,11 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
     data: healthLogs = [],
     isLoading: healthLogsLoading,
     refetch: refetchHealthLogs,
-  } = useCameraHealthLogs(camera.id, Boolean(camera.id));
+  } = useCameraHealthLogs(camera.id, Boolean(camera.id), {
+    limit: 20,
+    status: healthStatusFilter || undefined,
+    sortOrder: "desc",
+  });
 
   const pingResult = pingMutation.data;
   const isDbOnline = camera.status === "ONLINE";
@@ -165,6 +174,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
   const hasFilters = statusFilter !== "ALL" || severityFilter !== "ALL";
 
   return (
+    <div className="space-y-6">
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
       {/* Left: Incidents DB Table (7/12) */}
       <section
@@ -508,6 +518,17 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
             </div>
 
             <div className="flex items-center gap-2">
+              <select
+                value={healthStatusFilter}
+                onChange={(e) => setHealthStatusFilter(e.target.value)}
+                aria-label={isVietnamese ? "Lọc trạng thái Ping" : "Filter Ping status"}
+                className="h-8 rounded-xl border border-border/30 bg-surface px-2 text-[11px] font-semibold text-foreground"
+              >
+                <option value="">{isVietnamese ? "Tất cả" : "All"}</option>
+                <option value="ONLINE">ONLINE</option>
+                <option value="OFFLINE">OFFLINE</option>
+                <option value="ERROR">ERROR</option>
+              </select>
               <button
                 type="button"
                 disabled={pingMutation.isPending}
@@ -787,5 +808,12 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
         </section>
       </div>
     </div>
+
+    <CameraDeviceAdvancedPanels
+      camera={camera}
+      config={config}
+      onOpenRestrictedAreaModal={onOpenRestrictedAreaModal}
+    />
+  </div>
   );
 });

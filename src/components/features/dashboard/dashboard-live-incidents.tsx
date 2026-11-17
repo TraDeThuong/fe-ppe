@@ -49,6 +49,7 @@ export interface DashboardLiveIncidentsProps {
   isRealtimeConnected?: boolean;
   canReview?: boolean;
   canResolve?: boolean;
+  dateRangeLabel?: string | null;
 }
 
 const VIOLATION_LABELS: Record<string, { vi: string; en: string }> = {
@@ -154,6 +155,7 @@ export function DashboardLiveIncidents({
   isRealtimeConnected = false,
   canReview = true,
   canResolve = false,
+  dateRangeLabel,
 }: DashboardLiveIncidentsProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -752,7 +754,7 @@ export function DashboardLiveIncidents({
     </div>
 
     <span className="rounded-full bg-accent px-2.5 py-0.5 font-mono text-[11px] font-bold text-accent-foreground shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]">
-      {isVietnamese ? "Mọi ngày" : "All dates"}
+      {dateRangeLabel || (isVietnamese ? "Mọi ngày" : "All dates")}
     </span>
   </div>
 </div>

@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Switch } from "@/components/ui/form/selection-controls/switch";
+import { useRoles } from "@/hooks/rbac";
 import { useLocale } from "@/providers/locale-provider";
 import type {
   MaintenanceConfig,
@@ -37,7 +38,14 @@ export interface MaintenanceControlPanelProps {
   isUpdating?: boolean;
 }
 
-const AVAILABLE_ROLES = ["ADMIN", "MANAGER", "SAFETY_MANAGER", "SAFETY_OFFICER", "USER"];
+const DEFAULT_ROLES = ["ADMIN", "MANAGER", "SAFETY_MANAGER", "SAFETY_OFFICER", "USER"];
+
+function toLocalDateTimeInput(isoValue: string): string {
+  const d = new Date(isoValue);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export function MaintenanceControlPanel({
   config,
@@ -50,6 +58,9 @@ export function MaintenanceControlPanel({
 }: MaintenanceControlPanelProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const { data: rolesData = [] } = useRoles();
+  const AVAILABLE_ROLES =
+    rolesData.length > 0 ? rolesData.map((r) => r.name) : DEFAULT_ROLES;
 
   // Form states
   const [title, setTitle] = useState("");
@@ -77,23 +88,13 @@ export function MaintenanceControlPanel({
       setBypassIpsStr(config.bypassIps?.join(", ") || "");
 
       if (config.startAt) {
-        try {
-          const d = new Date(config.startAt);
-          setStartAt(d.toISOString().slice(0, 16));
-        } catch {
-          setStartAt("");
-        }
+        setStartAt(toLocalDateTimeInput(config.startAt));
       } else {
         setStartAt("");
       }
 
       if (config.estimatedEndAt) {
-        try {
-          const d = new Date(config.estimatedEndAt);
-          setEstimatedEndAt(d.toISOString().slice(0, 16));
-        } catch {
-          setEstimatedEndAt("");
-        }
+        setEstimatedEndAt(toLocalDateTimeInput(config.estimatedEndAt));
       } else {
         setEstimatedEndAt("");
       }

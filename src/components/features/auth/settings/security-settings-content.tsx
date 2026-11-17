@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   KeyRound,
   Laptop,
@@ -36,7 +37,26 @@ export function SecuritySettingsContent() {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const { user } = useAuth();
-  const [tab, setTab] = useState<SecurityTab>("2fa");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const urlTab = searchParams.get("tab") as SecurityTab | null;
+  const initialTab: SecurityTab =
+    urlTab && TABS.some((item) => item.id === urlTab) ? urlTab : "2fa";
+  const [tab, setTabState] = useState<SecurityTab>(initialTab);
+
+  useEffect(() => {
+    if (urlTab && TABS.some((item) => item.id === urlTab)) {
+      setTabState(urlTab);
+    }
+  }, [urlTab]);
+
+  const setTab = (next: SecurityTab) => {
+    setTabState(next);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", next);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   if (!user) {
     return (

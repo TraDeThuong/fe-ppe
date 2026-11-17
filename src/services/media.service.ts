@@ -1,3 +1,4 @@
+import axios from "axios";
 import { apiClient } from "@/lib/axios";
 import type {
   CleanupFilesPayload,
@@ -7,7 +8,6 @@ import type {
   ImageTransformQuery,
   MediaDownloadUrlResponse,
   MediaFileItemDto,
-  MediaFileListResponse,
   MediaFileQueryParams,
   MediaUploadUrlResponse,
   PaginationMeta,
@@ -116,6 +116,42 @@ export const mediaService = {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return unwrapData<MediaFileItemDto>(res);
+  },
+
+  /**
+   * GET /api/v1/files/:id/transform
+   * Lấy ảnh đã biến đổi on-the-fly dạng Blob (hỗ trợ cả file private).
+   */
+  async previewTransformBlob(
+    fileId: string,
+    query: ImageTransformQuery,
+  ): Promise<Blob> {
+    const res = await apiClient.get<Blob>(`/files/${fileId}/transform`, {
+      params: query,
+      responseType: "blob",
+    });
+    return res as unknown as Blob;
+  },
+
+  /**
+   * PUT <presignedUploadUrl>
+   * Upload binary trực tiếp lên R2/MinIO (không dùng apiClient để tránh đính kèm Bearer token).
+   */
+  async uploadToPresignedUrl(
+    uploadUrl: string,
+    file: File,
+    onProgress?: (percent: number) => void,
+  ): Promise<void> {
+    await axios.put(uploadUrl, file, {
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+      },
+      onUploadProgress: (evt) => {
+        if (onProgress && evt.total) {
+          onProgress(Math.round((evt.loaded * 100) / evt.total));
+        }
+      },
+    });
   },
 
   /**

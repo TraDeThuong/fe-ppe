@@ -11,7 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/providers/locale-provider";
 import { useNotificationSound } from "@/hooks/notifications/use-notification-sound";
-import { useBroadcastNotification } from "@/hooks/notifications/use-notification-mutations";
+import {
+  useBroadcastNotification,
+  useSendNotification,
+} from "@/hooks/notifications/use-notification-mutations";
+import { useUsers } from "@/hooks/users";
 import { PREDEFINED_SYSTEM_TEMPLATES } from "../notification-predefined-data";
 import { SOUND_PRESET_NAMES, type SoundPreset } from "@/services/sound.service";
 import type { NotificationSeverity, NotificationChannel } from "@/types";
@@ -36,10 +40,26 @@ export function CustomDispatchNotificationModal({
   const [content, setContent] = useState("");
   const [severity, setSeverity] = useState<NotificationSeverity>("NORMAL");
   const [soundPreset, setSoundPreset] = useState<SoundPreset>("info");
-  const [targetScope, setTargetScope] = useState<"BROADCAST" | "SAFETY_OFFICERS" | "MANAGERS">("BROADCAST");
+  const [targetScope, setTargetScope] = useState<"BROADCAST" | "SPECIFIC_USERS" | "SAFETY_OFFICERS" | "MANAGERS">("BROADCAST");
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [channels, setChannels] = useState<NotificationChannel[]>(["IN_APP"]);
   const [actionUrl, setActionUrl] = useState("");
 
+  const { data: usersData } = useUsers(
+    { limit: 50, isActive: true },
+    { enabled: open && targetScope === "SPECIFIC_USERS" },
+  );
+  const availableUsers = usersData?.data ?? [];
+
   const broadcastMutation = useBroadcastNotification({
+    onSuccess: () => {
+      onOpenChange(false);
+      resetForm();
+      onSuccess?.();
+    },
+  });
+
+  const sendMutation = useSendNotification({
     onSuccess: () => {
       onOpenChange(false);
       resetForm();
@@ -54,6 +74,8 @@ export function CustomDispatchNotificationModal({
     setSeverity("NORMAL");
     setSoundPreset("info");
     setTargetScope("BROADCAST");
+    setSelectedUserIds([]);
+    setChannels(["IN_APP"]);
     setActionUrl("");
   };
 
@@ -77,6 +99,24 @@ export function CustomDispatchNotificationModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) return;
+
+    if (targetScope === "SPECIFIC_USERS") {
+      if (selectedUserIds.length === 0) return;
+      sendMutation.mutate({
+        userIds: selectedUserIds,
+        channels: channels.length > 0 ? channels : ["IN_APP"],
+        title: title.trim(),
+        content: content.trim(),
+        severity,
+        actionUrl: actionUrl.trim() || undefined,
+        metadata: {
+          templateCode: selectedTemplateCode,
+          soundPreset,
+          dispatchedAt: new Date().toISOString(),
+        },
+      });
+      return;
+    }
 
     broadcastMutation.mutate({
       title: title.trim(),
@@ -183,6 +223,9 @@ export function CustomDispatchNotificationModal({
                 <option value="BROADCAST">
                   {isVietnamese ? "Toàn công trường (Broadcast All)" : "Broadcast to All Sites"}
                 </option>
+                <option value="SPECIFIC_USERS">
+                  {isVietnamese ? "Gửi đích danh Người dùng (Send)" : "Specific Users (Direct Send)"}
+                </option>
                 <option value="SAFETY_OFFICERS">
                   {isVietnamese ? "Đội ngũ Cán bộ An toàn (Safety)" : "Safety Officers Team"}
                 </option>
@@ -239,6 +282,65 @@ export function CustomDispatchNotificationModal({
               </select>
             </div>
           </div>
+
+          {/* Chọn danh sách người nhận & kênh gửi khi ở chế độ SPECIFIC_USERS */}
+          {targetScope === "SPECIFIC_USERS" && (
+            <div className="space-y-2.5 rounded-xl border border-border/30 bg-surface p-3 shadow-[inset_2px_2px_4px_var(--shadow-dark)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold text-foreground">
+                  {isVietnamese
+                    ? `Chọn người nhận (${selectedUserIds.length} đã chọn)`
+                    : `Select Recipients (${selectedUserIds.length} selected)`}
+                </span>
+                <div className="flex items-center gap-3 text-xs">
+                  {(["IN_APP", "EMAIL"] as NotificationChannel[]).map((ch) => (
+                    <label key={ch} className="flex cursor-pointer items-center gap-1.5 font-semibold">
+                      <input
+                        type="checkbox"
+                        checked={channels.includes(ch)}
+                        onChange={(e) => {
+                          setChannels((prev) =>
+                            e.target.checked
+                              ? [...prev, ch]
+                              : prev.filter((item) => item !== ch),
+                          );
+                        }}
+                        className="accent-primary"
+                      />
+                      <span>{ch}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="grid max-h-36 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+                {availableUsers.map((u) => {
+                  const checked = selectedUserIds.includes(u.id);
+                  return (
+                    <label
+                      key={u.id}
+                      className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-background/60"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          setSelectedUserIds((prev) =>
+                            e.target.checked
+                              ? [...prev, u.id]
+                              : prev.filter((id) => id !== u.id),
+                          );
+                        }}
+                        className="accent-primary"
+                      />
+                      <span className="truncate font-medium text-foreground">
+                        {u.fullName || u.email}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Tiêu đề */}
           <div>
@@ -298,12 +400,16 @@ export function CustomDispatchNotificationModal({
               type="submit"
               variant="primary"
               size="sm"
-              disabled={broadcastMutation.isPending}
+              disabled={
+                broadcastMutation.isPending ||
+                sendMutation.isPending ||
+                (targetScope === "SPECIFIC_USERS" && selectedUserIds.length === 0)
+              }
               className="flex items-center gap-1.5 font-bold shadow-[2px_2px_6px_var(--shadow-dark)]"
             >
               <Send className="size-4" />
               <span>
-                {broadcastMutation.isPending
+                {broadcastMutation.isPending || sendMutation.isPending
                   ? isVietnamese
                     ? "Đang phát..."
                     : "Sending..."
