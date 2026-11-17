@@ -32,37 +32,38 @@ export function AuditFilterToolbar({
   onResetFilters,
   onExport,
 }: AuditFilterToolbarProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const actions = [
     { value: "", label: t("audit.toolbar.actionAll") },
-    { value: "CREATE", label: "CREATE (Tạo mới)" },
-    { value: "UPDATE", label: "UPDATE (Cập nhật)" },
-    { value: "DELETE", label: "DELETE (Xóa)" },
-    { value: "UPDATE_CONFIG", label: "UPDATE_CONFIG (Sửa cấu hình)" },
-    { value: "REVIEW_INCIDENT", label: "REVIEW_INCIDENT (Duyệt sự cố)" },
-    { value: "ASSIGN_ROLE", label: "ASSIGN_ROLE (Gán vai trò)" },
-    { value: "LOGIN", label: "LOGIN (Đăng nhập)" },
-    { value: "LOGOUT", label: "LOGOUT (Đăng xuất)" },
-    { value: "TOGGLE_FEATURE", label: "TOGGLE_FEATURE (Bật/Tắt tính năng)" },
+    { value: "CREATE", label: isVietnamese ? "CREATE (Tạo mới)" : "CREATE" },
+    { value: "UPDATE", label: isVietnamese ? "UPDATE (Cập nhật)" : "UPDATE" },
+    { value: "DELETE", label: isVietnamese ? "DELETE (Xóa)" : "DELETE" },
+    { value: "UPDATE_CONFIG", label: isVietnamese ? "UPDATE_CONFIG (Sửa cấu hình)" : "UPDATE_CONFIG" },
+    { value: "REVIEW_INCIDENT", label: isVietnamese ? "REVIEW_INCIDENT (Duyệt sự cố)" : "REVIEW_INCIDENT" },
+    { value: "ASSIGN_ROLE", label: isVietnamese ? "ASSIGN_ROLE (Gán vai trò)" : "ASSIGN_ROLE" },
+    { value: "LOGIN", label: isVietnamese ? "LOGIN (Đăng nhập)" : "LOGIN" },
+    { value: "LOGOUT", label: isVietnamese ? "LOGOUT (Đăng xuất)" : "LOGOUT" },
+    { value: "TOGGLE_FEATURE", label: isVietnamese ? "TOGGLE_FEATURE (Bật/Tắt tính năng)" : "TOGGLE_FEATURE" },
   ];
 
   const statuses = [
     { value: "", label: t("audit.toolbar.statusAll") },
-    { value: "SUCCESS", label: "SUCCESS (Thành công)" },
-    { value: "FAILED", label: "FAILED (Thất bại)" },
+    { value: "SUCCESS", label: isVietnamese ? "SUCCESS (Thành công)" : "SUCCESS" },
+    { value: "FAILED", label: isVietnamese ? "FAILED (Thất bại)" : "FAILED" },
   ];
 
   const targetTypes = [
     { value: "", label: t("audit.toolbar.targetAll") },
-    { value: "USER", label: "USER (Người dùng)" },
-    { value: "ROLE", label: "ROLE (Vai trò & Quyền)" },
-    { value: "CAMERA", label: "CAMERA (Thiết bị Camera)" },
-    { value: "SITE", label: "SITE (Công trường & Phân khu)" },
-    { value: "PPE_INCIDENT", label: "PPE_INCIDENT (Sự cố an toàn)" },
-    { value: "SAFETY_RULE", label: "SAFETY_RULE (Quy tắc PPE)" },
-    { value: "SYSTEM_CONFIG", label: "SYSTEM_CONFIG (Tham số hệ thống)" },
-    { value: "MAINTENANCE_CONFIG", label: "MAINTENANCE_CONFIG (Bảo trì hệ thống)" },
+    { value: "USER", label: isVietnamese ? "USER (Người dùng)" : "USER" },
+    { value: "ROLE", label: isVietnamese ? "ROLE (Vai trò & Quyền)" : "ROLE" },
+    { value: "CAMERA", label: isVietnamese ? "CAMERA (Thiết bị Camera)" : "CAMERA" },
+    { value: "SITE", label: isVietnamese ? "SITE (Công trường & Phân khu)" : "SITE" },
+    { value: "PPE_INCIDENT", label: isVietnamese ? "PPE_INCIDENT (Sự cố an toàn)" : "PPE_INCIDENT" },
+    { value: "SAFETY_RULE", label: isVietnamese ? "SAFETY_RULE (Quy tắc PPE)" : "SAFETY_RULE" },
+    { value: "SYSTEM_CONFIG", label: isVietnamese ? "SYSTEM_CONFIG (Tham số hệ thống)" : "SYSTEM_CONFIG" },
+    { value: "MAINTENANCE_CONFIG", label: isVietnamese ? "MAINTENANCE_CONFIG (Bảo trì hệ thống)" : "MAINTENANCE_CONFIG" },
   ];
 
   return (
@@ -81,12 +82,12 @@ export function AuditFilterToolbar({
         </div>
 
         {/* Action Select */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex w-full sm:w-auto items-center gap-1.5">
           <Filter className="h-3.5 w-3.5 text-muted-foreground hidden sm:inline" />
           <select
             value={action}
             onChange={(e) => onActionChange(e.target.value)}
-            className="rounded-xl border border-border/40 bg-surface px-3 py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
+            className="w-full sm:w-auto rounded-xl border border-border/40 bg-surface px-3 py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
           >
             {actions.map((a) => (
               <option key={a.value} value={a.value}>
@@ -98,12 +99,12 @@ export function AuditFilterToolbar({
 
         {/* Target Type Select */}
         {onTargetTypeChange && (
-          <div className="flex items-center gap-1.5">
+          <div className="flex w-full sm:w-auto items-center gap-1.5">
             <Shield className="h-3.5 w-3.5 text-muted-foreground hidden sm:inline" />
             <select
               value={targetType}
               onChange={(e) => onTargetTypeChange(e.target.value)}
-              className="rounded-xl border border-border/40 bg-surface px-3 py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
+              className="w-full sm:w-auto rounded-xl border border-border/40 bg-surface px-3 py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
             >
               {targetTypes.map((tgt) => (
                 <option key={tgt.value} value={tgt.value}>
@@ -118,7 +119,7 @@ export function AuditFilterToolbar({
         <select
           value={status}
           onChange={(e) => onStatusChange(e.target.value as AuditLogStatus | "")}
-          className="rounded-xl border border-border/40 bg-surface px-3 py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
+          className="w-full sm:w-auto rounded-xl border border-border/40 bg-surface px-3 py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
         >
           {statuses.map((s) => (
             <option key={s.value} value={s.value}>

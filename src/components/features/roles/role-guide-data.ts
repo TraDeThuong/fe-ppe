@@ -1156,7 +1156,7 @@ export const ROLE_KNOWLEDGE_EN: Record<string, RoleKnowledgeProfile> = {
         description: "Read role responsibilities and permission documentation.",
       },
       {
-        title: "Nhật ký Hệ thống",
+        title: "System Audit Logs",
         route: "/audit-logs",
         icon: ScrollText,
         accessLevel: "none",
@@ -1164,7 +1164,7 @@ export const ROLE_KNOWLEDGE_EN: Record<string, RoleKnowledgeProfile> = {
         description: "Access restricted.",
       },
       {
-        title: "Trung tâm Thông báo",
+        title: "Notification Center",
         route: "/notifications",
         icon: Bell,
         accessLevel: "read",
@@ -1172,7 +1172,7 @@ export const ROLE_KNOWLEDGE_EN: Record<string, RoleKnowledgeProfile> = {
         description: "Receive personal alerts, violation notices, and safety reminders.",
       },
       {
-        title: "Cấu hình Hệ thống",
+        title: "System Settings",
         route: "/system",
         icon: Settings2,
         accessLevel: "none",

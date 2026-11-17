@@ -104,7 +104,8 @@ export function EditSiteModal({
             id: `edit-officer-${idx}-${Date.now()}`,
             userId: o.userId || undefined,
             name: o.name || "",
-            roleTitle: o.roleTitle || "Trưởng ban an toàn (Lead)",
+            roleTitle:
+              o.roleTitle || (isVietnamese ? "Trưởng ban an toàn (Lead)" : "Lead Safety Officer"),
             isManualName: !o.userId,
             phones: o.phones && o.phones.length > 0 ? o.phones : [""],
           }))
@@ -117,7 +118,7 @@ export function EditSiteModal({
           {
             id: "officer-legacy-1",
             name: site.contactPerson,
-            roleTitle: "Trưởng ban an toàn (Lead)",
+            roleTitle: isVietnamese ? "Trưởng ban an toàn (Lead)" : "Lead Safety Officer",
             isManualName: true,
             phones: splitPhones,
           },
@@ -127,22 +128,28 @@ export function EditSiteModal({
           {
             id: "officer-init-1",
             name: "",
-            roleTitle: "Trưởng ban an toàn (Lead)",
+            roleTitle: isVietnamese ? "Trưởng ban an toàn (Lead)" : "Lead Safety Officer",
             isManualName: false,
             phones: [""],
           },
         ]);
       }
     }
-  }, [site]);
+  }, [site, isVietnamese]);
 
   const handleAddOfficer = () => {
     const nextRole =
       officers.length === 1
-        ? "Phó ban an toàn (Deputy)"
+        ? isVietnamese
+          ? "Phó ban an toàn (Deputy)"
+          : "Deputy Safety Officer"
         : officers.length === 2
-          ? "Cán bộ giám sát an toàn (Officer)"
-          : "Cán bộ an toàn";
+          ? isVietnamese
+            ? "Cán bộ giám sát an toàn (Officer)"
+            : "Safety Supervision Officer"
+          : isVietnamese
+            ? "Cán bộ an toàn"
+            : "Safety Officer";
 
     setOfficers((prev) => [
       ...prev,
@@ -295,7 +302,12 @@ export function EditSiteModal({
 
       onOpenChange(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Đã có lỗi xảy ra khi cập nhật công trường";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : isVietnamese
+            ? "Đã có lỗi xảy ra khi cập nhật công trường"
+            : "Failed to update construction site";
       setError(msg);
     }
   };
@@ -522,7 +534,13 @@ export function EditSiteModal({
                         >
                           <option value="">{t("sites.form.selectUser")}</option>
                           {safetyUsers.length > 0 && (
-                            <optgroup label="Cán bộ chuyên trách an toàn">
+                            <optgroup
+                              label={
+                                isVietnamese
+                                  ? "Cán bộ chuyên trách an toàn"
+                                  : "Dedicated Safety Officers"
+                              }
+                            >
                               {safetyUsers.map((u) => (
                                 <option key={u.id} value={u.id}>
                                   {u.fullName || u.email} ({u.role?.name || "User"}
@@ -532,7 +550,13 @@ export function EditSiteModal({
                             </optgroup>
                           )}
                           {otherUsers.length > 0 && (
-                            <optgroup label="Nhân sự khác trong hệ thống">
+                            <optgroup
+                              label={
+                                isVietnamese
+                                  ? "Nhân sự khác trong hệ thống"
+                                  : "Other System Personnel"
+                              }
+                            >
                               {otherUsers.map((u) => (
                                 <option key={u.id} value={u.id}>
                                   {u.fullName || u.email} ({u.role?.name || "User"})

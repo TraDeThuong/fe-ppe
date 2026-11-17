@@ -1,8 +1,17 @@
 "use client";
 
+import { useLocale } from "@/providers/locale-provider";
+
 export function NotificationSkeleton({ count = 3 }: { count?: number }) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
+
   return (
-    <div className="space-y-3.5" aria-busy="true" aria-label="Đang tải thông báo...">
+    <div
+      className="space-y-3.5"
+      aria-busy="true"
+      aria-label={isVietnamese ? "Đang tải thông báo..." : "Loading notifications..."}
+    >
       {Array.from({ length: count }).map((_, index) => (
         <div
           key={index}

@@ -299,7 +299,7 @@ export function IncidentAlertToast({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={resolvedEvidenceUrl}
-                alt="Bằng chứng vi phạm"
+                alt={isVietnamese ? "Bằng chứng vi phạm" : "Violation evidence"}
                 onError={() => setImgError(true)}
                 className="size-full object-cover transition-transform duration-300 group-hover/thumb:scale-110"
               />
@@ -396,7 +396,7 @@ export function IncidentAlertToast({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={resolvedEvidenceUrl}
-                alt="Bằng chứng vi phạm"
+                alt={isVietnamese ? "Bằng chứng vi phạm" : "Violation evidence"}
                 className="max-h-[65vh] w-auto object-contain rounded-lg"
               />
             </div>
@@ -404,7 +404,11 @@ export function IncidentAlertToast({
             {/* Footer modal */}
             <div className="flex items-center justify-between pt-2 border-t border-border/30 text-xs">
               <div className="text-muted-foreground">
-                {displaySite && <span>Vị trí: <strong>{displaySite}</strong></span>}
+                {displaySite && (
+                  <span>
+                    {isVietnamese ? "Vị trí:" : "Location:"} <strong>{displaySite}</strong>
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button

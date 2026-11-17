@@ -483,15 +483,16 @@ export function SiteStatsDetailPanel({
           {/* Site Filter selector */}
           <div className="flex items-center justify-between gap-2 px-0.5">
             <span className="text-[11px] text-muted-foreground">
-              {filteredZones.length} {t("sites.units.zones")} ({sites.length} {t("sites.units.cameras") === "Camera" ? "công trường" : "sites"})
+              {filteredZones.length} {t("sites.units.zones")} ({sites.length}{" "}
+              {isVietnamese ? "công trường" : "sites"})
             </span>
 
             <select
               value={selectedSiteFilter}
               onChange={(e) => setSelectedSiteFilter(e.target.value)}
-              className="rounded-lg border border-border/40 bg-background/80 px-2.5 py-1 text-xs text-foreground shadow-nm-inset focus:border-primary focus:outline-none"
+              className="max-w-full rounded-lg border border-border/40 bg-background/80 px-2.5 py-1 text-xs text-foreground shadow-nm-inset focus:border-primary focus:outline-none"
             >
-              <option value="ALL">{t("sites.toolbar.searchPlaceholder").slice(0, 16)}... (Tất cả)</option>
+              <option value="ALL">{isVietnamese ? "Tất cả công trường" : "All sites"}</option>
               {sites.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} ({s.code})

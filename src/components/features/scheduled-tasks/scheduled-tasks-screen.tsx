@@ -325,7 +325,8 @@ export function ScheduledTasksScreen() {
         <div className="space-y-1 leading-relaxed">
           <p className="font-semibold text-foreground flex items-center gap-1.5">
             <Sparkles className="size-3.5 text-primary" />
-            {t("cron.apiConnected")} ({jobs.length} tác vụ được định thời)
+            {t("cron.apiConnected")} (
+            {locale === "vi-VN" ? `${jobs.length} tác vụ được định thời` : `${jobs.length} scheduled jobs`})
           </p>
           <p>{t("cron.stateNote")}</p>
           <p className="text-xs text-muted-foreground/80">{t("cron.schedulerNote")}</p>

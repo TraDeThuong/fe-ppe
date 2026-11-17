@@ -227,7 +227,7 @@ export function NotificationItem({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={notification.evidenceUrl}
-              alt="Bằng chứng vi phạm"
+              alt={isVietnamese ? "Bằng chứng vi phạm" : "Violation evidence"}
               onError={() => setImgError(true)}
               className="size-full object-cover transition-transform duration-200 group-hover:scale-105"
             />

@@ -95,7 +95,13 @@ export function ReviewIncidentModal({
               <CheckSquare className="h-4 w-4" />
             )}
             <span>
-              {decision === "CONFIRMED" ? "Xác nhận vi phạm" : "Bác bỏ sự cố"}
+              {decision === "CONFIRMED"
+                ? isVietnamese
+                  ? "Xác nhận vi phạm"
+                  : "Confirm Violation"
+                : isVietnamese
+                  ? "Bác bỏ sự cố"
+                  : "Dismiss Incident"}
             </span>
           </Button>
         </div>

@@ -120,7 +120,12 @@ export function AssignIncidentModal({
 
       onOpenChange(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Đã có lỗi xảy ra khi phân công cán bộ";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : isVietnamese
+            ? "Đã có lỗi xảy ra khi phân công cán bộ"
+            : "Failed to assign safety officer";
       setError(msg);
     }
   };
@@ -130,7 +135,11 @@ export function AssignIncidentModal({
       open={open}
       onOpenChange={onOpenChange}
       title={t("incidents.modals.assignTitle")}
-      description={`Điều phối cán bộ an toàn phụ trách giải quyết sự cố #${incident?.id.slice(0, 8)}`}
+      description={
+        isVietnamese
+          ? `Điều phối cán bộ an toàn phụ trách giải quyết sự cố #${incident?.id.slice(0, 8)}`
+          : `Assign a safety officer to resolve incident #${incident?.id.slice(0, 8)}`
+      }
       icon={<UserCheck className="h-5 w-5 text-primary" />}
       size="md"
       footer={
@@ -262,7 +271,7 @@ export function AssignIncidentModal({
           </select>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {/* Priority */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-muted-foreground">

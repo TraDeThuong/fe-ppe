@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, XCircle, MousePointerClick } from "lucide-react";
+import { useLocale } from "@/providers/locale-provider";
 import type { IncidentStatus } from "@/types";
 
 export interface IncidentLifecycleStepperProps {
@@ -14,14 +15,16 @@ export function IncidentLifecycleStepper({
   hasAssignments = false,
   onStepClick,
 }: IncidentLifecycleStepperProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const isDismissed = status === "DISMISSED";
 
   const steps = [
-    { key: "DETECTED", label: "Phát hiện AI" },
-    { key: "REVIEWED", label: "Thẩm duyệt" },
-    { key: "RESOLVING", label: "Điều phối" },
-    { key: "RESOLVED", label: "Đã khắc phục" },
-    { key: "CLOSED", label: "Nghiệm thu đóng" },
+    { key: "DETECTED", label: isVietnamese ? "Phát hiện AI" : "AI Detected" },
+    { key: "REVIEWED", label: isVietnamese ? "Thẩm duyệt" : "Reviewed" },
+    { key: "RESOLVING", label: isVietnamese ? "Điều phối" : "Dispatched" },
+    { key: "RESOLVED", label: isVietnamese ? "Đã khắc phục" : "Resolved" },
+    { key: "CLOSED", label: isVietnamese ? "Nghiệm thu đóng" : "Closed" },
   ];
 
   // Tính toán trọng số bước chính xác
@@ -89,7 +92,9 @@ export function IncidentLifecycleStepper({
                 `}
                 title={
                   isClickable
-                    ? `Bấm để thực hiện bước: ${step.label}`
+                    ? isVietnamese
+                      ? `Bấm để thực hiện bước: ${step.label}`
+                      : `Click to execute step: ${step.label}`
                     : undefined
                 }
               >
@@ -146,7 +151,7 @@ export function IncidentLifecycleStepper({
                 {/* Step label */}
                 <span
                   className={`
-                    max-w-[76px] text-center text-[10px] font-semibold
+                    max-w-[68px] sm:max-w-[76px] text-center text-[9px] sm:text-[10px] font-semibold
                     leading-[1.35] tracking-tight
                     transition-colors duration-300
                     ${
@@ -168,7 +173,7 @@ export function IncidentLifecycleStepper({
                     {isClickable && (
                       <span className="inline-flex items-center gap-0.5 rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.2 font-mono text-[8px] font-bold text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                         <MousePointerClick className="h-2 w-2" />
-                        <span>Bấm xử lý</span>
+                        <span>{isVietnamese ? "Bấm xử lý" : "Process"}</span>
                       </span>
                     )}
                   </div>

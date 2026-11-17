@@ -78,7 +78,7 @@ export function CreateSiteModal({
     {
       id: "officer-1",
       name: "",
-      roleTitle: "Trưởng ban an toàn (Lead)",
+      roleTitle: isVietnamese ? "Trưởng ban an toàn (Lead)" : "Lead Safety Officer",
       isManualName: false,
       phones: [""],
     },
@@ -87,10 +87,16 @@ export function CreateSiteModal({
   const handleAddOfficer = () => {
     const nextRole =
       officers.length === 1
-        ? "Phó ban an toàn (Deputy)"
+        ? isVietnamese
+          ? "Phó ban an toàn (Deputy)"
+          : "Deputy Safety Officer"
         : officers.length === 2
-          ? "Cán bộ giám sát an toàn (Officer)"
-          : "Cán bộ an toàn";
+          ? isVietnamese
+            ? "Cán bộ giám sát an toàn (Officer)"
+            : "Safety Supervision Officer"
+          : isVietnamese
+            ? "Cán bộ an toàn"
+            : "Safety Officer";
 
     setOfficers((prev) => [
       ...prev,
@@ -199,13 +205,17 @@ export function CreateSiteModal({
     setError(null);
 
     if (!name.trim()) {
-      setError("Vui lòng nhập tên công trường.");
+      setError(isVietnamese ? "Vui lòng nhập tên công trường." : "Please enter site name.");
       return;
     }
 
     const formattedCode = code.trim().toUpperCase().replace(/\s+/g, "-");
     if (!formattedCode) {
-      setError("Vui lòng nhập mã định danh công trường (VD: SITE-LANDMARK-01).");
+      setError(
+        isVietnamese
+          ? "Vui lòng nhập mã định danh công trường (VD: SITE-LANDMARK-01)."
+          : "Please enter a site identifier code (e.g., SITE-LANDMARK-01).",
+      );
       return;
     }
 
@@ -244,14 +254,19 @@ export function CreateSiteModal({
         {
           id: "officer-1",
           name: "",
-          roleTitle: "Trưởng ban an toàn (Lead)",
+          roleTitle: isVietnamese ? "Trưởng ban an toàn (Lead)" : "Lead Safety Officer",
           isManualName: false,
           phones: [""],
         },
       ]);
       onOpenChange(false);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Đã có lỗi xảy ra khi tạo công trường";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : isVietnamese
+            ? "Đã có lỗi xảy ra khi tạo công trường"
+            : "Failed to create construction site";
       setError(msg);
     }
   };
@@ -429,7 +444,13 @@ export function CreateSiteModal({
                         >
                           <option value="">{t("sites.form.selectUser")}</option>
                           {safetyUsers.length > 0 && (
-                            <optgroup label="Cán bộ chuyên trách an toàn">
+                            <optgroup
+                              label={
+                                isVietnamese
+                                  ? "Cán bộ chuyên trách an toàn"
+                                  : "Dedicated Safety Officers"
+                              }
+                            >
                               {safetyUsers.map((u) => (
                                 <option key={u.id} value={u.id}>
                                   {u.fullName || u.email} ({u.role?.name || "User"}
@@ -439,7 +460,13 @@ export function CreateSiteModal({
                             </optgroup>
                           )}
                           {otherUsers.length > 0 && (
-                            <optgroup label="Nhân sự khác trong hệ thống">
+                            <optgroup
+                              label={
+                                isVietnamese
+                                  ? "Nhân sự khác trong hệ thống"
+                                  : "Other System Personnel"
+                              }
+                            >
                               {otherUsers.map((u) => (
                                 <option key={u.id} value={u.id}>
                                   {u.fullName || u.email} ({u.role?.name || "User"})

@@ -692,7 +692,10 @@ export function IncidentEvidenceViewer({
                 <div className="absolute inset-0 bg-black/30 pointer-events-none" aria-hidden="true" />
                 <img
                   src={referencePhoto?.url}
-                  alt={referencePhoto?.title || "Ảnh Đối Chứng"}
+                  alt={
+                    referencePhoto?.title ||
+                    (isVietnamese ? "Ảnh Đối Chứng" : "Reference Snapshot")
+                  }
                   className="relative z-10 max-h-full max-w-full object-contain select-none"
                   onError={(e) => {
                     const target = e.currentTarget;
@@ -743,7 +746,10 @@ export function IncidentEvidenceViewer({
                 <div className="relative z-10 max-h-full max-w-full inline-flex items-center justify-center">
                   <img
                     src={violationPhoto?.url}
-                    alt={violationPhoto?.title || "Ảnh Vi Phạm"}
+                    alt={
+                      violationPhoto?.title ||
+                      (isVietnamese ? "Ảnh Vi Phạm" : "Violation Snapshot")
+                    }
                     className="relative z-10 max-h-full max-w-full object-contain select-none"
                     onError={(e) => {
                       const target = e.currentTarget;
@@ -841,7 +847,7 @@ export function IncidentEvidenceViewer({
             )}
             {isPortrait && (
               <span className="hidden sm:inline-flex rounded-lg border border-primary/30 bg-black/70 px-2 py-1 font-mono text-[10px] text-primary backdrop-blur-sm">
-                9:16 Dọc (Vertical Fit)
+                {isVietnamese ? "9:16 Dọc (Vertical Fit)" : "9:16 Vertical Fit"}
               </span>
             )}
           </div>
@@ -858,7 +864,7 @@ export function IncidentEvidenceViewer({
       {/* ── DẢI ẢNH THU NHỎ (THUMBNAIL GALLERY STRIP - BỘ ĐA ẢNH) ── */}
       {galleryPhotos.length > 1 && (
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground flex items-center gap-1.5">
               <Layers className="size-3.5 text-primary" />
               <span>
@@ -872,7 +878,7 @@ export function IncidentEvidenceViewer({
             </span>
           </div>
 
-          <div className={`grid gap-3 ${galleryPhotos.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+          <div className={`grid gap-3 ${galleryPhotos.length === 2 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"}`}>
             {galleryPhotos.map((photo, idx) => {
               const isSelected = idx === selectedIndex && viewMode === "single";
               return (

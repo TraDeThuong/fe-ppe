@@ -93,7 +93,7 @@ export function AuditDetailDrawer({
                 {t("audit.table.actor")}
               </span>
               <p className="text-sm font-semibold text-foreground">
-                {detail.userEmail || detail.actor?.email || "Hệ thống"}{" "}
+                {detail.userEmail || detail.actor?.email || (isVietnamese ? "Hệ thống" : "System")}{" "}
                 {detail.userRole || detail.actor?.roleName
                   ? `(${detail.userRole || detail.actor?.roleName})`
                   : ""}
@@ -106,7 +106,7 @@ export function AuditDetailDrawer({
                 {t("audit.table.timestamp")}
               </span>
               <p className="font-mono text-xs text-foreground">
-                {new Date(detail.createdAt).toLocaleString("vi-VN")}
+                {new Date(detail.createdAt).toLocaleString(locale)}
               </p>
             </div>
 

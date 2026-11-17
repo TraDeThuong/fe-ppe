@@ -192,19 +192,23 @@ export function CronJobDetailModal({
               {t("cron.detail.scheduleInfo")}
             </div>
             <div className="space-y-1.5 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Biểu thức Cron:</span>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-muted-foreground">
+                  {isVietnamese ? "Biểu thức Cron:" : "Cron Expression:"}
+                </span>
                 <code className="rounded bg-muted/60 px-2 py-0.5 font-mono font-semibold text-foreground">
                   {job.cron}
                 </code>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Mô tả lịch:</span>
-                <span className="font-medium text-foreground">
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-muted-foreground">
+                  {isVietnamese ? "Mô tả lịch:" : "Schedule:"}
+                </span>
+                <span className="font-medium text-foreground text-right">
                   {describeCronSchedule(job.cron, t)}
                 </span>
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-2">
                 <span className="text-muted-foreground">{t("cron.detail.timezone")}:</span>
                 <span className="font-mono text-muted-foreground">{CRON_TIMEZONE}</span>
               </div>
@@ -218,14 +222,16 @@ export function CronJobDetailModal({
               {t("cron.detail.timingInfo")}
             </div>
             <div className="space-y-1.5 text-xs">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-2">
                 <span className="text-muted-foreground">{t("cron.detail.title")}:</span>
-                <span className="font-semibold text-foreground">
+                <span className="font-semibold text-foreground text-right">
                   {nextRun.formatted}
                 </span>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Thời gian tới:</span>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-muted-foreground">
+                  {isVietnamese ? "Thời gian tới:" : "In:"}
+                </span>
                 <Badge variant={nextRun.isPaused ? "outline" : "primary"} size="sm">
                   {nextRun.relativeTime}
                 </Badge>
@@ -283,7 +289,7 @@ export function CronJobDetailModal({
 
             {historyQuery.isFetching && (
               <span className="text-[11px] text-muted-foreground animate-pulse">
-                Đang tải dữ liệu...
+                {isVietnamese ? "Đang tải dữ liệu..." : "Loading logs..."}
               </span>
             )}
           </div>
@@ -349,7 +355,7 @@ export function CronJobDetailModal({
                             }
                             className="text-primary hover:underline font-mono text-[10px]"
                           >
-                            {isExpanded ? "Ẩn" : "JSON"}
+                            {isExpanded ? (isVietnamese ? "Ẩn" : "Hide") : "JSON"}
                           </button>
                         )}
                       </div>
@@ -357,7 +363,8 @@ export function CronJobDetailModal({
 
                     <div className="flex justify-between items-center text-[11px] text-muted-foreground pl-5.5">
                       <span>
-                        Người thực hiện: {item.userName || item.userEmail || "Hệ thống"}
+                        {isVietnamese ? "Người thực hiện" : "Triggered by"}:{" "}
+                        {item.userName || item.userEmail || (isVietnamese ? "Hệ thống" : "System")}
                       </span>
                       {item.ipAddress && <span>IP: {item.ipAddress}</span>}
                     </div>

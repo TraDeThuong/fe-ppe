@@ -90,7 +90,7 @@ export function MaintenancePreviewCard({
           </div>
         ) : (
           /* Mobile Smartphone Simulator Frame (iPhone aspect ratio) */
-          <div className="relative w-[300px] h-[520px] rounded-[42px] border-[8px] border-zinc-800 dark:border-zinc-700 bg-background overflow-hidden shadow-[0_20px_45px_rgba(0,0,0,0.35)] flex flex-col shrink-0 select-none">
+          <div className="relative w-full max-w-[300px] h-[520px] rounded-[42px] border-[8px] border-zinc-800 dark:border-zinc-700 bg-background overflow-hidden shadow-[0_20px_45px_rgba(0,0,0,0.35)] flex flex-col shrink-0 select-none">
             {/* Phone Status Bar */}
             <div className="relative z-20 flex items-center justify-between px-6 pt-3 pb-1 text-[10px] font-semibold text-foreground/80 shrink-0">
               <span>09:41</span>

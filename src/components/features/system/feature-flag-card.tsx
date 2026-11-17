@@ -11,7 +11,7 @@ export interface FeatureFlagCardProps {
 }
 
 export function FeatureFlagCard({ flag, onToggle, disabled = false }: FeatureFlagCardProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const isEnabled = Boolean(flag.value);
 
   return (
@@ -59,7 +59,10 @@ export function FeatureFlagCard({ flag, onToggle, disabled = false }: FeatureFla
         </div>
 
         <p className="text-xs sm:text-sm text-foreground/80 leading-relaxed min-h-[36px] line-clamp-2">
-          {flag.description || "Tùy chỉnh tính năng vận hành hệ thống."}
+          {flag.description ||
+            (locale === "vi-VN"
+              ? "Tùy chỉnh tính năng vận hành hệ thống."
+              : "Configure system operational feature.")}
         </p>
       </div>
 

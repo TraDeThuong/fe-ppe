@@ -3,6 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 
 import { env } from "@/config/env";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 
 declare global {
   interface Window {
@@ -32,7 +33,14 @@ function loadTurnstileScript(): Promise<void> {
     script.onload = () => resolve();
     script.onerror = () => {
       scriptPromise = null;
-      reject(new Error("Không tải được script Turnstile"));
+      reject(
+        new Error(
+          pickLocaleText(
+            "Không tải được script Turnstile",
+            "Unable to load Turnstile verification script",
+          ),
+        ),
+      );
     };
     document.head.appendChild(script);
   });

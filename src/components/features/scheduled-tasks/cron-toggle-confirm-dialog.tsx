@@ -20,7 +20,8 @@ export function CronToggleConfirmDialog({
   onConfirm,
   onClose,
 }: Props) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const isDisabling = job.isEnabled;
   const jobTitle = t(`cron.jobs.${job.name}`);
@@ -62,11 +63,11 @@ export function CronToggleConfirmDialog({
 
         <div className="rounded-xl border border-border/50 bg-muted/40 p-2.5 font-mono text-xs">
           <div className="flex justify-between items-center text-muted-foreground">
-            <span>Mã tác vụ:</span>
+            <span>{isVietnamese ? "Mã tác vụ:" : "Job Key:"}</span>
             <span className="font-semibold text-primary">{job.name}</span>
           </div>
           <div className="flex justify-between items-center text-muted-foreground mt-1">
-            <span>Biểu thức Cron:</span>
+            <span>{isVietnamese ? "Biểu thức Cron:" : "Cron Expression:"}</span>
             <span className="font-semibold text-foreground">{job.cron}</span>
           </div>
         </div>

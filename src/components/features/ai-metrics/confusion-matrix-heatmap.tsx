@@ -46,7 +46,7 @@ export function ConfusionMatrixHeatmap({
   if (loading) {
     return (
       <section
-        className={`relative flex flex-col justify-between overflow-hidden rounded-[26px] border border-border/40 bg-surface p-4 sm:p-5 h-[590px] ${shellShadow} ${className}`}
+        className={`relative flex flex-col justify-between overflow-hidden rounded-[26px] border border-border/40 bg-surface p-4 sm:p-5 min-h-[460px] lg:h-[590px] ${shellShadow} ${className}`}
       >
         <div className="flex animate-pulse items-center gap-3 shrink-0">
           <div className="h-11 w-11 rounded-2xl bg-muted/70" />
@@ -64,7 +64,7 @@ export function ConfusionMatrixHeatmap({
 
   return (
     <section
-      className={`relative isolate flex flex-col justify-between overflow-hidden rounded-[26px] border border-border/40 bg-surface p-4 sm:p-5 h-[590px] ${shellShadow} ${className}`}
+      className={`relative isolate flex flex-col justify-between overflow-hidden rounded-[26px] border border-border/40 bg-surface p-4 sm:p-5 min-h-[460px] lg:h-[590px] ${shellShadow} ${className}`}
     >
       {/* Raised top edge */}
       <div
@@ -225,7 +225,9 @@ export function ConfusionMatrixHeatmap({
         )}
 
         <p className="px-1 pt-1 text-[10px] leading-relaxed text-muted-foreground shrink-0">
-          Mỗi hàng biểu thị lớp thực tế; mỗi cột biểu thị lớp mô hình dự đoán.
+          {isVi
+            ? "Mỗi hàng biểu thị lớp thực tế; mỗi cột biểu thị lớp mô hình dự đoán."
+            : "Each row represents actual ground truth; each column represents predicted class."}
         </p>
       </div>
 
@@ -240,7 +242,7 @@ export function ConfusionMatrixHeatmap({
               True Positive
             </p>
             <p className="text-[9px] text-muted-foreground">
-              Nhận diện chính xác
+              {isVi ? "Nhận diện chính xác" : "Correct prediction"}
             </p>
           </div>
         </div>

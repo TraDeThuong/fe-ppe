@@ -517,7 +517,9 @@ export function NotificationStatsDetailPanel({
                         ? `Camera: ${item.metadata.cameraCode}`
                         : item.metadata?.siteName
                           ? `Site: ${item.metadata.siteName}`
-                          : "Hạ tầng Smart PPE"}
+                          : isVietnamese
+                            ? "Hạ tầng Smart PPE"
+                            : "Smart PPE Infrastructure"}
                     </span>
                     <span className="font-mono">{formatDate(item.createdAt, locale)}</span>
                   </div>

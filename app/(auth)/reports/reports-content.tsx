@@ -100,7 +100,7 @@ function computeDateRange(period: string): { startDate: string; endDate: string 
 }
 
 export default function ReportsContent() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -531,7 +531,7 @@ export default function ReportsContent() {
         if (finished && finished.status === "COMPLETED") {
           const toastMsg = t("reports.queue.completedToast").replace(
             "{fileName}",
-            finished.fileName || "báo cáo mới"
+            finished.fileName || (locale === "vi-VN" ? "báo cáo mới" : "new report")
           );
           toast.success(toastMsg);
         }
@@ -539,7 +539,7 @@ export default function ReportsContent() {
     }
 
     prevProcessingIdsRef.current = currentlyProcessing;
-  }, [historyResult?.items, t]);
+  }, [historyResult?.items, locale, t]);
 
   const handleOpenGenerate = (template?: ReportTemplateDto) => {
     setSelectedTemplate(template || null);

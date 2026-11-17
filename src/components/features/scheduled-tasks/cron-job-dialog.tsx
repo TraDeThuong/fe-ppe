@@ -35,7 +35,8 @@ export function CronJobDialog({
   onConfirm,
   onClose,
 }: Props) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const field = action === "trigger" ? getCronParameter(job.name) : null;
   const [value, setValue] = useState(String(field?.defaultValue ?? ""));
   const [attempted, setAttempted] = useState(false);
@@ -197,7 +198,9 @@ export function CronJobDialog({
                 <div className="space-y-0.5">
                   <p className="font-semibold">{t("cron.waitForResponse")}</p>
                   <p className="text-[11px] opacity-80">
-                    Đang thực thi: {(elapsedMs / 1000).toFixed(1)} giây...
+                    {isVietnamese
+                      ? `Đang thực thi: ${(elapsedMs / 1000).toFixed(1)} giây...`
+                      : `Executing: ${(elapsedMs / 1000).toFixed(1)}s...`}
                   </p>
                 </div>
               </div>

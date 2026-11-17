@@ -483,7 +483,15 @@ export function PerClassMetricsCard({
                     ? "border-primary/50 bg-primary/15 text-primary shadow-[inset_2px_2px_4px_var(--shadow-dark)]"
                     : "border-border/40 bg-surface text-muted-foreground hover:text-foreground shadow-[2px_3px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]"
                 }`}
-                title={showMockData ? "Tắt dữ liệu mẫu" : "Bật dữ liệu mẫu"}
+                title={
+                  showMockData
+                    ? isVi
+                      ? "Tắt dữ liệu mẫu"
+                      : "Disable sample data"
+                    : isVi
+                      ? "Bật dữ liệu mẫu"
+                      : "Enable sample data"
+                }
               >
                 <Sparkles className="h-3 w-3" />
                 <span className="hidden sm:inline">
@@ -496,7 +504,7 @@ export function PerClassMetricsCard({
 
         {/* SUMMARY KPI STRIP (Macro Averages) */}
         {rawList.length > 0 && (
-          <div className="grid grid-cols-4 gap-2 rounded-xl border border-border/30 bg-background/40 p-2 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-border/30 bg-background/40 p-2 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:grid-cols-4">
             <div className="text-center">
               <p className="text-[10px] font-semibold text-muted-foreground">Macro F1</p>
               <p className="text-xs font-black text-foreground tabular-nums sm:text-sm">
@@ -509,18 +517,18 @@ export function PerClassMetricsCard({
                 <AnimatedNumber value={macroStats.avgPrecision * 100} decimals={1} />%
               </p>
             </div>
-            <div className="text-center border-l border-border/30">
+            <div className="text-center border-t border-border/30 pt-1.5 sm:border-t-0 sm:border-l sm:pt-0">
               <p className="text-[10px] font-semibold text-muted-foreground">Recall</p>
               <p className="text-xs font-black text-foreground tabular-nums sm:text-sm">
                 <AnimatedNumber value={macroStats.avgRecall * 100} decimals={1} />%
               </p>
             </div>
-            <div className="text-center border-l border-border/30">
+            <div className="text-center border-l border-t border-border/30 pt-1.5 sm:border-t-0 sm:pt-0">
               <p className="text-[10px] font-semibold text-muted-foreground">{isVi ? "Tổng mẫu" : "Samples"}</p>
               <p className="text-xs font-black text-foreground tabular-nums sm:text-sm">
                 <AnimatedNumber
                   value={macroStats.totalSamples}
-                  format={(v) => v.toLocaleString()}
+                  format={(v) => v.toLocaleString(locale)}
                 />
               </p>
             </div>
@@ -589,9 +597,9 @@ export function PerClassMetricsCard({
                   className="appearance-none rounded-xl border border-border/40 bg-surface py-1 pl-2 pr-6 text-[11px] font-bold text-muted-foreground hover:text-foreground shadow-[2px_2px_4px_var(--shadow-dark),-1px_-1px_3px_var(--shadow-light)] focus:outline-none focus:ring-1 focus:ring-primary/40 cursor-pointer"
                   title={isVi ? "Sắp xếp danh sách" : "Sort metrics"}
                 >
-                  <option value="f1_desc">F1: Cao ↓</option>
-                  <option value="f1_asc">F1: Thấp ↑</option>
-                  <option value="samples_desc">Mẫu ↓</option>
+                  <option value="f1_desc">{isVi ? "F1: Cao ↓" : "F1: High ↓"}</option>
+                  <option value="f1_asc">{isVi ? "F1: Thấp ↑" : "F1: Low ↑"}</option>
+                  <option value="samples_desc">{isVi ? "Mẫu ↓" : "Samples ↓"}</option>
                   <option value="name_asc">A-Z</option>
                 </select>
                 <ArrowDownUp className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground/70" />
@@ -746,7 +754,7 @@ export function PerClassMetricsCard({
 
                 {/* BẢNG 3 CHỈ SỐ: PRECISION / RECALL / F1-SCORE */}
                 <div className="mt-3 rounded-[14px] border border-border/25 bg-background/40 p-2.5 sm:p-3 shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_var(--shadow-light)]">
-                  <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
+                  <div className="grid grid-cols-1 gap-2.5 min-[400px]:grid-cols-3 sm:gap-3">
                     {/* 1. Precision */}
                     <div className="min-w-0">
                       <div className="mb-1 flex items-baseline justify-between gap-1">
@@ -775,7 +783,7 @@ export function PerClassMetricsCard({
                     </div>
 
                     {/* 2. Recall */}
-                    <div className="min-w-0 border-l border-border/25 pl-2.5 sm:pl-3">
+                    <div className="min-w-0 min-[400px]:border-l min-[400px]:border-border/25 min-[400px]:pl-2.5 sm:pl-3">
                       <div className="mb-1 flex items-baseline justify-between gap-1">
                         <span className="truncate text-[10px] font-semibold text-muted-foreground">
                           {t("aiMetrics.perClass.recall")}
@@ -802,7 +810,7 @@ export function PerClassMetricsCard({
                     </div>
 
                     {/* 3. F1-Score */}
-                    <div className="min-w-0 border-l border-border/25 pl-2.5 sm:pl-3">
+                    <div className="min-w-0 min-[400px]:border-l min-[400px]:border-border/25 min-[400px]:pl-2.5 sm:pl-3">
                       <div className="mb-1 flex items-baseline justify-between gap-1">
                         <span className="truncate text-[10px] font-bold text-foreground">
                           {t("aiMetrics.perClass.f1")}

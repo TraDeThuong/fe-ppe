@@ -28,13 +28,13 @@ export interface CreateNotificationTemplateModalProps {
 }
 
 const COMMON_PLACEHOLDERS = [
-  { key: "{{userName}}", label: "Tên người nhận", sample: "Lê Hoàng Nam" },
-  { key: "{{siteName}}", label: "Tên công trường", sample: "KCN VSIP II" },
-  { key: "{{zoneName}}", label: "Khu vực / Tầng", sample: "Khu A - Tầng 3" },
-  { key: "{{cameraCode}}", label: "Mã Camera", sample: "CAM-01" },
-  { key: "{{violationType}}", label: "Loại vi phạm", sample: "Không đội mũ" },
-  { key: "{{timestamp}}", label: "Thời gian", sample: "14:30 28/10/2026" },
-  { key: "{{actionUrl}}", label: "Liên kết xử lý", sample: "/incidents/inc-01" },
+  { key: "{{userName}}", labelVi: "Tên người nhận", labelEn: "Recipient name", sample: "Lê Hoàng Nam" },
+  { key: "{{siteName}}", labelVi: "Tên công trường", labelEn: "Site name", sample: "KCN VSIP II" },
+  { key: "{{zoneName}}", labelVi: "Khu vực / Tầng", labelEn: "Zone / Floor", sample: "Khu A - Tầng 3" },
+  { key: "{{cameraCode}}", labelVi: "Mã Camera", labelEn: "Camera code", sample: "CAM-01" },
+  { key: "{{violationType}}", labelVi: "Loại vi phạm", labelEn: "Violation type", sample: "NO_HELMET" },
+  { key: "{{timestamp}}", labelVi: "Thời gian", labelEn: "Timestamp", sample: "14:30 28/10/2026" },
+  { key: "{{actionUrl}}", labelVi: "Liên kết xử lý", labelEn: "Action URL", sample: "/incidents/inc-01" },
 ];
 
 export function CreateNotificationTemplateModal({
@@ -148,7 +148,7 @@ export function CreateNotificationTemplateModal({
                 required
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder="VD: CUSTOM_HIGH_ZONE_ALERT"
+                placeholder={isVietnamese ? "VD: CUSTOM_HIGH_ZONE_ALERT" : "e.g., CUSTOM_HIGH_ZONE_ALERT"}
                 className="w-full rounded-xl border border-border/40 bg-background px-3 py-2 font-mono text-xs text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark)] outline-none focus:border-primary/60"
               />
               <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -277,7 +277,7 @@ export function CreateNotificationTemplateModal({
                   type="button"
                   onClick={() => handleInsertPlaceholder(ph.key)}
                   className="rounded-lg border border-border/40 bg-background/80 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary shadow-[1px_1px_3px_var(--shadow-dark)] hover:bg-primary/10 transition-all active:shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
-                  title={`${ph.label} (VD: ${ph.sample})`}
+                  title={`${isVietnamese ? ph.labelVi : ph.labelEn} (${isVietnamese ? "VD" : "e.g."}: ${ph.sample})`}
                 >
                   + {ph.key}
                 </button>

@@ -123,7 +123,11 @@ export function GenerateReportModal({
       open={open}
       onOpenChange={onOpenChange}
       title={t("reports.generate.modalTitle")}
-      description="Chọn mẫu báo cáo, phạm vi công trường và khoảng thời gian xuất dữ liệu"
+      description={
+        isVietnamese
+          ? "Chọn mẫu báo cáo, phạm vi công trường và khoảng thời gian xuất dữ liệu"
+          : "Choose report template, site scope, and export period"
+      }
       footer={
         <div className="flex w-full items-center justify-end gap-3">
           <Button
@@ -243,7 +247,7 @@ export function GenerateReportModal({
         </div>
 
         {/* Date Range Row */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-[var(--neu-text-primary)]">
               {t("reports.generate.from")}

@@ -86,7 +86,7 @@ export function AuditLogTable({
             </span>
             <div className="space-y-0.5">
               <p className="text-xs font-medium text-foreground max-w-[160px] truncate">
-                {log.userEmail || log.actor?.email || "Hệ thống tự động"}
+                {log.userEmail || log.actor?.email || (locale === "vi-VN" ? "Hệ thống tự động" : "Automated System")}
               </p>
               {(log.userRole || log.actor?.roleName) && (
                 <span className="inline-flex rounded-full px-1.5 py-0.2 text-[10px] font-semibold bg-muted text-muted-foreground">

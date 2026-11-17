@@ -347,7 +347,7 @@ export function RoleUsersTab({
                       {is2FA ? (
                         <span className="inline-flex items-center gap-1 font-semibold text-primary">
                           <ShieldCheck className="h-3.5 w-3.5" />
-                          2FA Bật
+                          {isVietnamese ? "2FA Bật" : "2FA On"}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-muted-foreground/80">

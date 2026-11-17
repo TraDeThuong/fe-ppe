@@ -86,7 +86,7 @@ export function NotificationFilterToolbar({
               type="button"
               onClick={() => setSearchInput("")}
               className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-muted-foreground hover:text-foreground"
-              aria-label="Xóa tìm kiếm"
+              aria-label={isVietnamese ? "Xóa tìm kiếm" : "Clear search"}
             >
               <X className="size-3.5" />
             </button>

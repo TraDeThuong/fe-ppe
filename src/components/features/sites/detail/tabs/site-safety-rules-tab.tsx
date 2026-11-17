@@ -810,7 +810,7 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
                 )}
               </div>
 
-              <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
                 <div>
                   <label className="text-[10px] text-muted-foreground">
                     Confidence (0.1–0.99)
@@ -861,7 +861,7 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
                 <div>
                   <label className="text-[10px] text-muted-foreground">NO_HELMET</label>
                   <select

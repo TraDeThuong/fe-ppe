@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import QRCode from "qrcode";
 import { Loader2, ShieldCheck, ShieldOff } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -69,7 +68,8 @@ export function TwoFactorPanel() {
     let cancelled = false;
     setQrDataUrl(null);
     if (!setupData) return;
-    QRCode.toDataURL(setupData.otpauthUrl, { margin: 1, width: 220 })
+    import("qrcode")
+      .then((mod) => mod.default.toDataURL(setupData.otpauthUrl, { margin: 1, width: 220 }))
       .then((url) => {
         if (!cancelled) setQrDataUrl(url);
       })

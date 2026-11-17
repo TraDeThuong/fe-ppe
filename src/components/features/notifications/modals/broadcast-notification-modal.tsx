@@ -186,7 +186,7 @@ export function BroadcastNotificationModal({
             type="text"
             value={actionUrl}
             onChange={(e) => setActionUrl(e.target.value)}
-            placeholder="/incidents hoặc https://..."
+            placeholder={isVietnamese ? "/incidents hoặc https://..." : "/incidents or https://..."}
             className={inputSocketClass}
           />
           <p className="mt-1 text-[10px] text-muted-foreground">
