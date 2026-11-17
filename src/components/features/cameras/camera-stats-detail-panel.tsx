@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { AnimatedNumber } from "@/components/ui/animated-number";
+import { useLocale } from "@/providers/locale-provider";
 import { findSessionForCamera, toSafeLiveCameraId } from "./camera-live-helpers";
 import type { LiveSessionInfo } from "@/types/ai-test.types";
 import type { CameraItem } from "@/types";
@@ -41,6 +42,8 @@ export function CameraStatsDetailPanel({
   onToggleFleetFilter,
   onClose,
 }: CameraStatsDetailPanelProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const sessionMap = useMemo(() => {
     const map = new Map<string, LiveSessionInfo>();
     for (const s of sessions) {
@@ -146,37 +149,55 @@ export function CameraStatsDetailPanel({
       case "all":
         return {
           icon: <Camera className="h-4 w-4 text-primary" />,
-          title: "Chi tiết Tổng Thiết Bị Camera",
-          badge: `${cameras.length} thiết bị`,
-          subtitle:
-            "Phân bổ theo trạng thái kết nối DB và giao thức nguồn truyền phát",
+          title: isVietnamese
+            ? "Chi tiết Tổng Thiết Bị Camera"
+            : "Total Camera Devices Details",
+          badge: isVietnamese
+            ? `${cameras.length} thiết bị`
+            : `${cameras.length} devices`,
+          subtitle: isVietnamese
+            ? "Phân bổ theo trạng thái kết nối DB và giao thức nguồn truyền phát"
+            : "Distribution by DB connection status and streaming source protocol",
           canFilterList: false,
         };
       case "online":
         return {
           icon: <Activity className="h-4 w-4 text-emerald-500" />,
-          title: "Chi tiết Camera Sẵn Sàng Kết Nối DB",
+          title: isVietnamese
+            ? "Chi tiết Camera Sẵn Sàng Kết Nối DB"
+            : "DB Connected Cameras Details",
           badge: `${dbBreakdown.online}/${cameras.length} ONLINE`,
-          subtitle:
-            "Danh sách thiết bị đạt trạng thái ONLINE và độ trễ ping gần nhất từ Camera Service",
+          subtitle: isVietnamese
+            ? "Danh sách thiết bị đạt trạng thái ONLINE và độ trễ ping gần nhất từ Camera Service"
+            : "ONLINE devices and latest ping latency from Camera Service",
           canFilterList: true,
         };
       case "ai_live":
         return {
           icon: <Radio className="h-4 w-4 text-amber-500" />,
-          title: "Chi tiết Phiên Đang AI Live Tracking",
-          badge: `${runningSessions.length} luồng LIVE`,
-          subtitle:
-            "Các luồng suy luận đang chạy trực tiếp trên AI Engine (FPS, độ trễ & số người bám vết)",
+          title: isVietnamese
+            ? "Chi tiết Phiên Đang AI Live Tracking"
+            : "Active AI Live Tracking Sessions",
+          badge: isVietnamese
+            ? `${runningSessions.length} luồng LIVE`
+            : `${runningSessions.length} LIVE streams`,
+          subtitle: isVietnamese
+            ? "Các luồng suy luận đang chạy trực tiếp trên AI Engine (FPS, độ trễ & số người bám vết)"
+            : "Active inference streams running on AI Engine (FPS, latency & tracked persons)",
           canFilterList: true,
         };
       case "violations":
         return {
           icon: <ShieldAlert className="h-4 w-4 text-danger" />,
-          title: "Chi tiết Vi Phạm Đang Kích Hoạt Real-time",
-          badge: `${violationSummary.activeTotal} đang mở`,
-          subtitle:
-            "Các camera đang phát hiện thiếu bảo hộ (Mũ / Áo / Vùng cấm) ở khung hình hiện tại",
+          title: isVietnamese
+            ? "Chi tiết Vi Phạm Đang Kích Hoạt Real-time"
+            : "Active Real-Time Violations",
+          badge: isVietnamese
+            ? `${violationSummary.activeTotal} đang mở`
+            : `${violationSummary.activeTotal} active`,
+          subtitle: isVietnamese
+            ? "Các camera đang phát hiện thiếu bảo hộ (Mũ / Áo / Vùng cấm) ở khung hình hiện tại"
+            : "Cameras currently detecting PPE violations (Helmet / Vest / Restricted Area)",
           canFilterList: true,
         };
     }
@@ -184,6 +205,7 @@ export function CameraStatsDetailPanel({
     activeStat,
     cameras.length,
     dbBreakdown.online,
+    isVietnamese,
     runningSessions.length,
     violationSummary.activeTotal,
   ]);
@@ -233,15 +255,19 @@ export function CameraStatsDetailPanel({
               <Filter className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span>
                 {isFleetFilteredByThisStat
-                  ? "Bỏ lọc danh sách"
-                  : "Lọc danh sách dưới"}
+                  ? isVietnamese
+                    ? "Bỏ lọc danh sách"
+                    : "Clear list filter"
+                  : isVietnamese
+                    ? "Lọc danh sách dưới"
+                    : "Filter list below"}
               </span>
             </Button>
           )}
           <button
             type="button"
             onClick={onClose}
-            aria-label="Đóng bảng chi tiết"
+            aria-label={isVietnamese ? "Đóng bảng chi tiết" : "Close details panel"}
             className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-lg border border-border/40 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground cursor-pointer"
           >
             <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -254,7 +280,9 @@ export function CameraStatsDetailPanel({
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
           <div className={`space-y-3 rounded-2xl p-4 lg:col-span-5 ${NM.recessed}`}>
             <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Phân bổ Trạng thái DB &amp; Giao thức
+              {isVietnamese
+                ? "Phân bổ Trạng thái DB & Giao thức"
+                : "DB Status & Protocol Breakdown"}
             </p>
             <div className="grid grid-cols-2 gap-2.5 text-xs">
               <div className={`rounded-xl p-2.5 ${NM.extruded}`}>
@@ -270,13 +298,17 @@ export function CameraStatsDetailPanel({
                 </p>
               </div>
               <div className={`rounded-xl p-2.5 ${NM.extruded}`}>
-                <span className="text-[10px] text-muted-foreground">BẢO TRÌ</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {isVietnamese ? "BẢO TRÌ" : "MAINTENANCE"}
+                </span>
                 <p className="mt-0.5 font-mono text-base font-black tabular-nums text-amber-500">
                   <AnimatedNumber value={dbBreakdown.maintenance} />
                 </p>
               </div>
               <div className={`rounded-xl p-2.5 ${NM.extruded}`}>
-                <span className="text-[10px] text-muted-foreground">LỖI</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {isVietnamese ? "LỖI" : "ERROR"}
+                </span>
                 <p className="mt-0.5 font-mono text-base font-black tabular-nums text-danger">
                   <AnimatedNumber value={dbBreakdown.error} />
                 </p>
@@ -299,11 +331,15 @@ export function CameraStatsDetailPanel({
 
           <div className={`space-y-2 rounded-2xl p-3 lg:col-span-7 ${NM.recessed}`}>
             <p className="px-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Danh sách nhanh Thiết bị ({cameras.length})
+              {isVietnamese
+                ? `Danh sách nhanh Thiết bị (${cameras.length})`
+                : `Quick Device List (${cameras.length})`}
             </p>
             {cameras.length === 0 ? (
               <p className="py-6 text-center text-xs text-muted-foreground">
-                Chưa có camera nào trong hệ thống.
+                {isVietnamese
+                  ? "Chưa có camera nào trong hệ thống."
+                  : "No cameras registered yet."}
               </p>
             ) : (
               <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
@@ -354,11 +390,15 @@ export function CameraStatsDetailPanel({
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
           <div className={`space-y-3 rounded-2xl p-4 lg:col-span-4 ${NM.recessed}`}>
             <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Sức khỏe Kết nối Camera DB
+              {isVietnamese
+                ? "Sức khỏe Kết nối Camera DB"
+                : "Camera DB Connection Health"}
             </p>
             <div className="space-y-2.5 text-xs">
               <div className={`flex items-center justify-between rounded-xl p-3 ${NM.extruded}`}>
-                <span className="text-muted-foreground">Tỷ lệ khả dụng</span>
+                <span className="text-muted-foreground">
+                  {isVietnamese ? "Tỷ lệ khả dụng" : "Availability rate"}
+                </span>
                 <span className="font-mono text-sm font-black text-emerald-500">
                   {cameras.length > 0
                     ? `${Math.round((onlineStats.onlineCams.length / cameras.length) * 100)}%`
@@ -366,7 +406,9 @@ export function CameraStatsDetailPanel({
                 </span>
               </div>
               <div className={`flex items-center justify-between rounded-xl p-3 ${NM.extruded}`}>
-                <span className="text-muted-foreground">Độ trễ trung bình</span>
+                <span className="text-muted-foreground">
+                  {isVietnamese ? "Độ trễ trung bình" : "Average latency"}
+                </span>
                 <span className="font-mono text-sm font-black text-foreground">
                   {onlineStats.avgLatency != null
                     ? `${onlineStats.avgLatency} ms`
@@ -374,9 +416,12 @@ export function CameraStatsDetailPanel({
                 </span>
               </div>
               <div className={`flex items-center justify-between rounded-xl p-3 ${NM.extruded}`}>
-                <span className="text-muted-foreground">Chưa sẵn sàng</span>
+                <span className="text-muted-foreground">
+                  {isVietnamese ? "Chưa sẵn sàng" : "Not ready"}
+                </span>
                 <span className="font-mono text-sm font-black text-amber-500">
-                  {onlineStats.offlineCams.length} thiết bị
+                  {onlineStats.offlineCams.length}{" "}
+                  {isVietnamese ? "thiết bị" : "devices"}
                 </span>
               </div>
             </div>
@@ -384,7 +429,9 @@ export function CameraStatsDetailPanel({
 
           <div className={`space-y-2 rounded-2xl p-3 lg:col-span-8 ${NM.recessed}`}>
             <p className="px-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Camera ONLINE ({onlineStats.onlineCams.length}) &amp; Cần kiểm tra ({onlineStats.offlineCams.length})
+              {isVietnamese
+                ? `Camera ONLINE (${onlineStats.onlineCams.length}) & Cần kiểm tra (${onlineStats.offlineCams.length})`
+                : `ONLINE (${onlineStats.onlineCams.length}) & Attention Needed (${onlineStats.offlineCams.length})`}
             </p>
             <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
               {onlineStats.onlineCams.map((cam) => (
@@ -443,8 +490,17 @@ export function CameraStatsDetailPanel({
         <div className={`space-y-2.5 rounded-2xl p-3.5 ${NM.recessed}`}>
           {runningSessions.length === 0 ? (
             <div className="py-6 text-center text-xs text-muted-foreground">
-              Hiện chưa có luồng camera nào đang bật AI Live Tracking trên AI Engine. Nhấn{" "}
-              <strong className="text-primary">Bắt đầu AI Live</strong> ở thẻ camera hoặc mở trang chi tiết để khởi chạy.
+              {isVietnamese ? (
+                <>
+                  Hiện chưa có luồng camera nào đang bật AI Live Tracking trên AI Engine. Nhấn{" "}
+                  <strong className="text-primary">Bắt đầu AI Live</strong> ở thẻ camera hoặc mở trang chi tiết để khởi chạy.
+                </>
+              ) : (
+                <>
+                  No camera streams are currently running AI Live Tracking. Click{" "}
+                  <strong className="text-primary">Start AI Live</strong> on any camera card or open Camera Studio.
+                </>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -525,23 +581,31 @@ export function CameraStatsDetailPanel({
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
           <div className={`space-y-3 rounded-2xl p-4 lg:col-span-5 ${NM.recessed}`}>
             <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Tổng hợp Bám vết PPE trên {runningSessions.length} luồng Live
+              {isVietnamese
+                ? `Tổng hợp Bám vết PPE trên ${runningSessions.length} luồng Live`
+                : `PPE Tracking Summary across ${runningSessions.length} Live streams`}
             </p>
             <div className="grid grid-cols-3 gap-2 text-center text-xs">
               <div className={`rounded-xl p-2.5 ${NM.extruded}`}>
-                <span className="text-[10px] text-muted-foreground">Người</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {isVietnamese ? "Người" : "Persons"}
+                </span>
                 <p className="mt-0.5 font-mono text-lg font-black tabular-nums text-foreground">
                   <AnimatedNumber value={violationSummary.totalPersons} />
                 </p>
               </div>
               <div className={`rounded-xl p-2.5 ${NM.extruded}`}>
-                <span className="text-[10px] text-muted-foreground">Mũ BHL</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {isVietnamese ? "Mũ BHL" : "Helmets"}
+                </span>
                 <p className="mt-0.5 font-mono text-lg font-black tabular-nums text-primary">
                   <AnimatedNumber value={violationSummary.totalHelmets} />
                 </p>
               </div>
               <div className={`rounded-xl p-2.5 ${NM.extruded}`}>
-                <span className="text-[10px] text-muted-foreground">Áo PQ</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {isVietnamese ? "Áo PQ" : "Vests"}
+                </span>
                 <p className="mt-0.5 font-mono text-lg font-black tabular-nums text-accent">
                   <AnimatedNumber value={violationSummary.totalVests} />
                 </p>
@@ -551,12 +615,18 @@ export function CameraStatsDetailPanel({
 
           <div className={`space-y-2 rounded-2xl p-3 lg:col-span-7 ${NM.recessed}`}>
             <p className="px-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Camera đang phát cảnh báo ({violationSummary.alertingSessions.length})
+              {isVietnamese
+                ? `Camera đang phát cảnh báo (${violationSummary.alertingSessions.length})`
+                : `Cameras with Active Alerts (${violationSummary.alertingSessions.length})`}
             </p>
             {violationSummary.alertingSessions.length === 0 ? (
               <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
                 <CheckCircle2 className="size-4 text-emerald-500" />
-                <span>Không có camera nào đang phát sinh vi phạm ở khung hình hiện tại.</span>
+                <span>
+                  {isVietnamese
+                    ? "Không có camera nào đang phát sinh vi phạm ở khung hình hiện tại."
+                    : "No cameras are reporting active violations in the current frame."}
+                </span>
               </div>
             ) : (
               <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
@@ -583,13 +653,13 @@ export function CameraStatsDetailPanel({
                             )}
                           </div>
                           <p className="truncate font-mono text-[11px] text-muted-foreground">
-                            {persons} người trong khung •{" "}
+                            {persons} {isVietnamese ? "người trong khung" : "in frame"} •{" "}
                             {typeof fps === "number" ? `${fps.toFixed(1)} FPS` : "LIVE"}
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           <span className="rounded-full bg-danger/15 px-2.5 py-0.5 font-mono text-xs font-extrabold text-danger">
-                            {activeCount} đang mở
+                            {activeCount} {isVietnamese ? "đang mở" : "active"}
                           </span>
                           {camera && (
                             <ArrowUpRight className="size-3.5 text-primary" />

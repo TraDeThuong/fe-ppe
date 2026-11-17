@@ -18,6 +18,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
+import { useLocale } from "@/providers/locale-provider";
 import type { ModelInfo } from "@/types/ai-test.types";
 import type { CameraItem } from "@/types";
 
@@ -60,6 +61,8 @@ export function CameraStudioHeader({
   onOpenPing,
   onOpenEdit,
 }: CameraStudioHeaderProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const isDbOnline = camera.status === "ONLINE";
   const isLiveRunning = liveStatus === "running";
 
@@ -76,7 +79,9 @@ export function CameraStudioHeader({
       value: "live",
       index: "01",
       label: "Live AI Monitor",
-      caption: "Real-time MJPEG, Hot Config & Telemetry",
+      caption: isVietnamese
+        ? "Luồng MJPEG, Hot Config & Telemetry thời gian thực"
+        : "Real-time MJPEG, Hot Config & Telemetry",
       icon: <Radio className="size-4" />,
       badge: isLiveRunning ? "LIVE" : "IDLE",
       useAccent: isLiveRunning,
@@ -84,8 +89,10 @@ export function CameraStudioHeader({
     {
       value: "gallery",
       index: "02",
-      label: "Thư Viện Bằng Chứng",
-      caption: "Before / After Inspection & Track Filter",
+      label: isVietnamese ? "Thư Viện Bằng Chứng" : "Evidence Gallery",
+      caption: isVietnamese
+        ? "Kiểm tra Before / After & Lọc theo Track"
+        : "Before / After Inspection & Track Filter",
       icon: <Images className="size-4" />,
       badge: galleryCount > 0 ? String(galleryCount) : undefined,
       useAccent: true,
@@ -93,8 +100,10 @@ export function CameraStudioHeader({
     {
       value: "incidents",
       index: "03",
-      label: "Sự Cố DB & Thiết Bị",
-      caption: "Lịch sử Incident Service & Thông số mạng",
+      label: isVietnamese ? "Sự Cố DB & Thiết Bị" : "DB Incidents & Device",
+      caption: isVietnamese
+        ? "Lịch sử Incident Service & Thông số mạng"
+        : "Incident Service History & Network Diagnostics",
       icon: <Database className="size-4" />,
       badge: incidentsCount > 0 ? String(incidentsCount) : undefined,
       useAccent: false,
@@ -104,7 +113,7 @@ export function CameraStudioHeader({
   return (
     <section
       aria-label="Camera Live Studio Header"
-      className={`relative overflow-hidden rounded-[30px] p-5 sm:p-7 transition-all duration-300 ${NM.chassis}`}
+      className={`relative overflow-hidden rounded-[24px] p-4 sm:rounded-[30px] sm:p-6 lg:p-7 transition-all duration-300 ${NM.chassis}`}
     >
       <div className="pointer-events-none absolute inset-x-10 top-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
 
@@ -114,8 +123,9 @@ export function CameraStudioHeader({
           <div className="flex items-start gap-4">
             <Link
               href="/cameras"
-              title="Quay lại danh sách Camera"
-              className={`mt-1 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-foreground hover:text-primary ${NM.tactileBtn}`}
+              title={isVietnamese ? "Quay lại danh sách Camera" : "Back to Camera Fleet"}
+              aria-label={isVietnamese ? "Quay lại danh sách Camera" : "Back to Camera Fleet"}
+              className={`mt-1 flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl text-foreground hover:text-primary ${NM.tactileBtn}`}
             >
               <ArrowLeft className="size-5" />
             </Link>
@@ -152,7 +162,9 @@ export function CameraStudioHeader({
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1 font-medium text-foreground">
                   <Building2 className="size-3.5 text-primary" />
-                  {siteName || camera.siteName || "Chưa gán công trường"}
+                  {siteName ||
+                    camera.siteName ||
+                    (isVietnamese ? "Chưa gán công trường" : "Unassigned site")}
                 </span>
                 {camera.zoneName && (
                   <span className="inline-flex items-center gap-1">
@@ -207,8 +219,9 @@ export function CameraStudioHeader({
             <button
               type="button"
               onClick={onOpenPing}
-              title="Kiểm tra kết nối mạng Camera (Ping)"
-              className={`inline-flex h-12 items-center gap-2 rounded-2xl px-3.5 text-xs font-bold text-primary ${NM.tactileBtn}`}
+              title={isVietnamese ? "Kiểm tra kết nối mạng Camera (Ping)" : "Check Camera Network (Ping)"}
+              aria-label={isVietnamese ? "Kiểm tra kết nối mạng Camera (Ping)" : "Check Camera Network (Ping)"}
+              className={`inline-flex h-11 sm:h-12 items-center gap-2 rounded-2xl px-3.5 text-xs font-bold text-primary ${NM.tactileBtn}`}
             >
               <Activity className="size-4" />
               <span className="hidden sm:inline">Ping</span>
@@ -218,11 +231,12 @@ export function CameraStudioHeader({
               <button
                 type="button"
                 onClick={onOpenEdit}
-                title="Chỉnh sửa thông tin Camera"
-                className={`inline-flex h-12 items-center gap-2 rounded-2xl px-3.5 text-xs font-bold text-foreground hover:text-primary ${NM.tactileBtn}`}
+                title={isVietnamese ? "Chỉnh sửa thông tin Camera" : "Edit Camera Details"}
+                aria-label={isVietnamese ? "Chỉnh sửa thông tin Camera" : "Edit Camera Details"}
+                className={`inline-flex h-11 sm:h-12 items-center gap-2 rounded-2xl px-3.5 text-xs font-bold text-foreground hover:text-primary ${NM.tactileBtn}`}
               >
                 <Edit2 className="size-4" />
-                <span className="hidden sm:inline">Sửa</span>
+                <span className="hidden sm:inline">{isVietnamese ? "Sửa" : "Edit"}</span>
               </button>
             )}
 
@@ -230,7 +244,7 @@ export function CameraStudioHeader({
               type="button"
               onClick={onRefreshAll}
               disabled={isRefreshing}
-              className={`group inline-flex h-12 shrink-0 items-center gap-2 rounded-2xl px-3.5 text-xs font-bold text-foreground disabled:opacity-60 ${NM.tactileBtn}`}
+              className={`group inline-flex h-11 sm:h-12 shrink-0 items-center gap-2 rounded-2xl px-3.5 text-xs font-bold text-foreground disabled:opacity-60 ${NM.tactileBtn}`}
             >
               <RefreshCw
                 className={`size-4 text-primary transition-transform duration-500 ${
@@ -238,7 +252,13 @@ export function CameraStudioHeader({
                 }`}
               />
               <span className="hidden sm:inline">
-                {isRefreshing ? "Đang tải" : "Làm mới"}
+                {isRefreshing
+                  ? isVietnamese
+                    ? "Đang tải"
+                    : "Loading"
+                  : isVietnamese
+                    ? "Làm mới"
+                    : "Refresh"}
               </span>
             </button>
           </div>
@@ -254,10 +274,29 @@ export function CameraStudioHeader({
               </div>
               <div className="space-y-1">
                 <p className="font-bold text-foreground">
-                  Chưa kết nối được tới <span className="text-accent">AI Live Engine</span>
+                  {isVietnamese ? "Chưa kết nối được tới" : "Unable to reach"}{" "}
+                  <span className="text-accent">AI Live Engine</span>
                 </p>
                 <p className="text-muted-foreground">
-                  Chi tiết: <span className="font-medium text-foreground">{engineError}</span>. Đảm bảo AI Service (<code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary">AI_ENGINE_URL</code>) đang chạy để phát luồng MJPEG.
+                  {isVietnamese ? "Chi tiết:" : "Details:"}{" "}
+                  <span className="font-medium text-foreground">{engineError}</span>.{" "}
+                  {isVietnamese ? (
+                    <>
+                      Đảm bảo AI Service (
+                      <code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary">
+                        AI_ENGINE_URL
+                      </code>
+                      ) đang chạy để phát luồng MJPEG.
+                    </>
+                  ) : (
+                    <>
+                      Ensure AI Service (
+                      <code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary">
+                        AI_ENGINE_URL
+                      </code>
+                      ) is running to stream MJPEG.
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -267,7 +306,7 @@ export function CameraStudioHeader({
         {/* Layer 2: Recessed Mechanical Switch Track */}
         <div
           role="tablist"
-          aria-label="Chuyển tab Camera Studio"
+          aria-label={isVietnamese ? "Chuyển tab Camera Studio" : "Switch Camera Studio tab"}
           className={`grid grid-cols-1 gap-3 rounded-[24px] p-2.5 md:grid-cols-3 ${NM.recessed}`}
         >
           {tabItems.map((tab) => {

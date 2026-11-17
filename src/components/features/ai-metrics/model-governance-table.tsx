@@ -174,7 +174,13 @@ export function ModelGovernanceTable({
                   </Button>
                 ) : (
                   <span className="text-muted-foreground text-xs italic">
-                    {isActive ? "Đang chạy" : "Sẵn sàng"}
+                    {isActive
+                      ? locale === "vi-VN"
+                        ? "Đang chạy"
+                        : "Active"
+                      : locale === "vi-VN"
+                        ? "Sẵn sàng"
+                        : "Ready"}
                   </span>
                 )}
               </div>;

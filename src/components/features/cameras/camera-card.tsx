@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useCan } from "@/hooks/use-can";
+import { useLocale } from "@/providers/locale-provider";
 import { CameraVideoPlayer } from "./camera-video-player";
 import type { LiveSessionInfo } from "@/types/ai-test.types";
 import type { CameraItem } from "@/types";
@@ -43,6 +44,8 @@ export const CameraCard = memo(function CameraCard({
   onDelete,
   onHealthCheck,
 }: CameraCardProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const canManage = useCan()("PPE_CAMERA_MANAGE");
   const isOnline = camera.status === "ONLINE";
   const isLiveRunning = liveSession?.status === "running";
@@ -108,7 +111,11 @@ export const CameraCard = memo(function CameraCard({
           <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium text-muted-foreground">
             <span className="inline-flex items-center gap-1 truncate">
               <Building2 className="size-3 shrink-0 text-primary" />
-              <span className="truncate">{siteName || camera.siteName || "Chưa gán site"}</span>
+              <span className="truncate">
+                {siteName ||
+                  camera.siteName ||
+                  (isVietnamese ? "Chưa gán site" : "Unassigned site")}
+              </span>
             </span>
             {camera.zoneName && (
               <>
@@ -124,7 +131,8 @@ export const CameraCard = memo(function CameraCard({
 
         <Link
           href={`/cameras/${camera.id}`}
-          title="Mở Live Monitor Studio"
+          title={isVietnamese ? "Mở Live Monitor Studio" : "Open Live Monitor Studio"}
+          aria-label={isVietnamese ? "Mở Live Monitor Studio" : "Open Live Monitor Studio"}
           className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-primary ${NM.tactileBtn}`}
         >
           <ArrowUpRight className="size-4" />
@@ -157,7 +165,7 @@ export const CameraCard = memo(function CameraCard({
             {personsDisplay}
           </div>
           <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-            Người
+            {isVietnamese ? "Người" : "Persons"}
           </div>
         </div>
 
@@ -172,7 +180,7 @@ export const CameraCard = memo(function CameraCard({
             {violationsDisplay}
           </div>
           <div className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-            Vi phạm
+            {isVietnamese ? "Vi phạm" : "Violations"}
           </div>
         </div>
       </div>
@@ -188,7 +196,7 @@ export const CameraCard = memo(function CameraCard({
               className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-accent disabled:opacity-50 ${NM.tactileBtn}`}
             >
               <Square className="size-3 fill-current" />
-              <span>Dừng AI</span>
+              <span>{isVietnamese ? "Dừng AI" : "Stop AI"}</span>
             </button>
           ) : (
             <button
@@ -198,7 +206,15 @@ export const CameraCard = memo(function CameraCard({
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-xs font-extrabold text-primary-foreground shadow-sm transition hover:brightness-105 disabled:opacity-50"
             >
               <Play className="size-3 fill-current" />
-              <span>{isBusy ? "Đang bật..." : "Bật AI Live"}</span>
+              <span>
+                {isBusy
+                  ? isVietnamese
+                    ? "Đang bật..."
+                    : "Starting..."
+                  : isVietnamese
+                    ? "Bật AI Live"
+                    : "Start AI Live"}
+              </span>
             </button>
           )}
 
@@ -206,7 +222,7 @@ export const CameraCard = memo(function CameraCard({
             href={`/cameras/${camera.id}`}
             className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold text-foreground hover:text-primary ${NM.tactileBtn}`}
           >
-            <span>Chi tiết</span>
+            <span>{isVietnamese ? "Chi tiết" : "Details"}</span>
           </Link>
         </div>
 
@@ -214,7 +230,8 @@ export const CameraCard = memo(function CameraCard({
           <button
             type="button"
             onClick={() => onHealthCheck(camera)}
-            title="Kiểm tra kết nối (Ping)"
+            title={isVietnamese ? "Kiểm tra kết nối (Ping)" : "Check connection (Ping)"}
+            aria-label={isVietnamese ? "Kiểm tra kết nối (Ping)" : "Check connection (Ping)"}
             className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-primary ${NM.tactileBtn}`}
           >
             <Activity className="size-3.5" />
@@ -225,7 +242,8 @@ export const CameraCard = memo(function CameraCard({
               <button
                 type="button"
                 onClick={() => onEdit(camera)}
-                title="Chỉnh sửa Camera"
+                title={isVietnamese ? "Chỉnh sửa Camera" : "Edit Camera"}
+                aria-label={isVietnamese ? "Chỉnh sửa Camera" : "Edit Camera"}
                 className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-foreground hover:text-primary ${NM.tactileBtn}`}
               >
                 <Edit2 className="size-3.5" />
@@ -233,7 +251,8 @@ export const CameraCard = memo(function CameraCard({
               <button
                 type="button"
                 onClick={() => onDelete(camera)}
-                title="Xóa Camera"
+                title={isVietnamese ? "Xóa Camera" : "Delete Camera"}
+                aria-label={isVietnamese ? "Xóa Camera" : "Delete Camera"}
                 className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-accent ${NM.tactileBtn}`}
               >
                 <Trash2 className="size-3.5" />

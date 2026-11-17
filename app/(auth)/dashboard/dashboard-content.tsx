@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,7 +37,6 @@ import {
   DashboardAiStatusCard,
   DashboardQuickActions,
   DashboardOperationalSuite,
-  HelmetShowcase,
   type DashboardTabKey,
   DashboardExecutiveKpi,
   DashboardSystemStatusCard,
@@ -60,11 +60,25 @@ import type {
 } from "@/types";
 import type { DashboardPreset } from "@/types/dashboard.types";
 
+const HelmetShowcase = dynamic(
+  () =>
+    import("@/components/features/dashboard/helmet-showcase").then(
+      (mod) => mod.HelmetShowcase,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-full min-h-[340px] w-full animate-pulse rounded-2xl border border-border/40 bg-surface/90 sm:min-h-[440px] sm:rounded-[26px] lg:min-h-[510px]" />
+    ),
+  },
+);
+
 export default function DashboardContent() {
   const { user, status } = useAuth();
   const { siteId, setSiteId, isReady } = useSite();
   const { isConnected, lastAlert } = useRealtime();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -661,10 +675,14 @@ export default function DashboardContent() {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-foreground">
-                  Hạ tầng Camera & Trí tuệ Nhân tạo AI
+                  {isVietnamese
+                    ? "Hạ tầng Camera & Trí tuệ Nhân tạo AI"
+                    : "Camera Infrastructure & AI Vision"}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Giám sát luồng RTSP trực tiếp và thông số mô hình thị giác máy tính
+                  {isVietnamese
+                    ? "Giám sát luồng RTSP trực tiếp và thông số mô hình thị giác máy tính"
+                    : "Monitor live RTSP feeds and computer vision model metrics"}
                 </p>
               </div>
             </div>
@@ -675,13 +693,13 @@ export default function DashboardContent() {
                   <Link href="/cameras">
                     <Button variant="outline" size="sm" className="gap-1.5">
                       <Cctv className="size-3.5" />
-                      Danh sách Camera
+                      {isVietnamese ? "Danh sách Camera" : "Camera Fleet"}
                     </Button>
                   </Link>
                   <Link href="/cameras?view=wall">
                     <Button variant="primary" size="sm" className="gap-1.5">
                       <Cctv className="size-3.5" />
-                      Mở Video Wall RTSP
+                      {isVietnamese ? "Mở Video Wall RTSP" : "Open RTSP Video Wall"}
                     </Button>
                   </Link>
                 </>
@@ -690,7 +708,7 @@ export default function DashboardContent() {
                 <Link href="/ai-metrics">
                   <Button variant="outline" size="sm" className="gap-1.5">
                     <Cpu className="size-3.5" />
-                    Quản lý Mô hình AI
+                    {isVietnamese ? "Quản lý Mô hình AI" : "AI Model Governance"}
                   </Button>
                 </Link>
               )}

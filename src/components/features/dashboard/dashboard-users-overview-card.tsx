@@ -14,7 +14,8 @@ export interface DashboardUsersOverviewCardProps {
 }
 
 export function DashboardUsersOverviewCard({ className = "" }: DashboardUsersOverviewCardProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const { data: summary, isLoading, isError, refetch } = useUserSummary();
 
   const total = summary?.total ?? 0;
@@ -165,7 +166,8 @@ export function DashboardUsersOverviewCard({ className = "" }: DashboardUsersOve
                   className={`rounded-full bg-background px-2.5 py-0.5 font-mono text-[11px] font-extrabold tabular-nums shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] ${locked > 0 ? "text-danger" : "text-foreground"
                     }`}
                 >
-                  <AnimatedNumber value={locked} /> tài khoản
+                  <AnimatedNumber value={locked} />{" "}
+                  {isVietnamese ? "tài khoản" : "accounts"}
                 </span>
               </div>
             </div>

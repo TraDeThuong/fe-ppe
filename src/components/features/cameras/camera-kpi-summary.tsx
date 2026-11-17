@@ -10,6 +10,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-cards";
+import { useLocale } from "@/providers/locale-provider";
 import {
   CameraStatsDetailPanel,
   type CameraKpiFilterKey,
@@ -38,6 +39,8 @@ export function CameraKpiSummary({
   onDetailOpenChange,
   loading = false,
 }: CameraKpiSummaryProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [selectedStat, setSelectedStat] = useState<CameraKpiFilterKey | null>(
     null,
   );
@@ -84,7 +87,7 @@ export function CameraKpiSummary({
   const cards = [
     {
       key: "all" as const,
-      title: "Tổng Thiết Bị Camera",
+      title: isVietnamese ? "Tổng Thiết Bị Camera" : "Total Cameras",
       value: loading ? "..." : stats.total,
       icon: Camera,
       tone: "primary" as const,
@@ -94,7 +97,7 @@ export function CameraKpiSummary({
     },
     {
       key: "online" as const,
-      title: "Sẵn Sàng Kết Nối DB",
+      title: isVietnamese ? "Sẵn Sàng Kết Nối DB" : "DB Connected & Ready",
       value: loading ? "..." : stats.online,
       icon: Activity,
       tone: "success" as const,
@@ -102,22 +105,28 @@ export function CameraKpiSummary({
       hoverBorderClass: "hover:border-success/30",
       description:
         stats.total > 0
-          ? `${Math.round((stats.online / stats.total) * 100)}% khả dụng`
-          : "Chưa có thiết bị",
+          ? isVietnamese
+            ? `${Math.round((stats.online / stats.total) * 100)}% khả dụng`
+            : `${Math.round((stats.online / stats.total) * 100)}% available`
+          : isVietnamese
+            ? "Chưa có thiết bị"
+            : "No devices yet",
     },
     {
       key: "ai_live" as const,
-      title: "Đang AI Live Tracking",
+      title: isVietnamese ? "Đang AI Live Tracking" : "AI Live Tracking",
       value: loading ? "..." : stats.runningCount,
       icon: Radio,
       tone: "warning" as const,
       activeTextClass: "text-warning",
       hoverBorderClass: "hover:border-warning/30",
-      description: `${stats.activePersons} người đang bám vết`,
+      description: isVietnamese
+        ? `${stats.activePersons} người đang bám vết`
+        : `${stats.activePersons} persons tracked`,
     },
     {
       key: "violations" as const,
-      title: "Vi Phạm Đang Kích Hoạt",
+      title: isVietnamese ? "Vi Phạm Đang Kích Hoạt" : "Active Violations",
       value: loading ? "..." : stats.activeViolations,
       icon: ShieldAlert,
       tone: (stats.activeViolations > 0 ? "danger" : "default") as
@@ -128,13 +137,20 @@ export function CameraKpiSummary({
       hoverBorderClass: "hover:border-danger/30",
       description:
         stats.activeViolations > 0
-          ? "Phát hiện vi phạm thời gian thực"
-          : "An toàn • Chưa có vi phạm",
+          ? isVietnamese
+            ? "Phát hiện vi phạm thời gian thực"
+            : "Real-time violations detected"
+          : isVietnamese
+            ? "An toàn • Chưa có vi phạm"
+            : "Safe • No active violations",
     },
   ];
 
   return (
-    <section aria-label="Tóm tắt chỉ số đội camera" className="space-y-4">
+    <section
+      aria-label={isVietnamese ? "Tóm tắt chỉ số đội camera" : "Camera fleet KPI summary"}
+      className="space-y-4"
+    >
       {/* Bento Grid 4 Stats Cards kiểu cũ - 2x2 Mobile, 4 cột Desktop */}
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
         {cards.map((card) => {
@@ -159,11 +175,11 @@ export function CameraKpiSummary({
                     <span
                       className={`flex items-center gap-0.5 font-bold ${card.activeTextClass}`}
                     >
-                      Thu gọn <ChevronUp className="h-3 w-3" />
+                      {isVietnamese ? "Thu gọn" : "Collapse"} <ChevronUp className="h-3 w-3" />
                     </span>
                   ) : (
                     <span className="flex items-center gap-0.5 text-muted-foreground hover:text-foreground">
-                      Chi tiết <ChevronDown className="h-3 w-3" />
+                      {isVietnamese ? "Chi tiết" : "Details"} <ChevronDown className="h-3 w-3" />
                     </span>
                   )}
                 </span>

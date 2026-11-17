@@ -71,7 +71,7 @@ export function useCameraLiveSessions(options?: {
     },
     enabled,
     staleTime: 15_000,
-    refetchInterval: enabled ? 15_000 : false,
+    refetchInterval: (query) => (enabled && query.state.data !== null ? 15_000 : false),
     retry: false,
   });
 

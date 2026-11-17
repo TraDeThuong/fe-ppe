@@ -51,7 +51,8 @@ export function DashboardExecutiveKpi({
   onSelectPillar,
   className = "",
 }: DashboardExecutiveKpiProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const twoFactorRate =
     typeof twoFactorCount === "number" && typeof totalUsers === "number" && totalUsers > 0
@@ -97,7 +98,7 @@ export function DashboardExecutiveKpi({
               <Skeleton className="my-1 h-8 w-16 rounded-lg" />
             )}
             <span className="text-xs font-semibold uppercase text-muted-foreground">
-              sự cố trong kỳ
+              {isVietnamese ? "sự cố trong kỳ" : "incidents"}
             </span>
           </div>
         </div>
@@ -113,7 +114,8 @@ export function DashboardExecutiveKpi({
           <span className="font-mono font-bold text-foreground tabular-nums">
             {typeof pendingCount === "number" ? (
               <>
-                <AnimatedNumber value={pendingCount} /> cần duyệt
+                <AnimatedNumber value={pendingCount} />{" "}
+                {isVietnamese ? "cần duyệt" : "pending"}
               </>
             ) : (
               <Skeleton className="h-3.5 w-16 rounded inline-block" />
@@ -167,7 +169,9 @@ export function DashboardExecutiveKpi({
             shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]
             dark:border-white/[0.04] dark:bg-black/20 dark:shadow-none"
         >
-          <span className="text-muted-foreground">Mô hình AI:</span>
+          <span className="text-muted-foreground">
+            {isVietnamese ? "Mô hình AI:" : "AI Model:"}
+          </span>
           <span className="max-w-[140px] truncate font-mono font-bold text-foreground">
             {aiModelVersion || "--"}
           </span>
@@ -209,7 +213,7 @@ export function DashboardExecutiveKpi({
               <Skeleton className="my-1 h-8 w-16 rounded-lg" />
             )}
             <span className="text-xs font-semibold uppercase text-muted-foreground">
-              tài khoản
+              {isVietnamese ? "tài khoản" : "accounts"}
             </span>
           </div>
         </div>
@@ -224,9 +228,15 @@ export function DashboardExecutiveKpi({
           </span>
           <span className="font-mono font-bold text-foreground tabular-nums">
             {twoFactorRate != null ? (
-              <AnimatedNumber value={twoFactorRate} suffix="% bảo mật" />
+              <AnimatedNumber
+                value={twoFactorRate}
+                suffix={isVietnamese ? "% bảo mật" : "% 2FA"}
+              />
             ) : typeof activeUsers === "number" ? (
-              <AnimatedNumber value={activeUsers} suffix=" hoạt động" />
+              <AnimatedNumber
+                value={activeUsers}
+                suffix={isVietnamese ? " hoạt động" : " active"}
+              />
             ) : (
               <Skeleton className="h-3.5 w-16 rounded inline-block" />
             )}
@@ -269,7 +279,7 @@ export function DashboardExecutiveKpi({
               <Skeleton className="my-1 h-8 w-20 rounded-lg" />
             )}
             <span className="text-xs font-semibold uppercase text-muted-foreground">
-              dịch vụ sẵn sàng
+              {isVietnamese ? "dịch vụ sẵn sàng" : "services ready"}
             </span>
           </div>
         </div>

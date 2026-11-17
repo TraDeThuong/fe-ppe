@@ -320,9 +320,13 @@ export function DashboardSystemStatusCard({
           <ShieldAlert className="size-4" />
         </div>
         <span className="leading-snug">
-          <strong className="font-extrabold">Bảo trì hệ thống đang bật:</strong>{" "}
+          <strong className="font-extrabold">
+            {isVi ? "Bảo trì hệ thống đang bật:" : "System maintenance active:"}
+          </strong>{" "}
           {maintenance?.message ||
-            "Hệ thống đang trong quá trình bảo trì định kỳ."}
+            (isVi
+              ? "Hệ thống đang trong quá trình bảo trì định kỳ."
+              : "The system is undergoing scheduled maintenance.")}
         </span>
       </div>
     )}

@@ -214,13 +214,13 @@ export function DashboardAiStatusCard({
 
         <div className="relative mt-3 flex items-end justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-lg font-black tracking-tight text-foreground sm:text-xl">
+            <div className="truncate text-lg font-black tracking-tight text-foreground sm:text-xl">
               {loading ? (
                 <Skeleton className="my-1 h-6 w-36 rounded-lg inline-block align-middle" />
               ) : (
                 modelName
               )}
-            </p>
+            </div>
 
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="rounded-md bg-surface px-2 py-1 font-mono text-[10px] font-bold text-muted-foreground shadow-[2px_2px_4px_rgba(0,0,0,0.06),-2px_-2px_4px_rgba(255,255,255,0.7)] dark:bg-card dark:shadow-none">

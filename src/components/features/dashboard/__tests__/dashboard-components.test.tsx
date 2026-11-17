@@ -5,6 +5,7 @@ import React from "react";
 import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LocaleProvider } from "@/providers/locale-provider";
+import { HelmetShowcase } from "../helmet-showcase";
 import {
   DashboardHeroHeader,
   DashboardScopeFilterBar,
@@ -12,7 +13,6 @@ import {
   DashboardLiveIncidents,
   DashboardAiStatusCard,
   DashboardQuickActions,
-  HelmetShowcase,
   DashboardOperationalSuite,
   DashboardPpeRadarChart,
   DashboardHourlyRiskChart,

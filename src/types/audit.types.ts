@@ -84,6 +84,9 @@ export interface ExportAuditParams {
   format: "csv" | "json";
   fromDate?: string;
   toDate?: string;
+  startDate?: string;
+  endDate?: string;
   action?: string;
   targetType?: string;
+  status?: AuditLogStatus;
 }

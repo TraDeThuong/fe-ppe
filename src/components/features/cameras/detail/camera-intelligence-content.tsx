@@ -32,6 +32,7 @@ import {
 } from "@/hooks/cameras";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useCan } from "@/hooks/use-can";
+import { useLocale } from "@/providers/locale-provider";
 import {
   aiTestService,
   isAiEndpointNotFoundError,
@@ -99,6 +100,8 @@ function mergePolledStats(
 export function CameraIntelligenceContent({
   cameraId,
 }: CameraIntelligenceContentProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const canManage = useCan()("PPE_CAMERA_MANAGE");
   const { getSiteName } = useEntityLookup();
 
@@ -294,7 +297,9 @@ export function CameraIntelligenceContent({
       if (!sourceToRun && !productionMode) {
         if (!options?.silent) {
           toast.error(
-            "Camera chưa có nguồn AI khả dụng trực tiếp — hãy gắn Nguồn Override trong Tab 03.",
+            isVietnamese
+              ? "Camera chưa có nguồn AI khả dụng trực tiếp — hãy gắn Nguồn Override trong Tab 03."
+              : "Camera has no directly runnable AI source — set an Override Source in Tab 03.",
           );
         }
         return;
@@ -328,13 +333,19 @@ export function CameraIntelligenceContent({
         if (fresh) setStats(fresh);
         void refreshAiEngine();
         if (!options?.silent) {
-          toast.success(`Đã bật Live AI Tracking cho ${liveCameraId}`);
+          toast.success(
+            isVietnamese
+              ? `Đã bật Live AI Tracking cho ${liveCameraId}`
+              : `Enabled Live AI Tracking for ${liveCameraId}`,
+          );
         }
       } catch (error) {
         toast.error(
           error instanceof Error
             ? error.message
-            : "Không thể khởi chạy Live Stream",
+            : isVietnamese
+              ? "Không thể khởi chạy Live Stream"
+              : "Unable to start Live Stream",
         );
       } finally {
         setIsStarting(false);
@@ -445,11 +456,17 @@ export function CameraIntelligenceContent({
       } catch (error) {
         if (isAiEndpointNotFoundError(error)) {
           toast.error(
-            "AI Production Server (24/7) không hỗ trợ upload video offline — hãy chọn video sẵn có trên server hoặc RTSP.",
+            isVietnamese
+              ? "AI Production Server (24/7) không hỗ trợ upload video offline — hãy chọn video sẵn có trên server hoặc RTSP."
+              : "AI Production Server (24/7) does not support offline video uploads — choose a server video or RTSP stream.",
           );
         } else {
           toast.error(
-            error instanceof Error ? error.message : "Upload & stream thất bại",
+            error instanceof Error
+              ? error.message
+              : isVietnamese
+                ? "Upload & stream thất bại"
+                : "Upload & stream failed",
           );
         }
       } finally {
@@ -484,10 +501,18 @@ export function CameraIntelligenceContent({
         enableSceneCut,
       });
       await aiTestService.updateLiveConfig(liveCameraId, payload);
-      toast.success(`Đã áp dụng Hot Config cho ${liveCameraId}`);
+      toast.success(
+        isVietnamese
+          ? `Đã áp dụng Hot Config cho ${liveCameraId}`
+          : `Applied Hot Config for ${liveCameraId}`,
+      );
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Không thể cập nhật Hot Config",
+        error instanceof Error
+          ? error.message
+          : isVietnamese
+            ? "Không thể cập nhật Hot Config"
+            : "Unable to update Hot Config",
       );
     } finally {
       setIsApplyingConfig(false);
@@ -511,10 +536,18 @@ export function CameraIntelligenceContent({
       await aiTestService.stopLiveStream(liveCameraId);
       setStats((prev) => (prev ? { ...prev, status: "stopped" } : prev));
       void refreshAiEngine();
-      toast.success(`Đã dừng Live Tracking ${liveCameraId}`);
+      toast.success(
+        isVietnamese
+          ? `Đã dừng Live Tracking ${liveCameraId}`
+          : `Stopped Live Tracking ${liveCameraId}`,
+      );
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Không thể dừng Live Stream",
+        error instanceof Error
+          ? error.message
+          : isVietnamese
+            ? "Không thể dừng Live Stream"
+            : "Unable to stop Live Stream",
       );
     } finally {
       setIsStopping(false);
@@ -604,14 +637,26 @@ export function CameraIntelligenceContent({
 
   const handleClearOverride = useCallback(() => {
     setOverrideSource("");
-    toast.success("Đã khôi phục nguồn theo hồ sơ Camera DB");
-  }, []);
+    toast.success(
+      isVietnamese
+        ? "Đã khôi phục nguồn theo hồ sơ Camera DB"
+        : "Restored stream source from Camera DB",
+    );
+  }, [isVietnamese]);
 
   if (cameraLoading) {
     return (
       <div className="mx-auto flex min-h-[420px] max-w-[1600px] items-center justify-center">
         <div className={`rounded-3xl p-8 ${NM.chassis}`}>
-          <Loader size="lg" showLabel label="Đang tải hồ sơ Camera Studio..." />
+          <Loader
+            size="lg"
+            showLabel
+            label={
+              isVietnamese
+                ? "Đang tải hồ sơ Camera Studio..."
+                : "Loading Camera Studio..."
+            }
+          />
         </div>
       </div>
     );
@@ -629,18 +674,19 @@ export function CameraIntelligenceContent({
             <Camera className="size-6" />
           </div>
           <h2 className="text-lg font-extrabold text-foreground">
-            Không tìm thấy thiết bị Camera
+            {isVietnamese ? "Không tìm thấy thiết bị Camera" : "Camera device not found"}
           </h2>
           <p className="text-xs text-muted-foreground">
-            Camera có thể đã bị xóa hoặc bạn không có quyền truy cập vào công
-            trường này.
+            {isVietnamese
+              ? "Camera có thể đã bị xóa hoặc bạn không có quyền truy cập vào công trường này."
+              : "This camera may have been deleted or you do not have access to this site."}
           </p>
           <Link
             href="/cameras"
             className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold text-primary ${NM.tactileBtn}`}
           >
             <ArrowLeft className="size-3.5" />
-            <span>Quay lại danh sách Camera</span>
+            <span>{isVietnamese ? "Quay lại danh sách Camera" : "Back to Camera Fleet"}</span>
           </Link>
         </div>
       </div>
@@ -750,7 +796,11 @@ export function CameraIntelligenceContent({
         <EvidenceGalleryPanel
           items={combinedEvidences}
           hideSourceFilter
-          emptyDescription="Chưa có ảnh bằng chứng từ Phiên Live hiện tại hoặc Incident DB của camera này."
+          emptyDescription={
+            isVietnamese
+              ? "Chưa có ảnh bằng chứng từ Phiên Live hiện tại hoặc Incident DB của camera này."
+              : "No evidence images yet from the current Live session or Incident DB for this camera."
+          }
           onInspectEvidence={handleOpenLightbox}
           onSeekToJobTime={handleOpenLiveTab}
         />

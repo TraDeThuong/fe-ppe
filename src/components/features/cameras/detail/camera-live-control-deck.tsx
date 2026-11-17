@@ -17,6 +17,7 @@ import {
   Select,
   type SelectOption,
 } from "@/components/ui/form/selection-controls/select";
+import { useLocale } from "@/providers/locale-provider";
 import type { ModelInfo } from "@/types/ai-test.types";
 
 export interface CameraLiveControlDeckProps {
@@ -96,6 +97,8 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
   onSaveToDb,
   onOpenDeviceTab,
 }: CameraLiveControlDeckProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [isExpanded, setIsExpanded] = useState(false);
 
   const modelOptions = useMemo<SelectOption[]>(
@@ -124,9 +127,9 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
 
   return (
     <section
-      aria-label="Cấu hình AI & Hot Config"
-      className={`relative overflow-hidden rounded-[28px] transition-all duration-300 ${NM.chassis} ${
-        isExpanded ? "p-5 sm:p-7" : "px-5 py-4 sm:px-6"
+      aria-label={isVietnamese ? "Cấu hình AI & Hot Config" : "AI Configuration & Hot Config"}
+      className={`relative overflow-hidden rounded-[24px] sm:rounded-[28px] transition-all duration-300 ${NM.chassis} ${
+        isExpanded ? "p-4 sm:p-6 lg:p-7" : "px-4 py-3.5 sm:px-6 sm:py-4"
       }`}
     >
       <div className="pointer-events-none absolute inset-x-10 top-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
@@ -158,7 +161,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
             <div className="min-w-0 space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-base font-extrabold tracking-tight text-foreground sm:text-lg">
-                  Cấu hình AI &amp; Hot Config
+                  {isVietnamese ? "Cấu hình AI & Hot Config" : "AI & Hot Config"}
                 </h2>
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
@@ -175,7 +178,13 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                   {isRunning ? "Tracking Active" : "Standby"}
                 </span>
                 <span className="inline-flex items-center gap-1 rounded-full bg-foreground/[0.05] px-2 py-0.5 text-[10px] font-semibold text-muted-foreground group-hover:text-primary">
-                  {isExpanded ? "Thu gọn" : "Nhấn để chỉnh chi tiết"}
+                  {isExpanded
+                    ? isVietnamese
+                      ? "Thu gọn"
+                      : "Collapse"
+                    : isVietnamese
+                      ? "Nhấn để chỉnh chi tiết"
+                      : "Click to configure"}
                   <ChevronDown
                     className={`size-3 transition-transform duration-200 ${
                       isExpanded ? "rotate-180" : ""
@@ -223,10 +232,16 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
               <Play className="size-3.5 fill-current" />
               <span>
                 {isStarting
-                  ? "Đang khởi tạo..."
+                  ? isVietnamese
+                    ? "Đang khởi tạo..."
+                    : "Starting..."
                   : isRunning
-                    ? "Khởi chạy lại"
-                    : "Bắt đầu Tracking"}
+                    ? isVietnamese
+                      ? "Khởi chạy lại"
+                      : "Restart"
+                    : isVietnamese
+                      ? "Bắt đầu Tracking"
+                      : "Start Tracking"}
               </span>
             </button>
 
@@ -239,7 +254,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
               <Activity
                 className={`size-3.5 ${isApplyingConfig ? "animate-spin" : ""}`}
               />
-              <span>Áp dụng Hot Config</span>
+              <span>{isVietnamese ? "Áp dụng Hot Config" : "Apply Hot Config"}</span>
             </button>
 
             <button
@@ -249,7 +264,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
               className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-accent disabled:pointer-events-none disabled:opacity-40 ${NM.tactileBtn}`}
             >
               <Square className="size-3.5 fill-current" />
-              <span>Dừng Tracking</span>
+              <span>{isVietnamese ? "Dừng Tracking" : "Stop Tracking"}</span>
             </button>
 
             {canManageCamera && (
@@ -257,11 +272,23 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                 type="button"
                 disabled={isSavingDb}
                 onClick={onSaveToDb}
-                title="Lưu cấu hình FPS & xử lý AI vào hồ sơ Camera DB"
+                title={
+                  isVietnamese
+                    ? "Lưu cấu hình FPS & xử lý AI vào hồ sơ Camera DB"
+                    : "Save FPS & AI settings to Camera DB"
+                }
                 className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-foreground hover:text-primary disabled:pointer-events-none disabled:opacity-40 ${NM.tactileBtn}`}
               >
                 <Save className="size-3.5 text-primary" />
-                <span>{isSavingDb ? "Đang lưu..." : "Lưu DB"}</span>
+                <span>
+                  {isSavingDb
+                    ? isVietnamese
+                      ? "Đang lưu..."
+                      : "Saving..."
+                    : isVietnamese
+                      ? "Lưu DB"
+                      : "Save DB"}
+                </span>
               </button>
             )}
 
@@ -269,7 +296,24 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
               type="button"
               aria-expanded={isExpanded}
               onClick={() => setIsExpanded((prev) => !prev)}
-              title={isExpanded ? "Thu gọn" : "Mở rộng cấu hình"}
+              title={
+                isExpanded
+                  ? isVietnamese
+                    ? "Thu gọn"
+                    : "Collapse"
+                  : isVietnamese
+                    ? "Mở rộng cấu hình"
+                    : "Expand configuration"
+              }
+              aria-label={
+                isExpanded
+                  ? isVietnamese
+                    ? "Thu gọn"
+                    : "Collapse"
+                  : isVietnamese
+                    ? "Mở rộng cấu hình"
+                    : "Expand configuration"
+              }
               className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-primary ${NM.tactileBtn}`}
             >
               <ChevronDown
@@ -296,7 +340,9 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                     className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-bold text-primary ${NM.tactileBtn}`}
                   >
                     <Wrench className="size-3" />
-                    <span>Gắn Override ở Tab 03</span>
+                    <span>
+                      {isVietnamese ? "Gắn Override ở Tab 03" : "Set Override in Tab 03"}
+                    </span>
                   </button>
                 )}
               </div>
@@ -307,7 +353,9 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
               <div className={`space-y-3.5 rounded-2xl p-4 lg:col-span-6 ${NM.extruded}`}>
                 <div className="flex items-center justify-between border-b border-foreground/[0.06] pb-2">
                   <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                    01. Nguồn Camera Cố Định &amp; Model AI
+                    {isVietnamese
+                      ? "01. Nguồn Camera Cố Định & Model AI"
+                      : "01. Bound Camera Source & AI Model"}
                   </span>
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
@@ -316,22 +364,34 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                         : "bg-primary/10 text-primary"
                     }`}
                   >
-                    {isUsingOverride ? "Nguồn Override (Dev)" : sourceTypeLabel}
+                    {isUsingOverride
+                      ? isVietnamese
+                        ? "Nguồn Override (Dev)"
+                        : "Override Source (Dev)"
+                      : sourceTypeLabel}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <span className="block text-[11px] font-semibold text-muted-foreground">
-                      Luồng gắn với {liveCameraId} (Chỉ đọc)
+                      {isVietnamese
+                        ? `Luồng gắn với ${liveCameraId} (Chỉ đọc)`
+                        : `Bound stream for ${liveCameraId} (Read-only)`}
                     </span>
                     <div
-                      title={activeSource || "Chưa có luồng khả dụng"}
+                      title={
+                        activeSource ||
+                        (isVietnamese ? "Chưa có luồng khả dụng" : "No available stream")
+                      }
                       className={`flex min-h-[38px] items-center gap-2 rounded-xl px-3 py-1.5 font-mono text-[11px] text-foreground ${NM.recessed}`}
                     >
                       <Link2 className="size-3.5 shrink-0 text-primary" />
                       <span className="truncate">
-                        {activeSource || "Chưa gắn nguồn AI khả dụng"}
+                        {activeSource ||
+                          (isVietnamese
+                            ? "Chưa gắn nguồn AI khả dụng"
+                            : "No runnable AI source attached")}
                       </span>
                     </div>
                   </div>
@@ -345,7 +405,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                       options={modelOptions}
                       value={selectedModel}
                       onValueChange={onModelChange}
-                      placeholder="Chọn model"
+                      placeholder={isVietnamese ? "Chọn model" : "Select model"}
                     />
                   </div>
                 </div>
@@ -355,7 +415,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
               <div className={`space-y-3.5 rounded-2xl p-4 lg:col-span-6 ${NM.extruded}`}>
                 <div className="flex items-center justify-between border-b border-foreground/[0.06] pb-2">
                   <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                    02. Xung Nhịp FPS
+                    {isVietnamese ? "02. Xung Nhịp FPS" : "02. Frame Rate Clock"}
                   </span>
                   <span className="font-mono text-[10px] font-bold text-muted-foreground">
                     1–60 Hz
@@ -403,10 +463,14 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
               <div className={`space-y-3.5 rounded-2xl p-4 ${NM.extruded}`}>
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-foreground/[0.06] pb-2">
                   <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                    03. Luật &amp; Ngưỡng Sustain (Hot-Config)
+                    {isVietnamese
+                      ? "03. Luật & Ngưỡng Sustain (Hot-Config)"
+                      : "03. Rules & Sustain Thresholds (Hot-Config)"}
                   </span>
                   <span className="rounded-full bg-accent/15 px-2.5 py-0.5 text-[10px] font-bold text-accent">
-                    Set mềm trực tiếp không cần restart
+                    {isVietnamese
+                      ? "Set mềm trực tiếp không cần restart"
+                      : "Live apply without restart"}
                   </span>
                 </div>
 
@@ -415,7 +479,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                   {[
                     {
                       key: "helmet",
-                      label: "Sustain Mũ (s)",
+                      label: isVietnamese ? "Sustain Mũ (s)" : "Helmet Sustain (s)",
                       ruleTag: "NO_HELMET",
                       enabled: enableNoHelmet,
                       value: confirmHelmetSec,
@@ -424,7 +488,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                     },
                     {
                       key: "vest",
-                      label: "Sustain Áo (s)",
+                      label: isVietnamese ? "Sustain Áo (s)" : "Vest Sustain (s)",
                       ruleTag: "NO_VEST",
                       enabled: enableNoVest,
                       value: confirmVestSec,
@@ -452,7 +516,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                           </span>
                         </div>
                         <p className="mt-0.5 pl-3.5 font-mono text-[10px] text-muted-foreground">
-                          Áp dụng cho {timer.ruleTag}
+                          {isVietnamese ? "Áp dụng cho" : "Applies to"} {timer.ruleTag}
                         </p>
                       </div>
 
@@ -539,7 +603,13 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                               : "bg-foreground/10 text-muted-foreground"
                           }`}
                         >
-                          {rule.checked ? "BẬT" : "TẮT"}
+                          {rule.checked
+                            ? isVietnamese
+                              ? "BẬT"
+                              : "ON"
+                            : isVietnamese
+                              ? "TẮT"
+                              : "OFF"}
                         </span>
                       </div>
 

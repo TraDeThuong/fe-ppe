@@ -5,6 +5,7 @@ import { Camera, Maximize2, Play, Radio, RefreshCw, Wrench } from "lucide-react"
 import toast from "react-hot-toast";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { Loader } from "@/components/ui/loader";
+import { useLocale } from "@/providers/locale-provider";
 import { aiTestService } from "@/services/ai-test.service";
 import {
   getYouTubeEmbedUrl,
@@ -39,6 +40,8 @@ export function CameraLiveViewport({
   onReloadStream,
   onOpenDeviceTab,
 }: CameraLiveViewportProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
 
@@ -52,7 +55,11 @@ export function CameraLiveViewport({
   const handleSnapshot = () => {
     const img = imgRef.current;
     if (!img || !img.naturalWidth || !img.naturalHeight) {
-      toast.error("Chưa có khung hình khả dụng để chụp.");
+      toast.error(
+        isVietnamese
+          ? "Chưa có khung hình khả dụng để chụp."
+          : "No frame available to capture.",
+      );
       return;
     }
     try {
@@ -67,9 +74,17 @@ export function CameraLiveViewport({
       link.href = url;
       link.download = `${liveCameraId}-${Date.now()}.jpg`;
       link.click();
-      toast.success("Đã lưu ảnh chụp khung hình Live!");
+      toast.success(
+        isVietnamese
+          ? "Đã lưu ảnh chụp khung hình Live!"
+          : "Live frame snapshot saved!",
+      );
     } catch {
-      toast.error("Không thể chụp trực tiếp từ luồng MJPEG.");
+      toast.error(
+        isVietnamese
+          ? "Không thể chụp trực tiếp từ luồng MJPEG."
+          : "Unable to capture snapshot directly from MJPEG stream.",
+      );
     }
   };
 
@@ -199,16 +214,17 @@ export function CameraLiveViewport({
               <button
                 type="button"
                 onClick={handleSnapshot}
-                title="Chụp ảnh khung hình Live"
+                title={isVietnamese ? "Chụp ảnh khung hình Live" : "Capture live frame"}
                 className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-white/40 bg-background/90 px-2.5 py-1.5 text-[11px] font-bold text-foreground shadow-sm backdrop-blur-md transition hover:text-primary"
               >
                 <Camera className="size-3.5 text-primary" />
-                <span>Chụp ảnh</span>
+                <span>{isVietnamese ? "Chụp ảnh" : "Snapshot"}</span>
               </button>
               <button
                 type="button"
                 onClick={onReloadStream}
-                title="Kết nối lại luồng MJPEG"
+                title={isVietnamese ? "Kết nối lại luồng MJPEG" : "Reconnect MJPEG stream"}
+                aria-label={isVietnamese ? "Kết nối lại luồng MJPEG" : "Reconnect MJPEG stream"}
                 className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-white/40 bg-background/90 text-foreground shadow-sm backdrop-blur-md transition hover:text-primary"
               >
                 <RefreshCw className="size-3.5" />
@@ -216,7 +232,8 @@ export function CameraLiveViewport({
               <button
                 type="button"
                 onClick={handleFullscreen}
-                title="Toàn màn hình"
+                title={isVietnamese ? "Toàn màn hình" : "Fullscreen"}
+                aria-label={isVietnamese ? "Toàn màn hình" : "Fullscreen"}
                 className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-white/40 bg-background/90 text-foreground shadow-sm backdrop-blur-md transition hover:text-primary"
               >
                 <Maximize2 className="size-3.5" />
@@ -228,7 +245,11 @@ export function CameraLiveViewport({
             <Loader
               size="lg"
               showLabel
-              label="Đang khởi tạo luồng suy luận Live..."
+              label={
+                isVietnamese
+                  ? "Đang khởi tạo luồng suy luận Live..."
+                  : "Initializing live inference stream..."
+              }
             />
           </div>
         ) : html5PreviewUrl || youtubeEmbedUrl ? (
@@ -255,7 +276,11 @@ export function CameraLiveViewport({
 
             <div className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-2 rounded-xl border border-white/30 bg-background/90 px-3 py-1.5 text-[11px] font-bold text-foreground shadow-sm backdrop-blur-md">
               <span className="h-2 w-2 rounded-full bg-accent" />
-              <span>Preview gốc (AI Tracking chưa bật)</span>
+              <span>
+                {isVietnamese
+                  ? "Preview gốc (AI Tracking chưa bật)"
+                  : "Raw Preview (AI Tracking inactive)"}
+              </span>
             </div>
 
             <div className="absolute right-3 top-3 flex flex-wrap items-center gap-2">
@@ -266,7 +291,7 @@ export function CameraLiveViewport({
                   className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-[11px] font-extrabold text-primary-foreground shadow-md transition hover:brightness-105"
                 >
                   <Play className="size-3 fill-current" />
-                  <span>Bật AI Tracking</span>
+                  <span>{isVietnamese ? "Bật AI Tracking" : "Start AI Tracking"}</span>
                 </button>
               ) : (
                 onOpenDeviceTab && (
@@ -276,7 +301,11 @@ export function CameraLiveViewport({
                     className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/40 bg-background/95 px-3 py-1.5 text-[11px] font-bold text-primary shadow-md backdrop-blur-md transition hover:brightness-105"
                   >
                     <Wrench className="size-3" />
-                    <span>Gắn Nguồn AI Override (Tab 03)</span>
+                    <span>
+                      {isVietnamese
+                        ? "Gắn Nguồn AI Override (Tab 03)"
+                        : "Set AI Override Source (Tab 03)"}
+                    </span>
                   </button>
                 )
               )}
@@ -294,19 +323,29 @@ export function CameraLiveViewport({
 
             <div className="space-y-1.5">
               <p className="text-sm font-extrabold tracking-tight text-foreground">
-                Camera {liveCameraId} đang ở trạng thái{" "}
-                {stats?.status ?? "chờ"}
+                {isVietnamese
+                  ? `Camera ${liveCameraId} đang ở trạng thái ${stats?.status ?? "chờ"}`
+                  : `Camera ${liveCameraId} is ${stats?.status ?? "standby"}`}
               </p>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                {sourceErrorReason ?? (
-                  <>
-                    Nhấn{" "}
-                    <strong className="font-bold text-primary">
-                      Bắt đầu Tracking
-                    </strong>{" "}
-                    để xem MJPEG bounding box real-time.
-                  </>
-                )}
+                {sourceErrorReason ??
+                  (isVietnamese ? (
+                    <>
+                      Nhấn{" "}
+                      <strong className="font-bold text-primary">
+                        Bắt đầu Tracking
+                      </strong>{" "}
+                      để xem MJPEG bounding box real-time.
+                    </>
+                  ) : (
+                    <>
+                      Click{" "}
+                      <strong className="font-bold text-primary">
+                        Start Tracking
+                      </strong>{" "}
+                      to view real-time MJPEG bounding boxes.
+                    </>
+                  ))}
               </p>
             </div>
 
@@ -318,7 +357,9 @@ export function CameraLiveViewport({
                   className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground shadow-[4px_4px_10px_rgba(0,0,0,0.16)] transition hover:brightness-105"
                 >
                   <Play className="size-3.5 fill-current" />
-                  <span>Bắt đầu Tracking Ngay</span>
+                  <span>
+                    {isVietnamese ? "Bắt đầu Tracking Ngay" : "Start Tracking Now"}
+                  </span>
                 </button>
               )}
 
@@ -329,14 +370,18 @@ export function CameraLiveViewport({
                   className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold text-primary ${NM.tactileBtn}`}
                 >
                   <Wrench className="size-3.5" />
-                  <span>Mở Tab 03 gắn Nguồn Override</span>
+                  <span>
+                    {isVietnamese
+                      ? "Mở Tab 03 gắn Nguồn Override"
+                      : "Open Tab 03 to Set Override Source"}
+                  </span>
                 </button>
               )}
             </div>
 
             {stats?.error && (
               <div className="mx-auto inline-block rounded-xl border border-accent/25 bg-accent/15 px-3.5 py-2 text-xs font-bold text-accent">
-                Lỗi session: {stats.error}
+                {isVietnamese ? "Lỗi session:" : "Session error:"} {stats.error}
               </div>
             )}
           </div>

@@ -36,8 +36,6 @@ export const STREAM_PROTOCOL = {
   RTSP: "RTSP",
   HLS: "HLS",
   WEBRTC: "WEBRTC",
-  HTTP: "HTTP",
-  FILE: "FILE",
 } as const;
 
 export type StreamProtocol =

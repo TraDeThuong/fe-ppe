@@ -274,12 +274,13 @@ export interface CreateEvidencePayload {
 }
 
 export interface RequestEvidenceUploadUrlPayload {
+  incidentId: string;
   cameraId: string;
-  incidentId?: string;
+  siteId: string;
+  evidenceType: EvidenceType | string;
   fileName: string;
   mimeType: string;
   fileSize?: number;
-  evidenceType?: EvidenceType | string;
 }
 
 export interface EvidenceUploadUrlResponse {

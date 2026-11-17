@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Play, Radio, Square } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { aiTestService } from "@/services/ai-test.service";
+import { useLocale } from "@/providers/locale-provider";
 import {
   getYouTubeEmbedUrl,
   hasMaskedCredentials,
@@ -39,6 +40,8 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
   compact = false,
   className = "",
 }: CameraVideoPlayerProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [streamError, setStreamError] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -88,26 +91,46 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
 
   const standbyHeading =
     isReconnecting
-      ? `Đang tự kết nối lại (${liveSession?.reconnect_count ?? 1})...`
+      ? isVietnamese
+        ? `Đang tự kết nối lại (${liveSession?.reconnect_count ?? 1})...`
+        : `Reconnecting (${liveSession?.reconnect_count ?? 1})...`
       : isInitializing || isBusy
-        ? "Đang khởi tạo luồng Live..."
+        ? isVietnamese
+          ? "Đang khởi tạo luồng Live..."
+          : "Initializing live stream..."
         : streamError
-          ? "Luồng MJPEG vừa tạm ngắt"
+          ? isVietnamese
+            ? "Luồng MJPEG vừa tạm ngắt"
+            : "MJPEG stream temporarily interrupted"
           : !isDbOnline
-            ? `Camera đang ${camera.status}`
+            ? isVietnamese
+              ? `Camera đang ${camera.status}`
+              : `Camera is ${camera.status}`
             : isMaskedRtsp
               ? productionMode
-                ? "RTSP bảo mật (M2M sẵn sàng)"
-                : "RTSP đang ẩn mật khẩu (:***@)"
-              : "Chế độ chờ (Chưa chạy AI Live)";
+                ? isVietnamese
+                  ? "RTSP bảo mật (M2M sẵn sàng)"
+                  : "Secure RTSP (M2M ready)"
+                : isVietnamese
+                  ? "RTSP đang ẩn mật khẩu (:***@)"
+                  : "RTSP password masked (:***@)"
+              : isVietnamese
+                ? "Chế độ chờ (Chưa chạy AI Live)"
+                : "Standby (AI Live inactive)";
 
   const standbySubtext = !isDbOnline
-    ? "Thiết bị hiện không ở trạng thái ONLINE để phát tự động."
+    ? isVietnamese
+      ? "Thiết bị hiện không ở trạng thái ONLINE để phát tự động."
+      : "Device is not currently ONLINE for auto-streaming."
     : isMaskedRtsp
       ? productionMode
-        ? "AI Engine tự tra cứu luồng RTSP gốc nội bộ qua M2M token khi khởi chạy."
-        : "Backend đang che mật khẩu RTSP — mở Studio để nhập nguồn hoặc xem hướng dẫn BE."
-      : camera.streamUrl || "Chưa gắn streamUrl";
+        ? isVietnamese
+          ? "AI Engine tự tra cứu luồng RTSP gốc nội bộ qua M2M token khi khởi chạy."
+          : "AI Engine resolves the internal RTSP feed via M2M token on start."
+        : isVietnamese
+          ? "Backend đang che mật khẩu RTSP — mở Studio để nhập nguồn hoặc xem hướng dẫn BE."
+          : "Backend masks RTSP password — open Studio to provide source or check docs."
+      : camera.streamUrl || (isVietnamese ? "Chưa gắn streamUrl" : "No streamUrl configured");
 
   return (
     <div
@@ -132,7 +155,7 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center text-[11px] font-semibold text-muted-foreground">
-              AI Live đang chạy nền...
+              {isVietnamese ? "AI Live đang chạy nền..." : "AI Live running in background..."}
             </div>
           )}
 
@@ -144,7 +167,7 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
             </span>
             {activeViolations > 0 && (
               <span className="rounded-lg bg-accent/90 px-2 py-0.5 font-mono text-[10px] font-extrabold text-accent-foreground shadow-sm">
-                {activeViolations} VI PHẠM
+                {activeViolations} {isVietnamese ? "VI PHẠM" : "VIOLATIONS"}
               </span>
             )}
           </div>
@@ -155,7 +178,9 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
               {typeof fps === "number" ? `${fps.toFixed(1)} FPS` : "LIVE"}
             </span>
             <span className="opacity-40">•</span>
-            <span>{activePersons} người</span>
+            <span>
+              {activePersons} {isVietnamese ? "người" : "persons"}
+            </span>
           </div>
 
           {/* Nút dừng nhanh góc dưới phải */}
@@ -167,11 +192,11 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
                 e.stopPropagation();
                 onStopLive(camera);
               }}
-              title="Tạm dừng phiên AI Live"
+              title={isVietnamese ? "Tạm dừng phiên AI Live" : "Pause AI Live session"}
               className="absolute bottom-2.5 right-2.5 inline-flex cursor-pointer items-center gap-1 rounded-lg bg-background/90 px-2 py-1 font-mono text-[10px] font-bold text-accent shadow-sm backdrop-blur-md transition hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
             >
               <Square className="size-2.5 fill-current" />
-              <span>Dừng</span>
+              <span>{isVietnamese ? "Dừng" : "Stop"}</span>
             </button>
           )}
         </div>
@@ -200,7 +225,15 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
               className="absolute bottom-2.5 right-2.5 inline-flex cursor-pointer items-center gap-1 rounded-xl bg-primary px-2.5 py-1 text-[10px] font-extrabold text-primary-foreground shadow-sm transition hover:brightness-105 disabled:opacity-50"
             >
               <Play className="size-2.5 fill-current" />
-              <span>{isBusy ? "Đang bật..." : "Bật AI Live"}</span>
+              <span>
+                {isBusy
+                  ? isVietnamese
+                    ? "Đang bật..."
+                    : "Starting..."
+                  : isVietnamese
+                    ? "Bật AI Live"
+                    : "Start AI Live"}
+              </span>
             </button>
           )}
         </div>
@@ -224,7 +257,15 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
               className="absolute bottom-2.5 right-2.5 inline-flex cursor-pointer items-center gap-1 rounded-xl bg-primary px-2.5 py-1 text-[10px] font-extrabold text-primary-foreground shadow-sm transition hover:brightness-105 disabled:opacity-50"
             >
               <Play className="size-2.5 fill-current" />
-              <span>{isBusy ? "Đang bật..." : "Bật AI Live"}</span>
+              <span>
+                {isBusy
+                  ? isVietnamese
+                    ? "Đang bật..."
+                    : "Starting..."
+                  : isVietnamese
+                    ? "Bật AI Live"
+                    : "Start AI Live"}
+              </span>
             </button>
           )}
         </div>
@@ -273,7 +314,15 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
                 className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-[11px] font-extrabold text-primary-foreground shadow-[4px_4px_10px_rgba(0,0,0,0.16)] transition hover:brightness-105 disabled:opacity-50"
               >
                 <Play className="size-3 fill-current" />
-                <span>{isBusy ? "Đang bật..." : "Bật AI Live"}</span>
+                <span>
+                  {isBusy
+                    ? isVietnamese
+                      ? "Đang bật..."
+                      : "Starting..."
+                    : isVietnamese
+                      ? "Bật AI Live"
+                      : "Start AI Live"}
+                </span>
               </button>
             )}
 
@@ -281,7 +330,7 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
               href={`/cameras/${camera.id}`}
               className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-[11px] font-bold text-foreground hover:text-primary ${NM.tactileBtn}`}
             >
-              <span>Mở Studio</span>
+              <span>{isVietnamese ? "Mở Studio" : "Open Studio"}</span>
             </Link>
           </div>
         </div>

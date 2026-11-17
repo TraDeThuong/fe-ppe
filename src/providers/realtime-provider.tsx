@@ -37,6 +37,19 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     let source: EventSource | null = null;
     let disposed = false;
     let reconnectTimer: NodeJS.Timeout | null = null;
+    let retryAttempt = 0;
+
+    const scheduleReconnect = (minDelayMs: number) => {
+      if (disposed || reconnectTimer) return;
+      const exponentialMs = Math.min(60_000, minDelayMs * 2 ** Math.min(retryAttempt, 4));
+      retryAttempt += 1;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        if (!disposed) {
+          void connect();
+        }
+      }, exponentialMs);
+    };
 
     const connect = async () => {
       try {
@@ -47,22 +60,18 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           `${env.apiBaseUrl}/notifications/stream?ticket=${encodeURIComponent(ticket)}`,
         );
 
-        source.onopen = () => setIsConnected(true);
+        source.onopen = () => {
+          retryAttempt = 0;
+          setIsConnected(true);
+        };
 
         source.onerror = () => {
           setIsConnected(false);
           // Đóng kết nối ngay để chặn browser EventSource tự retry vô tận với ticket cũ đã hết hạn
           source?.close();
 
-          // Thử kết nối lại bằng ticket mới sau 5 giây nếu người dùng vẫn đang đăng nhập và chưa unmount
-          if (!disposed && !reconnectTimer) {
-            reconnectTimer = setTimeout(() => {
-              reconnectTimer = null;
-              if (!disposed) {
-                connect();
-              }
-            }, 5000);
-          }
+          // Thử kết nối lại với backoff tăng dần nếu người dùng vẫn đang đăng nhập và chưa unmount
+          scheduleReconnect(5000);
         };
 
         for (const eventName of ALERT_EVENTS) {
@@ -77,16 +86,14 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             }
           });
         }
-      } catch {
+      } catch (err: unknown) {
         setIsConnected(false);
-        if (!disposed && !reconnectTimer) {
-          reconnectTimer = setTimeout(() => {
-            reconnectTimer = null;
-            if (!disposed) {
-              connect();
-            }
-          }, 10000);
-        }
+        const statusCode =
+          err && typeof err === "object" && "status" in err
+            ? Number((err as { status?: unknown }).status)
+            : 0;
+        // Nếu bị rate-limit (429), chờ tối thiểu 60s trước khi xin ticket lại
+        scheduleReconnect(statusCode === 429 ? 60_000 : 10_000);
       }
     };
 

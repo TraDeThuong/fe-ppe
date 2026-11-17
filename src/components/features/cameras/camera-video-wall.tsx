@@ -4,6 +4,7 @@ import { memo } from "react";
 import Link from "next/link";
 import { ArrowUpRight, MonitorOff, Radio } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
+import { useLocale } from "@/providers/locale-provider";
 import { CameraVideoPlayer } from "./camera-video-player";
 import type { LiveSessionInfo } from "@/types/ai-test.types";
 import type { CameraItem } from "@/types";
@@ -27,6 +28,8 @@ export const CameraVideoWall = memo(function CameraVideoWall({
   onStartLive,
   onStopLive,
 }: CameraVideoWallProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const maxSlots = layout === "1x1" ? 1 : layout === "2x2" ? 4 : 9;
   const visibleCameras = cameras.slice(0, maxSlots);
 
@@ -48,10 +51,14 @@ export const CameraVideoWall = memo(function CameraVideoWall({
           <MonitorOff className="size-7 text-muted-foreground" />
         </div>
         <h3 className="text-base font-extrabold text-foreground">
-          Không có camera trong khung Video Wall
+          {isVietnamese
+            ? "Không có camera trong khung Video Wall"
+            : "No cameras in Video Wall"}
         </h3>
         <p className="max-w-md text-xs text-muted-foreground">
-          Điều chỉnh bộ lọc công trường/trạng thái hoặc thêm camera mới để bắt đầu theo dõi đa luồng.
+          {isVietnamese
+            ? "Điều chỉnh bộ lọc công trường/trạng thái hoặc thêm camera mới để bắt đầu theo dõi đa luồng."
+            : "Adjust site/status filters or add a new camera to start multi-stream monitoring."}
         </p>
       </div>
     );
@@ -97,7 +104,8 @@ export const CameraVideoWall = memo(function CameraVideoWall({
 
               <Link
                 href={`/cameras/${camera.id}`}
-                title="Mở Studio Chi Tiết"
+                title={isVietnamese ? "Mở Studio Chi Tiết" : "Open Camera Studio"}
+                aria-label={isVietnamese ? "Mở Studio Chi Tiết" : "Open Camera Studio"}
                 className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-primary ${NM.tactileBtn}`}
               >
                 <ArrowUpRight className="size-4" />

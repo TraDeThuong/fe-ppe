@@ -18,11 +18,6 @@ export const REPORT_TYPE = {
   MONTHLY: "MONTHLY",
   VIOLATION_SUMMARY: "VIOLATION_SUMMARY",
   AI_PERFORMANCE: "AI_PERFORMANCE",
-  DAILY_SHIFT: "DAILY_SHIFT",
-  WEEKLY_SUMMARY: "WEEKLY_SUMMARY",
-  MONTHLY_COMPLIANCE: "MONTHLY_COMPLIANCE",
-  AUDIT_INSPECTION: "AUDIT_INSPECTION",
-  CUSTOM: "CUSTOM",
 } as const;
 
 export type ReportType = (typeof REPORT_TYPE)[keyof typeof REPORT_TYPE];
@@ -40,6 +35,7 @@ export const REPORT_FILE_TYPE = {
   PDF: "PDF",
   EXCEL: "EXCEL",
   CSV: "CSV",
+  JSON: "JSON",
 } as const;
 
 export type ReportFileType = (typeof REPORT_FILE_TYPE)[keyof typeof REPORT_FILE_TYPE];

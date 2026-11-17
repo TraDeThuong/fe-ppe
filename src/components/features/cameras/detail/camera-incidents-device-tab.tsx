@@ -30,6 +30,7 @@ import {
   type SelectOption,
 } from "@/components/ui/form/selection-controls/select";
 import { useCameraHealthLogs, usePingCamera } from "@/hooks/cameras";
+import { useLocale } from "@/providers/locale-provider";
 import { getDbIncidentSnapshotUrl } from "../camera-live-helpers";
 import type { LiveVideoItem } from "@/types/ai-test.types";
 import type { CameraConfigItem, CameraItem, IncidentItem } from "@/types";
@@ -51,21 +52,6 @@ export interface CameraIncidentsDeviceTabProps {
   onClearOverride: () => void;
 }
 
-const STATUS_OPTIONS: SelectOption[] = [
-  { value: "ALL", label: "Tất cả trạng thái" },
-  { value: "PENDING_REVIEW", label: "Chờ duyệt (PENDING)" },
-  { value: "CONFIRMED", label: "Đã xác nhận (CONFIRMED)" },
-  { value: "RESOLVED", label: "Đã xử lý (RESOLVED)" },
-  { value: "DISMISSED", label: "Bỏ qua (DISMISSED)" },
-];
-
-const SEVERITY_OPTIONS: SelectOption[] = [
-  { value: "ALL", label: "Tất cả mức độ" },
-  { value: "CRITICAL", label: "CRITICAL" },
-  { value: "HIGH", label: "HIGH" },
-  { value: "MEDIUM", label: "MEDIUM" },
-  { value: "LOW", label: "LOW" },
-];
 
 export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
   camera,
@@ -83,6 +69,43 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
   onUploadOverrideStream,
   onClearOverride,
 }: CameraIncidentsDeviceTabProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
+
+  const statusOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "ALL", label: isVietnamese ? "Tất cả trạng thái" : "All Statuses" },
+      {
+        value: "PENDING_REVIEW",
+        label: isVietnamese ? "Chờ duyệt (PENDING)" : "Pending Review",
+      },
+      {
+        value: "CONFIRMED",
+        label: isVietnamese ? "Đã xác nhận (CONFIRMED)" : "Confirmed",
+      },
+      {
+        value: "RESOLVED",
+        label: isVietnamese ? "Đã xử lý (RESOLVED)" : "Resolved",
+      },
+      {
+        value: "DISMISSED",
+        label: isVietnamese ? "Bỏ qua (DISMISSED)" : "Dismissed",
+      },
+    ],
+    [isVietnamese],
+  );
+
+  const severityOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "ALL", label: isVietnamese ? "Tất cả mức độ" : "All Severities" },
+      { value: "CRITICAL", label: "CRITICAL" },
+      { value: "HIGH", label: "HIGH" },
+      { value: "MEDIUM", label: "MEDIUM" },
+      { value: "LOW", label: "LOW" },
+    ],
+    [isVietnamese],
+  );
+
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [severityFilter, setSeverityFilter] = useState<string>("ALL");
   const [overrideExpanded, setOverrideExpanded] = useState<boolean>(
@@ -145,8 +168,12 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
       {/* Left: Incidents DB Table (7/12) */}
       <section
-        aria-label="Lịch sử sự cố Camera trong hệ thống"
-        className={`relative overflow-hidden rounded-[28px] p-5 sm:p-6 xl:col-span-7 ${NM.chassis}`}
+        aria-label={
+          isVietnamese
+            ? "Lịch sử sự cố Camera trong hệ thống"
+            : "Camera Incident DB History"
+        }
+        className={`relative overflow-hidden rounded-[24px] p-4 sm:rounded-[28px] sm:p-6 xl:col-span-7 ${NM.chassis}`}
       >
         <div className="pointer-events-none absolute inset-x-10 top-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
 
@@ -160,7 +187,9 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base font-extrabold tracking-tight text-foreground">
-                  Sự cố đã lưu trong Incident DB
+                  {isVietnamese
+                    ? "Sự cố đã lưu trong Incident DB"
+                    : "Stored Incident DB Records"}
                 </h2>
                 <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[11px] font-bold text-primary">
                   {filteredIncidents.length}
@@ -168,7 +197,9 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Dữ liệu thật từ Incident Service lọc theo camera{" "}
+                {isVietnamese
+                  ? "Dữ liệu thật từ Incident Service lọc theo camera"
+                  : "Live records from Incident Service filtered by camera"}{" "}
                 <span className="font-mono font-bold text-primary">
                   {camera.code}
                 </span>
@@ -188,14 +219,14 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                   incidentsLoading ? "animate-spin" : ""
                 }`}
               />
-              <span>Tải lại</span>
+              <span>{isVietnamese ? "Tải lại" : "Reload"}</span>
             </button>
 
             <Link
               href={`/incidents?cameraId=${encodeURIComponent(camera.id)}`}
               className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold text-primary ${NM.tactileBtn}`}
             >
-              <span>Xem tất cả</span>
+              <span>{isVietnamese ? "Xem tất cả" : "View all"}</span>
               <ArrowUpRight className="size-3.5" />
             </Link>
           </div>
@@ -206,19 +237,19 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
           <div className="sm:col-span-5">
             <Select
               size="sm"
-              options={STATUS_OPTIONS}
+              options={statusOptions}
               value={statusFilter}
               onValueChange={setStatusFilter}
-              placeholder="Lọc theo trạng thái"
+              placeholder={isVietnamese ? "Lọc theo trạng thái" : "Filter by status"}
             />
           </div>
           <div className="sm:col-span-5">
             <Select
               size="sm"
-              options={SEVERITY_OPTIONS}
+              options={severityOptions}
               value={severityFilter}
               onValueChange={setSeverityFilter}
-              placeholder="Lọc theo mức độ"
+              placeholder={isVietnamese ? "Lọc theo mức độ" : "Filter by severity"}
             />
           </div>
           <div className="flex items-center justify-end sm:col-span-2">
@@ -232,11 +263,11 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                 className={`inline-flex h-9 w-full items-center justify-center gap-1 rounded-xl px-2.5 text-xs font-bold text-accent ${NM.tactileBtn}`}
               >
                 <RotateCcw className="size-3.5" />
-                <span>Xóa lọc</span>
+                <span>{isVietnamese ? "Xóa lọc" : "Clear"}</span>
               </button>
             ) : (
               <span className="font-mono text-[11px] font-semibold text-muted-foreground">
-                Mới nhất
+                {isVietnamese ? "Mới nhất" : "Latest"}
               </span>
             )}
           </div>
@@ -247,10 +278,16 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
             className={`rounded-2xl px-6 py-12 text-center text-xs text-muted-foreground ${NM.recessed}`}
           >
             {incidentsLoading
-              ? "Đang tải danh sách sự cố..."
+              ? isVietnamese
+                ? "Đang tải danh sách sự cố..."
+                : "Loading incidents..."
               : hasFilters
-                ? "Không có sự cố nào khớp bộ lọc trạng thái / mức độ đang chọn."
-                : "Chưa có sự cố nào được lưu trong Incident DB cho camera này."}
+                ? isVietnamese
+                  ? "Không có sự cố nào khớp bộ lọc trạng thái / mức độ đang chọn."
+                  : "No incidents match the selected status or severity filter."
+                : isVietnamese
+                  ? "Chưa có sự cố nào được lưu trong Incident DB cho camera này."
+                  : "No incidents recorded in Incident DB for this camera yet."}
           </div>
         ) : (
           <div className={`max-h-[580px] space-y-2.5 overflow-y-auto rounded-2xl p-3 ${NM.recessed}`}>
@@ -299,7 +336,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                               : "bg-primary/15 text-primary"
                           }`}
                         >
-                          {formatViolationLabel(inc.violationType)}
+                          {formatViolationLabel(inc.violationType, locale)}
                         </span>
 
                         <span className="rounded-md bg-foreground/[0.05] px-2 py-0.5 font-mono text-[10px] font-bold text-foreground">
@@ -323,7 +360,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                     <Clock className="size-3" />
                     <span className="hidden sm:inline">
                       {new Date(inc.detectedAt || inc.createdAt).toLocaleString(
-                        "vi-VN",
+                        locale,
                       )}
                     </span>
                     <ArrowUpRight className="size-3.5 text-primary" />
@@ -339,8 +376,8 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
       <div className="space-y-6 xl:col-span-5">
         {/* Card 1: Device DB Specs */}
         <section
-          aria-label="Thông số kỹ thuật thiết bị"
-          className={`relative space-y-4 overflow-hidden rounded-[28px] p-5 sm:p-6 ${NM.chassis}`}
+          aria-label={isVietnamese ? "Thông số kỹ thuật thiết bị" : "Device Specifications"}
+          className={`relative space-y-4 overflow-hidden rounded-[24px] p-4 sm:rounded-[28px] sm:p-6 ${NM.chassis}`}
         >
           <div className="flex items-center justify-between border-b border-foreground/[0.06] pb-3">
             <div className="flex items-center gap-2.5">
@@ -351,7 +388,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
               </div>
               <div>
                 <h3 className="text-sm font-extrabold text-foreground">
-                  Hồ sơ Thiết bị DB
+                  {isVietnamese ? "Hồ sơ Thiết bị DB" : "Device DB Profile"}
                 </h3>
                 <p className="text-[11px] text-muted-foreground">
                   Camera Service Configuration
@@ -378,11 +415,14 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
           <div className={`space-y-3 rounded-2xl p-4 text-xs ${NM.recessed}`}>
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Giao thức / Nguồn lưu DB
+                {isVietnamese ? "Giao thức / Nguồn lưu DB" : "DB Protocol / Stream Source"}
               </span>
               <p className="mt-1 flex items-center gap-1.5 break-all font-mono text-[11px] font-semibold text-foreground">
                 <Link2 className="size-3.5 shrink-0 text-primary" />
-                <span>{camera.streamUrl || "Chưa cấu hình"}</span>
+                <span>
+                  {camera.streamUrl ||
+                    (isVietnamese ? "Chưa cấu hình" : "Not configured")}
+                </span>
               </p>
             </div>
 
@@ -413,7 +453,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
               </div>
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Độ phân giải DB
+                  {isVietnamese ? "Độ phân giải DB" : "DB Resolution"}
                 </span>
                 <p className="mt-0.5 font-mono font-bold text-foreground">
                   {config?.resolution || "1280x720"}
@@ -439,8 +479,12 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
 
         {/* Card 2: Embedded Ping Probe & Health Heartbeat Logs */}
         <section
-          aria-label="Kiểm tra kết nối & Nhật ký Ping"
-          className={`relative space-y-4 overflow-hidden rounded-[28px] p-5 sm:p-6 ${NM.chassis}`}
+          aria-label={
+            isVietnamese
+              ? "Kiểm tra kết nối & Nhật ký Ping"
+              : "Network Probe & Ping Logs"
+          }
+          className={`relative space-y-4 overflow-hidden rounded-[24px] p-4 sm:rounded-[28px] sm:p-6 ${NM.chassis}`}
         >
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-foreground/[0.06] pb-3">
             <div className="flex items-center gap-2.5">
@@ -451,10 +495,14 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
               </div>
               <div>
                 <h3 className="text-sm font-extrabold text-foreground">
-                  Chẩn đoán Mạng &amp; Health Logs
+                  {isVietnamese
+                    ? "Chẩn đoán Mạng & Health Logs"
+                    : "Network Diagnostics & Health Logs"}
                 </h3>
                 <p className="text-[11px] text-muted-foreground">
-                  Ping Camera Service trực tiếp (không cần popup)
+                  {isVietnamese
+                    ? "Ping Camera Service trực tiếp (không cần popup)"
+                    : "Direct Camera Service ping probe"}
                 </p>
               </div>
             </div>
@@ -471,12 +519,13 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                 ) : (
                   <Zap className="size-3.5" />
                 )}
-                <span>Gửi Ping</span>
+                <span>{isVietnamese ? "Gửi Ping" : "Send Ping"}</span>
               </button>
               <button
                 type="button"
                 onClick={() => void refetchHealthLogs()}
-                title="Làm mới nhật ký Ping"
+                title={isVietnamese ? "Làm mới nhật ký Ping" : "Refresh ping logs"}
+                aria-label={isVietnamese ? "Làm mới nhật ký Ping" : "Refresh ping logs"}
                 className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground hover:text-primary ${NM.tactileBtn}`}
               >
                 <RefreshCw
@@ -491,7 +540,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
           <div className="grid grid-cols-3 gap-2.5 text-center text-xs">
             <div className={`rounded-xl p-2.5 ${NM.recessed}`}>
               <span className="text-[10px] font-bold uppercase text-muted-foreground">
-                Độ trễ
+                {isVietnamese ? "Độ trễ" : "Latency"}
               </span>
               <p className="mt-0.5 font-mono text-sm font-black text-foreground">
                 {pingResult?.latencyMs != null
@@ -504,7 +553,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
 
             <div className={`rounded-xl p-2.5 ${NM.recessed}`}>
               <span className="text-[10px] font-bold uppercase text-muted-foreground">
-                Rớt gói
+                {isVietnamese ? "Rớt gói" : "Packet Loss"}
               </span>
               <p className="mt-0.5 font-mono text-sm font-black text-primary">
                 {pingResult?.packetLoss != null
@@ -519,7 +568,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
 
             <div className={`rounded-xl p-2.5 ${NM.recessed}`}>
               <span className="text-[10px] font-bold uppercase text-muted-foreground">
-                Khung hình DB
+                {isVietnamese ? "Khung hình DB" : "DB Frame Rate"}
               </span>
               <p className="mt-0.5 font-mono text-sm font-black text-foreground">
                 {camera.currentFps != null ? `${camera.currentFps}` : "--"} fps
@@ -530,12 +579,18 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
           <div className={`max-h-48 divide-y divide-foreground/[0.06] overflow-y-auto rounded-2xl p-2 text-xs ${NM.recessed}`}>
             {healthLogsLoading ? (
               <p className="p-3 text-center text-muted-foreground">
-                Đang tải nhật ký nhịp tim...
+                {isVietnamese
+                  ? "Đang tải nhật ký nhịp tim..."
+                  : "Loading heartbeat logs..."}
               </p>
             ) : healthLogs.length === 0 ? (
               <div className="flex items-center justify-center gap-2 p-3 text-muted-foreground">
                 <CheckCircle className="size-4 text-primary" />
-                <span>Chưa ghi nhận lịch sử Ping gián đoạn.</span>
+                <span>
+                  {isVietnamese
+                    ? "Chưa ghi nhận lịch sử Ping gián đoạn."
+                    : "No ping interruption logs recorded."}
+                </span>
               </div>
             ) : (
               healthLogs.slice(0, 6).map((log) => (
@@ -562,7 +617,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                     <span>{log.latencyMs != null ? `${log.latencyMs}ms` : "-"}</span>
                     {log.checkedAt && (
                       <span>
-                        {new Date(log.checkedAt).toLocaleTimeString("vi-VN")}
+                        {new Date(log.checkedAt).toLocaleTimeString(locale)}
                       </span>
                     )}
                   </div>
@@ -574,8 +629,8 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
 
         {/* Card 3: Collapsible Dev Source Override Accordion */}
         <section
-          aria-label="Nguồn chạy thử AI Override"
-          className={`relative overflow-hidden rounded-[28px] p-4 sm:p-5 ${NM.chassis}`}
+          aria-label={isVietnamese ? "Nguồn chạy thử AI Override" : "AI Test Source Override"}
+          className={`relative overflow-hidden rounded-[24px] p-4 sm:rounded-[28px] sm:p-5 ${NM.chassis}`}
         >
           <button
             type="button"
@@ -592,16 +647,20 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-extrabold text-foreground">
-                    Nguồn chạy thử AI (Override cho Dev)
+                    {isVietnamese
+                      ? "Nguồn chạy thử AI (Override cho Dev)"
+                      : "AI Test Source (Dev Override)"}
                   </h3>
                   {overrideSource && (
                     <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold text-accent">
-                      Đang bật
+                      {isVietnamese ? "Đang bật" : "Active"}
                     </span>
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Dùng khi nguồn DB là MP4 hoặc RTSP bị mask mật khẩu `:***@`
+                  {isVietnamese
+                    ? "Dùng khi nguồn DB là MP4 hoặc RTSP bị mask mật khẩu `:***@`"
+                    : "Use when DB source is MP4 or masked RTSP credentials `:***@`"}
                 </p>
               </div>
             </div>
@@ -617,7 +676,9 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
             <div className={`mt-4 space-y-3 rounded-2xl p-3.5 ${NM.recessed}`}>
               <div className="space-y-1.5">
                 <span className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Video Server ({liveVideos.length} sẵn có)
+                  {isVietnamese
+                    ? `Video Server (${liveVideos.length} sẵn có)`
+                    : `Server Videos (${liveVideos.length} available)`}
                 </span>
                 <Select
                   size="sm"
@@ -628,20 +689,34 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                       : ""
                   }
                   onValueChange={(val) => setDraftOverride(val)}
-                  placeholder="Chọn video test trên AI Server"
-                  emptyMessage="Chưa có video sẵn trên AI Server"
+                  placeholder={
+                    isVietnamese
+                      ? "Chọn video test trên AI Server"
+                      : "Select test video on AI Server"
+                  }
+                  emptyMessage={
+                    isVietnamese
+                      ? "Chưa có video sẵn trên AI Server"
+                      : "No videos available on AI Server"
+                  }
                 />
               </div>
 
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Hoặc nhập Source Override (RTSP đầy đủ / YouTube / 0)
+                  {isVietnamese
+                    ? "Hoặc nhập Source Override (RTSP đầy đủ / YouTube / 0)"
+                    : "Or enter Source Override (Full RTSP / YouTube / 0)"}
                 </label>
                 <Input
                   size="sm"
                   value={draftOverride}
                   onChange={(e) => setDraftOverride(e.target.value)}
-                  placeholder="rtsp://user:pass@ip:554/... hoặc video.mp4"
+                  placeholder={
+                    isVietnamese
+                      ? "rtsp://user:pass@ip:554/... hoặc video.mp4"
+                      : "rtsp://user:pass@ip:554/... or video.mp4"
+                  }
                 />
               </div>
 
@@ -665,7 +740,9 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                   className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-3.5 py-2 text-xs font-extrabold text-primary-foreground shadow-sm transition hover:brightness-105 disabled:opacity-45"
                 >
                   <Zap className="size-3.5" />
-                  <span>Áp dụng &amp; Chạy Live</span>
+                  <span>
+                    {isVietnamese ? "Áp dụng & Chạy Live" : "Apply & Run Live"}
+                  </span>
                 </button>
 
                 <button
@@ -674,13 +751,21 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                   onClick={() => fileInputRef.current?.click()}
                   title={
                     productionMode
-                      ? "Endpoint upload video offline chỉ có ở test-ui/server.py sandbox"
+                      ? isVietnamese
+                        ? "Endpoint upload video offline chỉ có ở test-ui/server.py sandbox"
+                        : "Offline video upload is only available in test-ui/server.py sandbox"
                       : undefined
                   }
                   className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-foreground hover:text-primary disabled:opacity-45 ${NM.tactileBtn}`}
                 >
                   <Upload className="size-3.5 text-accent" />
-                  <span>{isUploading ? "Đang tải..." : "Upload & Stream"}</span>
+                  <span>
+                    {isUploading
+                      ? isVietnamese
+                        ? "Đang tải..."
+                        : "Uploading..."
+                      : "Upload & Stream"}
+                  </span>
                 </button>
 
                 {overrideSource && (
@@ -693,7 +778,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                     className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-accent ${NM.tactileBtn}`}
                   >
                     <RotateCcw className="size-3.5" />
-                    <span>Khôi phục DB</span>
+                    <span>{isVietnamese ? "Khôi phục DB" : "Restore DB"}</span>
                   </button>
                 )}
               </div>

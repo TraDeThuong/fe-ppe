@@ -9,6 +9,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { useCan } from "@/hooks/use-can";
 import { useSite } from "@/contexts/SiteContext";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
+import { useLocale } from "@/providers/locale-provider";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { selectAutoStartCandidates } from "@/components/features/cameras/camera-live-helpers";
 import {
@@ -41,6 +42,8 @@ import type {
 } from "@/types";
 
 export default function CamerasContent() {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -447,10 +450,12 @@ export default function CamerasContent() {
               </div>
               <div className="max-w-md space-y-1">
                 <h3 className="text-base font-extrabold text-foreground">
-                  Không tìm thấy camera nào
+                  {isVietnamese ? "Không tìm thấy camera nào" : "No cameras found"}
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Hãy thử thay đổi điều kiện lọc hoặc thêm thiết bị camera mới vào hệ thống.
+                  {isVietnamese
+                    ? "Hãy thử thay đổi điều kiện lọc hoặc thêm thiết bị camera mới vào hệ thống."
+                    : "Try adjusting your filters or add a new camera device to the system."}
                 </p>
               </div>
               {canCreate && !search && !statusFilter && kpiFilter === "all" && (
@@ -460,7 +465,7 @@ export default function CamerasContent() {
                   className="inline-flex cursor-pointer items-center gap-2 rounded-2xl bg-primary px-5 py-2.5 text-xs font-extrabold text-primary-foreground shadow-sm transition hover:brightness-105"
                 >
                   <Plus className="size-4" />
-                  <span>Thêm Camera Mới</span>
+                  <span>{isVietnamese ? "Thêm Camera Mới" : "Add New Camera"}</span>
                 </button>
               )}
             </div>
@@ -490,8 +495,9 @@ export default function CamerasContent() {
               className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3 ${NM.chassis}`}
             >
               <span className="font-mono text-xs font-bold text-muted-foreground">
-                Trang <strong className="text-foreground">{pageIndex + 1}</strong> /{" "}
-                {pageCount} ({totalCount} camera)
+                {isVietnamese ? "Trang" : "Page"}{" "}
+                <strong className="text-foreground">{pageIndex + 1}</strong> /{" "}
+                {pageCount} ({totalCount} {isVietnamese ? "camera" : "cameras"})
               </span>
 
               <div className="flex items-center gap-2">
@@ -507,7 +513,7 @@ export default function CamerasContent() {
                   className={`inline-flex h-8 items-center gap-1 rounded-xl px-3 text-xs font-bold text-foreground disabled:opacity-40 ${NM.tactileBtn}`}
                 >
                   <ChevronLeft className="size-3.5" />
-                  <span>Trước</span>
+                  <span>{isVietnamese ? "Trước" : "Prev"}</span>
                 </button>
                 <button
                   type="button"
@@ -520,7 +526,7 @@ export default function CamerasContent() {
                   }
                   className={`inline-flex h-8 items-center gap-1 rounded-xl px-3 text-xs font-bold text-foreground disabled:opacity-40 ${NM.tactileBtn}`}
                 >
-                  <span>Sau</span>
+                  <span>{isVietnamese ? "Sau" : "Next"}</span>
                   <ChevronRight className="size-3.5" />
                 </button>
               </div>

@@ -200,10 +200,10 @@ export const auditService = {
    * Lọc nhanh danh sách thay đổi cấu hình hệ thống.
    */
   async getConfigChanges(
-    params?: { page?: number; limit?: number; fromDate?: string; toDate?: string },
+    params?: { page?: number; limit?: number; fromDate?: string; toDate?: string; startDate?: string; endDate?: string },
   ): Promise<{ items: AuditLogItem[]; meta: PaginationMeta }> {
     const res = await apiClient.get<any>("/audit-logs/config-changes", {
-      params,
+      params: mapAuditQueryParams(params),
     });
     return unwrapPaginated<AuditLogItem>(res, normalizeAuditItem);
   },
@@ -213,10 +213,10 @@ export const auditService = {
    * Lọc nhanh danh sách thẩm duyệt và xử lý sự cố PPE.
    */
   async getIncidentReviews(
-    params?: { page?: number; limit?: number; fromDate?: string; toDate?: string },
+    params?: { page?: number; limit?: number; fromDate?: string; toDate?: string; startDate?: string; endDate?: string },
   ): Promise<{ items: AuditLogItem[]; meta: PaginationMeta }> {
     const res = await apiClient.get<any>("/audit-logs/incident-reviews", {
-      params,
+      params: mapAuditQueryParams(params),
     });
     return unwrapPaginated<AuditLogItem>(res, normalizeAuditItem);
   },
@@ -243,7 +243,7 @@ export const auditService = {
    */
   async exportLogs(params: ExportAuditParams): Promise<Blob> {
     const res = await apiClient.get("/audit-logs/export", {
-      params,
+      params: mapAuditQueryParams(params),
       responseType: "blob",
     });
     return unwrapData<Blob>(res);

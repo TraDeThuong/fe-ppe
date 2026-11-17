@@ -2,6 +2,7 @@
 
 import { AlertTriangle, ArrowUpRight, Images } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
+import { useLocale } from "@/providers/locale-provider";
 import {
   formatTimeSec,
   formatViolationLabel,
@@ -20,6 +21,8 @@ export function CameraLiveTelemetry({
   galleryCount,
   onOpenGallery,
 }: CameraLiveTelemetryProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const metrics = stats?.metrics;
   const recentViolations = stats?.recent_violations ?? [];
 
@@ -162,12 +165,14 @@ export function CameraLiveTelemetry({
               {metrics?.active_violations ?? 0}
             </span>
             <span className="font-sans text-xs font-medium text-muted-foreground">
-              đang vi phạm
+              {isVietnamese ? "đang vi phạm" : "active violations"}
             </span>
           </div>
 
           <div className="mt-2.5 flex items-center justify-between border-t border-foreground/[0.06] pt-2 text-[11px]">
-            <span className="font-medium text-muted-foreground">Tổng đã ghi nhận</span>
+            <span className="font-medium text-muted-foreground">
+              {isVietnamese ? "Tổng đã ghi nhận" : "Total recorded"}
+            </span>
             <span className="rounded-full bg-accent/15 px-2 font-mono text-[10px] font-extrabold text-accent">
               {recentViolations.length}
             </span>
@@ -184,7 +189,7 @@ export function CameraLiveTelemetry({
             </div>
             <div>
               <h3 className="text-sm font-extrabold tracking-tight text-foreground">
-                Sự kiện Vi phạm gần đây
+                {isVietnamese ? "Sự kiện Vi phạm gần đây" : "Recent Violation Events"}
               </h3>
               <p className="text-[11px] text-muted-foreground">
                 Real-time violation telemetry log
@@ -202,7 +207,9 @@ export function CameraLiveTelemetry({
               className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-primary ${NM.tactileBtn}`}
             >
               <Images className="size-3.5" />
-              <span>Thư viện ({galleryCount})</span>
+              <span>
+                {isVietnamese ? "Thư viện" : "Gallery"} ({galleryCount})
+              </span>
               <ArrowUpRight className="size-3.5" />
             </button>
           </div>
@@ -210,15 +217,31 @@ export function CameraLiveTelemetry({
 
         {recentViolations.length === 0 ? (
           <div className={`rounded-2xl px-4 py-8 text-center text-xs font-medium text-muted-foreground ${NM.recessed}`}>
-            Chưa ghi nhận vi phạm nào trong session hiện tại. Các bằng chứng Before / After lịch sử vẫn xem được trong{" "}
-            <button
-              type="button"
-              onClick={onOpenGallery}
-              className="font-bold text-primary underline-offset-2 hover:underline cursor-pointer"
-            >
-              Tab 02 · Thư Viện Bằng Chứng
-            </button>
-            .
+            {isVietnamese ? (
+              <>
+                Chưa ghi nhận vi phạm nào trong session hiện tại. Các bằng chứng Before / After lịch sử vẫn xem được trong{" "}
+                <button
+                  type="button"
+                  onClick={onOpenGallery}
+                  className="font-bold text-primary underline-offset-2 hover:underline cursor-pointer"
+                >
+                  Tab 02 · Thư Viện Bằng Chứng
+                </button>
+                .
+              </>
+            ) : (
+              <>
+                No violations recorded in the current session. Historical Before / After evidence can still be inspected in{" "}
+                <button
+                  type="button"
+                  onClick={onOpenGallery}
+                  className="font-bold text-primary underline-offset-2 hover:underline cursor-pointer"
+                >
+                  Tab 02 · Evidence Gallery
+                </button>
+                .
+              </>
+            )}
           </div>
         ) : (
           <div className={`max-h-72 space-y-2.5 overflow-y-auto rounded-2xl p-2.5 ${NM.recessed}`}>
@@ -247,7 +270,7 @@ export function CameraLiveTelemetry({
                             : "bg-primary/15 text-primary"
                         }`}
                       >
-                        {formatViolationLabel(v.violation_type)}
+                        {formatViolationLabel(v.violation_type, locale)}
                       </span>
                       <span className="font-bold text-foreground">
                         Person #{v.canonical_person_id ?? v.person_id ?? "-"}

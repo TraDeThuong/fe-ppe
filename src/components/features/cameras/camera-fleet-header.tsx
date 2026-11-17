@@ -13,6 +13,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
+import { useLocale } from "@/providers/locale-provider";
 import type { ModelInfo } from "@/types/ai-test.types";
 
 export type CameraFleetViewMode = "grid" | "wall" | "table";
@@ -54,6 +55,8 @@ export function CameraFleetHeader({
   onRefreshAll,
   onCreateCamera,
 }: CameraFleetHeaderProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const defaultModel = models.find((m) => m.is_default) ?? models[0];
 
   const tabItems: {
@@ -68,8 +71,10 @@ export function CameraFleetHeader({
     {
       value: "grid",
       index: "01",
-      label: "Lưới Camera",
-      caption: "Theo dõi toàn đội hình & bật AI từng luồng",
+      label: isVietnamese ? "Lưới Camera" : "Camera Grid",
+      caption: isVietnamese
+        ? "Theo dõi toàn đội hình & bật AI từng luồng"
+        : "Monitor fleet & toggle per-stream AI",
       icon: <LayoutGrid className="size-4" />,
       badge: totalCameras > 0 ? String(totalCameras) : undefined,
       useAccent: false,
@@ -78,7 +83,9 @@ export function CameraFleetHeader({
       value: "wall",
       index: "02",
       label: "Video Wall",
-      caption: "Giám sát đa khung MJPEG thời gian thực",
+      caption: isVietnamese
+        ? "Giám sát đa khung MJPEG thời gian thực"
+        : "Real-time multi-pane MJPEG monitoring",
       icon: <MonitorPlay className="size-4" />,
       badge: runningSessionsCount > 0 ? `${runningSessionsCount} LIVE` : undefined,
       useAccent: true,
@@ -86,8 +93,10 @@ export function CameraFleetHeader({
     {
       value: "table",
       index: "03",
-      label: "Bảng Danh Sách",
-      caption: "Quản lý thiết bị, nguồn stream & kết nối",
+      label: isVietnamese ? "Bảng Danh Sách" : "Device Table",
+      caption: isVietnamese
+        ? "Quản lý thiết bị, nguồn stream & kết nối"
+        : "Manage devices, stream sources & health",
       icon: <List className="size-4" />,
       badge: totalCameras > 0 ? String(totalCameras) : undefined,
       useAccent: false,
@@ -96,8 +105,8 @@ export function CameraFleetHeader({
 
   return (
     <section
-      aria-label="Camera Fleet Console Header"
-      className={`relative overflow-hidden rounded-[30px] p-5 sm:p-7 transition-all duration-300 ${NM.chassis}`}
+      aria-label={isVietnamese ? "Tiêu đề trung tâm điều khiển Camera" : "Camera Fleet Console Header"}
+      className={`relative overflow-hidden rounded-[24px] p-4 sm:rounded-[30px] sm:p-6 lg:p-7 transition-all duration-300 ${NM.chassis}`}
     >
       <div className="pointer-events-none absolute inset-x-10 top-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
 
@@ -125,7 +134,9 @@ export function CameraFleetHeader({
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
-                  Trung Tâm Giám Sát Camera AI
+                  {isVietnamese
+                    ? "Trung Tâm Giám Sát Camera AI"
+                    : "AI Camera Monitoring Center"}
                 </h1>
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                   Live Tracking Console
@@ -156,8 +167,8 @@ export function CameraFleetHeader({
                     }`}
                   />
                   {typeof maxSessions === "number"
-                    ? `${runningSessionsCount}/${maxSessions} luồng AI`
-                    : `${runningSessionsCount} luồng đang AI Tracking`}
+                    ? `${runningSessionsCount}/${maxSessions} ${isVietnamese ? "luồng AI" : "AI streams"}`
+                    : `${runningSessionsCount} ${isVietnamese ? "luồng đang AI Tracking" : "active AI streams"}`}
                 </span>
 
                 {productionMode && autoSyncEnabled && (
@@ -211,13 +222,23 @@ export function CameraFleetHeader({
                 type="button"
                 onClick={onTriggerSync}
                 disabled={isSyncingLive || !engineOnline}
-                title="Kích hoạt đồng bộ ngay toàn bộ camera ONLINE từ Camera Service"
-                className={`inline-flex h-14 shrink-0 items-center gap-2 rounded-2xl px-4 text-xs font-bold uppercase tracking-wider text-primary disabled:opacity-50 ${NM.tactileBtn}`}
+                title={
+                  isVietnamese
+                    ? "Kích hoạt đồng bộ ngay toàn bộ camera ONLINE từ Camera Service"
+                    : "Sync all ONLINE cameras from Camera Service immediately"
+                }
+                className={`inline-flex h-11 sm:h-14 shrink-0 items-center gap-2 rounded-2xl px-4 text-xs font-bold uppercase tracking-wider text-primary disabled:opacity-50 ${NM.tactileBtn}`}
               >
                 <RefreshCw
                   className={`size-4 ${isSyncingLive ? "animate-spin" : ""}`}
                 />
-                <span>{isSyncingLive ? "Đang sync..." : "Sync 24/7"}</span>
+                <span>
+                  {isSyncingLive
+                    ? isVietnamese
+                      ? "Đang sync..."
+                      : "Syncing..."
+                    : "Sync 24/7"}
+                </span>
               </button>
             )}
 
@@ -225,7 +246,7 @@ export function CameraFleetHeader({
               type="button"
               onClick={onRefreshAll}
               disabled={isRefreshing}
-              className={`group inline-flex shrink-0 items-center gap-2.5 rounded-2xl px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-foreground disabled:opacity-60 ${NM.tactileBtn}`}
+              className={`group inline-flex shrink-0 items-center gap-2.5 rounded-2xl px-3.5 py-2 sm:px-4 sm:py-2.5 text-xs font-bold uppercase tracking-wider text-foreground disabled:opacity-60 ${NM.tactileBtn}`}
             >
               <span
                 className={`flex h-9 w-9 items-center justify-center rounded-xl ${NM.recessed}`}
@@ -238,10 +259,16 @@ export function CameraFleetHeader({
               </span>
               <span className="text-left leading-tight">
                 <span className="block">
-                  {isRefreshing ? "Đang đồng bộ" : "Làm mới"}
+                  {isRefreshing
+                    ? isVietnamese
+                      ? "Đang đồng bộ"
+                      : "Syncing"
+                    : isVietnamese
+                      ? "Làm mới"
+                      : "Refresh"}
                 </span>
                 <span className="mt-0.5 block text-[10px] font-medium normal-case tracking-normal text-muted-foreground">
-                  Trạng thái
+                  {isVietnamese ? "Trạng thái" : "Status"}
                 </span>
               </span>
             </button>
@@ -250,10 +277,10 @@ export function CameraFleetHeader({
               <button
                 type="button"
                 onClick={onCreateCamera}
-                className="inline-flex h-14 shrink-0 cursor-pointer items-center gap-2 rounded-2xl bg-primary px-5 text-xs font-extrabold uppercase tracking-wider text-primary-foreground shadow-[6px_6px_14px_rgba(0,0,0,0.16),-4px_-4px_10px_rgba(255,255,255,0.7),inset_1px_1px_1px_rgba(255,255,255,0.35)] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.5)] transition-all hover:brightness-105 active:scale-[0.98]"
+                className="inline-flex h-11 sm:h-14 shrink-0 cursor-pointer items-center gap-2 rounded-2xl bg-primary px-4 sm:px-5 text-xs font-extrabold uppercase tracking-wider text-primary-foreground shadow-[6px_6px_14px_rgba(0,0,0,0.16),-4px_-4px_10px_rgba(255,255,255,0.7),inset_1px_1px_1px_rgba(255,255,255,0.35)] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.5)] transition-all hover:brightness-105 active:scale-[0.98]"
               >
                 <Plus className="size-4" />
-                <span>Thêm Camera</span>
+                <span>{isVietnamese ? "Thêm Camera" : "Add Camera"}</span>
               </button>
             )}
           </div>
@@ -269,10 +296,27 @@ export function CameraFleetHeader({
               </div>
               <div className="space-y-1">
                 <p className="font-bold text-foreground">
-                  Không kết nối được <span className="text-accent">AI Live Engine</span>
+                  {isVietnamese ? "Không kết nối được" : "Cannot connect to"}{" "}
+                  <span className="text-accent">AI Live Engine</span>
                 </p>
                 <p className="text-muted-foreground">
-                  Danh sách camera từ DB vẫn hoạt động bình thường. Để xem luồng AI MJPEG và telemetry real-time, hãy khởi động dịch vụ AI Engine (<code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary">AI_ENGINE_URL</code>).
+                  {isVietnamese ? (
+                    <>
+                      Danh sách camera từ DB vẫn hoạt động bình thường. Để xem luồng AI MJPEG và telemetry real-time, hãy khởi động dịch vụ AI Engine (
+                      <code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary">
+                        AI_ENGINE_URL
+                      </code>
+                      ).
+                    </>
+                  ) : (
+                    <>
+                      The camera catalog from DB still works normally. To view live MJPEG AI streams and real-time telemetry, start the AI Engine service (
+                      <code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-primary">
+                        AI_ENGINE_URL
+                      </code>
+                      ).
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -282,7 +326,7 @@ export function CameraFleetHeader({
         {/* Layer 2: Recessed Mechanical Switch Track */}
         <div
           role="tablist"
-          aria-label="Chuyển chế độ hiển thị Camera"
+          aria-label={isVietnamese ? "Chuyển chế độ hiển thị Camera" : "Switch camera view mode"}
           className={`grid grid-cols-1 gap-3 rounded-[24px] p-2.5 md:grid-cols-3 ${NM.recessed}`}
         >
           {tabItems.map((tab) => {

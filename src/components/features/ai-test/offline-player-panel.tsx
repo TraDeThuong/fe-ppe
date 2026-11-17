@@ -327,14 +327,29 @@ export function OfflinePlayerPanel({
     <div className="space-y-4">
       {!offlineJobsSupported && (
         <div className="rounded-2xl border border-accent/25 bg-accent/10 px-4 py-3 text-xs text-foreground">
-          <strong className="font-bold text-accent">
-            AI Engine đang chạy chế độ Production 24/7 (`app/server.py`):
-          </strong>{" "}
-          chỉ bật các API Live Stream, Models và Auto-Sync. Để dùng tab Offline Video Player (upload &amp; xử lý MP4 offline), hãy chạy sandbox{" "}
-          <code className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-[11px] font-semibold">
-            python -m test-ui.server
-          </code>
-          .
+          {locale === "vi-VN" ? (
+            <>
+              <strong className="font-bold text-accent">
+                AI Engine đang chạy chế độ Production 24/7 (`app/server.py`):
+              </strong>{" "}
+              chỉ bật các API Live Stream, Models và Auto-Sync. Để dùng tab Offline Video Player (upload &amp; xử lý MP4 offline), hãy chạy sandbox{" "}
+              <code className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-[11px] font-semibold">
+                python -m test-ui.server
+              </code>
+              .
+            </>
+          ) : (
+            <>
+              <strong className="font-bold text-accent">
+                AI Engine is running in Production 24/7 mode (`app/server.py`):
+              </strong>{" "}
+              only Live Stream, Models, and Auto-Sync APIs are enabled. To use Offline Video Player (upload &amp; process MP4 offline), start the sandbox server{" "}
+              <code className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-[11px] font-semibold">
+                python -m test-ui.server
+              </code>
+              .
+            </>
+          )}
         </div>
       )}
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-12">

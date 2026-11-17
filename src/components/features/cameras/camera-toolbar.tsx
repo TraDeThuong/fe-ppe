@@ -9,6 +9,7 @@ import {
   type SelectOption,
 } from "@/components/ui/form/selection-controls/select";
 import { useSitesCatalog, useSiteZones } from "@/hooks/sites";
+import { useLocale } from "@/providers/locale-provider";
 
 export interface CameraToolbarProps {
   search: string;
@@ -28,13 +29,6 @@ export interface CameraToolbarProps {
   onResetAll?: () => void;
 }
 
-const STATUS_OPTIONS: SelectOption[] = [
-  { value: "", label: "Tất cả trạng thái DB" },
-  { value: "ONLINE", label: "ONLINE (Đang trực tuyến)" },
-  { value: "OFFLINE", label: "OFFLINE (Mất tín hiệu)" },
-  { value: "MAINTENANCE", label: "MAINTENANCE (Bảo trì)" },
-];
-
 export function CameraToolbar({
   search,
   onSearchChange,
@@ -52,6 +46,19 @@ export function CameraToolbar({
   hasExtraFilter = false,
   onResetAll,
 }: CameraToolbarProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
+
+  const statusOptions = useMemo<SelectOption[]>(
+    () => [
+      { value: "", label: isVietnamese ? "Tất cả trạng thái DB" : "All DB Statuses" },
+      { value: "ONLINE", label: isVietnamese ? "ONLINE (Đang trực tuyến)" : "ONLINE (Connected)" },
+      { value: "OFFLINE", label: isVietnamese ? "OFFLINE (Mất tín hiệu)" : "OFFLINE (No signal)" },
+      { value: "MAINTENANCE", label: isVietnamese ? "MAINTENANCE (Bảo trì)" : "MAINTENANCE" },
+    ],
+    [isVietnamese],
+  );
+
   const { data: sitesData } = useSitesCatalog();
   const sites = useMemo(() => sitesData || [], [sitesData]);
 
@@ -62,24 +69,33 @@ export function CameraToolbar({
 
   const siteOptions = useMemo<SelectOption[]>(
     () => [
-      { value: "", label: "Tất cả Công trường" },
+      { value: "", label: isVietnamese ? "Tất cả Công trường" : "All Sites" },
       ...sites.map((s) => ({
         value: s.id,
         label: s.name,
       })),
     ],
-    [sites],
+    [isVietnamese, sites],
   );
 
   const zoneOptions = useMemo<SelectOption[]>(
     () => [
-      { value: "", label: siteFilter ? "Tất cả Khu vực" : "Chọn công trường trước" },
+      {
+        value: "",
+        label: siteFilter
+          ? isVietnamese
+            ? "Tất cả Khu vực"
+            : "All Zones"
+          : isVietnamese
+            ? "Chọn công trường trước"
+            : "Select a site first",
+      },
       ...zonesData.map((z) => ({
         value: z.id,
         label: z.name,
       })),
     ],
-    [siteFilter, zonesData],
+    [isVietnamese, siteFilter, zonesData],
   );
 
   const hasFilter = Boolean(
@@ -96,7 +112,7 @@ export function CameraToolbar({
 
   return (
     <section
-      aria-label="Thanh lọc danh sách camera"
+      aria-label={isVietnamese ? "Thanh lọc danh sách camera" : "Camera list filter toolbar"}
       className={`rounded-[26px] p-4 sm:p-5 ${NM.chassis}`}
     >
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -108,14 +124,15 @@ export function CameraToolbar({
               size="sm"
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Tìm mã hoặc tên camera..."
+              placeholder={isVietnamese ? "Tìm mã hoặc tên camera..." : "Search camera code or name..."}
               className="pl-10 pr-8"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => onSearchChange("")}
-                title="Xóa tìm kiếm"
+                title={isVietnamese ? "Xóa tìm kiếm" : "Clear search"}
+                aria-label={isVietnamese ? "Xóa tìm kiếm" : "Clear search"}
                 className="absolute right-2.5 top-1/2 z-10 -translate-y-1/2 cursor-pointer rounded-md p-0.5 text-muted-foreground hover:text-foreground"
               >
                 <X className="size-3.5" />
@@ -131,7 +148,7 @@ export function CameraToolbar({
               onSiteFilterChange?.(val);
               onZoneFilterChange?.("");
             }}
-            placeholder="Công trường"
+            placeholder={isVietnamese ? "Công trường" : "Site"}
           />
 
           <Select
@@ -140,15 +157,15 @@ export function CameraToolbar({
             value={zoneFilter}
             disabled={!siteFilter}
             onValueChange={(val) => onZoneFilterChange?.(val)}
-            placeholder="Khu vực (Zone)"
+            placeholder={isVietnamese ? "Khu vực (Zone)" : "Zone"}
           />
 
           <Select
             size="sm"
-            options={STATUS_OPTIONS}
+            options={statusOptions}
             value={statusFilter}
             onValueChange={onStatusFilterChange}
-            placeholder="Trạng thái DB"
+            placeholder={isVietnamese ? "Trạng thái DB" : "DB Status"}
           />
         </div>
 
@@ -182,7 +199,7 @@ export function CameraToolbar({
             >
               {filteredCount ?? totalCount}{" "}
               <span className="font-sans text-[11px] font-medium text-muted-foreground">
-                / {totalCount} camera
+                / {totalCount} {isVietnamese ? "camera" : "cameras"}
               </span>
             </span>
           )}
@@ -194,7 +211,7 @@ export function CameraToolbar({
               className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-primary ${NM.tactileBtn}`}
             >
               <RotateCcw className="size-3.5" />
-              <span>Đặt lại</span>
+              <span>{isVietnamese ? "Đặt lại" : "Reset"}</span>
             </button>
           )}
         </div>

@@ -11,11 +11,11 @@ import * as THREE from "three";
 
 import {
   Activity,
-  Box,
   Rotate3D,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import { useLocale } from "@/providers/locale-provider";
 
 /* =========================================================
    GLB HARD HAT MODEL
@@ -90,6 +90,8 @@ export function HelmetShowcase({
   title = "Safety First",
   subtitle = "Personal Protective Equipment",
 }: HelmetShowcaseProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   return (
     <section
       className={[
@@ -107,7 +109,7 @@ export function HelmetShowcase({
       {/* Main showcase */}
       <div
         className={[
-          "relative min-h-[480px] sm:min-h-[510px] flex-1 overflow-hidden rounded-[20px]",
+          "relative min-h-[340px] sm:min-h-[440px] lg:min-h-[510px] flex-1 overflow-hidden rounded-[20px]",
           "border border-border/30 dark:border-white/[0.05]",
           "bg-background/80 dark:bg-background/30",
           "shadow-[inset_2px_2px_6px_rgba(0,0,0,0.03)] dark:shadow-none",
@@ -183,7 +185,7 @@ export function HelmetShowcase({
         <div className="absolute inset-x-0 bottom-[72px] top-[76px] z-[2]">
           <Canvas
             shadows
-            dpr={[1, 1.75]}
+            dpr={[1, 1.5]}
             camera={{
               position: [0, 0.35, 4.2],
               fov: 36,
@@ -254,7 +256,7 @@ export function HelmetShowcase({
 
         <div className="pointer-events-none absolute left-5 top-[48%] z-[3] hidden -translate-y-1/2 flex-col gap-1 sm:flex">
           <span className="text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">
-            OBJECT
+            {isVietnamese ? "ĐỐI TƯỢNG" : "OBJECT"}
           </span>
           <span className="font-mono text-[10px] font-bold text-primary/70">
             PPE_001
@@ -263,7 +265,7 @@ export function HelmetShowcase({
 
         <div className="pointer-events-none absolute right-5 top-[48%] z-[3] hidden -translate-y-1/2 flex-col items-end gap-1 sm:flex">
           <span className="text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">
-            VIEW
+            {isVietnamese ? "GÓC NHÌN" : "VIEW"}
           </span>
           <span className="font-mono text-[10px] font-bold text-primary/70">
             360°
@@ -283,7 +285,7 @@ export function HelmetShowcase({
 
             <div className="min-w-0">
               <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                Safety Standard
+                {isVietnamese ? "Tiêu chuẩn an toàn" : "Safety Standard"}
               </p>
 
               <p className="truncate text-[10px] font-extrabold text-foreground sm:text-xs">
@@ -295,7 +297,7 @@ export function HelmetShowcase({
           {/* Rotation hint */}
           <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-border/40 bg-surface px-3 py-2 text-[9px] font-bold text-muted-foreground shadow-[2px_2px_6px_rgba(0,0,0,0.04)] dark:border-white/[0.08] dark:bg-card/60 dark:shadow-none sm:text-[10px]">
             <Rotate3D size={14} className="text-primary" />
-            <span>Drag to rotate</span>
+            <span>{isVietnamese ? "Kéo để xoay" : "Drag to rotate"}</span>
           </div>
         </div>
 
@@ -306,7 +308,7 @@ export function HelmetShowcase({
         <div className="pointer-events-none absolute right-6 top-[105px] flex items-center gap-1.5 opacity-40">
           <Sparkles size={11} className="text-primary" />
           <span className="font-mono text-[8px] font-bold tracking-widest text-muted-foreground">
-            3D VIEW
+            {isVietnamese ? "MÔ HÌNH 3D" : "3D VIEW"}
           </span>
         </div>
 

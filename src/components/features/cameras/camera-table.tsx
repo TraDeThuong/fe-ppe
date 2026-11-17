@@ -34,6 +34,7 @@ import { cameraService } from "@/services/camera.service";
 import { settleInBatches } from "@/lib/table-utils";
 import { toast } from "@/lib/toast";
 import { useCan } from "@/hooks/use-can";
+import { useLocale } from "@/providers/locale-provider";
 import type { LiveSessionInfo } from "@/types/ai-test.types";
 import type { CameraItem } from "@/types";
 
@@ -64,6 +65,8 @@ export function CameraTable({
   onRefresh,
   variant = "soft",
 }: CameraTableProps) {
+  const { locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const can = useCan();
   const canManage = can("PPE_CAMERA_MANAGE");
@@ -86,21 +89,25 @@ export function CameraTable({
         if (!ping.success) throw new Error(ping.errorMessage || "Ping failed");
       });
       setRowSelection(Object.fromEntries(result.failed.map((id) => [id, true])));
-      const text = `${result.succeeded.length} thành công, ${result.failed.length} thất bại.`;
+      const text = isVietnamese
+        ? `${result.succeeded.length} thành công, ${result.failed.length} thất bại.`
+        : `${result.succeeded.length} succeeded, ${result.failed.length} failed.`;
       if (result.failed.length) toast.error(text);
       else toast.success(text);
       onRefresh?.();
     } finally {
       setPingPending(false);
     }
-  }, [cameras, canManage, onRefresh, pingPending, rowSelection]);
+  }, [cameras, canManage, isVietnamese, onRefresh, pingPending, rowSelection]);
 
   const bulkActions = useMemo<TableBulkAction[]>(() => {
     if (selectedIds.length === 0) return [];
     return [
       {
         id: "bulk-ping",
-        label: `Đo Ping (${selectedIds.length})`,
+        label: isVietnamese
+          ? `Đo Ping (${selectedIds.length})`
+          : `Ping Selected (${selectedIds.length})`,
         icon: <Activity size={14} />,
         variant: "primary",
         disabled: pingPending || !canManage,
@@ -109,7 +116,7 @@ export function CameraTable({
         },
       },
     ];
-  }, [canManage, pingPending, runBulkPing, selectedIds.length]);
+  }, [canManage, isVietnamese, pingPending, runBulkPing, selectedIds.length]);
 
   const getRowActions = useCallback(
     (camera: CameraItem): TableRowAction<CameraItem>[] => {
@@ -118,7 +125,13 @@ export function CameraTable({
       return [
         {
           id: "toggle-live",
-          label: isLive ? "Dừng AI Live" : "Bật AI Live",
+          label: isLive
+            ? isVietnamese
+              ? "Dừng AI Live"
+              : "Stop AI Live"
+            : isVietnamese
+              ? "Bật AI Live"
+              : "Start AI Live",
           icon: isLive ? (
             <Square size={14} className="text-accent" />
           ) : (
@@ -129,28 +142,28 @@ export function CameraTable({
         {
           id: "ping",
           hidden: !canManage,
-          label: "Đo Ping kiểm tra mạng",
+          label: isVietnamese ? "Đo Ping kiểm tra mạng" : "Ping network check",
           icon: <Activity size={14} />,
           onClick: (c) => onPing(c),
         },
         {
           id: "edit",
           hidden: !canManage,
-          label: "Chỉnh sửa thông số",
+          label: isVietnamese ? "Chỉnh sửa thông số" : "Edit parameters",
           icon: <Edit2 size={14} />,
           onClick: (c) => onEdit(c),
         },
         {
           id: "delete",
           hidden: !canManage,
-          label: "Xóa Camera",
+          label: isVietnamese ? "Xóa Camera" : "Delete Camera",
           icon: <Trash2 size={14} className="text-accent" />,
           variant: "danger",
           onClick: (c) => onDelete(c),
         },
       ];
     },
-    [canManage, getSessionForCamera, onDelete, onEdit, onPing, onStartLive, onStopLive],
+    [canManage, getSessionForCamera, isVietnamese, onDelete, onEdit, onPing, onStartLive, onStopLive],
   );
 
   const columns = useMemo<ColumnDef<TableFeatureSet, CameraItem, unknown>[]>(
@@ -165,7 +178,7 @@ export function CameraTable({
       {
         id: "name",
         accessorKey: "name",
-        header: "Thiết bị Camera",
+        header: isVietnamese ? "Thiết bị Camera" : "Camera Device",
         cell: ({ row }) => {
           const camera = row.original;
           return (
@@ -194,17 +207,17 @@ export function CameraTable({
       },
       {
         id: "site",
-        header: "Vị trí",
+        header: isVietnamese ? "Vị trí" : "Location",
         enableSorting: false,
         cell: ({ row }) => {
           const camera = row.original;
           return (
             <div className="min-w-0 text-xs">
               <div className="truncate font-semibold text-foreground">
-                {camera.siteName || "Chưa gán site"}
+                {camera.siteName || (isVietnamese ? "Chưa gán site" : "Unassigned site")}
               </div>
               <div className="truncate text-[11px] text-muted-foreground">
-                {camera.zoneName || "Toàn công trường"}
+                {camera.zoneName || (isVietnamese ? "Toàn công trường" : "Site-wide")}
               </div>
             </div>
           );
@@ -213,7 +226,7 @@ export function CameraTable({
       {
         id: "status",
         accessorKey: "status",
-        header: "Kết nối DB",
+        header: isVietnamese ? "Kết nối DB" : "DB Status",
         cell: ({ row }) => {
           const isOnline = row.original.status === "ONLINE";
           return (
@@ -269,7 +282,8 @@ export function CameraTable({
                       : "text-foreground"
                   }
                 >
-                  {metrics?.active_violations ?? 0} vp
+                  {metrics?.active_violations ?? 0}{" "}
+                  {isVietnamese ? "vp" : "viol"}
                 </strong>
               </span>
             </div>
@@ -285,7 +299,7 @@ export function CameraTable({
             href={`/cameras/${row.original.id}`}
             className={`inline-flex items-center gap-1 rounded-xl px-2.5 py-1 text-xs font-bold text-primary ${NM.tactileBtn}`}
           >
-            <span>Mở Studio</span>
+            <span>{isVietnamese ? "Mở Studio" : "Open Studio"}</span>
             <ArrowUpRight className="size-3.5" />
           </Link>
         ),
@@ -300,7 +314,7 @@ export function CameraTable({
         size: 56,
       },
     ],
-    [getRowActions, getSessionForCamera],
+    [getRowActions, getSessionForCamera, isVietnamese],
   );
 
   const features: TableFeatures = {
@@ -331,7 +345,8 @@ export function CameraTable({
               <button
                 type="button"
                 onClick={onRefresh}
-                title="Làm mới danh sách camera"
+                title={isVietnamese ? "Làm mới danh sách camera" : "Refresh camera list"}
+                aria-label={isVietnamese ? "Làm mới danh sách camera" : "Refresh camera list"}
                 className={`inline-flex h-9 w-9 items-center justify-center rounded-xl text-primary ${NM.tactileBtn}`}
               >
                 <RefreshCw className="size-3.5" />
@@ -346,8 +361,8 @@ export function CameraTable({
               actions={bulkActions}
               selectedCount={selectedIds.length}
               onClearSelection={() => setRowSelection({})}
-              selectionLabel="camera đã chọn"
-              clearSelectionLabel="Bỏ chọn"
+              selectionLabel={isVietnamese ? "camera đã chọn" : "cameras selected"}
+              clearSelectionLabel={isVietnamese ? "Bỏ chọn" : "Clear"}
             />
           </div>
         )}

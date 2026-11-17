@@ -277,7 +277,9 @@ export function LiveStreamPanel({
     } catch (error) {
       if (isAiEndpointNotFoundError(error)) {
         toast.error(
-          "AI Production Server (24/7) không hỗ trợ upload video offline — hãy dùng video có sẵn trên server, RTSP hoặc YouTube.",
+          locale === "vi-VN"
+            ? "AI Production Server (24/7) không hỗ trợ upload video offline — hãy dùng video có sẵn trên server, RTSP hoặc YouTube."
+            : "AI Production Server (24/7) does not support offline video uploads — use an existing server video, RTSP, or YouTube.",
         );
       } else {
         toast.error(error instanceof Error ? error.message : t("aiTest.live.toasts.uploadFailed"));

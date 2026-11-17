@@ -1,4 +1,5 @@
 import { resolveEvidenceUrl } from "@/lib/evidence-url";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { EVIDENCE_TYPE, type CameraConfigItem, type CameraItem, type IncidentItem } from "@/types";
 import type {
   EvidenceItem,
@@ -195,21 +196,30 @@ export function resolveCameraSourceIssue(
   }
 
   if (!dbUrl) {
-    return "Camera chưa có URL nguồn trong hồ sơ DB. Mở Tab 03 → Nguồn chạy thử AI (Override) nếu cần test.";
+    return pickLocaleText(
+      "Camera chưa có URL nguồn trong hồ sơ DB. Mở Tab 03 → Nguồn chạy thử AI (Override) nếu cần test.",
+      "Camera has no stream URL in DB. Open Tab 03 → AI Test Source (Override) to test.",
+    );
   }
 
   if (hasMaskedCredentials(dbUrl)) {
     if (options.productionMode && isSupportedLiveSource(dbUrl, uploadedVideos)) {
       return null;
     }
-    return "URL RTSP từ Camera Service đang bị ẩn mật khẩu (:***@) nên AI Engine chưa thể tự đăng nhập. Mở Tab 03 → Nguồn Override để nhập RTSP đầy đủ hoặc chọn video test.";
+    return pickLocaleText(
+      "URL RTSP từ Camera Service đang bị ẩn mật khẩu (:***@) nên AI Engine chưa thể tự đăng nhập. Mở Tab 03 → Nguồn Override để nhập RTSP đầy đủ hoặc chọn video test.",
+      "RTSP URL from Camera Service has masked credentials (:***@). Open Tab 03 → Override Source to enter full RTSP URL or choose a test video.",
+    );
   }
 
   if (isSupportedLiveSource(dbUrl, uploadedVideos)) {
     return null;
   }
 
-  return `Nguồn DB (${dbUrl}) không thuộc RTSP / YouTube / Webcam / Server Video mà Live AI Engine hỗ trợ trực tiếp. Mở Tab 03 → Nguồn chạy thử AI (Override) để test AI.`;
+  return pickLocaleText(
+    `Nguồn DB (${dbUrl}) không thuộc RTSP / YouTube / Webcam / Server Video mà Live AI Engine hỗ trợ trực tiếp. Mở Tab 03 → Nguồn chạy thử AI (Override) để test AI.`,
+    `DB source (${dbUrl}) is not directly supported by Live AI Engine (RTSP / YouTube / Webcam / Server Video). Open Tab 03 → AI Test Source (Override).`,
+  );
 }
 
 export interface InitialCameraSourceResolution {
@@ -258,7 +268,10 @@ export function resolveInitialCameraSource(
       usesFallbackServerVideo: Boolean(dbUrl),
       cameraSourceNote:
         issue ??
-        `Đã chọn sẵn video test từ AI Engine (${uploadedVideos[0].filename}).`,
+        pickLocaleText(
+          `Đã chọn sẵn video test từ AI Engine (${uploadedVideos[0].filename}).`,
+          `Pre-selected test video from AI Engine (${uploadedVideos[0].filename}).`,
+        ),
     };
   }
 
