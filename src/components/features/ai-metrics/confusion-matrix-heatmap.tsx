@@ -176,7 +176,7 @@ export function ConfusionMatrixHeatmap({
                                 classes[rowIdx] || `Class ${rowIdx}`
                               )} → ${formatClassName(
                                 classes[colIdx] || `Class ${colIdx}`
-                              )}: ${val.toLocaleString()} (${pct.toFixed(1)}%)`}
+                              )}: ${val.toLocaleString(locale)} (${pct.toFixed(1)}%)`}
                               className={`relative flex min-h-[46px] sm:min-h-[48px] flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl border transition-transform duration-200 hover:z-10 hover:-translate-y-0.5 ${
                                 isDiagonal
                                   ? "border-primary/25 bg-primary/[0.10] text-foreground shadow-[0_1px_0_rgba(255,255,255,0.85)_inset,0_2px_0_rgba(0,0,0,0.025),3px_4px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)]"
@@ -200,7 +200,7 @@ export function ConfusionMatrixHeatmap({
                                 <AnimatedNumber
                                   value={val}
                                   delay={(rowIdx * classes.length + colIdx) * 18}
-                                  format={(v) => v.toLocaleString()}
+                                  format={(v) => v.toLocaleString(locale)}
                                 />
                               </span>
 

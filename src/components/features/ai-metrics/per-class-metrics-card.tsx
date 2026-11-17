@@ -743,7 +743,7 @@ export function PerClassMetricsCard({
                       <AnimatedNumber
                         value={item.sampleCount}
                         delay={index * 45}
-                        format={(v) => v.toLocaleString()}
+                        format={(v) => v.toLocaleString(locale)}
                       />{" "}
                       <span className="text-[10px] font-medium text-muted-foreground">
                         ({sampleRatio}%)

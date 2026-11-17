@@ -296,7 +296,7 @@ export function IncidentTable({
       enableSorting: true,
       cell: ({ row }) => {
         const incident = row.original;
-        const dateStr = new Date(incident.detectedAt).toLocaleString("vi-VN", {
+        const dateStr = new Date(incident.detectedAt).toLocaleString(locale, {
           month: "2-digit",
           day: "2-digit",
           hour: "2-digit",
