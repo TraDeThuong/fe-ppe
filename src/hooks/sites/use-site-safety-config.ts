@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { siteService } from "@/services/site.service";
 import { siteKeys } from "./site.query-keys";
@@ -39,10 +40,21 @@ export function useUpdateSiteSafetyConfig() {
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
       queryClient.invalidateQueries({ queryKey: [...siteKeys.all, "effective-safety-config"] });
-      toast.success("Tiêu chuẩn trang bị bảo hộ PPE của công trường đã được cập nhật.");
+      toast.success(
+        pickLocaleText(
+          "Tiêu chuẩn trang bị bảo hộ PPE của công trường đã được cập nhật.",
+          "Site PPE safety standards updated.",
+        ),
+      );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể cập nhật cấu hình an toàn.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể cập nhật cấu hình an toàn.",
+              "Unable to update safety configuration.",
+            );
       toast.error(msg);
     },
   });
@@ -92,11 +104,21 @@ export function useUpdateCameraSafetyConfig() {
     onSuccess: (updated, { cameraId }) => {
       queryClient.setQueryData(siteKeys.cameraSafetyConfig(cameraId), updated);
       queryClient.invalidateQueries({ queryKey: [...siteKeys.all, "effective-safety-config"] });
-      toast.success("Đã lưu cấu hình quy tắc an toàn riêng cho camera.");
+      toast.success(
+        pickLocaleText(
+          "Đã lưu cấu hình quy tắc an toàn riêng cho camera.",
+          "Camera-specific safety rule overrides saved.",
+        ),
+      );
     },
     onError: (err: unknown) => {
       const msg =
-        err instanceof Error ? err.message : "Không thể cập nhật cấu hình an toàn camera.";
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể cập nhật cấu hình an toàn camera.",
+              "Unable to update camera safety configuration.",
+            );
       toast.error(msg);
     },
   });
@@ -110,11 +132,21 @@ export function useDeleteCameraSafetyConfig() {
     onSuccess: (_, cameraId) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.cameraSafetyConfig(cameraId) });
       queryClient.invalidateQueries({ queryKey: [...siteKeys.all, "effective-safety-config"] });
-      toast.success("Đã khôi phục camera về cấu hình kế thừa từ công trường.");
+      toast.success(
+        pickLocaleText(
+          "Đã khôi phục camera về cấu hình kế thừa từ công trường.",
+          "Camera restored to inherited site safety configuration.",
+        ),
+      );
     },
     onError: (err: unknown) => {
       const msg =
-        err instanceof Error ? err.message : "Không thể xóa cấu hình ghi đè của camera.";
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể xóa cấu hình ghi đè của camera.",
+              "Unable to clear camera safety overrides.",
+            );
       toast.error(msg);
     },
   });
@@ -128,11 +160,21 @@ export function useInvalidateSafetyRuleCache() {
       siteService.invalidateSafetyRuleCache(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [...siteKeys.all, "effective-safety-config"] });
-      toast.success("Đã làm mới bộ nhớ đệm quy tắc an toàn AI.");
+      toast.success(
+        pickLocaleText(
+          "Đã làm mới bộ nhớ đệm quy tắc an toàn AI.",
+          "AI safety rule cache invalidated.",
+        ),
+      );
     },
     onError: (err: unknown) => {
       const msg =
-        err instanceof Error ? err.message : "Không thể làm mới bộ nhớ đệm cấu hình.";
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể làm mới bộ nhớ đệm cấu hình.",
+              "Unable to refresh configuration cache.",
+            );
       toast.error(msg);
     },
   });

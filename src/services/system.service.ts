@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/axios";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { env } from "@/config/env";
 import type {
   CreateSystemConfigPayload,
@@ -480,7 +481,10 @@ export const systemService = {
           details: {
             thresholdMs: HEALTHY_THRESHOLD_MS,
             verifiedVia: "active-gateway-traffic",
-            note: "Gateway (:80) đang chuyển tiếp bình thường; cổng ping nội bộ (:8080) không phản hồi.",
+            note: pickLocaleText(
+              "Gateway (:80) đang chuyển tiếp bình thường; cổng ping nội bộ (:8080) không phản hồi.",
+              "Gateway (:80) is forwarding traffic normally; internal ping port (:8080) is unreachable.",
+            ),
           },
         };
       }

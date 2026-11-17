@@ -2,6 +2,7 @@
 
 import type { UseMutationOptions } from "@tanstack/react-query";
 import { ApiError } from "@/lib/axios";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { ErrorCode } from "@/types";
 
@@ -35,14 +36,31 @@ export function handleMutationError(error: unknown, suppressToast?: boolean): vo
   if (!shouldToastError(error, suppressToast)) return;
 
   if (error instanceof ApiError) {
-    toast.error(error.message || "Đã xảy ra lỗi trong quá trình xử lý.");
+    toast.error(
+      error.message ||
+        pickLocaleText(
+          "Đã xảy ra lỗi trong quá trình xử lý.",
+          "An error occurred while processing the request.",
+        ),
+    );
     return;
   }
 
   if (error instanceof Error) {
-    toast.error(error.message || "Đã xảy ra lỗi không xác định.");
+    toast.error(
+      error.message ||
+        pickLocaleText(
+          "Đã xảy ra lỗi không xác định.",
+          "An unknown error occurred.",
+        ),
+    );
     return;
   }
 
-  toast.error("Đã xảy ra lỗi. Vui lòng thử lại.");
+  toast.error(
+    pickLocaleText(
+      "Đã xảy ra lỗi. Vui lòng thử lại.",
+      "An error occurred. Please try again.",
+    ),
+  );
 }

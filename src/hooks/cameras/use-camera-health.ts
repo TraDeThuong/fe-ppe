@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { cameraService } from "@/services/camera.service";
 import { cameraKeys } from "./camera.query-keys";
@@ -26,13 +27,29 @@ export function usePingCamera() {
       queryClient.invalidateQueries({ queryKey: cameraKeys.lists() });
       queryClient.invalidateQueries({ queryKey: cameraKeys.statusCountsRoot() });
       if (result.success) {
-        toast.success(`Ping thành công: độ trễ ${result.latencyMs ?? 0} ms`);
+        toast.success(
+          pickLocaleText(
+            `Ping thành công: độ trễ ${result.latencyMs ?? 0} ms`,
+            `Ping succeeded: latency ${result.latencyMs ?? 0} ms`,
+          ),
+        );
       } else {
-        toast.error(`Ping thất bại: ${result.errorMessage || "Không phản hồi"}`);
+        toast.error(
+          pickLocaleText(
+            `Ping thất bại: ${result.errorMessage || "Không phản hồi"}`,
+            `Ping failed: ${result.errorMessage || "No response"}`,
+          ),
+        );
       }
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể thực hiện kiểm tra ping.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể thực hiện kiểm tra ping.",
+              "Unable to perform ping check.",
+            );
       toast.error(msg);
     },
   });

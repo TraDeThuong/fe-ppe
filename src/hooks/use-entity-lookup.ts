@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useSitesCatalog } from "@/hooks/sites";
 import { useCamerasCatalog } from "@/hooks/cameras";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import type { CameraItem, SiteItem, ZoneItem } from "@/types";
 
 /**
@@ -45,7 +46,10 @@ export function useEntityLookup() {
   };
 
   // Tra cứu tên công trường kèm fallback thông minh
-  const getSiteName = (siteId?: string | null, fallback = "Công trường xây dựng"): string => {
+  const getSiteName = (
+    siteId?: string | null,
+    fallback = pickLocaleText("Công trường xây dựng", "Construction Site"),
+  ): string => {
     if (!siteId) return fallback;
     const s = sitesMap.get(siteId);
     return s?.name || fallback;
@@ -71,7 +75,10 @@ export function useEntityLookup() {
   };
 
   // Tra cứu tên Camera
-  const getCameraName = (cameraId?: string | null, fallback = "Camera Giám Sát"): string => {
+  const getCameraName = (
+    cameraId?: string | null,
+    fallback = pickLocaleText("Camera Giám Sát", "Surveillance Camera"),
+  ): string => {
     if (!cameraId) return fallback;
     const c = camerasMap.get(cameraId);
     return c?.name || fallback;
@@ -81,7 +88,7 @@ export function useEntityLookup() {
   const getZoneName = (
     siteId?: string | null,
     zoneId?: string | null,
-    fallback = "Khu vực chung"
+    fallback = pickLocaleText("Khu vực chung", "General Area"),
   ): string => {
     if (!siteId || !zoneId) return fallback;
     const site = sitesMap.get(siteId);

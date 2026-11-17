@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { authService } from "@/services/auth.service";
 import type {
@@ -28,7 +29,11 @@ export function useRegister(
     onSuccess: async (...args) => {
       const [data] = args;
       toast.success(
-        data.message || "Đăng ký thành công! Vui lòng kiểm tra email để kích hoạt tài khoản.",
+        data.message ||
+          pickLocaleText(
+            "Đăng ký thành công! Vui lòng kiểm tra email để kích hoạt tài khoản.",
+            "Registration successful! Please check your email to activate your account.",
+          ),
       );
       await onSuccess?.(...args);
     },
@@ -56,7 +61,13 @@ export function useVerifyEmail(
     mutationFn: (payload: VerifyEmailPayload) => authService.verifyEmail(payload),
     onSuccess: async (...args) => {
       const [data] = args;
-      toast.success(data.message || "Xác thực email thành công! Bạn có thể đăng nhập ngay bây giờ.");
+      toast.success(
+        data.message ||
+          pickLocaleText(
+            "Xác thực email thành công! Bạn có thể đăng nhập ngay bây giờ.",
+            "Email verified successfully! You can sign in now.",
+          ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -83,7 +94,13 @@ export function useResendVerification(
     mutationFn: (payload: ResendVerificationPayload) => authService.resendVerification(payload),
     onSuccess: async (...args) => {
       const [data] = args;
-      toast.success(data.message || "Email xác thực đã được gửi lại. Vui lòng kiểm tra hộp thư.");
+      toast.success(
+        data.message ||
+          pickLocaleText(
+            "Email xác thực đã được gửi lại. Vui lòng kiểm tra hộp thư.",
+            "Verification email resent. Please check your inbox.",
+          ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {

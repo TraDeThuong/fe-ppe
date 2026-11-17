@@ -11,6 +11,7 @@ import {
   handleMutationError,
   type MutationHookOptions,
 } from "@/hooks/auth/auth-hook-utils";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { notificationService } from "@/services/notification.service";
 import { notificationKeys } from "./notification.query-keys";
@@ -60,7 +61,12 @@ export function useRetryEmail(
       await queryClient.invalidateQueries({
         queryKey: notificationKeys.emailLogs(),
       });
-      toast.success("Đã lên lịch gửi lại email.");
+      toast.success(
+        pickLocaleText(
+          "Đã lên lịch gửi lại email.",
+          "Email retry scheduled.",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {

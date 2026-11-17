@@ -5,6 +5,7 @@ import {
   handleMutationError,
   type MutationHookOptions,
 } from "@/hooks/auth/auth-hook-utils";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { notificationService } from "@/services/notification.service";
 import { notificationKeys } from "./notification.query-keys";
@@ -61,7 +62,12 @@ export function useMarkAllAsRead(
       await queryClient.invalidateQueries({
         queryKey: notificationKeys.lists(),
       });
-      toast.success("Đã đánh dấu tất cả thông báo là đã đọc.");
+      toast.success(
+        pickLocaleText(
+          "Đã đánh dấu tất cả thông báo là đã đọc.",
+          "All notifications marked as read.",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -91,7 +97,9 @@ export function useDeleteNotification(
       await queryClient.invalidateQueries({
         queryKey: notificationKeys.unreadCount(),
       });
-      toast.success("Đã xóa thông báo.");
+      toast.success(
+        pickLocaleText("Đã xóa thông báo.", "Notification deleted."),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -125,7 +133,12 @@ export function useBroadcastNotification(
       await queryClient.invalidateQueries({
         queryKey: notificationKeys.unreadCount(),
       });
-      toast.success("Đã phát thông báo toàn hệ thống thành công.");
+      toast.success(
+        pickLocaleText(
+          "Đã phát thông báo toàn hệ thống thành công.",
+          "System-wide broadcast notification sent.",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -156,7 +169,12 @@ export function useSendNotification(
       await queryClient.invalidateQueries({
         queryKey: notificationKeys.lists(),
       });
-      toast.success("Đã gửi thông báo thành công.");
+      toast.success(
+        pickLocaleText(
+          "Đã gửi thông báo thành công.",
+          "Notification sent successfully.",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {

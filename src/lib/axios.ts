@@ -4,6 +4,7 @@ import axios, { AxiosError, type AxiosInstance, type InternalAxiosRequestConfig 
 
 import { env } from "@/config/env";
 import { eventBus } from "@/lib/event-bus";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { tokenStore } from "@/lib/token";
 import { ErrorCode, type ApiErrorBody } from "@/types/common";
@@ -209,7 +210,7 @@ export function createApiClient(baseURL: string): AxiosInstance {
         throw new ApiError(
           response.status,
           body.code ?? ErrorCode.BAD_REQUEST,
-          body.message ?? "Yêu cầu thất bại.",
+          body.message ?? pickLocaleText("Yêu cầu thất bại.", "Request failed."),
           body.errors,
         );
       }
@@ -224,8 +225,14 @@ export function createApiClient(baseURL: string): AxiosInstance {
       const message =
         body?.message ??
         (status === 0
-          ? "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng."
-          : "Đã xảy ra lỗi máy chủ. Vui lòng thử lại sau.");
+          ? pickLocaleText(
+              "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng.",
+              "Unable to connect to the server. Please check your network connection.",
+            )
+          : pickLocaleText(
+              "Đã xảy ra lỗi máy chủ. Vui lòng thử lại sau.",
+              "A server error occurred. Please try again later.",
+            ));
 
       const apiError = new ApiError(
         status,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { siteService } from "@/services/site.service";
 import { siteKeys } from "./site.query-keys";
@@ -49,10 +50,21 @@ export function useCreateRestrictedArea() {
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
       queryClient.invalidateQueries({ queryKey: siteKeys.all });
-      toast.success(`Đã thêm vùng cấm "${newArea.name}" thành công.`);
+      toast.success(
+        pickLocaleText(
+          `Đã thêm vùng cấm "${newArea.name}" thành công.`,
+          `Restricted area "${newArea.name}" added successfully.`,
+        ),
+      );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể tạo vùng cấm.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể tạo vùng cấm.",
+              "Unable to create restricted area.",
+            );
       toast.error(msg);
     },
   });
@@ -78,11 +90,25 @@ export function useDeleteRestrictedArea() {
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
       queryClient.invalidateQueries({ queryKey: siteKeys.all });
       toast.success(
-        name ? `Đã xóa vùng cấm "${name}" thành công.` : "Đã xóa vùng cấm thành công.",
+        name
+          ? pickLocaleText(
+              `Đã xóa vùng cấm "${name}" thành công.`,
+              `Restricted area "${name}" deleted successfully.`,
+            )
+          : pickLocaleText(
+              "Đã xóa vùng cấm thành công.",
+              "Restricted area deleted successfully.",
+            ),
       );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể xóa vùng cấm.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể xóa vùng cấm.",
+              "Unable to delete restricted area.",
+            );
       toast.error(msg);
     },
   });
@@ -109,12 +135,24 @@ export function useUpdateRestrictedArea() {
       queryClient.invalidateQueries({ queryKey: siteKeys.all });
       toast.success(
         updatedArea?.name
-          ? `Đã cập nhật vùng cấm "${updatedArea.name}" thành công.`
-          : "Đã cập nhật vùng cấm thành công.",
+          ? pickLocaleText(
+              `Đã cập nhật vùng cấm "${updatedArea.name}" thành công.`,
+              `Restricted area "${updatedArea.name}" updated successfully.`,
+            )
+          : pickLocaleText(
+              "Đã cập nhật vùng cấm thành công.",
+              "Restricted area updated successfully.",
+            ),
       );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể cập nhật vùng cấm.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể cập nhật vùng cấm.",
+              "Unable to update restricted area.",
+            );
       toast.error(msg);
     },
   });

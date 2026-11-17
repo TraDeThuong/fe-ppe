@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useContext } from "react";
 import { AuthContext } from "@/contexts/AuthContext";
 import { eventBus } from "@/lib/event-bus";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { tokenStore } from "@/lib/token";
 import { authService } from "@/services/auth.service";
@@ -33,7 +34,10 @@ export function useRequestDeactivate(
       const [data] = args;
       toast.success(
         data.message ||
-          "Yêu cầu vô hiệu hóa tài khoản đã được ghi nhận. Vui lòng kiểm tra email để xác nhận trong vòng 15 phút.",
+          pickLocaleText(
+            "Yêu cầu vô hiệu hóa tài khoản đã được ghi nhận. Vui lòng kiểm tra email để xác nhận trong vòng 15 phút.",
+            "Account deactivation requested. Please check your email to confirm within 15 minutes.",
+          ),
       );
       await onSuccess?.(...args);
     },
@@ -70,7 +74,11 @@ export function useConfirmDeactivate(
       auth?.setUser(null);
       eventBus.emit("auth:session-expired");
       toast.success(
-        data.message || "Tài khoản của bạn đã được vô hiệu hóa thành công.",
+        data.message ||
+          pickLocaleText(
+            "Tài khoản của bạn đã được vô hiệu hóa thành công.",
+            "Your account has been deactivated.",
+          ),
       );
       await onSuccess?.(...args);
     },

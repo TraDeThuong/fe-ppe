@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import {
   aiTestService,
@@ -115,7 +116,10 @@ export function useCameraLiveSessions(options?: {
       const source = (overrides?.source ?? resolved.source).trim();
       if (!source && !productionMode) {
         throw new Error(
-          `Camera ${camera.code} chưa có nguồn video hợp lệ. Mở Studio chi tiết để chọn video hoặc Upload & Stream.`,
+          pickLocaleText(
+            `Camera ${camera.code} chưa có nguồn video hợp lệ. Mở Studio chi tiết để chọn video hoặc Upload & Stream.`,
+            `Camera ${camera.code} has no valid video source. Open Camera Studio to select a video or Upload & Stream.`,
+          ),
         );
       }
 
@@ -139,13 +143,23 @@ export function useCameraLiveSessions(options?: {
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.runtimeConfig() });
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.stats(liveId) });
       if (!silent) {
-        toast.success(`Đã bật AI Live Tracking cho ${camera.code}`);
+        toast.success(
+          pickLocaleText(
+            `Đã bật AI Live Tracking cho ${camera.code}`,
+            `Enabled AI Live Tracking for ${camera.code}`,
+          ),
+        );
       }
     },
     onError: (err, { silent }) => {
       if (!silent) {
         toast.error(
-          err instanceof Error ? err.message : "Không thể khởi chạy AI Live Tracking",
+          err instanceof Error
+            ? err.message
+            : pickLocaleText(
+                "Không thể khởi chạy AI Live Tracking",
+                "Unable to start AI Live Tracking",
+              ),
         );
       }
     },
@@ -161,11 +175,21 @@ export function useCameraLiveSessions(options?: {
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.sessions() });
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.runtimeConfig() });
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.stats(liveId) });
-      toast.success(`Đã dừng AI Live cho ${liveId}`);
+      toast.success(
+        pickLocaleText(
+          `Đã dừng AI Live cho ${liveId}`,
+          `Stopped AI Live for ${liveId}`,
+        ),
+      );
     },
     onError: (err) => {
       toast.error(
-        err instanceof Error ? err.message : "Không thể dừng AI Live Session",
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể dừng AI Live Session",
+              "Unable to stop AI Live Session",
+            ),
       );
     },
   });
@@ -176,12 +200,20 @@ export function useCameraLiveSessions(options?: {
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.sessions() });
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.runtimeConfig() });
       toast.success(
-        `Đã đồng bộ ${res.last_synced_count} luồng AI (${res.max_sessions} slot tối đa)`,
+        pickLocaleText(
+          `Đã đồng bộ ${res.last_synced_count} luồng AI (${res.max_sessions} slot tối đa)`,
+          `Synced ${res.last_synced_count} AI streams (${res.max_sessions} max slots)`,
+        ),
       );
     },
     onError: (err) => {
       toast.error(
-        err instanceof Error ? err.message : "Không thể đồng bộ camera 24/7",
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể đồng bộ camera 24/7",
+              "Unable to sync 24/7 cameras",
+            ),
       );
     },
   });

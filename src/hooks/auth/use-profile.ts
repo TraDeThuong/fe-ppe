@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useContext } from "react";
 import { AuthContext } from "@/contexts/AuthContext";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { authService } from "@/services/auth.service";
 import type {
@@ -44,7 +45,10 @@ export function useUpdateProfile(
         });
       }
 
-      toast.success(data.message || "Cập nhật hồ sơ thành công!");
+      toast.success(
+        data.message ||
+          pickLocaleText("Cập nhật hồ sơ thành công!", "Profile updated successfully!"),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -125,7 +129,12 @@ export function useAvatarUpload(
         });
       }
 
-      toast.success("Cập nhật ảnh đại diện thành công!");
+      toast.success(
+        pickLocaleText(
+          "Cập nhật ảnh đại diện thành công!",
+          "Avatar updated successfully!",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {

@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useContext } from "react";
 import { AuthContext } from "@/contexts/AuthContext";
 import { eventBus } from "@/lib/event-bus";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { tokenStore } from "@/lib/token";
 import { authService } from "@/services/auth.service";
@@ -32,7 +33,10 @@ export function useForgotPassword(
       const [data] = args;
       toast.success(
         data.message ||
-          "Nếu địa chỉ email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi.",
+          pickLocaleText(
+            "Nếu địa chỉ email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi.",
+            "If the email address exists in our system, password reset instructions have been sent.",
+          ),
       );
       await onSuccess?.(...args);
     },
@@ -67,7 +71,11 @@ export function useResetPassword(
       queryClient.clear();
       auth?.setUser(null);
       toast.success(
-        data.message || "Đặt lại mật khẩu thành công! Vui lòng đăng nhập bằng mật khẩu mới.",
+        data.message ||
+          pickLocaleText(
+            "Đặt lại mật khẩu thành công! Vui lòng đăng nhập bằng mật khẩu mới.",
+            "Password reset successfully! Please sign in with your new password.",
+          ),
       );
       await onSuccess?.(...args);
     },
@@ -103,7 +111,11 @@ export function useChangePassword(
       auth?.setUser(null);
       eventBus.emit("auth:session-expired");
       toast.success(
-        data.message || "Đổi mật khẩu thành công! Vui lòng đăng nhập lại với mật khẩu mới.",
+        data.message ||
+          pickLocaleText(
+            "Đổi mật khẩu thành công! Vui lòng đăng nhập lại với mật khẩu mới.",
+            "Password changed successfully! Please sign in again with your new password.",
+          ),
       );
       await onSuccess?.(...args);
     },

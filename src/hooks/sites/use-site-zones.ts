@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { siteService } from "@/services/site.service";
 import { siteKeys } from "./site.query-keys";
@@ -41,10 +42,18 @@ export function useCreateZone() {
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
       queryClient.invalidateQueries({ queryKey: siteKeys.all });
-      toast.success(`Đã thêm phân khu "${newZone.name}" thành công.`);
+      toast.success(
+        pickLocaleText(
+          `Đã thêm phân khu "${newZone.name}" thành công.`,
+          `Zone "${newZone.name}" added successfully.`,
+        ),
+      );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể tạo phân khu.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText("Không thể tạo phân khu.", "Unable to create zone.");
       toast.error(msg);
     },
   });
@@ -67,10 +76,18 @@ export function useUpdateZone() {
       queryClient.invalidateQueries({ queryKey: [...siteKeys.all, "all-zones"] });
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
-      toast.success(`Đã cập nhật phân khu "${updatedZone.name}" thành công.`);
+      toast.success(
+        pickLocaleText(
+          `Đã cập nhật phân khu "${updatedZone.name}" thành công.`,
+          `Zone "${updatedZone.name}" updated successfully.`,
+        ),
+      );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể cập nhật phân khu.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText("Không thể cập nhật phân khu.", "Unable to update zone.");
       toast.error(msg);
     },
   });
@@ -98,11 +115,19 @@ export function useDeleteZone() {
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
       queryClient.invalidateQueries({ queryKey: siteKeys.all });
       toast.success(
-        name ? `Đã xóa phân khu "${name}" thành công.` : "Đã xóa phân khu thành công.",
+        name
+          ? pickLocaleText(
+              `Đã xóa phân khu "${name}" thành công.`,
+              `Zone "${name}" deleted successfully.`,
+            )
+          : pickLocaleText("Đã xóa phân khu thành công.", "Zone deleted successfully."),
       );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể xóa phân khu.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText("Không thể xóa phân khu.", "Unable to delete zone.");
       toast.error(msg);
     },
   });

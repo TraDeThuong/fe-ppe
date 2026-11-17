@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { handleMutationError, type MutationHookOptions } from "@/hooks/auth/auth-hook-utils";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { userService } from "@/services/user.service";
 import { userKeys } from "./user.query-keys";
@@ -47,7 +48,12 @@ export function useRevokeUserSession(
     onSuccess: async (...args) => {
       const [, variables] = args;
       await queryClient.invalidateQueries({ queryKey: userKeys.sessions(variables.userId) });
-      toast.success("Đã thu hồi phiên đăng nhập thành công.");
+      toast.success(
+        pickLocaleText(
+          "Đã thu hồi phiên đăng nhập thành công.",
+          "User session revoked.",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -73,7 +79,12 @@ export function useRevokeAllUserSessions(
     onSuccess: async (...args) => {
       const [, userId] = args;
       await queryClient.invalidateQueries({ queryKey: userKeys.sessions(userId) });
-      toast.success("Đã đăng xuất người dùng khỏi tất cả các thiết bị.");
+      toast.success(
+        pickLocaleText(
+          "Đã đăng xuất người dùng khỏi tất cả các thiết bị.",
+          "User signed out from all devices.",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -124,7 +135,12 @@ export function useDeleteUserDevice(
       const [, variables] = args;
       await queryClient.invalidateQueries({ queryKey: userKeys.devices(variables.userId) });
       if (!options?.suppressToast) {
-        toast.success("Đã xóa thiết bị khỏi danh sách tin cậy.");
+        toast.success(
+          pickLocaleText(
+            "Đã xóa thiết bị khỏi danh sách tin cậy.",
+            "Device removed from trusted list.",
+          ),
+        );
       }
       await onSuccess?.(...args);
     },

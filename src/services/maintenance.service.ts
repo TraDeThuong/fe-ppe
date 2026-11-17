@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/axios";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import type {
   EnableMaintenancePayload,
   MaintenanceConfig,
@@ -26,7 +27,7 @@ export const maintenanceService = {
     return {
       enabled: false,
       status: "ONLINE",
-      title: "Hệ thống đang hoạt động",
+      title: pickLocaleText("Hệ thống đang hoạt động", "System is online"),
       message: "",
       startAt: null,
       estimatedEndAt: null,

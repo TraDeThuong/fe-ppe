@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@ta
 import { useContext } from "react";
 import { AuthContext } from "@/contexts/AuthContext";
 import { eventBus } from "@/lib/event-bus";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { tokenStore } from "@/lib/token";
 import { authService } from "@/services/auth.service";
@@ -70,10 +71,21 @@ export function useRevokeSession(
         queryClient.clear();
         auth?.setUser(null);
         eventBus.emit("auth:session-expired");
-        toast.success("Phiên đăng nhập hiện tại đã được thu hồi.");
+        toast.success(
+          pickLocaleText(
+            "Phiên đăng nhập hiện tại đã được thu hồi.",
+            "Current session has been revoked.",
+          ),
+        );
       } else {
         await queryClient.invalidateQueries({ queryKey: authKeys.sessions() });
-        toast.success(data.message || "Thu hồi phiên đăng nhập thành công!");
+        toast.success(
+          data.message ||
+            pickLocaleText(
+              "Thu hồi phiên đăng nhập thành công!",
+              "Session revoked successfully!",
+            ),
+        );
       }
 
       await onSuccess?.(...args);
@@ -101,7 +113,13 @@ export function useRevokeOtherSessions(
     onSuccess: async (...args) => {
       const [data] = args;
       await queryClient.invalidateQueries({ queryKey: authKeys.sessions() });
-      toast.success(data.message || "Đã thu hồi tất cả các phiên đăng nhập khác!");
+      toast.success(
+        data.message ||
+          pickLocaleText(
+            "Đã thu hồi tất cả các phiên đăng nhập khác!",
+            "All other sessions have been revoked!",
+          ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {

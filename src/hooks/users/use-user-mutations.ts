@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { handleMutationError, type MutationHookOptions } from "@/hooks/auth/auth-hook-utils";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { userService } from "@/services/user.service";
 import { userKeys } from "./user.query-keys";
@@ -28,7 +29,15 @@ export function useCreateUser(
     onSuccess: async (...args) => {
       const [user] = args;
       await queryClient.invalidateQueries({ queryKey: userKeys.all });
-      if (!options?.suppressToast) toast.success(`Đã tạo tài khoản cho "${user.fullName || user.email}" thành công.`);
+      if (!options?.suppressToast) {
+        const displayName = user.fullName || user.email;
+        toast.success(
+          pickLocaleText(
+            `Đã tạo tài khoản cho "${displayName}" thành công.`,
+            `Account created for "${displayName}".`,
+          ),
+        );
+      }
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -62,7 +71,15 @@ export function useUpdateUser(
         queryClient.invalidateQueries({ queryKey: userKeys.all }),
         queryClient.invalidateQueries({ queryKey: userKeys.detail(variables.id) }),
       ]);
-      if (!options?.suppressToast) toast.success(`Đã cập nhật thông tin cho "${user.fullName || user.email}" thành công.`);
+      if (!options?.suppressToast) {
+        const displayName = user.fullName || user.email;
+        toast.success(
+          pickLocaleText(
+            `Đã cập nhật thông tin cho "${displayName}" thành công.`,
+            `Updated profile for "${displayName}".`,
+          ),
+        );
+      }
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -91,7 +108,14 @@ export function useDeleteUser(
         queryClient.invalidateQueries({ queryKey: userKeys.all }),
         queryClient.invalidateQueries({ queryKey: userKeys.detail(id) }),
       ]);
-      if (!options?.suppressToast) toast.success("Đã xóa tài khoản người dùng thành công.");
+      if (!options?.suppressToast) {
+        toast.success(
+          pickLocaleText(
+            "Đã xóa tài khoản người dùng thành công.",
+            "User account deleted successfully.",
+          ),
+        );
+      }
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -120,7 +144,14 @@ export function useRestoreUser(
         queryClient.invalidateQueries({ queryKey: userKeys.all }),
         queryClient.invalidateQueries({ queryKey: userKeys.detail(id) }),
       ]);
-      if (!options?.suppressToast) toast.success("Đã khôi phục tài khoản người dùng thành công.");
+      if (!options?.suppressToast) {
+        toast.success(
+          pickLocaleText(
+            "Đã khôi phục tài khoản người dùng thành công.",
+            "User account restored successfully.",
+          ),
+        );
+      }
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -160,7 +191,15 @@ export function useAssignUserSites(
         queryClient.invalidateQueries({ queryKey: userKeys.all }),
         queryClient.invalidateQueries({ queryKey: userKeys.detail(variables.id) }),
       ]);
-      if (!options?.suppressToast) toast.success(`Đã phân công công trường cho "${user.fullName || user.email}" thành công.`);
+      if (!options?.suppressToast) {
+        const displayName = user.fullName || user.email;
+        toast.success(
+          pickLocaleText(
+            `Đã phân công công trường cho "${displayName}" thành công.`,
+            `Assigned sites to "${displayName}".`,
+          ),
+        );
+      }
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -187,7 +226,14 @@ export function useAdminResetPassword(
     onSuccess: async (...args) => {
       const [, variables] = args;
       await queryClient.invalidateQueries({ queryKey: userKeys.detail(variables.id) });
-      if (!options?.suppressToast) toast.success("Đã đặt lại mật khẩu thành công.");
+      if (!options?.suppressToast) {
+        toast.success(
+          pickLocaleText(
+            "Đã đặt lại mật khẩu thành công.",
+            "Password reset successfully.",
+          ),
+        );
+      }
       await onSuccess?.(...args);
     },
     onError: async (...args) => {

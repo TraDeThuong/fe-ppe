@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useContext } from "react";
 import { AuthContext } from "@/contexts/AuthContext";
 import { eventBus } from "@/lib/event-bus";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { clearLoginPersistence, setLoginPersistence } from "@/lib/session-manager";
 import { toast } from "@/lib/toast";
 import { tokenStore } from "@/lib/token";
@@ -75,7 +76,7 @@ export function useLogin(
       }
 
       await queryClient.invalidateQueries({ queryKey: authKeys.config() });
-      toast.success("Đăng nhập thành công!");
+      toast.success(pickLocaleText("Đăng nhập thành công!", "Signed in successfully!"));
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -138,7 +139,12 @@ export function useGoogleLogin(
       }
 
       await queryClient.invalidateQueries({ queryKey: authKeys.config() });
-      toast.success("Đăng nhập Google thành công!");
+      toast.success(
+        pickLocaleText(
+          "Đăng nhập Google thành công!",
+          "Signed in with Google successfully!",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -178,7 +184,10 @@ export function useLogout(
       auth?.setUser(null);
       clearLoginPersistence();
       eventBus.emit("auth:session-expired");
-      toast.success(data.message || "Đăng xuất thành công!");
+      toast.success(
+        data.message ||
+          pickLocaleText("Đăng xuất thành công!", "Signed out successfully!"),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { ApiError } from "@/lib/axios";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { authService } from "@/services/auth.service";
 import {
@@ -80,7 +81,12 @@ export function useLinkSocial(
     mutationFn: (payload: LinkSocialPayload) => authService.linkSocial(payload),
     onSuccess: async (...args) => {
       await queryClient.invalidateQueries({ queryKey: authKeys.social() });
-      toast.success("Liên kết tài khoản mạng xã hội thành công!");
+      toast.success(
+        pickLocaleText(
+          "Liên kết tài khoản mạng xã hội thành công!",
+          "Social account linked successfully!",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -90,7 +96,12 @@ export function useLinkSocial(
         (error.status === 409 || error.code === ErrorCode.DUPLICATE_ENTRY)
       ) {
         if (!options?.suppressToast) {
-          toast.error("Tài khoản này đã được liên kết với một người dùng khác.");
+          toast.error(
+            pickLocaleText(
+              "Tài khoản này đã được liên kết với một người dùng khác.",
+              "This account is already linked to another user.",
+            ),
+          );
         }
       } else {
         handleMutationError(error, options?.suppressToast);
@@ -119,7 +130,13 @@ export function useUnlinkSocial(
     onSuccess: async (...args) => {
       const [data] = args;
       await queryClient.invalidateQueries({ queryKey: authKeys.social() });
-      toast.success(data.message || "Hủy liên kết tài khoản thành công!");
+      toast.success(
+        data.message ||
+          pickLocaleText(
+            "Hủy liên kết tài khoản thành công!",
+            "Social account unlinked successfully!",
+          ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {

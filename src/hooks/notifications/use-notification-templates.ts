@@ -12,6 +12,7 @@ import {
   handleMutationError,
   type MutationHookOptions,
 } from "@/hooks/auth/auth-hook-utils";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { notificationService } from "@/services/notification.service";
 import { notificationKeys } from "./notification.query-keys";
@@ -87,7 +88,12 @@ export function useCreateNotificationTemplate(
       await queryClient.invalidateQueries({
         queryKey: notificationKeys.templates(),
       });
-      toast.success(`Đã tạo mẫu thông báo "${template.name}" thành công.`);
+      toast.success(
+        pickLocaleText(
+          `Đã tạo mẫu thông báo "${template.name}" thành công.`,
+          `Notification template "${template.name}" created.`,
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -124,7 +130,12 @@ export function useUpdateNotificationTemplate(
       await queryClient.invalidateQueries({
         queryKey: notificationKeys.templates(),
       });
-      toast.success(`Đã cập nhật mẫu thông báo "${template.name}".`);
+      toast.success(
+        pickLocaleText(
+          `Đã cập nhật mẫu thông báo "${template.name}".`,
+          `Notification template "${template.name}" updated.`,
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -151,7 +162,12 @@ export function useDeleteNotificationTemplate(
       await queryClient.invalidateQueries({
         queryKey: notificationKeys.templates(),
       });
-      toast.success("Đã xóa mẫu thông báo.");
+      toast.success(
+        pickLocaleText(
+          "Đã xóa mẫu thông báo.",
+          "Notification template deleted.",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -209,7 +225,12 @@ export function useTestSendNotificationTemplate(
     mutationFn: ({ code, payload }: TestSendTemplateVariables) =>
       notificationService.testSendTemplate(code, payload),
     onSuccess: async (...args) => {
-      toast.success("Đã gửi thử nghiệm mẫu thông báo thành công.");
+      toast.success(
+        pickLocaleText(
+          "Đã gửi thử nghiệm mẫu thông báo thành công.",
+          "Test notification template sent successfully.",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {

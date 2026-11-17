@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useContext } from "react";
 import { AuthContext } from "@/contexts/AuthContext";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { setLoginPersistence } from "@/lib/session-manager";
 import { toast } from "@/lib/toast";
 import { tokenStore } from "@/lib/token";
@@ -72,7 +73,12 @@ export function useEnable2FA(
         });
       }
 
-      toast.success("Bật xác thực hai yếu tố (2FA) thành công!");
+      toast.success(
+        pickLocaleText(
+          "Bật xác thực hai yếu tố (2FA) thành công!",
+          "Two-factor authentication (2FA) enabled!",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -135,7 +141,12 @@ export function useVerify2FA(
       }
 
       await queryClient.invalidateQueries({ queryKey: authKeys.config() });
-      toast.success("Xác thực hai yếu tố thành công!");
+      toast.success(
+        pickLocaleText(
+          "Xác thực hai yếu tố thành công!",
+          "Two-factor verification succeeded!",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -174,7 +185,13 @@ export function useDisable2FA(
         });
       }
 
-      toast.success(data.message || "Đã tắt xác thực hai yếu tố thành công!");
+      toast.success(
+        data.message ||
+          pickLocaleText(
+            "Đã tắt xác thực hai yếu tố thành công!",
+            "Two-factor authentication disabled!",
+          ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -201,7 +218,12 @@ export function useRegenerateBackupCodes(
     mutationFn: (payload: RegenerateBackupCodesPayload) =>
       authService.regenerateBackupCodes(payload),
     onSuccess: async (...args) => {
-      toast.success("Tạo lại mã dự phòng mới thành công!");
+      toast.success(
+        pickLocaleText(
+          "Tạo lại mã dự phòng mới thành công!",
+          "New backup codes generated!",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {

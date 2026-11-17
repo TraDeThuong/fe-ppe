@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { handleMutationError, type MutationHookOptions } from "@/hooks/auth/auth-hook-utils";
 import { authKeys } from "@/hooks/auth/auth.query-keys";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { rbacService } from "@/services/rbac.service";
 import { rbacKeys } from "./rbac.query-keys";
@@ -30,7 +31,12 @@ export function useCreateRole(
     onSuccess: async (...args) => {
       const [role] = args;
       await queryClient.invalidateQueries({ queryKey: rbacKeys.roles() });
-      toast.success(`Đã tạo vai trò "${role.name}" thành công.`);
+      toast.success(
+        pickLocaleText(
+          `Đã tạo vai trò "${role.name}" thành công.`,
+          `Role "${role.name}" created successfully.`,
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -65,7 +71,12 @@ export function useUpdateRole(
         queryClient.invalidateQueries({ queryKey: rbacKeys.roles() }),
         queryClient.invalidateQueries({ queryKey: rbacKeys.roleDetail(role.id) }),
       ]);
-      toast.success(`Đã cập nhật vai trò "${role.name}" thành công.`);
+      toast.success(
+        pickLocaleText(
+          `Đã cập nhật vai trò "${role.name}" thành công.`,
+          `Role "${role.name}" updated successfully.`,
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -98,8 +109,11 @@ export function useDeleteRole(
       await queryClient.invalidateQueries({ queryKey: rbacKeys.roles() });
       toast.success(
         variables.name
-          ? `Đã xóa vai trò "${variables.name}" thành công.`
-          : "Đã xóa vai trò thành công.",
+          ? pickLocaleText(
+              `Đã xóa vai trò "${variables.name}" thành công.`,
+              `Role "${variables.name}" deleted successfully.`,
+            )
+          : pickLocaleText("Đã xóa vai trò thành công.", "Role deleted successfully."),
       );
       await onSuccess?.(...args);
     },
@@ -154,7 +168,12 @@ export function useSyncRolePermissions(
 
       await Promise.all(invalidations);
 
-      toast.success(`Đã cập nhật quyền cho vai trò "${role.name}" thành công.`);
+      toast.success(
+        pickLocaleText(
+          `Đã cập nhật quyền cho vai trò "${role.name}" thành công.`,
+          `Permissions updated for role "${role.name}".`,
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {
@@ -188,7 +207,12 @@ export function useAssignUserRole(
         queryClient.invalidateQueries({ queryKey: rbacKeys.roles() }),
         queryClient.invalidateQueries({ queryKey: ["users"] }),
       ]);
-      toast.success("Đã phân vai trò cho người dùng thành công.");
+      toast.success(
+        pickLocaleText(
+          "Đã phân vai trò cho người dùng thành công.",
+          "Role assigned to user successfully.",
+        ),
+      );
       await onSuccess?.(...args);
     },
     onError: async (...args) => {

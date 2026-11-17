@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { incidentService } from "@/services/incident.service";
 import { incidentKeys } from "./incident.query-keys";
@@ -29,11 +30,20 @@ export function useCreateIncident() {
     onSuccess: (createdIncident) => {
       invalidateIncidentListsAndCounts(queryClient);
       toast.success(
-        `Đã ghi nhận sự cố vi phạm #${createdIncident.id.slice(0, 8)} vào hệ thống thành công.`
+        pickLocaleText(
+          `Đã ghi nhận sự cố vi phạm #${createdIncident.id.slice(0, 8)} vào hệ thống thành công.`,
+          `Incident #${createdIncident.id.slice(0, 8)} recorded successfully.`,
+        ),
       );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể tạo sự cố vi phạm.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể tạo sự cố vi phạm.",
+              "Unable to create violation incident.",
+            );
       toast.error(msg);
     },
   });
@@ -49,13 +59,29 @@ export function useReviewIncident() {
       invalidateIncidentListsAndCounts(queryClient);
       queryClient.setQueryData(incidentKeys.detail(id), updatedIncident);
       if (payload.decision === "CONFIRMED") {
-        toast.success("Đã xác nhận sự cố vi phạm an toàn thành công.");
+        toast.success(
+          pickLocaleText(
+            "Đã xác nhận sự cố vi phạm an toàn thành công.",
+            "Safety violation incident confirmed.",
+          ),
+        );
       } else {
-        toast.success("Đã bác bỏ sự cố báo động ảo.");
+        toast.success(
+          pickLocaleText(
+            "Đã bác bỏ sự cố báo động ảo.",
+            "False-alarm incident dismissed.",
+          ),
+        );
       }
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể thẩm duyệt sự cố.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể thẩm duyệt sự cố.",
+              "Unable to review incident.",
+            );
       toast.error(msg);
     },
   });
@@ -73,12 +99,20 @@ export function useBatchReviewIncidents() {
     onSuccess: (result) => {
       invalidateIncidentListsAndCounts(queryClient);
       toast.success(
-        `Đã thẩm duyệt hàng loạt ${result.updatedCount}/${result.total} sự cố thành công.`,
+        pickLocaleText(
+          `Đã thẩm duyệt hàng loạt ${result.updatedCount}/${result.total} sự cố thành công.`,
+          `Batch reviewed ${result.updatedCount}/${result.total} incidents.`,
+        ),
       );
     },
     onError: (err: unknown) => {
       const msg =
-        err instanceof Error ? err.message : "Không thể thẩm duyệt hàng loạt sự cố.";
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể thẩm duyệt hàng loạt sự cố.",
+              "Unable to batch review incidents.",
+            );
       toast.error(msg);
     },
   });
@@ -93,10 +127,21 @@ export function useResolveIncident() {
     onSuccess: (updatedIncident, { id }) => {
       invalidateIncidentListsAndCounts(queryClient);
       queryClient.setQueryData(incidentKeys.detail(id), updatedIncident);
-      toast.success("Đã cập nhật trạng thái giải quyết sự cố thành công.");
+      toast.success(
+        pickLocaleText(
+          "Đã cập nhật trạng thái giải quyết sự cố thành công.",
+          "Incident marked as resolved.",
+        ),
+      );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể giải quyết sự cố.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể giải quyết sự cố.",
+              "Unable to resolve incident.",
+            );
       toast.error(msg);
     },
   });
@@ -111,10 +156,18 @@ export function useCloseIncident() {
     onSuccess: (updatedIncident, { id }) => {
       invalidateIncidentListsAndCounts(queryClient);
       queryClient.setQueryData(incidentKeys.detail(id), updatedIncident);
-      toast.success("Đã nghiệm thu và đóng hồ sơ sự cố thành công.");
+      toast.success(
+        pickLocaleText(
+          "Đã nghiệm thu và đóng hồ sơ sự cố thành công.",
+          "Incident verified and closed.",
+        ),
+      );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể đóng sự cố.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText("Không thể đóng sự cố.", "Unable to close incident.");
       toast.error(msg);
     },
   });
@@ -127,10 +180,15 @@ export function useDeleteIncident() {
     mutationFn: (id: string) => incidentService.deleteIncident(id),
     onSuccess: () => {
       invalidateIncidentListsAndCounts(queryClient);
-      toast.success("Đã xóa sự cố thành công.");
+      toast.success(
+        pickLocaleText("Đã xóa sự cố thành công.", "Incident deleted successfully."),
+      );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể xóa sự cố.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText("Không thể xóa sự cố.", "Unable to delete incident.");
       toast.error(msg);
     },
   });

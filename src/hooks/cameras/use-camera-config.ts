@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { cameraService } from "@/services/camera.service";
 import { cameraKeys } from "./camera.query-keys";
@@ -30,10 +31,21 @@ export function useUpdateCameraConfig() {
       queryClient.setQueryData(cameraKeys.config(cameraId), updatedConfig);
       queryClient.invalidateQueries({ queryKey: cameraKeys.detail(cameraId) });
       queryClient.invalidateQueries({ queryKey: cameraKeys.lists() });
-      toast.success("Cấu hình AI ROI camera đã được lưu thành công.");
+      toast.success(
+        pickLocaleText(
+          "Cấu hình AI ROI camera đã được lưu thành công.",
+          "Camera AI ROI configuration saved successfully.",
+        ),
+      );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể cập nhật cấu hình camera.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText(
+              "Không thể cập nhật cấu hình camera.",
+              "Unable to update camera configuration.",
+            );
       toast.error(msg);
     },
   });

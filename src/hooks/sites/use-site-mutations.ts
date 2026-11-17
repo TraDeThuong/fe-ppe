@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { siteService } from "@/services/site.service";
 import { siteKeys } from "./site.query-keys";
@@ -13,10 +14,18 @@ export function useCreateSite() {
     mutationFn: (payload: CreateSitePayload) => siteService.createSite(payload),
     onSuccess: (newSite) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
-      toast.success(`Đã thêm công trường "${newSite.name}" thành công.`);
+      toast.success(
+        pickLocaleText(
+          `Đã thêm công trường "${newSite.name}" thành công.`,
+          `Site "${newSite.name}" added successfully.`,
+        ),
+      );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể tạo công trường.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText("Không thể tạo công trường.", "Unable to create site.");
       toast.error(msg);
     },
   });
@@ -32,10 +41,18 @@ export function useUpdateSite() {
       queryClient.invalidateQueries({ queryKey: siteKeys.all });
       queryClient.setQueryData(siteKeys.detail(id), updatedSite);
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(id) });
-      toast.success(`Đã cập nhật công trường "${updatedSite.name}" thành công.`);
+      toast.success(
+        pickLocaleText(
+          `Đã cập nhật công trường "${updatedSite.name}" thành công.`,
+          `Site "${updatedSite.name}" updated successfully.`,
+        ),
+      );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể cập nhật công trường.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText("Không thể cập nhật công trường.", "Unable to update site.");
       toast.error(msg);
     },
   });
@@ -50,11 +67,19 @@ export function useDeleteSite() {
     onSuccess: (_, { name }) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
       toast.success(
-        name ? `Đã xóa công trường "${name}" thành công.` : "Đã xóa công trường thành công.",
+        name
+          ? pickLocaleText(
+              `Đã xóa công trường "${name}" thành công.`,
+              `Site "${name}" deleted successfully.`,
+            )
+          : pickLocaleText("Đã xóa công trường thành công.", "Site deleted successfully."),
       );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể xóa công trường.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText("Không thể xóa công trường.", "Unable to delete site.");
       toast.error(msg);
     },
   });
@@ -64,16 +89,24 @@ export function useArchiveSite() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, name }: { id: string; name?: string }) =>
+    mutationFn: ({ id }: { id: string; name?: string }) =>
       siteService.archiveSite(id),
     onSuccess: (_, { name }) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.all });
       toast.success(
-        name ? `Đã lưu trữ công trường "${name}" thành công.` : "Đã lưu trữ công trường thành công.",
+        name
+          ? pickLocaleText(
+              `Đã lưu trữ công trường "${name}" thành công.`,
+              `Site "${name}" archived successfully.`,
+            )
+          : pickLocaleText("Đã lưu trữ công trường thành công.", "Site archived successfully."),
       );
     },
     onError: (err: unknown) => {
-      const msg = err instanceof Error ? err.message : "Không thể lưu trữ công trường.";
+      const msg =
+        err instanceof Error
+          ? err.message
+          : pickLocaleText("Không thể lưu trữ công trường.", "Unable to archive site.");
       toast.error(msg);
     },
   });

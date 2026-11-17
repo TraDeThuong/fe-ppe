@@ -10,6 +10,7 @@ import {
   handleMutationError,
   type MutationHookOptions,
 } from "@/hooks/auth/auth-hook-utils";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { notificationService } from "@/services/notification.service";
 import { notificationKeys } from "./notification.query-keys";
@@ -64,7 +65,10 @@ export function useUpdateNotificationPreference(
         queryKey: notificationKeys.preferences(),
       });
       toast.success(
-        `Đã lưu cấu hình kênh "${updated.channel}" (Ngưỡng: ${updated.severityThreshold}).`,
+        pickLocaleText(
+          `Đã lưu cấu hình kênh "${updated.channel}" (Ngưỡng: ${updated.severityThreshold}).`,
+          `Saved "${updated.channel}" channel settings (Threshold: ${updated.severityThreshold}).`,
+        ),
       );
       await onSuccess?.(...args);
     },
