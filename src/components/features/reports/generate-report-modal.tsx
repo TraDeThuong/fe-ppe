@@ -18,6 +18,7 @@ export interface GenerateReportModalProps {
   defaultEndDate?: string;
   onSubmit: (dto: GenerateReportDto) => Promise<void>;
   loading?: boolean;
+  validatePeriod?: (start: string, end: string) => boolean;
 }
 
 function inferReportTypeFromCode(code?: string): string {
@@ -41,6 +42,7 @@ export function GenerateReportModal({
   defaultEndDate = "",
   onSubmit,
   loading = false,
+  validatePeriod,
 }: GenerateReportModalProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -61,6 +63,8 @@ export function GenerateReportModal({
   const [endDate, setEndDate] = useState(
     new Date().toISOString().split("T")[0]
   );
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const validPeriod = !validatePeriod || validatePeriod(startDate, endDate);
 
   const currentTemplate = useMemo(
     () => templates.find((tpl) => tpl.id === templateId) || null,
@@ -70,6 +74,7 @@ export function GenerateReportModal({
 
   useEffect(() => {
     if (open) {
+      setSubmitError(null);
       const targetTpl =
         (selectedTemplate && (!selectedTemplate.status || selectedTemplate.status.toUpperCase() === "ACTIVE")
           ? selectedTemplate
@@ -105,17 +110,22 @@ export function GenerateReportModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const resolvedSiteId = siteId || sites[0]?.id;
-    if (!templateId || !resolvedSiteId) return;
+    if (!templateId || !resolvedSiteId || !validPeriod) return;
 
-    await onSubmit({
-      templateId,
-      siteId: resolvedSiteId,
-      reportType,
-      periodStart: startDate,
-      periodEnd: endDate,
-    });
+    try {
+      setSubmitError(null);
+      await onSubmit({
+        templateId,
+        siteId: resolvedSiteId,
+        reportType,
+        periodStart: startDate,
+        periodEnd: endDate,
+      });
 
-    onOpenChange(false);
+      onOpenChange(false);
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : (isVietnamese ? "Không thể tạo báo cáo." : "Unable to generate report."));
+    }
   };
 
   return (
@@ -143,7 +153,7 @@ export function GenerateReportModal({
             form="generate-report-form"
             type="submit"
             variant="primary"
-            disabled={loading || !templateId || (!siteId && sites.length === 0)}
+            disabled={loading || !validPeriod || !templateId || (!siteId && sites.length === 0)}
             className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             {loading ? (
@@ -157,6 +167,9 @@ export function GenerateReportModal({
       }
     >
       <form id="generate-report-form" onSubmit={handleSubmit} className="space-y-4">
+        {(!validPeriod || submitError) && <p role="alert" className="text-xs text-danger">{!validPeriod
+          ? (isVietnamese ? "Chọn khoảng ngày hợp lệ, tối đa 90 ngày và không ở tương lai." : "Choose valid dates, within 90 days and not in the future.")
+          : submitError}</p>}
         {/* Template Select */}
         <div className="space-y-1.5">
           <label className="text-sm font-medium text-[var(--neu-text-primary)]">

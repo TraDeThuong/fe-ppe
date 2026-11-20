@@ -1,16 +1,15 @@
 "use client";
 
-import { FileText, Settings, ShieldAlert } from "lucide-react";
+import { FileText, Settings } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 
-export type AuditTabKey = "all" | "configChanges" | "incidentReviews";
+export type AuditTabKey = "all" | "configChanges";
 
 export interface AuditTabsProps {
   activeTab: AuditTabKey;
   onTabChange: (tab: AuditTabKey) => void;
   totalCount: number;
   configChangesCount: number;
-  incidentReviewsCount: number;
 }
 
 export function AuditTabs({
@@ -18,7 +17,6 @@ export function AuditTabs({
   onTabChange,
   totalCount,
   configChangesCount,
-  incidentReviewsCount,
 }: AuditTabsProps) {
   const { t } = useLocale();
 
@@ -39,12 +37,6 @@ export function AuditTabs({
       label: t("audit.tabs.configChanges"),
       icon: Settings,
       count: configChangesCount,
-    },
-    {
-      id: "incidentReviews",
-      label: t("audit.tabs.incidentReviews"),
-      icon: ShieldAlert,
-      count: incidentReviewsCount,
     },
   ];
 

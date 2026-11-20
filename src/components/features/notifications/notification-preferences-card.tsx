@@ -91,43 +91,103 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
   };
 
   return (
-    <div
-      className={`space-y-6 rounded-2xl border border-border/30 bg-background p-4 shadow-[6px_6px_15px_var(--shadow-dark),-6px_-6px_15px_var(--shadow-light)] sm:p-6 ${className}`}
+<div
+      className={`group/panel relative overflow-hidden space-y-6 rounded-2xl sm:rounded-3xl border border-white/80 bg-surface/95 p-4 sm:p-6 shadow-[12px_12px_28px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)] transition-all duration-500 dark:border-white/[0.07] dark:bg-card/95 ${className}`}
     >
-      {/* 1. Header Card */}
-      <div className="flex items-start gap-3.5 border-b border-border/30 pb-4">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]">
-          <SlidersHorizontal className="size-5" />
+      {/* Ambient Radial Aura (Primary & Accent blend) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -top-28 -right-28 h-64 w-64 rounded-full bg-gradient-to-br from-primary/15 via-accent/10 to-transparent blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-28 -left-28 h-64 w-64 rounded-full bg-gradient-to-tr from-accent/15 via-primary/5 to-transparent blur-3xl"
+      />
+
+      {/* Specular Metallic Top Rim */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-10 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-24 top-[1.5px] h-[1px] bg-gradient-to-r from-transparent via-accent/40 to-transparent"
+      />
+
+      {/* Precision Corner Micro-Indicators */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute top-3.5 left-3.5 h-1 w-1 rounded-full bg-primary/40 shadow-[0_0_6px_hsl(var(--primary))]"
+      />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute top-3.5 right-3.5 h-1 w-1 rounded-full bg-accent/40"
+      />
+
+      {/* ===================================================================== */}
+      {/* 1. HEADER CARD                                                        */}
+      {/* ===================================================================== */}
+      <div className="relative flex items-start gap-3.5 pb-4.5">
+        {/* Engraved Divider */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-border/80 to-transparent dark:via-white/[0.08]"
+        />
+
+        {/* Extruded Neumorphic Medallion */}
+        <div className="relative flex size-11 sm:size-12 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-gradient-to-br from-surface-elevated to-surface shadow-[5px_5px_12px_var(--shadow-dark),-5px_-5px_12px_var(--shadow-light)] dark:border-white/10 dark:from-card dark:to-background">
+          <div className="absolute inset-1 rounded-xl bg-gradient-to-br from-primary/15 to-accent/10" />
+          <SlidersHorizontal className="relative size-5 text-primary drop-shadow-[0_2px_6px_hsl(var(--primary)/0.35)]" />
         </div>
-        <div>
-          <h2 className="text-base font-bold text-foreground sm:text-lg">
+
+        <div className="min-w-0">
+          <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground">
             {t("notifications.preferences.title")}
           </h2>
-          <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
+          <p className="mt-1 text-xs sm:text-sm text-muted-foreground leading-relaxed">
             {t("notifications.preferences.subtitle")}
           </p>
         </div>
       </div>
 
-      {/* 2. CÀI ĐẶT ÂM THANH CẢNH BÁO THỜI GIAN THỰC (AUDIO NOTIFICATION ENGINE) */}
-      <div className="rounded-2xl border border-primary/30 bg-primary/[0.03] p-4 sm:p-5 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-border/20 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-[2px_2px_5px_var(--shadow-dark)]">
-              {soundEnabled ? <Volume2 className="size-5" /> : <VolumeX className="size-5 text-muted-foreground" />}
+      {/* ===================================================================== */}
+      {/* 2. AUDIO NOTIFICATION ENGINE (TACTILE CONSOLE)                        */}
+      {/* ===================================================================== */}
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/[0.04] via-background/70 to-accent/[0.05] p-4 sm:p-5 shadow-[inset_5px_5px_12px_var(--shadow-dark),inset_-5px_-5px_12px_var(--shadow-light)] space-y-4.5">
+        {/* Console Header & Master Switch */}
+        <div className="relative flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between pb-3.5">
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-border/60 to-transparent"
+          />
+
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-surface text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 dark:bg-card">
+              {soundEnabled ? (
+                <Volume2 className="size-5 drop-shadow-[0_0_6px_hsl(var(--primary)/0.4)]" />
+              ) : (
+                <VolumeX className="size-5 text-muted-foreground" />
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-foreground">
                   {isVietnamese ? "Bộ Âm Thanh Cảnh Báo Thông Báo" : "Notification Audio Alert Engine"}
                 </h3>
-                <span
-                  className={`inline-block size-2 rounded-full ${
-                    soundEnabled ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
-                  }`}
-                />
+                <span className="relative flex h-2 w-2">
+                  {soundEnabled && (
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
+                  )}
+                  <span
+                    className={`relative inline-flex h-2 w-2 rounded-full ${
+                      soundEnabled
+                        ? "bg-primary shadow-[0_0_8px_hsl(var(--primary))]"
+                        : "bg-accent border border-primary/20"
+                    }`}
+                  />
+                </span>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {isVietnamese
                   ? "Phát âm thanh chuông đặc trưng khi có thông báo vi phạm PPE hoặc sự cố mới tới"
                   : "Play distinct acoustic cues when safety events or new alerts arrive"}
@@ -135,37 +195,50 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
             </div>
           </div>
 
-          {/* Master Sound Switch */}
-          <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
-            <span className="text-xs font-semibold text-foreground">
-              {soundEnabled ? (isVietnamese ? "Đang BẬT" : "ENABLED") : isVietnamese ? "Đang TẮT" : "MUTED"}
+          {/* Master Hardware Rocker Switch */}
+          <div className="flex items-center gap-2.5 shrink-0 self-start sm:self-auto rounded-2xl border border-white/60 bg-surface/90 px-3 py-1.5 shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)] dark:border-white/10 dark:bg-card">
+            <span
+              className={`font-mono text-[11px] font-bold tracking-wider ${
+                soundEnabled ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              {soundEnabled ? (isVietnamese ? "ĐANG BẬT" : "ENABLED") : isVietnamese ? "ĐANG TẮT" : "MUTED"}
             </span>
             <button
               type="button"
               role="switch"
               aria-checked={soundEnabled}
               onClick={toggleSound}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/30 ${
                 soundEnabled
-                  ? "bg-primary shadow-[inset_1px_1px_3px_rgba(0,0,0,0.3)]"
-                  : "bg-muted shadow-[inset_2px_2px_4px_var(--shadow-dark)]"
+                  ? "bg-gradient-to-r from-primary to-primary/85 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.35)]"
+                  : "bg-background shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)]"
               }`}
             >
               <span
-                className={`pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md transition duration-200 ease-in-out ${
+                className={`pointer-events-none flex size-5 items-center justify-center rounded-full bg-surface shadow-[2px_2px_5px_rgba(0,0,0,0.25)] transition-transform duration-300 dark:bg-white ${
                   soundEnabled ? "translate-x-5" : "translate-x-0"
                 }`}
-              />
+              >
+                <span
+                  className={`size-1.5 rounded-full transition-colors ${
+                    soundEnabled ? "bg-primary shadow-[0_0_5px_hsl(var(--primary))]" : "bg-muted-foreground/40"
+                  }`}
+                />
+              </span>
             </button>
           </div>
         </div>
 
-        {/* Volume Slider & Test Button */}
+        {/* Volume Fader & Acoustic Test Pads */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
-          <div className="space-y-1.5">
+          {/* Recessed Fader Track */}
+          <div className="rounded-2xl border border-white/60 bg-surface/80 p-3 shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)] dark:border-white/[0.06] dark:bg-card/80 space-y-2">
             <div className="flex items-center justify-between text-xs font-semibold text-foreground">
-              <span>{isVietnamese ? "Âm lượng cảnh báo" : "Master Volume"}:</span>
-              <span className="font-mono text-primary font-bold">{Math.round(soundVolume * 100)}%</span>
+              <span>{isVietnamese ? "Âm lượng cảnh báo" : "Master Volume"}</span>
+              <span className="rounded-md border border-primary/20 bg-primary/[0.07] px-1.5 py-0.5 font-mono text-[11px] font-bold text-primary shadow-[inset_1px_1px_3px_var(--shadow-dark)]">
+                {Math.round(soundVolume * 100)}%
+              </span>
             </div>
             <input
               type="range"
@@ -179,13 +252,13 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
             />
           </div>
 
-          {/* Test Sound Button */}
-          <div className="flex items-center gap-2">
+          {/* Tactile Acoustic Test Pads */}
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               disabled={!soundEnabled}
               onClick={() => playPreset("critical", soundVolume)}
-              className="flex-1 rounded-xl border border-rose-500/30 bg-background py-2 px-3 text-xs font-bold text-rose-500 shadow-[2px_2px_5px_var(--shadow-dark)] hover:bg-rose-500/10 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 active:shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
+              className="flex-1 rounded-2xl border border-primary/30 bg-surface py-2.5 px-3 text-xs font-bold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] hover:bg-primary hover:text-primary-foreground hover:shadow-[0_4px_14px_hsl(var(--primary)/0.35)] transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 active:shadow-[inset_3px_3px_6px_var(--shadow-dark)]"
             >
               <Volume2 className="size-3.5" />
               <span>{isVietnamese ? "Thử Còi Khẩn cấp" : "Test Siren"}</span>
@@ -194,31 +267,39 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
               type="button"
               disabled={!soundEnabled}
               onClick={() => playPreset("warning", soundVolume)}
-              className="flex-1 rounded-xl border border-amber-500/30 bg-background py-2 px-3 text-xs font-bold text-amber-500 shadow-[2px_2px_5px_var(--shadow-dark)] hover:bg-amber-500/10 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 active:shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
+              className="flex-1 rounded-2xl border border-accent/50 bg-surface py-2.5 px-3 text-xs font-bold text-foreground shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] hover:border-primary/40 hover:text-primary transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 active:shadow-[inset_3px_3px_6px_var(--shadow-dark)] dark:border-white/10"
             >
-              <Volume2 className="size-3.5" />
+              <Volume2 className="size-3.5 text-primary" />
               <span>{isVietnamese ? "Thử Chuông Tam âm" : "Test Chime"}</span>
             </button>
           </div>
         </div>
 
-        {/* Lựa chọn âm thanh cho từng mức độ nghiêm trọng */}
-        <div className="border-t border-border/20 pt-3 space-y-2">
+        {/* Severity Sound Matrix (4 Extruded Cards) */}
+        <div className="relative pt-3.5 space-y-2.5">
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-border/60 to-transparent"
+          />
+
           <span className="text-xs font-bold text-foreground block">
             {isVietnamese ? "Tùy biến âm thanh theo mức độ nghiêm trọng:" : "Severity Sound Mapping:"}
           </span>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* 1. CRITICAL */}
-            <div className="rounded-xl border border-border/40 bg-background p-2.5 shadow-[inset_1px_1px_2px_var(--shadow-dark)] space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-rose-500">
-                  {isVietnamese ? "Khẩn cấp (CRITICAL)" : "CRITICAL"}
-                </span>
+            <div className="rounded-2xl border border-primary/30 bg-surface/95 p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:bg-card/90 space-y-2">
+              <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="size-2 shrink-0 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary))]" />
+                  <span className="text-xs font-bold text-primary truncate">
+                    {isVietnamese ? "Khẩn cấp (CRITICAL)" : "CRITICAL"}
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() => playPreset(soundSettings.soundMap.CRITICAL, soundVolume)}
-                  className="text-[10px] text-primary hover:underline font-bold"
+                  className="rounded-lg border border-primary/20 bg-primary/[0.07] px-2 py-0.5 text-[10px] font-bold text-primary hover:bg-primary hover:text-primary-foreground transition-colors shrink-0"
                 >
                   {isVietnamese ? "Nghe thử" : "Test"}
                 </button>
@@ -226,7 +307,7 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
               <select
                 value={soundSettings.soundMap.CRITICAL}
                 onChange={(e) => handleSoundMapChange("CRITICAL", e.target.value as SoundPreset)}
-                className="w-full rounded-lg border border-border/40 bg-background px-2 py-1 text-xs font-semibold text-foreground outline-none"
+                className="w-full rounded-xl border border-black/[0.05] bg-background/80 px-2.5 py-1.5 text-xs font-semibold text-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] outline-none focus:border-primary/50 dark:border-white/[0.06]"
               >
                 <option value="critical">{isVietnamese ? "Còi khẩn cấp (Siren)" : "Emergency Siren"}</option>
                 <option value="warning">{isVietnamese ? "Chuông tam âm" : "Tri-tone Chime"}</option>
@@ -236,15 +317,18 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
             </div>
 
             {/* 2. HIGH */}
-            <div className="rounded-xl border border-border/40 bg-background p-2.5 shadow-[inset_1px_1px_2px_var(--shadow-dark)] space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-500">
-                  {isVietnamese ? "Mức cao (HIGH)" : "HIGH"}
-                </span>
+            <div className="rounded-2xl border border-accent/50 bg-surface/95 p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/10 dark:bg-card/90 space-y-2">
+              <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="size-2 shrink-0 rounded-full bg-gradient-to-tr from-primary to-accent" />
+                  <span className="text-xs font-bold text-foreground truncate">
+                    {isVietnamese ? "Mức cao (HIGH)" : "HIGH"}
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() => playPreset(soundSettings.soundMap.HIGH, soundVolume)}
-                  className="text-[10px] text-primary hover:underline font-bold"
+                  className="rounded-lg border border-primary/20 bg-primary/[0.07] px-2 py-0.5 text-[10px] font-bold text-primary hover:bg-primary hover:text-primary-foreground transition-colors shrink-0"
                 >
                   {isVietnamese ? "Nghe thử" : "Test"}
                 </button>
@@ -252,7 +336,7 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
               <select
                 value={soundSettings.soundMap.HIGH}
                 onChange={(e) => handleSoundMapChange("HIGH", e.target.value as SoundPreset)}
-                className="w-full rounded-lg border border-border/40 bg-background px-2 py-1 text-xs font-semibold text-foreground outline-none"
+                className="w-full rounded-xl border border-black/[0.05] bg-background/80 px-2.5 py-1.5 text-xs font-semibold text-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] outline-none focus:border-primary/50 dark:border-white/[0.06]"
               >
                 <option value="warning">{isVietnamese ? "Chuông tam âm" : "Tri-tone Chime"}</option>
                 <option value="critical">{isVietnamese ? "Còi khẩn cấp (Siren)" : "Emergency Siren"}</option>
@@ -262,15 +346,18 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
             </div>
 
             {/* 3. NORMAL */}
-            <div className="rounded-xl border border-border/40 bg-background p-2.5 shadow-[inset_1px_1px_2px_var(--shadow-dark)] space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-sky-500">
-                  {isVietnamese ? "Bình thường (NORMAL)" : "NORMAL"}
-                </span>
+            <div className="rounded-2xl border border-white/70 bg-surface/95 p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/[0.07] dark:bg-card/90 space-y-2">
+              <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="size-2 shrink-0 rounded-full bg-primary/50" />
+                  <span className="text-xs font-bold text-foreground/90 truncate">
+                    {isVietnamese ? "Bình thường (NORMAL)" : "NORMAL"}
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() => playPreset(soundSettings.soundMap.NORMAL, soundVolume)}
-                  className="text-[10px] text-primary hover:underline font-bold"
+                  className="rounded-lg border border-primary/20 bg-primary/[0.07] px-2 py-0.5 text-[10px] font-bold text-primary hover:bg-primary hover:text-primary-foreground transition-colors shrink-0"
                 >
                   {isVietnamese ? "Nghe thử" : "Test"}
                 </button>
@@ -278,7 +365,7 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
               <select
                 value={soundSettings.soundMap.NORMAL}
                 onChange={(e) => handleSoundMapChange("NORMAL", e.target.value as SoundPreset)}
-                className="w-full rounded-lg border border-border/40 bg-background px-2 py-1 text-xs font-semibold text-foreground outline-none"
+                className="w-full rounded-xl border border-black/[0.05] bg-background/80 px-2.5 py-1.5 text-xs font-semibold text-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] outline-none focus:border-primary/50 dark:border-white/[0.06]"
               >
                 <option value="info">{isVietnamese ? "Giọt nước thanh thoát" : "Glass Pop"}</option>
                 <option value="success">{isVietnamese ? "Hợp âm thành công" : "Success Chord"}</option>
@@ -287,15 +374,18 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
             </div>
 
             {/* 4. LOW */}
-            <div className="rounded-xl border border-border/40 bg-background p-2.5 shadow-[inset_1px_1px_2px_var(--shadow-dark)] space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-muted-foreground">
-                  {isVietnamese ? "Mức thấp (LOW)" : "LOW"}
-                </span>
+            <div className="rounded-2xl border border-white/70 bg-surface/95 p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] dark:border-white/[0.07] dark:bg-card/90 space-y-2">
+              <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="size-2 shrink-0 rounded-full bg-accent border border-primary/20" />
+                  <span className="text-xs font-bold text-muted-foreground truncate">
+                    {isVietnamese ? "Mức thấp (LOW)" : "LOW"}
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() => playPreset(soundSettings.soundMap.LOW, soundVolume)}
-                  className="text-[10px] text-primary hover:underline font-bold"
+                  className="rounded-lg border border-primary/20 bg-primary/[0.07] px-2 py-0.5 text-[10px] font-bold text-primary hover:bg-primary hover:text-primary-foreground transition-colors shrink-0"
                 >
                   {isVietnamese ? "Nghe thử" : "Test"}
                 </button>
@@ -303,7 +393,7 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
               <select
                 value={soundSettings.soundMap.LOW}
                 onChange={(e) => handleSoundMapChange("LOW", e.target.value as SoundPreset)}
-                className="w-full rounded-lg border border-border/40 bg-background px-2 py-1 text-xs font-semibold text-foreground outline-none"
+                className="w-full rounded-xl border border-black/[0.05] bg-background/80 px-2.5 py-1.5 text-xs font-semibold text-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] outline-none focus:border-primary/50 dark:border-white/[0.06]"
               >
                 <option value="info">{isVietnamese ? "Giọt nước thanh thoát" : "Glass Pop"}</option>
                 <option value="success">{isVietnamese ? "Hợp âm thành công" : "Success Chord"}</option>
@@ -312,12 +402,19 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
           </div>
         </div>
 
-        {/* Khung giờ yên tĩnh (Quiet Hours / Do Not Disturb) */}
-        <div className="border-t border-border/20 pt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2">
-            <Clock className="size-4 text-muted-foreground" />
+        {/* Quiet Hours / DND Bar */}
+        <div className="relative pt-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs">
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-border/60 to-transparent"
+          />
+
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-white/60 bg-surface text-primary shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] dark:border-white/10 dark:bg-card">
+              <Clock className="size-4" />
+            </div>
             <div>
-              <span className="font-semibold text-foreground">
+              <span className="font-bold text-foreground">
                 {isVietnamese ? "Khung giờ yên tĩnh (DND)" : "Quiet Hours / DND"}
               </span>
               <p className="text-[11px] text-muted-foreground">
@@ -328,7 +425,7 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0">
             <button
               type="button"
               role="switch"
@@ -336,31 +433,33 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
               onClick={() =>
                 updateSoundSettings({ quietHoursEnabled: !soundSettings.quietHoursEnabled })
               }
-              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
-                soundSettings.quietHoursEnabled ? "bg-primary" : "bg-muted"
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-all duration-300 ${
+                soundSettings.quietHoursEnabled
+                  ? "bg-primary shadow-[inset_1px_1px_3px_rgba(0,0,0,0.3)]"
+                  : "bg-background shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]"
               }`}
             >
               <span
-                className={`pointer-events-none inline-block size-4 transform rounded-full bg-white shadow transition duration-200 ease-in-out ${
+                className={`pointer-events-none inline-block size-4 transform rounded-full bg-surface shadow transition-transform duration-300 dark:bg-white ${
                   soundSettings.quietHoursEnabled ? "translate-x-4" : "translate-x-0"
                 }`}
               />
             </button>
 
             {soundSettings.quietHoursEnabled && (
-              <div className="flex items-center gap-1 font-mono text-xs">
+              <div className="flex items-center gap-1.5 rounded-xl border border-black/[0.05] bg-background/80 px-2 py-1 font-mono text-xs shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] dark:border-white/[0.06]">
                 <input
                   type="time"
                   value={soundSettings.quietHoursStart}
                   onChange={(e) => updateSoundSettings({ quietHoursStart: e.target.value })}
-                  className="rounded border border-border/40 bg-background px-1 py-0.5"
+                  className="bg-transparent text-foreground outline-none"
                 />
-                <span>-</span>
+                <span className="text-primary font-bold">→</span>
                 <input
                   type="time"
                   value={soundSettings.quietHoursEnd}
                   onChange={(e) => updateSoundSettings({ quietHoursEnd: e.target.value })}
-                  className="rounded border border-border/40 bg-background px-1 py-0.5"
+                  className="bg-transparent text-foreground outline-none"
                 />
               </div>
             )}
@@ -368,9 +467,13 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
         </div>
       </div>
 
-      {/* 3. Anti Alert Fatigue Engine Explanatory Notice */}
-      <div className="flex items-start gap-3 rounded-2xl border border-primary/20 bg-primary/[0.04] p-3.5 sm:p-4 text-xs leading-relaxed text-muted-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
-        <ShieldAlert className="size-4 shrink-0 text-primary mt-0.5" />
+      {/* ===================================================================== */}
+      {/* 3. ANTI ALERT FATIGUE ENGINE PLAQUE                                   */}
+      {/* ===================================================================== */}
+      <div className="flex items-start gap-3.5 rounded-2xl border border-primary/20 bg-gradient-to-r from-primary/[0.06] via-background/70 to-accent/[0.08] p-4 text-xs leading-relaxed text-muted-foreground shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)]">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)]">
+          <ShieldAlert className="size-4.5" />
+        </div>
         <div>
           <span className="font-bold text-foreground">
             {t("notifications.preferences.antiFatigueHelp")}
@@ -383,48 +486,56 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
         </div>
       </div>
 
-      {/* 4. Preferences Channel Grid (In-App & Email) */}
-      <div className="space-y-4">
+      {/* ===================================================================== */}
+      {/* 4. PREFERENCES CHANNEL GRID (EXTRUDED CARDS)                          */}
+      {/* ===================================================================== */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* 1. Kênh Thông báo trên Web (In-App) */}
-        <div className="flex flex-col gap-4 rounded-2xl border border-border/40 bg-background p-4 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:p-5">
+        <div className="flex flex-col justify-between gap-4 rounded-2xl border border-white/75 bg-surface/95 p-4 sm:p-5 shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)] transition-all hover:border-primary/25 dark:border-white/[0.07] dark:bg-card/90">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/40 bg-background text-primary shadow-[2px_2px_6px_var(--shadow-dark),-2px_-2px_6px_var(--shadow-light)]">
+            <div className="flex items-center gap-3.5">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/15 to-accent/10 text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
                 <Bell className="size-5" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-foreground">
                   {t("notifications.channel.IN_APP")}
                 </h3>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {t("notifications.preferences.inAppDesc")}
                 </p>
               </div>
             </div>
 
-            {/* Toggle Switch */}
+            {/* Tactile Toggle Switch */}
             <button
               type="button"
               role="switch"
               aria-checked={inAppPref.enabled}
               disabled={isLoading || updateMutation.isPending}
               onClick={() => handleToggleChannel("IN_APP", inAppPref.enabled)}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 ${
                 inAppPref.enabled
-                  ? "bg-primary shadow-[inset_1px_1px_3px_rgba(0,0,0,0.3)]"
-                  : "bg-muted shadow-[inset_2px_2px_4px_var(--shadow-dark)]"
+                  ? "bg-gradient-to-r from-primary to-primary/85 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.35)]"
+                  : "bg-background shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)]"
               }`}
             >
               <span
-                className={`pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md transition duration-200 ease-in-out ${
+                className={`pointer-events-none flex size-5 items-center justify-center rounded-full bg-surface shadow-[2px_2px_5px_rgba(0,0,0,0.25)] transition-transform duration-300 dark:bg-white ${
                   inAppPref.enabled ? "translate-x-5" : "translate-x-0"
                 }`}
-              />
+              >
+                <span
+                  className={`size-1.5 rounded-full ${
+                    inAppPref.enabled ? "bg-primary shadow-[0_0_5px_hsl(var(--primary))]" : "bg-muted-foreground/40"
+                  }`}
+                />
+              </span>
             </button>
           </div>
 
           {/* Threshold Selection */}
-          <div className="flex flex-col gap-2 border-t border-border/20 pt-3 sm:flex-row sm:items-center sm:justify-between text-xs">
+          <div className="flex flex-col gap-2 border-t border-border/30 pt-3.5 text-xs">
             <span className="font-semibold text-foreground">
               {t("notifications.preferences.threshold")}:
             </span>
@@ -434,7 +545,7 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
               onChange={(e) =>
                 handleChangeThreshold("IN_APP", e.target.value as NotificationSeverity)
               }
-              className="rounded-xl border border-border/40 bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] outline-none focus:border-primary/50 disabled:opacity-50"
+              className="w-full rounded-xl border border-black/[0.05] bg-background/80 px-3 py-2 text-xs font-semibold text-foreground shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)] outline-none focus:border-primary/50 disabled:opacity-50 dark:border-white/[0.06]"
             >
               <option value="LOW">
                 {isVietnamese ? "Mức thấp (LOW) — Nhận tất cả thông báo" : "LOW — Receive all alerts"}
@@ -453,45 +564,51 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
         </div>
 
         {/* 2. Kênh Thư điện tử (Email) */}
-        <div className="flex flex-col gap-4 rounded-2xl border border-border/40 bg-background p-4 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:p-5">
+        <div className="flex flex-col justify-between gap-4 rounded-2xl border border-white/75 bg-surface/95 p-4 sm:p-5 shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)] transition-all hover:border-primary/25 dark:border-white/[0.07] dark:bg-card/90">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border/40 bg-background text-primary shadow-[2px_2px_6px_var(--shadow-dark),-2px_-2px_6px_var(--shadow-light)]">
+            <div className="flex items-center gap-3.5">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-accent/40 bg-gradient-to-br from-accent/20 to-primary/10 text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
                 <Mail className="size-5" />
               </div>
               <div>
                 <h3 className="text-sm font-bold text-foreground">
                   {t("notifications.channel.EMAIL")}
                 </h3>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground mt-0.5">
                   {t("notifications.preferences.emailDesc")}
                 </p>
               </div>
             </div>
 
-            {/* Toggle Switch */}
+            {/* Tactile Toggle Switch */}
             <button
               type="button"
               role="switch"
               aria-checked={emailPref.enabled}
               disabled={isLoading || updateMutation.isPending}
               onClick={() => handleToggleChannel("EMAIL", emailPref.enabled)}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 ${
                 emailPref.enabled
-                  ? "bg-primary shadow-[inset_1px_1px_3px_rgba(0,0,0,0.3)]"
-                  : "bg-muted shadow-[inset_2px_2px_4px_var(--shadow-dark)]"
+                  ? "bg-gradient-to-r from-primary to-primary/85 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.35)]"
+                  : "bg-background shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)]"
               }`}
             >
               <span
-                className={`pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md transition duration-200 ease-in-out ${
+                className={`pointer-events-none flex size-5 items-center justify-center rounded-full bg-surface shadow-[2px_2px_5px_rgba(0,0,0,0.25)] transition-transform duration-300 dark:bg-white ${
                   emailPref.enabled ? "translate-x-5" : "translate-x-0"
                 }`}
-              />
+              >
+                <span
+                  className={`size-1.5 rounded-full ${
+                    emailPref.enabled ? "bg-primary shadow-[0_0_5px_hsl(var(--primary))]" : "bg-muted-foreground/40"
+                  }`}
+                />
+              </span>
             </button>
           </div>
 
           {/* Threshold Selection */}
-          <div className="flex flex-col gap-2 border-t border-border/20 pt-3 sm:flex-row sm:items-center sm:justify-between text-xs">
+          <div className="flex flex-col gap-2 border-t border-border/30 pt-3.5 text-xs">
             <span className="font-semibold text-foreground">
               {t("notifications.preferences.threshold")}:
             </span>
@@ -501,7 +618,7 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
               onChange={(e) =>
                 handleChangeThreshold("EMAIL", e.target.value as NotificationSeverity)
               }
-              className="rounded-xl border border-border/40 bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] outline-none focus:border-primary/50 disabled:opacity-50"
+              className="w-full rounded-xl border border-black/[0.05] bg-background/80 px-3 py-2 text-xs font-semibold text-foreground shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)] outline-none focus:border-primary/50 disabled:opacity-50 dark:border-white/[0.06]"
             >
               <option value="CRITICAL">
                 {isVietnamese ? "Khẩn cấp (CRITICAL) — Khuyến nghị cho Email" : "CRITICAL — Recommended for Email"}

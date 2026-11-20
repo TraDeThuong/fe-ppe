@@ -14,6 +14,8 @@ export interface NotificationListProps {
   limit?: number;
   totalPages?: number;
   isLoading?: boolean;
+  error?: Error | null;
+  onRetry?: () => void;
   onPageChange?: (page: number) => void;
   onMarkAsRead?: (id: string) => void;
   markingReadId?: string | null;
@@ -31,6 +33,8 @@ export function NotificationList({
   limit = 20,
   totalPages = 1,
   isLoading = false,
+  error,
+  onRetry,
   onPageChange,
   onMarkAsRead,
   markingReadId,
@@ -41,6 +45,13 @@ export function NotificationList({
 }: NotificationListProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+
+  const errorNotice = error ? <div role="alert" className="space-y-3 rounded-xl border border-danger/30 bg-surface p-4 text-sm">
+    <p>{isVietnamese ? "Không tải được đầy đủ hộp thư." : "Unable to load the complete inbox."} {error.message}</p>
+    {onRetry && <button onClick={onRetry} className="font-semibold text-primary underline">{isVietnamese ? "Thử lại" : "Retry"}</button>}
+  </div> : null;
+
+  if (error && !items?.length) return errorNotice;
 
   if (isLoading) {
     return <NotificationSkeleton count={4} />;
@@ -55,6 +66,7 @@ export function NotificationList({
 
   return (
     <div className={`space-y-4 ${className}`}>
+      {errorNotice}
       {/* Notifications Cards Container */}
       <div className="flex flex-col gap-3">
         {items.map((notification) => (

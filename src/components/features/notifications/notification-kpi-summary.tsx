@@ -37,6 +37,7 @@ export interface NotificationKpiSummaryProps {
   variant?: "classic" | "soft-extruded" | "deep-elevation";
   /** Trạng thái đang tải dữ liệu */
   loading?: boolean;
+  unavailable?: boolean;
   className?: string;
 
   /** Key của thẻ stat đang được mở rộng xem chi tiết */
@@ -58,6 +59,7 @@ export function NotificationKpiSummary({
   stats: externalStats,
   variant = "soft-extruded",
   loading = false,
+  unavailable = false,
   className = "",
   selectedStat: propSelectedStat,
   onSelectStat,
@@ -73,6 +75,7 @@ export function NotificationKpiSummary({
   const activeStat = propSelectedStat !== undefined ? propSelectedStat : internalSelectedStat;
 
   const handleToggle = (key: NotificationStatKey) => {
+    if (unavailable || loading) return;
     const next = activeStat === key ? null : key;
     if (onSelectStat) {
       onSelectStat(next);
@@ -147,7 +150,7 @@ export function NotificationKpiSummary({
         <StatsCard
           variant={variant}
           title={t("notifications.stats.total")}
-          value={computedStats.total}
+          value={unavailable ? "—" : computedStats.total}
           icon={Bell}
           tone="primary"
           showGlow={false}
@@ -182,12 +185,12 @@ export function NotificationKpiSummary({
         <StatsCard
           variant={variant}
           title={t("notifications.stats.unread")}
-          value={computedStats.unread}
+          value={unavailable ? "—" : computedStats.unread}
           icon={Inbox}
           accentColor={computedStats.unread > 0 ? "var(--warning)" : undefined}
           showGlow={false}
           description={
-            computedStats.unread > 0
+            unavailable ? (isVietnamese ? "Chưa tải được dữ liệu" : "Data unavailable") : computedStats.unread > 0
               ? isVietnamese
                 ? "Cần xem và xử lý kịp thời"
                 : "Requires your attention"
@@ -221,7 +224,7 @@ export function NotificationKpiSummary({
         <StatsCard
           variant={variant}
           title={t("notifications.stats.ppeAlerts")}
-          value={computedStats.ppeAlerts}
+          value={unavailable ? "—" : computedStats.ppeAlerts}
           icon={ShieldAlert}
           accentColor={computedStats.ppeAlerts > 0 ? "var(--danger)" : undefined}
           showGlow={false}
@@ -256,14 +259,14 @@ export function NotificationKpiSummary({
         <StatsCard
           variant={variant}
           title={t("notifications.stats.resolved")}
-          value={`${readRate}%`}
+          value={unavailable ? "—" : `${readRate}%`}
           icon={CheckCircle2}
           tone="primary"
           showGlow={false}
-          progress={readRate}
-          progressLabel={`${readRate}%`}
+          progress={unavailable ? undefined : readRate}
+          progressLabel={unavailable ? undefined : `${readRate}%`}
           description={
-            isVietnamese
+            unavailable ? (isVietnamese ? "Chưa tải được dữ liệu" : "Data unavailable") : isVietnamese
               ? `${readRate}% thông báo đã đọc`
               : `${readRate}% notifications read`
           }
@@ -291,7 +294,7 @@ export function NotificationKpiSummary({
       </div>
 
       {/* Khung nội dung chi tiết hiển thị ra ngay dưới stats khi click vào */}
-      {activeStat && (
+      {activeStat && !unavailable && !loading && (
         <NotificationStatsDetailPanel
           activeStat={activeStat}
           notifications={notifications}

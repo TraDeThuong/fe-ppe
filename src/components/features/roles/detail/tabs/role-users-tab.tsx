@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SculptedModal } from "@/components/ui/modal";
+import { PhoneReveal } from "@/components/ui/phone-reveal";
 import {
   AssignUserRoleModal,
   UserDetailModal,
@@ -338,10 +339,15 @@ export function RoleUsersTab({
                     <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
                       <span className="inline-flex items-center gap-1.5">
                         <Phone className="h-3.5 w-3.5 shrink-0 text-primary/80" />
-                        <span className="font-mono">
-                          {user.phoneNumber ||
-                            (isVietnamese ? "Chưa có SĐT" : "No phone")}
-                        </span>
+                        <PhoneReveal
+                          key={user.id}
+                          phoneNumber={user.phoneNumber}
+                          isVietnamese={isVietnamese}
+                          emptyText={isVietnamese ? "Chưa có SĐT" : "No phone"}
+                          iconSize={12}
+                          buttonClassName="size-6"
+                          textClassName="font-mono text-[11px] font-semibold text-foreground"
+                        />
                       </span>
 
                       {is2FA ? (

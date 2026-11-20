@@ -22,6 +22,7 @@ import {
   Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PhoneReveal } from "@/components/ui/phone-reveal";
 import { useLocale } from "@/providers/locale-provider";
 import { ResourceAuditTrailCard } from "@/components/features/audit-logs";
 import { toast } from "@/lib/toast";
@@ -142,9 +143,17 @@ export function UserOverviewTab({
                   <Phone size={13} className="text-primary" />
                   {isVietnamese ? "Số điện thoại" : "Phone"}
                 </span>
-                <span className="font-mono font-bold text-foreground">
-                  {user.phoneNumber || (isVietnamese ? "Chưa cập nhật" : "Not set")}
-                </span>
+                <PhoneReveal
+                  key={user.id}
+                  phoneNumber={user.phoneNumber}
+                  isVietnamese={isVietnamese}
+                  emptyText={
+                    <span className="font-mono font-bold text-foreground">
+                      {isVietnamese ? "Chưa cập nhật" : "Not set"}
+                    </span>
+                  }
+                  textClassName="font-mono font-bold text-foreground"
+                />
               </div>
 
               {/* Role */}

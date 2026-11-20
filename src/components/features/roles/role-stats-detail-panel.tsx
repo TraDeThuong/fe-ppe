@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PhoneReveal } from "@/components/ui/phone-reveal";
 import { useUsers } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
 import type { PermissionDto, RoleDto, ResourceCategory, UserResponseDto } from "@/types";
@@ -745,8 +746,15 @@ export function RoleStatsDetailPanel({
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        <div className="hidden sm:block text-right text-[10px] text-muted-foreground">
-                          <p className="font-mono">{user.phoneNumber || "—"}</p>
+                        <div className="hidden sm:flex flex-col items-end gap-0.5 text-right text-[10px] text-muted-foreground">
+                          <PhoneReveal
+                            key={user.id}
+                            phoneNumber={user.phoneNumber}
+                            emptyText="—"
+                            iconSize={12}
+                            buttonClassName="size-6"
+                            textClassName="font-mono text-[11px] font-semibold text-foreground"
+                          />
                           <p>{t("roles.detail.created", { date: formatDate(user.createdAt, locale) })}</p>
                         </div>
 

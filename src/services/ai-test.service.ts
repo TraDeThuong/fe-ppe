@@ -230,7 +230,16 @@ export const aiTestService = {
   },
 
   async getLiveRuntimeConfig(): Promise<LiveRuntimeConfigResponse> {
-    return requestJson<LiveRuntimeConfigResponse>("/api/live/config");
+    const data = await requestJson<
+      LiveRuntimeConfigResponse & { supported?: boolean }
+    >("/api/live/config");
+    if (data && data.supported === false) {
+      throw new AiServiceHttpError(
+        404,
+        "Endpoint /api/live/config is not supported in Sandbox mode",
+      );
+    }
+    return data;
   },
 
   async updateLiveRuntimeConfig(

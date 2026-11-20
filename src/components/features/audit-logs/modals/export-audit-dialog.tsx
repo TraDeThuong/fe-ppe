@@ -35,16 +35,19 @@ export function ExportAuditDialog({
       activeFilters?.targetType ||
       activeFilters?.status ||
       activeFilters?.search ||
+      activeFilters?.startDate ||
+      activeFilters?.endDate ||
       (activeFilters?.category && activeFilters.category !== "ALL"),
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const { startDate: filterStart, endDate: filterEnd, ...restFilters } = activeFilters ?? {};
     await onExport({
       format,
-      fromDate: fromDate || undefined,
-      toDate: toDate || undefined,
-      ...(applyActiveFilters && activeFilters ? activeFilters : {}),
+      ...(applyActiveFilters ? restFilters : {}),
+      startDate: fromDate || (applyActiveFilters ? filterStart : undefined),
+      endDate: toDate || (applyActiveFilters ? filterEnd : undefined),
     });
     onOpenChange(false);
   };

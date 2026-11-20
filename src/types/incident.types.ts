@@ -181,6 +181,11 @@ export interface IncidentItem {
   assignments?: IncidentAssignmentItem[];
   comments?: IncidentCommentItem[];
   statusHistory?: IncidentStatusHistoryItem[];
+  _count?: {
+    evidences?: number;
+    comments?: number;
+    assignments?: number;
+  };
   confidence?: number;
   snapshotUrl?: string;
 }

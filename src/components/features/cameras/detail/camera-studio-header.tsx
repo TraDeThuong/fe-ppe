@@ -80,8 +80,8 @@ export function CameraStudioHeader({
       index: "01",
       label: "Live AI Monitor",
       caption: isVietnamese
-        ? "Luồng MJPEG, Hot Config & Telemetry thời gian thực"
-        : "Real-time MJPEG, Hot Config & Telemetry",
+        ? "Luồng MJPEG & Telemetry thời gian thực"
+        : "Real-time MJPEG & Telemetry",
       icon: <Radio className="size-4" />,
       badge: isLiveRunning ? "LIVE" : "IDLE",
       useAccent: isLiveRunning,

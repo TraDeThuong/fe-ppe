@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
   ShieldAlert,
+  ClipboardCheck,
   Images,
   Cctv,
   Building2,
@@ -62,6 +63,15 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: ShieldAlert,
     i18nKey: "nav.incidents",
     permission: "PPE_INCIDENT_READ",
+    group: "monitoring",
+  },
+  {
+    key: "incidentAssignments",
+    route: "/incidents/assignments",
+    icon: ClipboardCheck,
+    i18nKey: "nav.incidentAssignments",
+    permission: "PPE_INCIDENT_READ",
+    hidden: true,
     group: "monitoring",
   },
   {

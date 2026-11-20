@@ -126,457 +126,523 @@ export function SystemStatsDetailPanel({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border border-white/60 bg-surface/95 p-3.5 sm:p-5 shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)] transition-all duration-300 dark:border-black/60 dark:bg-card/95 animate-in fade-in slide-in-from-top-2">
-      {/* Specular Rim Top Highlight */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-6 sm:inset-x-8 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/30 to-transparent"
-      />
+<div className="relative overflow-hidden rounded-[26px] border border-white/70 bg-surface p-4 sm:p-6 shadow-[9px_9px_20px_var(--shadow-dark),-9px_-9px_20px_rgba(255,255,255,0.88)] transition-all duration-300 dark:border-white/[0.06] dark:bg-card dark:shadow-[9px_9px_22px_rgba(0,0,0,0.58),-4px_-4px_12px_rgba(255,255,255,0.03)] animate-in fade-in slide-in-from-top-2">
+  {/* Specular Rim Top Highlight */}
+  <div
+    aria-hidden="true"
+    className="pointer-events-none absolute inset-x-8 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/40 to-transparent"
+  />
 
-      {/* Header Toolbar */}
-      <div className="mb-3.5 flex items-center justify-between gap-2 border-b border-border/40 pb-3 dark:border-black/50">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] dark:bg-primary/15">
-            {activeStat === "flags" && <Cpu className="h-4 w-4 sm:h-4.5 sm:w-4.5" />}
-            {activeStat === "configs" && <Settings2 className="h-4 w-4 sm:h-4.5 sm:w-4.5" />}
-            {activeStat === "health" && <Server className="h-4 w-4 sm:h-4.5 sm:w-4.5" />}
-            {activeStat === "latency" && <Activity className="h-4 w-4 sm:h-4.5 sm:w-4.5" />}
-          </div>
-
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-xs sm:text-sm font-bold text-foreground truncate">
-                {activeStat === "flags" && t("system.detail.flagsTitle")}
-                {activeStat === "configs" && t("system.detail.configsTitle")}
-                {activeStat === "health" && t("system.detail.healthTitle")}
-                {activeStat === "latency" && t("system.detail.latencyTitle")}
-              </h3>
-
-              <Badge variant="outline" size="sm" className="font-mono text-[10px] sm:text-[11px] text-foreground px-2 py-0.5">
-                {activeStat === "flags" && `${activeFlagsCount}/${featureFlags.length}`}
-                {activeStat === "configs" && `${totalConfigs}`}
-                {activeStat === "health" && `${healthyCount}/${totalServices}`}
-                {activeStat === "latency" && `${avgLatency} ms`}
-              </Badge>
-            </div>
-            <p className="text-[11px] sm:text-xs text-muted-foreground truncate hidden sm:block">
-              {activeStat === "flags" && t("system.detail.flagsDesc")}
-              {activeStat === "configs" && t("system.detail.configsDesc")}
-              {activeStat === "health" && t("system.detail.healthDesc")}
-              {activeStat === "latency" && t("system.detail.latencyDesc")}
-            </p>
-          </div>
-        </div>
-
-        {/* Action Controls & Close */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {activeStat === "configs" && onCreateConfig && canManage && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onCreateConfig}
-              className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs text-primary hover:text-primary px-2 sm:px-3 rounded-lg"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t("system.detail.addConfig")}</span>
-            </Button>
-          )}
-
-          {activeStat === "health" && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={onRefreshHealth}
-              disabled={isRefreshingHealth}
-              className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs px-2 sm:px-3 rounded-lg"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingHealth ? "animate-spin" : ""}`} />
-              <span className="hidden sm:inline">{t("system.detail.refreshHealth")}</span>
-            </Button>
-          )}
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className="h-7 w-7 sm:h-8 sm:w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground"
-            title={t("system.detail.close")}
-            aria-label={t("system.detail.close")}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+  {/* =========================================================
+      1. HEADER TOOLBAR
+  ========================================================= */}
+  <div className="relative mb-5 flex flex-wrap items-center justify-between gap-3 pb-4 before:absolute before:inset-x-0 before:bottom-0 before:h-[1px] before:bg-gradient-to-r before:from-primary/35 before:via-border/45 before:to-transparent">
+    <div className="flex min-w-0 items-center gap-3.5">
+      {/* Extruded + Debossed Emblem Pod */}
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] border border-white/70 bg-surface text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.9)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.5)]">
+        <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-primary/[0.08] shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.75)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)]">
+          {activeStat === "flags" && <Cpu className="h-4.5 w-4.5" />}
+          {activeStat === "configs" && <Settings2 className="h-4.5 w-4.5" />}
+          {activeStat === "health" && <Server className="h-4.5 w-4.5" />}
+          {activeStat === "latency" && <Activity className="h-4.5 w-4.5" />}
         </div>
       </div>
 
-      {/* Body for: Feature Flags */}
-      {activeStat === "flags" && (
-        <div className="space-y-3.5">
-          {/* Quick Metrics Bar */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-            <div className="rounded-xl border border-border/30 bg-surface-elevated/40 p-2.5 dark:border-black/40">
-              <span className="text-[10px] sm:text-xs text-muted-foreground block">
-                {t("system.flags.enabled")}
-              </span>
-              <p className="font-mono text-base sm:text-lg font-bold text-success">
-                {activeFlagsCount}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/30 bg-surface-elevated/40 p-2.5 dark:border-black/40">
-              <span className="text-[10px] sm:text-xs text-muted-foreground block">
-                {t("system.flags.disabled")}
-              </span>
-              <p className="font-mono text-base sm:text-lg font-bold text-muted-foreground">
-                {featureFlags.length - activeFlagsCount}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/30 bg-surface-elevated/40 p-2.5 dark:border-black/40">
-              <span className="text-[10px] sm:text-xs text-muted-foreground block">
-                {isVietnamese ? "Cơ chế cập nhật" : "Update Mechanism"}
-              </span>
-              <p className="font-mono text-xs font-semibold text-primary mt-1">
-                Zero-Downtime Hot Toggle
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/30 bg-surface-elevated/40 p-2.5 dark:border-black/40">
-              <span className="text-[10px] sm:text-xs text-muted-foreground block">
-                {isVietnamese ? "Đồng bộ bộ nhớ đệm" : "Cache Invalidation"}
-              </span>
-              <p className="font-mono text-xs font-semibold text-foreground mt-1">
-                Redis Pub/Sub Realtime
-              </p>
-            </div>
-          </div>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="truncate text-sm font-extrabold tracking-tight text-foreground sm:text-[15px]">
+            {activeStat === "flags" && t("system.detail.flagsTitle")}
+            {activeStat === "configs" && t("system.detail.configsTitle")}
+            {activeStat === "health" && t("system.detail.healthTitle")}
+            {activeStat === "latency" && t("system.detail.latencyTitle")}
+          </h3>
 
-          {/* Interactive Flags List */}
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            {featureFlags.slice(0, 4).map((flag) => {
-              const isEnabled = Boolean(flag.value);
-              return (
-                <div
-                  key={flag.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-border/30 bg-background/50 p-2.5 sm:p-3 dark:border-black/50 dark:bg-card/70"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-xs font-bold text-primary truncate">
-                        {flag.key}
-                      </span>
-                      <span
-                        className={`inline-flex rounded-full px-1.5 py-0.2 text-[10px] font-semibold ${
-                          isEnabled
-                            ? "bg-success/15 text-success"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {isEnabled ? t("system.flags.enabled") : t("system.flags.disabled")}
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">
-                      {flag.description || "Feature flag toggle"}
-                    </p>
-                  </div>
-
-                  {onToggleFlag && (
-                    <button
-                      type="button"
-                      disabled={!canManage}
-                      onClick={() => onToggleFlag(flag, !isEnabled)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-40 ${
-                        isEnabled ? "bg-success" : "bg-muted"
-                      }`}
-                      aria-label={`Toggle ${flag.key}`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
-                          isEnabled ? "translate-x-4" : "translate-x-0"
-                        }`}
-                      />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Bottom Action Jump */}
-          <div className="flex justify-end pt-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onSelectTab("flags")}
-              className="text-xs gap-1.5 text-primary hover:text-primary rounded-xl"
-            >
-              <span>{t("system.detail.goToTab", { tab: t("system.tabs.featureFlags") })}</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          {/* Recessed Telemetry Badge */}
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-background/65 px-2.5 py-0.5 font-mono text-[11px] font-extrabold text-primary shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] dark:bg-black/30 dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_5px_var(--primary)]" />
+            {activeStat === "flags" && `${activeFlagsCount}/${featureFlags.length}`}
+            {activeStat === "configs" && `${totalConfigs}`}
+            {activeStat === "health" && `${healthyCount}/${totalServices}`}
+            {activeStat === "latency" && `${avgLatency} ms`}
+          </span>
         </div>
+        <p className="mt-0.5 hidden truncate text-xs text-muted-foreground sm:block">
+          {activeStat === "flags" && t("system.detail.flagsDesc")}
+          {activeStat === "configs" && t("system.detail.configsDesc")}
+          {activeStat === "health" && t("system.detail.healthDesc")}
+          {activeStat === "latency" && t("system.detail.latencyDesc")}
+        </p>
+      </div>
+    </div>
+
+    {/* Action Controls & Close */}
+    <div className="flex shrink-0 items-center gap-2.5">
+      {activeStat === "configs" && onCreateConfig && canManage && (
+        <button
+          type="button"
+          onClick={onCreateConfig}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[13px] border border-primary/25 bg-primary/[0.08] px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:bg-primary/15 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:bg-primary/15 dark:shadow-[4px_4px_10px_rgba(0,0,0,0.5)]"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">{t("system.detail.addConfig")}</span>
+        </button>
       )}
 
-      {/* Body for: System Configs */}
-      {activeStat === "configs" && (
-        <div className="space-y-3.5">
-          {/* Categories Grid */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-            <div className="rounded-xl border border-border/30 bg-surface-elevated/40 p-2.5 dark:border-black/40">
-              <span className="text-[10px] sm:text-xs text-muted-foreground block">GENERAL</span>
-              <p className="font-mono text-base sm:text-lg font-bold text-foreground">
-                {categoryStats.counts.GENERAL || 0}
-              </p>
-            </div>
-            <div className="rounded-xl border border-danger/30 bg-danger/5 p-2.5 dark:border-danger/20">
-              <span className="text-[10px] sm:text-xs text-danger font-medium block">SECURITY</span>
-              <p className="font-mono text-base sm:text-lg font-bold text-danger">
-                {categoryStats.counts.SECURITY || 0}
-              </p>
-            </div>
-            <div className="rounded-xl border border-info/30 bg-info/5 p-2.5 dark:border-info/20">
-              <span className="text-[10px] sm:text-xs text-info font-medium block">INTEGRATION</span>
-              <p className="font-mono text-base sm:text-lg font-bold text-info">
-                {categoryStats.counts.INTEGRATION || 0}
-              </p>
-            </div>
-            <div className="rounded-xl border border-primary/30 bg-primary/5 p-2.5 dark:border-primary/20">
-              <span className="text-[10px] sm:text-xs text-primary font-medium block">FEATURE_FLAG</span>
-              <p className="font-mono text-base sm:text-lg font-bold text-primary">
-                {categoryStats.counts.FEATURE_FLAG || 0}
-              </p>
-            </div>
-          </div>
-
-          {/* Scope Summary & Quick Note */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-border/30 bg-background/50 p-3 text-xs dark:border-black/40 dark:bg-card/70">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-1 text-muted-foreground">
-                <Globe className="h-3.5 w-3.5 text-info" />
-                <strong className="text-foreground">{categoryStats.publicCount}</strong> {t("system.detail.publicScope")}
-              </span>
-              <span className="inline-flex items-center gap-1 text-muted-foreground">
-                <Lock className="h-3.5 w-3.5 text-warning" />
-                <strong className="text-foreground">{categoryStats.privateCount}</strong> {t("system.detail.privateScope")}
-              </span>
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              {isVietnamese
-                ? "Dữ liệu được mã hóa AES-256 đối với các biến nhạy cảm."
-                : "Sensitive keys are encrypted at rest with AES-256."}
-            </p>
-          </div>
-
-          {/* Bottom Action Jump */}
-          <div className="flex items-center justify-between pt-1">
-            {onCreateConfig && canManage && (
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                onClick={onCreateConfig}
-                className="text-xs gap-1.5 rounded-xl"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>{t("system.addConfig")}</span>
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onSelectTab("configs")}
-              className="text-xs gap-1.5 text-primary hover:text-primary rounded-xl ml-auto"
-            >
-              <span>{t("system.detail.goToTab", { tab: t("system.tabs.configs") })}</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Body for: Microservices Health */}
       {activeStat === "health" && (
-        <div className="space-y-3.5">
-          {/* Health Filter Chips */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <Button
-              type="button"
-              variant={healthFilter === "ALL" ? "primary" : "outline"}
-              size="sm"
-              onClick={() => setHealthFilter("ALL")}
-              className="h-7 text-xs rounded-lg px-2.5"
-            >
-              {t("system.health.filterAll", { count: services.length })}
-            </Button>
-            <Button
-              type="button"
-              variant={healthFilter === "SERVICE" ? "primary" : "outline"}
-              size="sm"
-              onClick={() => setHealthFilter("SERVICE")}
-              className="h-7 text-xs rounded-lg px-2.5"
-            >
-              {t("system.health.filterServices", {
-                count: services.filter((s) => (s.type || "SERVICE") === "SERVICE").length,
-              })}
-            </Button>
-            <Button
-              type="button"
-              variant={healthFilter === "INFRASTRUCTURE" ? "primary" : "outline"}
-              size="sm"
-              onClick={() => setHealthFilter("INFRASTRUCTURE")}
-              className="h-7 text-xs rounded-lg px-2.5"
-            >
-              {t("system.health.filterInfra", {
-                count: services.filter((s) => s.type === "INFRASTRUCTURE").length,
-              })}
-            </Button>
-          </div>
+        <button
+          type="button"
+          onClick={onRefreshHealth}
+          disabled={isRefreshingHealth}
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-foreground shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:text-primary active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] disabled:opacity-50 dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
+        >
+          <RefreshCw
+            className={`h-3.5 w-3.5 ${isRefreshingHealth ? "animate-spin text-primary" : ""}`}
+          />
+          <span className="hidden sm:inline">{t("system.detail.refreshHealth")}</span>
+        </button>
+      )}
 
-          {/* Compact Services List */}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 max-h-56 overflow-y-auto pr-1">
-            {filteredServices.map((svc) => (
-              <div
-                key={svc.serviceCode}
-                className="flex items-center justify-between gap-2 rounded-xl border border-border/30 bg-background/50 p-2.5 text-xs dark:border-black/40 dark:bg-card/70"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={onClose}
+        title={t("system.detail.close")}
+        aria-label={t("system.detail.close")}
+        className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-[13px] border border-white/70 bg-surface text-muted-foreground shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:text-foreground active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  </div>
+
+  {/* =========================================================
+      2. BODY FOR: FEATURE FLAGS
+  ========================================================= */}
+  {activeStat === "flags" && (
+    <div className="space-y-4">
+      {/* Quick Metrics Tray */}
+      <div className="grid grid-cols-2 gap-3 rounded-[20px] bg-background/60 p-3 shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_rgba(255,255,255,0.85)] dark:bg-black/30 dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.7)] sm:grid-cols-4">
+        <div className="rounded-[15px] border border-white/60 bg-surface p-3 shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-white/[0.05] dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5)]">
+          <span className="block text-[10.5px] font-bold text-muted-foreground">
+            {t("system.flags.enabled")}
+          </span>
+          <p className="mt-1 font-mono text-lg font-black tabular-nums text-primary">
+            {activeFlagsCount}
+          </p>
+        </div>
+
+        <div className="rounded-[15px] border border-white/60 bg-surface p-3 shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-white/[0.05] dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5)]">
+          <span className="block text-[10.5px] font-bold text-muted-foreground">
+            {t("system.flags.disabled")}
+          </span>
+          <p className="mt-1 font-mono text-lg font-black tabular-nums text-muted-foreground">
+            {featureFlags.length - activeFlagsCount}
+          </p>
+        </div>
+
+        <div className="rounded-[15px] border border-white/60 bg-surface p-3 shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-white/[0.05] dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5)]">
+          <span className="block text-[10.5px] font-bold text-muted-foreground">
+            {isVietnamese ? "Cơ chế cập nhật" : "Update Mechanism"}
+          </span>
+          <p className="mt-1.5 font-mono text-xs font-extrabold text-primary">
+            Zero-Downtime Hot Toggle
+          </p>
+        </div>
+
+        <div className="rounded-[15px] border border-white/60 bg-surface p-3 shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-white/[0.05] dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5)]">
+          <span className="block text-[10.5px] font-bold text-muted-foreground">
+            {isVietnamese ? "Đồng bộ bộ nhớ đệm" : "Cache Invalidation"}
+          </span>
+          <p className="mt-1.5 font-mono text-xs font-extrabold text-foreground">
+            Redis Pub/Sub Realtime
+          </p>
+        </div>
+      </div>
+
+      {/* Interactive Flags List */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {featureFlags.slice(0, 4).map((flag) => {
+          const isEnabled = Boolean(flag.value);
+          return (
+            <div
+              key={flag.id}
+              className={`flex items-center justify-between gap-3 rounded-[18px] border p-3.5 transition-all duration-200 ${
+                isEnabled
+                  ? "border-primary/25 bg-surface shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] dark:border-primary/20 dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.5)]"
+                  : "border-white/60 bg-surface shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_rgba(255,255,255,0.8)] dark:border-white/[0.05] dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.45)]"
+              }`}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="truncate rounded-md bg-background/65 px-2 py-0.5 font-mono text-xs font-extrabold text-primary shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark)] dark:bg-black/30">
+                    {flag.key}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold shadow-[inset_1px_1px_3px_var(--shadow-dark)] dark:shadow-[inset_1px_1px_4px_rgba(0,0,0,0.65)] ${
+                      isEnabled
+                        ? "bg-primary/10 text-primary"
+                        : "bg-background/70 text-muted-foreground dark:bg-black/35"
+                    }`}
+                  >
                     <span
-                      className={`h-2 w-2 rounded-full shrink-0 ${
-                        svc.status === "HEALTHY"
-                          ? "bg-success animate-pulse"
-                          : svc.status === "DEGRADED"
-                          ? "bg-warning"
-                          : "bg-danger"
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        isEnabled ? "bg-primary" : "bg-muted-foreground/40"
                       }`}
                     />
-                    <p className="font-semibold text-foreground truncate">{svc.name}</p>
-                  </div>
-                  <span className="font-mono text-[11px] text-muted-foreground block truncate">
-                    {svc.serviceCode} :{svc.port}
+                    {isEnabled
+                      ? t("system.flags.enabled")
+                      : t("system.flags.disabled")}
                   </span>
                 </div>
+                <p className="mt-1.5 truncate text-[11.5px] text-muted-foreground">
+                  {flag.description || "Feature flag toggle"}
+                </p>
+              </div>
 
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  {getStatusBadge(svc.status)}
-                  <span className="font-mono text-[10px] text-muted-foreground">
-                    {svc.latencyMs} ms
+              {onToggleFlag && (
+                <button
+                  type="button"
+                  disabled={!canManage}
+                  onClick={() => onToggleFlag(flag, !isEnabled)}
+                  aria-label={`Toggle ${flag.key}`}
+                  className={`relative inline-flex h-[24px] w-[44px] shrink-0 cursor-pointer items-center rounded-full transition-all duration-300 focus:outline-none disabled:opacity-40 ${
+                    isEnabled
+                      ? "bg-primary/15 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.75)]"
+                      : "bg-background/80 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] dark:bg-black/45 dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.75)]"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none flex h-[18px] w-[18px] items-center justify-center rounded-full transition-all duration-300 ${
+                      isEnabled
+                        ? "translate-x-[22px] bg-primary shadow-[1.5px_1.5px_4px_rgba(0,0,0,0.3)]"
+                        : "translate-x-[3px] bg-surface shadow-[1.5px_1.5px_4px_var(--shadow-dark)] dark:bg-card"
+                    }`}
+                  >
+                    <span
+                      className={`h-1 w-1 rounded-full ${
+                        isEnabled ? "bg-white" : "bg-muted-foreground/30"
+                      }`}
+                    />
                   </span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Bottom Actions */}
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-[11px] text-muted-foreground">
-              {isVietnamese ? "Tần suất nhịp tim tự động: 30s" : "Heartbeat cycle: 30s interval"}
-            </span>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onSelectTab("health")}
-              className="text-xs gap-1.5 text-primary hover:text-primary rounded-xl"
-            >
-              <span>{t("system.detail.goToTab", { tab: t("system.tabs.health") })}</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Body for: Average Latency & Platform */}
-      {activeStat === "latency" && (
-        <div className="space-y-3.5">
-          {/* Latency Thresholds */}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
-            <div className="rounded-xl border border-success/30 bg-success/5 p-3 dark:border-success/20">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-success">
-                  {t("system.detail.fastLatency")}
-                </span>
-                <Activity className="h-4 w-4 text-success" />
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Traefik Reverse Proxy, Redis Cache, PostgreSQL Local Socket
-              </p>
+                </button>
+              )}
             </div>
+          );
+        })}
+      </div>
 
-            <div className="rounded-xl border border-warning/30 bg-warning/5 p-3 dark:border-warning/20">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-warning">
-                  {t("system.detail.moderateLatency")}
-                </span>
-                <Clock className="h-4 w-4 text-warning" />
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Microservices REST calls, Kafka broker ACK, MinIO S3 I/O
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-danger/30 bg-danger/5 p-3 dark:border-danger/20">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-danger">
-                  {t("system.detail.slowLatency")}
-                </span>
-                <ShieldAlert className="h-4 w-4 text-danger" />
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Deep AI Model Inference, Large File Video Transcoding
-              </p>
-            </div>
-          </div>
-
-          {/* Infrastructure Nodes Bar */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3 text-xs">
-            <div className="flex items-center gap-2 rounded-xl border border-border/30 bg-surface-elevated/40 p-2.5 dark:border-black/40">
-              <Database className="h-4 w-4 text-primary shrink-0" />
-              <div className="truncate">
-                <span className="text-muted-foreground text-[10px] block">PostgreSQL</span>
-                <span className="font-mono font-semibold text-foreground">Port 5432</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 rounded-xl border border-border/30 bg-surface-elevated/40 p-2.5 dark:border-black/40">
-              <Radio className="h-4 w-4 text-primary shrink-0" />
-              <div className="truncate">
-                <span className="text-muted-foreground text-[10px] block">Kafka Bus</span>
-                <span className="font-mono font-semibold text-foreground">Port 9092</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 rounded-xl border border-border/30 bg-surface-elevated/40 p-2.5 dark:border-black/40">
-              <HardDrive className="h-4 w-4 text-primary shrink-0" />
-              <div className="truncate">
-                <span className="text-muted-foreground text-[10px] block">MinIO S3</span>
-                <span className="font-mono font-semibold text-foreground">Port 9000</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 rounded-xl border border-border/30 bg-surface-elevated/40 p-2.5 dark:border-black/40">
-              <Server className="h-4 w-4 text-primary shrink-0" />
-              <div className="truncate">
-                <span className="text-muted-foreground text-[10px] block">Traefik</span>
-                <span className="font-mono font-semibold text-foreground">Port 80/443</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Action Jump */}
-          <div className="flex justify-end pt-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onSelectTab("platform")}
-              className="text-xs gap-1.5 text-primary hover:text-primary rounded-xl"
-            >
-              <span>{t("system.detail.goToTab", { tab: t("system.tabs.platform") })}</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* Bottom Action Jump */}
+      <div className="flex justify-end pt-1">
+        <button
+          type="button"
+          onClick={() => onSelectTab("flags")}
+          className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:brightness-105 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
+        >
+          <span>
+            {t("system.detail.goToTab", {
+              tab: t("system.tabs.featureFlags"),
+            })}
+          </span>
+          <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
     </div>
+  )}
+
+  {/* =========================================================
+      3. BODY FOR: SYSTEM CONFIGS
+  ========================================================= */}
+  {activeStat === "configs" && (
+    <div className="space-y-4">
+      {/* Categories Recessed Well */}
+      <div className="grid grid-cols-2 gap-3 rounded-[20px] bg-background/60 p-3 shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_rgba(255,255,255,0.85)] dark:bg-black/30 dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.7)] sm:grid-cols-4">
+        <div className="rounded-[15px] border border-white/60 bg-surface p-3 shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-white/[0.05] dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5)]">
+          <span className="block text-[10.5px] font-extrabold tracking-wider text-muted-foreground">
+            GENERAL
+          </span>
+          <p className="mt-1 font-mono text-lg font-black tabular-nums text-foreground">
+            {categoryStats.counts.GENERAL || 0}
+          </p>
+        </div>
+
+        <div className="rounded-[15px] border border-accent/25 bg-surface p-3 shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-accent/20 dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5)]">
+          <span className="block text-[10.5px] font-extrabold tracking-wider text-accent">
+            SECURITY
+          </span>
+          <p className="mt-1 font-mono text-lg font-black tabular-nums text-accent">
+            {categoryStats.counts.SECURITY || 0}
+          </p>
+        </div>
+
+        <div className="rounded-[15px] border border-white/60 bg-surface p-3 shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-white/[0.05] dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5)]">
+          <span className="block text-[10.5px] font-extrabold tracking-wider text-foreground/80">
+            INTEGRATION
+          </span>
+          <p className="mt-1 font-mono text-lg font-black tabular-nums text-foreground">
+            {categoryStats.counts.INTEGRATION || 0}
+          </p>
+        </div>
+
+        <div className="rounded-[15px] border border-primary/25 bg-surface p-3 shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-primary/20 dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5)]">
+          <span className="block text-[10.5px] font-extrabold tracking-wider text-primary">
+            FEATURE_FLAG
+          </span>
+          <p className="mt-1 font-mono text-lg font-black tabular-nums text-primary">
+            {categoryStats.counts.FEATURE_FLAG || 0}
+          </p>
+        </div>
+      </div>
+
+      {/* Scope Summary & Security Plaque */}
+      <div className="flex flex-col justify-between gap-2.5 rounded-[16px] bg-background/60 px-4 py-3 text-xs shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_rgba(255,255,255,0.85)] dark:bg-black/30 dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.7)] sm:flex-row sm:items-center">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-2.5 py-1 text-muted-foreground shadow-[2px_2px_4px_var(--shadow-dark)] dark:bg-card dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)]">
+            <Globe className="h-3.5 w-3.5 text-primary" />
+            <strong className="font-mono font-extrabold text-foreground">
+              {categoryStats.publicCount}
+            </strong>{" "}
+            {t("system.detail.publicScope")}
+          </span>
+
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-2.5 py-1 text-muted-foreground shadow-[2px_2px_4px_var(--shadow-dark)] dark:bg-card dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)]">
+            <Lock className="h-3.5 w-3.5 text-accent" />
+            <strong className="font-mono font-extrabold text-foreground">
+              {categoryStats.privateCount}
+            </strong>{" "}
+            {t("system.detail.privateScope")}
+          </span>
+        </div>
+
+        <p className="text-[11px] font-medium text-muted-foreground">
+          {isVietnamese
+            ? "Dữ liệu được mã hóa AES-256 đối với các biến nhạy cảm."
+            : "Sensitive keys are encrypted at rest with AES-256."}
+        </p>
+      </div>
+
+      {/* Bottom Action Jump */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+        {onCreateConfig && canManage && (
+          <button
+            type="button"
+            onClick={onCreateConfig}
+            className="inline-flex h-9 items-center gap-1.5 rounded-[13px] bg-primary px-3.5 text-xs font-extrabold text-primary-foreground shadow-[4px_4px_12px_rgba(var(--primary-rgb),0.35),-3px_-3px_8px_rgba(255,255,255,0.7)] transition-all hover:brightness-105 active:scale-[0.98]"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>{t("system.addConfig")}</span>
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={() => onSelectTab("configs")}
+          className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:brightness-105 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
+        >
+          <span>
+            {t("system.detail.goToTab", { tab: t("system.tabs.configs") })}
+          </span>
+          <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  )}
+
+  {/* =========================================================
+      4. BODY FOR: MICROSERVICES HEALTH
+  ========================================================= */}
+  {activeStat === "health" && (
+    <div className="space-y-4">
+      {/* Recessed Filter Keys */}
+      <div className="inline-flex flex-wrap items-center gap-1.5 rounded-[16px] bg-background/60 p-1.5 shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_rgba(255,255,255,0.85)] dark:bg-black/30 dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.7)]">
+        {[
+          {
+            key: "ALL" as const,
+            label: t("system.health.filterAll", { count: services.length }),
+          },
+          {
+            key: "SERVICE" as const,
+            label: t("system.health.filterServices", {
+              count: services.filter((s) => (s.type || "SERVICE") === "SERVICE")
+                .length,
+            }),
+          },
+          {
+            key: "INFRASTRUCTURE" as const,
+            label: t("system.health.filterInfra", {
+              count: services.filter((s) => s.type === "INFRASTRUCTURE").length,
+            }),
+          },
+        ].map((tab) => {
+          const active = healthFilter === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setHealthFilter(tab.key)}
+              className={`h-8 rounded-[11px] px-3 text-xs font-extrabold transition-all duration-150 ${
+                active
+                  ? "bg-primary text-primary-foreground shadow-[3px_3px_8px_rgba(0,0,0,0.2)]"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Recessed Services Container */}
+      <div className="rounded-[20px] bg-background/60 p-3 shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_rgba(255,255,255,0.85)] dark:bg-black/30 dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.7)]">
+        <div className="grid max-h-60 grid-cols-1 gap-2.5 overflow-y-auto p-0.5 pr-1.5 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredServices.map((svc) => (
+            <div
+              key={svc.serviceCode}
+              className="flex items-center justify-between gap-2.5 rounded-[15px] border border-white/60 bg-surface p-3 text-xs shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.85)] transition-transform duration-200 hover:-translate-y-0.5 dark:border-white/[0.05] dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5)]"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`h-2 w-2 shrink-0 rounded-full ${
+                      svc.status === "HEALTHY"
+                        ? "animate-pulse bg-primary shadow-[0_0_6px_var(--primary)]"
+                        : svc.status === "DEGRADED"
+                          ? "bg-accent"
+                          : "bg-muted-foreground"
+                    }`}
+                  />
+                  <p className="truncate font-extrabold text-foreground">
+                    {svc.name}
+                  </p>
+                </div>
+                <span className="mt-1 inline-block rounded bg-background/65 px-1.5 py-0.2 font-mono text-[10px] font-bold text-muted-foreground shadow-[inset_1px_1px_2px_var(--shadow-dark)] dark:bg-black/30">
+                  {svc.serviceCode} :{svc.port}
+                </span>
+              </div>
+
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                {getStatusBadge(svc.status)}
+                <span className="font-mono text-[10px] font-bold text-muted-foreground">
+                  {svc.latencyMs} ms
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Bottom Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+        <span className="rounded-lg bg-background/60 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark)] dark:bg-black/30">
+          {isVietnamese
+            ? "Tần suất nhịp tim tự động: 30s"
+            : "Heartbeat cycle: 30s interval"}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => onSelectTab("health")}
+          className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:brightness-105 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
+        >
+          <span>
+            {t("system.detail.goToTab", { tab: t("system.tabs.health") })}
+          </span>
+          <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  )}
+
+  {/* =========================================================
+      5. BODY FOR: AVERAGE LATENCY & PLATFORM
+  ========================================================= */}
+  {activeStat === "latency" && (
+    <div className="space-y-4">
+      {/* Latency Thresholds */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-[18px] border border-primary/25 bg-surface p-3.5 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] dark:border-primary/20 dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.5)]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-extrabold text-primary">
+              {t("system.detail.fastLatency")}
+            </span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark)]">
+              <Activity className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+            Traefik Reverse Proxy, Redis Cache, PostgreSQL Local Socket
+          </p>
+        </div>
+
+        <div className="rounded-[18px] border border-white/60 bg-surface p-3.5 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] dark:border-white/[0.05] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.5)]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-extrabold text-foreground">
+              {t("system.detail.moderateLatency")}
+            </span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-background/70 text-foreground/80 shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark)] dark:bg-black/30">
+              <Clock className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+            Microservices REST calls, Kafka broker ACK, MinIO S3 I/O
+          </p>
+        </div>
+
+        <div className="rounded-[18px] border border-accent/25 bg-surface p-3.5 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] dark:border-accent/20 dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.5)]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-extrabold text-accent">
+              {t("system.detail.slowLatency")}
+            </span>
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent/15 text-accent shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark)]">
+              <ShieldAlert className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+            Deep AI Model Inference, Large File Video Transcoding
+          </p>
+        </div>
+      </div>
+
+      {/* Infrastructure Nodes Recessed Bar */}
+      <div className="grid grid-cols-2 gap-3 rounded-[20px] bg-background/60 p-3 text-xs shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_rgba(255,255,255,0.85)] dark:bg-black/30 dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.7)] sm:grid-cols-4">
+        {[
+          { label: "PostgreSQL", port: "Port 5432", Icon: Database },
+          { label: "Kafka Bus", port: "Port 9092", Icon: Radio },
+          { label: "MinIO S3", port: "Port 9000", Icon: HardDrive },
+          { label: "Traefik", port: "Port 80/443", Icon: Server },
+        ].map(({ label, port, Icon }) => (
+          <div
+            key={label}
+            className="flex items-center gap-2.5 rounded-[15px] border border-white/60 bg-surface p-3 shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-white/[0.05] dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5)]"
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-primary/[0.08] text-primary shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark)]">
+              <Icon className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 truncate">
+              <span className="block text-[10px] font-bold text-muted-foreground">
+                {label}
+              </span>
+              <span className="font-mono text-xs font-extrabold text-foreground">
+                {port}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom Action Jump */}
+      <div className="flex justify-end pt-1">
+        <button
+          type="button"
+          onClick={() => onSelectTab("platform")}
+          className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:brightness-105 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
+        >
+          <span>
+            {t("system.detail.goToTab", { tab: t("system.tabs.platform") })}
+          </span>
+          <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  )}
+</div>
   );
 }

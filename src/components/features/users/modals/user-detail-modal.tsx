@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { SculptedModal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { PhoneReveal } from "@/components/ui/phone-reveal";
 import {
   useUserSessions,
   useRevokeUserSession,
@@ -219,9 +220,19 @@ export function UserDetailModal({
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Phone className="h-3.5 w-3.5" /> {isVietnamese ? "Số điện thoại" : "Phone Number"}
               </span>
-              <p className="font-semibold text-foreground">
-                {user.phoneNumber || (isVietnamese ? "Chưa cung cấp" : "Not provided")}
-              </p>
+              <div className="pt-0.5">
+                <PhoneReveal
+                  key={user.id}
+                  phoneNumber={user.phoneNumber}
+                  isVietnamese={isVietnamese}
+                  emptyText={
+                    <p className="font-semibold text-foreground">
+                      {isVietnamese ? "Chưa cung cấp" : "Not provided"}
+                    </p>
+                  }
+                  textClassName="text-sm font-mono font-semibold text-foreground"
+                />
+              </div>
             </div>
 
             <div className="rounded-xl border border-border/40 bg-card p-3 shadow-nm-pressed space-y-1">

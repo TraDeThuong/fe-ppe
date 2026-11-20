@@ -6,14 +6,7 @@ import { mapTableSort } from "@/lib/table-utils";
 import { useTableState } from "@/hooks/use-table-state";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  Plus,
-  RefreshCw,
-  ShieldAlert,
-  Trash2,
-  UserCheck,
-} from "lucide-react";
-import { PageHeader } from "@/components/features/app-shell/page-header";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { useLocale } from "@/providers/locale-provider";
@@ -26,13 +19,14 @@ import { incidentService } from "@/services/incident.service";
 import {
   dispatchIncidentsWithSignal,
   resolveIncidentsWithReport,
+  type DispatchIncidentsResult,
 } from "@/lib/incident-actions";
+import { IncidentDispatchResultPanel } from "@/components/features/incidents/incident-dispatch-result-panel";
+import { runInBatches } from "@/lib/incident-workflow";
 import {
-  isIncidentAssignedToUser,
-  runInBatches,
-} from "@/lib/incident-workflow";
-import {
+  IncidentConsoleHeader,
   IncidentKpiSummary,
+  IncidentAssignmentOverviewCard,
   IncidentFilterToolbar,
   IncidentTable,
   ReviewIncidentModal,
@@ -47,7 +41,9 @@ import {
 } from "@/components/features/incidents";
 import {
   useIncidents,
+  useHydratedIncidents,
   useIncidentStatusCounts,
+  useNotifications,
   useCreateIncident,
   useUpdateIncident,
   useReviewIncident,
@@ -58,6 +54,7 @@ import {
   useDeleteIncident,
 } from "@/hooks";
 import { useCan } from "@/hooks/use-can";
+import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useSite } from "@/contexts/SiteContext";
 import type { IncidentItem, IncidentQueryParams } from "@/types";
 
@@ -84,10 +81,10 @@ export default function IncidentsContent() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { siteId: globalSiteId, setSiteId: setGlobalSiteId } = useSite();
+  const { getSiteName } = useEntityLookup();
   const { user } = useAuth();
   const { lastAlert, isConnected } = useRealtime();
   const isOfficerRole = (user?.role || "").toUpperCase() === "SAFETY_OFFICER";
-  const [assignedToMeOnly, setAssignedToMeOnly] = useState(false);
 
   const urlCameraId = searchParams.get("cameraId") || "";
   const urlSiteId = searchParams.get("siteId") || "";
@@ -215,34 +212,36 @@ export default function IncidentsContent() {
   };
 
   const { data: incidentData, isLoading, refetch, isRefetching, error } = useIncidents(queryParams);
-  const incidents = incidentData?.items || [];
+  const rawIncidents = useMemo(() => incidentData?.items || [], [incidentData?.items]);
   const meta = incidentData?.meta;
 
-  const displayedIncidents = useMemo(() => {
-    if (!assignedToMeOnly || !user?.id) return incidents;
-    return incidents.filter((inc) => isIncidentAssignedToUser(inc, user.id));
-  }, [assignedToMeOnly, incidents, user?.id]);
-
-  // Tự động làm mới dữ liệu thời gian thực khi AI Camera phát hiện vi phạm PPE mới
+  // Tự động làm mới dữ liệu thời gian thực (debounce 1.5s để tránh bão request khi AI bắn nhiều cảnh báo liên tiếp)
   useEffect(() => {
     if (!lastAlert) return;
     if (
       lastAlert.type === "notification:ppe_violation" ||
       lastAlert.type === "notification:new"
     ) {
-      queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
+      const invalidateTimer = setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
+      }, 1500);
 
       const alertData = lastAlert.data as Record<string, unknown> | undefined;
       const newId = (alertData?.incidentId as string) || (alertData?.id as string);
+      let highlightTimer: ReturnType<typeof setTimeout> | undefined;
       if (newId) {
         setHighlightedIncidentId(newId);
-        const timer = setTimeout(() => setHighlightedIncidentId(null), 8000);
-        return () => clearTimeout(timer);
+        highlightTimer = setTimeout(() => setHighlightedIncidentId(null), 8000);
       }
+
+      return () => {
+        clearTimeout(invalidateTimer);
+        if (highlightTimer) clearTimeout(highlightTimer);
+      };
     }
   }, [lastAlert, queryClient]);
 
-  // KPI summary nhẹ từ /incidents/status-counts (không fetch 100 bản ghi dư thừa khi chưa mở rộng)
+  // KPI summary nhẹ từ /incidents/status-counts
   const { data: statusCounts, isLoading: statusCountsLoading } =
     useIncidentStatusCounts({
       siteId: siteIdFilter || undefined,
@@ -251,21 +250,78 @@ export default function IncidentsContent() {
       toDate,
     });
 
-  // Chỉ lazy-load 100 bản ghi chi tiết khi người dùng mở rộng một thẻ KPI để xem breakdown
+  // Tải 100 bản ghi tổng quan cho Card Điều phối & KPI Breakdown (không polling nền 15s, chia sẻ cache với /incidents/assignments)
   const { data: statsOverviewData, isLoading: overviewLoading } = useIncidents(
     {
+      page: 1,
       siteId: siteIdFilter || undefined,
       cameraId: cameraIdFilter || undefined,
       limit: 100,
       fromDate,
       toDate,
+      sortBy: "detectedAt",
+      sortOrder: "desc",
     },
-    { enabled: Boolean(selectedStat) },
+    {
+      staleTime: 60 * 1000,
+      refetchInterval: false,
+    },
   );
-  const overviewIncidents = statsOverviewData?.items || incidents;
+  const rawOverviewIncidents = useMemo(
+    () => statsOverviewData?.items || rawIncidents,
+    [statsOverviewData?.items, rawIncidents],
+  );
+
+  // Gom 1 lần hydrate duy nhất (ưu tiên các dòng đang hiện trên bảng trước, sau đó đến danh sách tổng quan)
+  const combinedRawIncidents = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: IncidentItem[] = [];
+    for (const item of rawIncidents) {
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        merged.push(item);
+      }
+    }
+    for (const item of rawOverviewIncidents) {
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        merged.push(item);
+      }
+    }
+    return merged;
+  }, [rawIncidents, rawOverviewIncidents]);
+
+  const {
+    incidents: hydratedCombinedIncidents,
+    isHydratingAssignments: overviewHydrating,
+    usersById,
+    siteManagersBySiteId,
+  } = useHydratedIncidents(combinedRawIncidents, {
+    includeClosed: isOfficerRole,
+  });
+
+  const hydratedById = useMemo(
+    () => new Map(hydratedCombinedIncidents.map((item) => [item.id, item])),
+    [hydratedCombinedIncidents],
+  );
+
+  const incidents = useMemo(
+    () => rawIncidents.map((item) => hydratedById.get(item.id) ?? item),
+    [rawIncidents, hydratedById],
+  );
+
+  const overviewIncidents = useMemo(
+    () => rawOverviewIncidents.map((item) => hydratedById.get(item.id) ?? item),
+    [rawOverviewIncidents, hydratedById],
+  );
 
   // Mutations
   const can = useCan();
+  const canReadNotifications = can("NOTIFICATION_READ");
+  const { data: notificationsData } = useNotifications(
+    { page: 1, limit: 100, channel: "IN_APP" },
+    { enabled: isOfficerRole && canReadNotifications },
+  );
   const canCreateIncident = can("PPE_INCIDENT_MANAGE");
   const canCloseIncident = can("PPE_INCIDENT_MANAGE");
   const createMutation = useCreateIncident();
@@ -288,14 +344,24 @@ export default function IncidentsContent() {
   const [batchRejectNote, setBatchRejectNote] = useState("");
   const [batchRejectError, setBatchRejectError] = useState<string | null>(null);
   const [batchDispatchItems, setBatchDispatchItems] = useState<IncidentItem[] | null>(null);
+  const [dispatchResult, setDispatchResult] = useState<DispatchIncidentsResult | null>(null);
   const [batchResolveItems, setBatchResolveItems] = useState<IncidentItem[] | null>(null);
+  const [batchCloseItems, setBatchCloseItems] = useState<IncidentItem[] | null>(null);
+  const [batchCloseNote, setBatchCloseNote] = useState("");
   const [batchActionPending, setBatchActionPending] = useState(false);
   const [singleActionPending, setSingleActionPending] = useState(false);
 
-  const invalidateAllIncidentQueries = () => {
+  // Chỉ invalidate danh sách, bộ đếm & đúng các incidentId vừa bị tác động (không xóa sạch cache assignments của 100 hồ sơ khác)
+  const invalidateAllIncidentQueries = (affectedIds?: readonly string[]) => {
     void queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
     void queryClient.invalidateQueries({ queryKey: incidentKeys.statusCountsRoot() });
     void queryClient.invalidateQueries({ queryKey: reportingKeys.all });
+    if (affectedIds?.length) {
+      for (const id of affectedIds) {
+        void queryClient.invalidateQueries({ queryKey: incidentKeys.assignments(id) });
+        void queryClient.invalidateQueries({ queryKey: incidentKeys.detail(id) });
+      }
+    }
   };
 
   // Actions
@@ -371,11 +437,14 @@ export default function IncidentsContent() {
     try {
       const res = await dispatchIncidentsWithSignal({
         incidents: batchDispatchItems,
+        groupDispatch: true,
+        managerId: user?.id,
         assignedTo: payload.assignedTo,
         note: payload.note,
         managerName: user?.fullName || user?.email || undefined,
       });
-      invalidateAllIncidentQueries();
+      setDispatchResult(res);
+      invalidateAllIncidentQueries(batchDispatchItems.map((i) => i.id));
       if (res.assignedCount > 0) {
         toast.success(
           isVietnamese
@@ -411,7 +480,7 @@ export default function IncidentsContent() {
         closeImmediately: payload.closeImmediately,
         officerName: user?.fullName || user?.email || undefined,
       });
-      invalidateAllIncidentQueries();
+      invalidateAllIncidentQueries(batchResolveItems.map((i) => i.id));
       if (res.resolvedCount > 0) {
         toast.success(
           res.closedCount > 0
@@ -436,14 +505,29 @@ export default function IncidentsContent() {
     }
   };
 
-  const handleBatchClose = async (items: IncidentItem[]) => {
+  const handleBatchClose = (items: IncidentItem[]) => {
     if (items.length === 0) return;
+    setBatchCloseItems(items);
+    setBatchCloseNote("");
+  };
+
+  const handleConfirmBatchClose = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!batchCloseItems || batchCloseItems.length === 0) return;
     setBatchActionPending(true);
     try {
-      const { succeeded, failed } = await runInBatches(items, 4, (inc) =>
-        incidentService.closeIncident(inc.id, {}),
+      const closeNote =
+        batchCloseNote.trim() ||
+        (isVietnamese
+          ? "Nghiệm thu và đóng hồ sơ sự cố an toàn (hàng loạt)"
+          : "Batch accepted and closed safety incident records");
+      const { succeeded, failed } = await runInBatches(batchCloseItems, 4, (inc) =>
+        incidentService.closeIncident(inc.id, { closeNote }),
       );
-      invalidateAllIncidentQueries();
+      const closedIds = batchCloseItems.map((i) => i.id);
+      setBatchCloseItems(null);
+      setBatchCloseNote("");
+      invalidateAllIncidentQueries(closedIds);
       if (succeeded.length > 0) {
         toast.success(
           isVietnamese
@@ -557,93 +641,32 @@ export default function IncidentsContent() {
 
   return (
     <div className="space-y-6">
+      {dispatchResult && <IncidentDispatchResultPanel result={dispatchResult} onChange={setDispatchResult} onRetryFailed={async (ids) => {
+        const fetched = await runInBatches(ids, 4, (id) => incidentService.getIncidentById(id));
+        const eligible = fetched.succeeded.filter((incident) => incident.status === "PENDING_REVIEW" || incident.status === "CONFIRMED");
+        if (!eligible.length) throw new Error(isVietnamese ? "Không còn hồ sơ đủ điều kiện để giao lại." : "No records remain eligible for assignment.");
+        if (fetched.failed.length) toast.error(isVietnamese ? `${fetched.failed.length} hồ sơ chưa tải được; chưa đưa vào lần thử lại.` : `${fetched.failed.length} records could not be loaded and are excluded from this retry.`);
+        setBatchDispatchItems(eligible);
+      }} />}
       {(fromDate || toDate) && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/30 bg-surface p-3 text-xs">
         <span>{isVietnamese ? "Theo thời điểm phát hiện (giờ Việt Nam):" : "By detection time (Vietnam time):"} {fromDate && Number.isFinite(Date.parse(fromDate)) ? new Intl.DateTimeFormat(locale, { timeZone: "Asia/Ho_Chi_Minh", dateStyle: "short", timeStyle: "medium" }).format(new Date(fromDate)) : "—"} → {toDate && Number.isFinite(Date.parse(toDate)) ? new Intl.DateTimeFormat(locale, { timeZone: "Asia/Ho_Chi_Minh", dateStyle: "short", timeStyle: "medium" }).format(new Date(toDate)) : "—"}</span>
         <button type="button" className="font-semibold text-primary" onClick={() => { const params = new URLSearchParams(searchParams.toString()); params.delete("fromDate"); params.delete("toDate"); router.replace(`${pathname}?${params}`, { scroll: false }); }}>{isVietnamese ? "Bỏ lọc ngày" : "Clear date filter"}</button>
       </div>}
-      {/* Page Header */}
-      <PageHeader
-
-        icon={ShieldAlert}
-
-        title={t("incidents.title")}
-
-        description={t("incidents.description")}
-
-        badge={isVietnamese ? "Giám sát An toàn PPE" : "PPE Safety Monitoring"}
-
-        badgeIcon={ShieldAlert}
-
-        actions={
-          <div className="flex items-center gap-2">
-            <span
-              className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${isConnected
-                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
-                }`}
-              title={
-                isConnected
-                  ? (isVietnamese ? "Đang kết nối nhận diện vi phạm tự động thời gian thực" : "Connected to realtime incident detection stream")
-                  : (isVietnamese ? "Đang duy trì kiểm tra định kỳ (15s)" : "Maintaining polling (15s)")
-              }
-            >
-              <span
-                className={`h-2 w-2 rounded-full ${isConnected ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
-                  }`}
-              />
-              <span className="font-mono text-[11px]">
-                {isConnected ? "Realtime Active" : "Polling (15s)"}
-              </span>
-            </span>
-            <Button
-              type="button"
-              variant={assignedToMeOnly ? "primary" : "outline"}
-              onClick={() => setAssignedToMeOnly((v) => !v)}
-              className="gap-1.5"
-              title={
-                isVietnamese
-                  ? "Lọc các sự cố đang được phân công cho tài khoản của bạn"
-                  : "Filter incidents assigned to your account"
-              }
-            >
-              <UserCheck className="h-4 w-4" />
-              <span>
-                {isOfficerRole
-                  ? isVietnamese
-                    ? "Việc được giao cho tôi"
-                    : "Assigned to Me"
-                  : isVietnamese
-                    ? "Việc của tôi"
-                    : "My Tasks"}
-              </span>
-            </Button>
-            <Button
-
-              variant="ghost"
-
-              onClick={() => refetch()}
-
-              disabled={isLoading || isRefetching}
-
-              className="gap-2"
-
-            >
-              <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
-              <span>{t("common.refresh")}</span>
-            </Button>
-            {canCreateIncident && (
-              <Button
-                variant="primary"
-                onClick={() => setIsCreateOpen(true)}
-                className="gap-1.5"
-              >
-                <Plus className="h-4 w-4" />
-                <span>{isVietnamese ? "Báo cáo Sự cố" : "Report Incident"}</span>
-              </Button>
-            )}
-          </div>
+      {/* Console Header (đồng bộ /cameras và /dashboard) */}
+      <IncidentConsoleHeader
+        isConnected={isConnected}
+        isRefreshing={isLoading || isRefetching}
+        onRefresh={() => refetch()}
+        canCreateIncident={canCreateIncident}
+        onCreateIncident={() => setIsCreateOpen(true)}
+        siteName={siteIdFilter ? getSiteName(siteIdFilter) : null}
+        userRole={user?.role}
+        criticalCount={
+          statusCounts?.critical ??
+          overviewIncidents.filter(
+            (i) => i.severity === "CRITICAL" || i.severity === "HIGH",
+          ).length
         }
-
       />
 
       {/* KPI Overview (Chuẩn Bento, click mở rộng khung chi tiết & tự động lọc bảng) */}
@@ -663,9 +686,9 @@ export default function IncidentsContent() {
 
         onSelectStat={handleSelectStat}
 
-        onReview={handleOpenReview}
+        onReview={isOfficerRole ? undefined : handleOpenReview}
 
-        onAssign={handleOpenAssign}
+        onAssign={isOfficerRole ? undefined : handleOpenAssign}
 
         onResolve={handleOpenResolve}
 
@@ -688,27 +711,38 @@ export default function IncidentsContent() {
 
       />
 
+      {/* Card Tổng quan Điều phối & Công việc (Hiển thị chuyên biệt cho 3 phân quyền, click dẫn tới /incidents/assignments) */}
+      <IncidentAssignmentOverviewCard
+        incidents={overviewIncidents}
+        loading={overviewLoading || (isOfficerRole && overviewHydrating)}
+        userRole={user?.role}
+        userId={user?.id}
+        usersById={usersById}
+        siteManagersBySiteId={siteManagersBySiteId}
+        notifications={notificationsData?.data}
+      />
+
       {/* Filter Toolbar (Thiết kế lại chuẩn Neumorphic, phân tầng Site -> Camera, có Chip lọc hoạt động) */}
 
       {/* Main Table */}
       <div className="min-w-0">
         <IncidentTable
 
-          incidents={displayedIncidents}
+          incidents={incidents}
 
           loading={isLoading}
 
           highlightedId={highlightedIncidentId}
 
-          onReview={handleOpenReview}
+          onReview={isOfficerRole ? undefined : handleOpenReview}
 
-          onBatchReview={handleBatchReview}
+          onBatchReview={isOfficerRole ? undefined : handleBatchReview}
 
-          onBatchDispatch={(items) => setBatchDispatchItems(items)}
+          onBatchDispatch={isOfficerRole ? undefined : (items) => setBatchDispatchItems(items)}
 
           onBatchResolve={(items) => setBatchResolveItems(items)}
 
-          onBatchClose={handleBatchClose}
+          onBatchClose={isOfficerRole ? undefined : handleBatchClose}
 
           batchReviewPending={batchReviewMutation.isPending}
 
@@ -796,7 +830,7 @@ export default function IncidentsContent() {
               note: payload.note,
               managerName: user?.fullName || user?.email || undefined,
             });
-            invalidateAllIncidentQueries();
+            invalidateAllIncidentQueries([selectedIncident.id]);
             if (res.assignedCount > 0) {
               toast.success(
                 isVietnamese
@@ -834,7 +868,7 @@ export default function IncidentsContent() {
               closeImmediately: payload.closeImmediately,
               officerName: user?.fullName || user?.email || undefined,
             });
-            invalidateAllIncidentQueries();
+            invalidateAllIncidentQueries([selectedIncident.id]);
             if (res.resolvedCount > 0) {
               toast.success(
                 res.closedCount > 0
@@ -948,6 +982,60 @@ export default function IncidentsContent() {
               disabled={batchReviewMutation.isPending}
             >
               {isVietnamese ? "Xác nhận bác bỏ" : "Confirm Dismiss"}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(batchCloseItems?.length)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setBatchCloseItems(null);
+            setBatchCloseNote("");
+          }
+        }}
+        title={
+          isVietnamese
+            ? `Nghiệm thu & Đóng hàng loạt (${batchCloseItems?.length ?? 0} hồ sơ)`
+            : `Batch Accept & Close (${batchCloseItems?.length ?? 0} records)`
+        }
+        description={
+          isVietnamese
+            ? "Sau khi đóng, hồ sơ sự cố sẽ được khóa vĩnh viễn để lưu trữ kiểm toán an toàn."
+            : "Once closed, incident records are permanently locked for safety audit archiving."
+        }
+      >
+        <form onSubmit={handleConfirmBatchClose} className="space-y-4 pt-2">
+          <textarea
+            rows={3}
+            value={batchCloseNote}
+            onChange={(e) => setBatchCloseNote(e.target.value)}
+            placeholder={
+              isVietnamese
+                ? "Ghi chú nghiệm thu (tùy chọn): Đã kiểm tra ảnh hiện trường sau khắc phục đạt yêu cầu..."
+                : "Acceptance note (optional): Verified field remediation evidence..."
+            }
+            className="w-full rounded-xl border border-border/50 bg-background p-3 text-xs text-foreground focus:border-primary focus:outline-none"
+          />
+          <div className="flex items-center justify-end gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setBatchCloseItems(null)}
+              disabled={batchActionPending}
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={batchActionPending}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {isVietnamese
+                ? `Xác nhận Đóng (${batchCloseItems?.length ?? 0})`
+                : `Confirm Close (${batchCloseItems?.length ?? 0})`}
             </Button>
           </div>
         </form>

@@ -78,10 +78,32 @@ export function clearLoginPersistence() {
 }
 
 /**
+ * Đồng bộ lại cookie cờ phiên (`ppe_remember_me` hoặc `ppe_session_active`)
+ * với trạng thái lưu trữ phía client để `proxy.ts` (server-side) không bao giờ
+ * bị lệch trạng thái với `AuthProvider` (client-side) gây vòng lặp redirect.
+ */
+export function ensureSessionCookieSynced(): void {
+  if (typeof window === "undefined") return;
+  if (isRememberMe()) {
+    if (getCookie(REMEMBER_ME_KEY) !== "1") {
+      setCookie(REMEMBER_ME_KEY, "1", 7 * 24 * 60 * 60);
+    }
+  } else {
+    if (sessionStorage.getItem(SESSION_ACTIVE_KEY) !== "true") {
+      sessionStorage.setItem(SESSION_ACTIVE_KEY, "true");
+    }
+    if (getCookie(SESSION_ACTIVE_KEY) !== "1") {
+      setCookie(SESSION_ACTIVE_KEY, "1");
+    }
+  }
+}
+
+/**
  * Cập nhật timestamp hoạt động để giữ phiên tạm thời khi người dùng đang thao tác.
  */
 export function recordActivity() {
   if (typeof window === "undefined") return;
+  ensureSessionCookieSynced();
   if (!isRememberMe()) {
     localStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
   }
@@ -115,6 +137,9 @@ export function shouldRestoreSession(): boolean {
   if (typeof window === "undefined") return true;
 
   if (isRememberMe()) {
+    if (getCookie(REMEMBER_ME_KEY) !== "1") {
+      setCookie(REMEMBER_ME_KEY, "1", 7 * 24 * 60 * 60);
+    }
     return true;
   }
 

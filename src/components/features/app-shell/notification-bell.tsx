@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { notificationIncidentTarget } from "@/lib/incident-group";
 import {
   Bell,
   CheckCheck,
@@ -134,13 +135,13 @@ export function NotificationBell() {
             onOpenIncident={(incidentId) => {
               toast.dismiss(t.id);
               if (incidentId) {
-                router.push(`/incidents/${incidentId}`);
+                router.push(notificationIncidentTarget({ incidentId, content: alertData.content }).href!);
               }
             }}
             onOpenCompare={(incidentId) => {
               toast.dismiss(t.id);
               if (incidentId) {
-                router.push(`/incidents/${incidentId}?focus=compare`);
+                router.push(notificationIncidentTarget({ incidentId, content: alertData.content }, true).href!);
               }
             }}
           />
@@ -172,10 +173,13 @@ export function NotificationBell() {
       markAsReadMutation.mutate(item.id);
     }
     setOpen(false);
-    if (item.actionUrl) {
+    const target = notificationIncidentTarget(item);
+    if (target.group && target.href) {
+      router.push(target.href);
+    } else if (item.actionUrl) {
       router.push(item.actionUrl);
     } else if (item.incidentId) {
-      router.push(`/incidents/${item.incidentId}`);
+      router.push(target.href!);
     }
   };
 
@@ -298,11 +302,11 @@ export function NotificationBell() {
                       </span>
                     </div>
                     <p className="line-clamp-2 text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                      {stripEmojis(item.content)}
+                      {stripEmojis(notificationIncidentTarget(item).content)}
                     </p>
                     {item.incidentId && (
                       <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-primary">
-                        <span>{isVietnamese ? "Mở hồ sơ sự cố" : "Open incident"}</span>
+                        <span>{notificationIncidentTarget(item).group ? (isVietnamese ? "Mở nhóm xử lý" : "Open incident group") : (isVietnamese ? "Mở hồ sơ sự cố" : "Open incident")}</span>
                         <ExternalLink className="size-2.5" />
                       </div>
                     )}

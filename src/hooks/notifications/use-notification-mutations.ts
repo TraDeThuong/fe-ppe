@@ -1,6 +1,10 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useContext } from "react";
+import { AuthContext } from "@/contexts/AuthContext";
+import { applyNotificationInboxAction } from "@/lib/notification-inbox-actions";
+import type { NotificationInboxSnapshot } from "@/lib/notification-inbox";
 import {
   handleMutationError,
   type MutationHookOptions,
@@ -14,6 +18,17 @@ import type {
   SendNotificationPayload,
 } from "@/types";
 
+function useInboxAction(action: "read" | "read-all" | "delete") {
+  const client = useQueryClient();
+  const userId = useContext(AuthContext)?.user?.id || "";
+  return async (id?: string) => {
+    const key = notificationKeys.inbox(userId);
+    const snapshot = await applyNotificationInboxAction({ snapshot: client.getQueryData<NotificationInboxSnapshot>(key), userId, action, id }, notificationService);
+    client.setQueryData(key, snapshot);
+    return { message: "OK" };
+  };
+}
+
 /**
  * Hook đánh dấu 1 thông báo là đã đọc (PATCH /api/v1/notifications/:id/read).
  */
@@ -21,17 +36,13 @@ export function useMarkAsRead(
   options?: MutationHookOptions<{ message: string }, string>,
 ) {
   const queryClient = useQueryClient();
+  const apply = useInboxAction("read");
   const { onSuccess, onError, ...restOptions } = options ?? {};
 
   return useMutation({
     ...restOptions,
-    mutationFn: (id: string) => notificationService.markAsRead(id),
+    mutationFn: (id: string) => apply(id),
     onSuccess: async (...args) => {
-      // Giảm ngay unreadCount trên cache để UI phản hồi tức thì
-      queryClient.setQueryData<number>(
-        notificationKeys.unreadCount(),
-        (old) => (typeof old === "number" && old > 0 ? old - 1 : 0),
-      );
       await queryClient.invalidateQueries({
         queryKey: notificationKeys.lists(),
       });
@@ -52,13 +63,13 @@ export function useMarkAllAsRead(
   options?: MutationHookOptions<{ message: string }, void>,
 ) {
   const queryClient = useQueryClient();
+  const apply = useInboxAction("read-all");
   const { onSuccess, onError, ...restOptions } = options ?? {};
 
   return useMutation({
     ...restOptions,
-    mutationFn: () => notificationService.markAllAsRead(),
+    mutationFn: () => apply(),
     onSuccess: async (...args) => {
-      queryClient.setQueryData<number>(notificationKeys.unreadCount(), 0);
       await queryClient.invalidateQueries({
         queryKey: notificationKeys.lists(),
       });
@@ -85,11 +96,12 @@ export function useDeleteNotification(
   options?: MutationHookOptions<{ message: string }, string>,
 ) {
   const queryClient = useQueryClient();
+  const apply = useInboxAction("delete");
   const { onSuccess, onError, ...restOptions } = options ?? {};
 
   return useMutation({
     ...restOptions,
-    mutationFn: (id: string) => notificationService.deleteNotification(id),
+    mutationFn: (id: string) => apply(id),
     onSuccess: async (...args) => {
       await queryClient.invalidateQueries({
         queryKey: notificationKeys.lists(),

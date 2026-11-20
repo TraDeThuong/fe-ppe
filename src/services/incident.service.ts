@@ -89,8 +89,8 @@ export const incidentService = {
    * GET /api/v1/incidents/:id
    * Lấy chi tiết sự cố kèm bằng chứng hình ảnh và nhật ký phân công.
    */
-  async getIncidentById(id: string): Promise<IncidentItem> {
-    const res = await apiClient.get<unknown>(`/incidents/${id}`);
+  async getIncidentById(id: string, options?: { signal?: AbortSignal }): Promise<IncidentItem> {
+    const res = await apiClient.get<unknown>(`/incidents/${id}`, { signal: options?.signal });
     return unwrapData<IncidentItem>(res);
   },
 
@@ -129,20 +129,27 @@ export const incidentService = {
    * GET /api/v1/incidents/status-counts
    * Đếm nhanh số lượng sự cố theo trạng thái/mức độ cho Dashboard KPI.
    */
-  async getStatusCounts(params?: {
-    siteId?: string;
-    cameraId?: string;
-    fromDate?: string;
-    toDate?: string;
-    startDate?: string;
-    endDate?: string;
-  }): Promise<{
+  async getStatusCounts(
+    params?: {
+      siteId?: string;
+      cameraId?: string;
+      fromDate?: string;
+      toDate?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+    options?: { signal?: AbortSignal; suppressToast?: boolean },
+  ): Promise<{
     total: number;
     pendingReview: number;
     critical: number;
     resolved: number;
   }> {
-    const res = await apiClient.get<unknown>("/incidents/status-counts", { params });
+    const res = await apiClient.get<unknown>("/incidents/status-counts", {
+      params,
+      signal: options?.signal,
+      ...(options?.suppressToast ? { suppressToast: true } : {}),
+    } as Record<string, unknown>);
     const data = unwrapData<{
       total?: number;
       pendingReview?: number;
@@ -185,10 +192,14 @@ export const incidentService = {
    * GET /api/v1/incidents/:id/assignments
    * Lấy lịch sử phân công cán bộ xử lý sự cố.
    */
-  async getAssignments(id: string): Promise<IncidentAssignmentItem[]> {
-    const res = await apiClient.get<unknown>(
-      `/incidents/${id}/assignments`,
-    );
+  async getAssignments(
+    id: string,
+    options?: { signal?: AbortSignal; suppressToast?: boolean },
+  ): Promise<IncidentAssignmentItem[]> {
+    const res = await apiClient.get<unknown>(`/incidents/${id}/assignments`, {
+      signal: options?.signal,
+      ...(options?.suppressToast ? { suppressToast: true } : {}),
+    } as Record<string, unknown>);
     return unwrapArray<IncidentAssignmentItem>(res);
   },
 

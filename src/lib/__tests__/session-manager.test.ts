@@ -205,5 +205,19 @@ describe("session-manager", () => {
       `${SESSION_ACTIVE_KEY}=1; path=/; SameSite=Lax`,
     );
   });
+
+  it("self-heals missing ppe_remember_me or ppe_session_active cookies when shouldRestoreSession succeeds", () => {
+    // Trường hợp 1: localStorage còn ppe_remember_me="true" nhưng cookie bị mất
+    localStorageMock.setItem(REMEMBER_ME_KEY, "true");
+    assert.equal(shouldRestoreSession(), true);
+    assert.ok(documentMock.cookie.includes(`${REMEMBER_ME_KEY}=1`));
+
+    // Trường hợp 2: sessionStorage còn ppe_session_active="true" nhưng cookie bị mất
+    localStorageMock.clear();
+    documentMock.clear();
+    sessionStorageMock.setItem(SESSION_ACTIVE_KEY, "true");
+    assert.equal(shouldRestoreSession(), true);
+    assert.ok(documentMock.cookie.includes(`${SESSION_ACTIVE_KEY}=1`));
+  });
 });
 

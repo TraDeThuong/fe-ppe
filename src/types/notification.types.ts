@@ -288,3 +288,10 @@ export interface DispatchIncidentNotificationPayload {
   channels?: NotificationChannel[];
   recipientEmails?: Record<string, string> | string[];
 }
+
+export interface DispatchIncidentNotificationResult {
+  incidentId: string;
+  dispatchedCount: number;
+  channels: NotificationChannel[];
+  notifications: Array<{ id: string; userId: string; channel: NotificationChannel; status: string }>;
+}

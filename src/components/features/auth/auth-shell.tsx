@@ -30,7 +30,7 @@ export interface AuthShellProps {
 
 const IMAGE_PREFIX = "/images/auth-illustration-";
 const IMAGE_EXTENSION = ".jpg";
-const MAX_IMAGES = 100;
+const MAX_IMAGES = 5;
 
 const IMAGE_INTERVAL = 10_000;
 const IMAGE_FADE_DURATION = 2_000;

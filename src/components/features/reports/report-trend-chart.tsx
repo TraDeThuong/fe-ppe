@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -22,6 +22,9 @@ export interface ReportTrendChartProps {
   dateRangeLabel?: string;
   groupBy?: TrendGroupBy;
   onGroupByChange?: (groupBy: TrendGroupBy) => void;
+  /** Site analytics has no resolution-rate denominator when no violation is confirmed. */
+  nullableResolutionRate?: boolean;
+  style?: CSSProperties;
 }
 
 function formatTrendDate(dateStr: string, locale: string) {
@@ -64,6 +67,8 @@ export function ReportTrendChart({
   dateRangeLabel,
   groupBy = "DAY",
   onGroupByChange,
+  nullableResolutionRate = false,
+  style,
 }: ReportTrendChartProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -169,6 +174,7 @@ export function ReportTrendChart({
 
   return (
     <section
+      style={style}
       className="
         relative isolate flex h-full w-full flex-col justify-between overflow-hidden
         rounded-2xl
@@ -309,7 +315,7 @@ export function ReportTrendChart({
             </div>
             <div className="mt-1.5 flex items-center justify-between gap-3">
               <span className="text-xl font-black tabular-nums text-primary">
-                <AnimatedNumber value={resolutionRate} />%
+                {nullableResolutionRate && totalViolations === 0 ? "—" : <><AnimatedNumber value={resolutionRate} />%</>}
               </span>
               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-background shadow-[inset_1px_1px_3px_var(--shadow-dark)]">
                 <div

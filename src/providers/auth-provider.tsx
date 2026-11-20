@@ -73,6 +73,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // fetchQuery qua react-query để dedup với useMe (Bước 6) và Strict Mode.
   useEffect(() => {
     let cancelled = false;
+    let sessionExpiredDuringRestore = false;
+
+    const unsubscribe = eventBus.on("auth:session-expired", () => {
+      sessionExpiredDuringRestore = true;
+      handleSessionExpired();
+    });
 
     async function restoreSession() {
       // Kiểm tra tính năng Ghi nhớ đăng nhập:
@@ -102,9 +108,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Đồng bộ JWT accessToken nếu memory trống hoặc siteIds trong JWT cũ lệch với DB (GET /auth/me)
         const tokenSiteIds = getAccessTokenSiteIds();
         if (!haveSameSiteIds(tokenSiteIds, me.siteIds ?? [])) {
-          await ensureFreshAccessToken();
+          const refreshed = await ensureFreshAccessToken();
+          // Nếu POST /auth/refresh thất bại (ví dụ refreshToken đã hết hạn hoặc bị thu hồi),
+          // tuyệt đối KHÔNG được setStatus("authenticated") ghi đè lên trạng thái đã hết hạn,
+          // tránh gây vòng lặp vô hạn /login -> / -> /dashboard -> /login với proxy.ts.
+          if (
+            !refreshed &&
+            (sessionExpiredDuringRestore || !tokenStore.getAccessToken())
+          ) {
+            await purgeSessionCookies();
+            if (!cancelled) {
+              tokenStore.clear();
+              queryClient.clear();
+              clearLoginPersistence();
+              setUser(null);
+              setStatus("unauthenticated");
+            }
+            return;
+          }
         }
-        if (!cancelled) {
+        if (!cancelled && !sessionExpiredDuringRestore) {
           setUser(me);
           setStatus("authenticated");
           recordActivity();
@@ -129,7 +152,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     void restoreSession();
-    const unsubscribe = eventBus.on("auth:session-expired", handleSessionExpired);
     return () => {
       cancelled = true;
       unsubscribe();
@@ -152,7 +174,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userSiteIds = user?.siteIds ?? [];
 
         if (!haveSameSiteIds(tokenSiteIds, meSiteIds) || !haveSameSiteIds(userSiteIds, meSiteIds)) {
-          await ensureFreshAccessToken();
+          const refreshed = await ensureFreshAccessToken();
+          if (!refreshed && !tokenStore.getAccessToken()) {
+            return;
+          }
           setUser(me);
           void queryClient.invalidateQueries();
         }

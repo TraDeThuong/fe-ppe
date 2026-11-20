@@ -39,6 +39,21 @@ export interface AuditSummaryDto {
   configChangesCount: number;
   incidentReviewsCount: number;
   successRate: number | null;
+  categoryCounts?: {
+    config: number;
+    incidentReview?: number;
+    accessControl: number;
+    system: number;
+  };
+  topActors?: Array<{
+    actorId: string | null;
+    actorName: string;
+    count: number;
+  }>;
+  topActions?: Array<{
+    action: string;
+    count: number;
+  }>;
   recentActivity?: AuditLogItem[];
   byAction?: Record<string, number>;
   byTargetType?: Record<string, number>;

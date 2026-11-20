@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PhoneReveal } from "@/components/ui/phone-reveal";
 import { useLocale } from "@/providers/locale-provider";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/lib/toast";
@@ -229,9 +230,16 @@ export function UserDetailHero({
                 {user.phoneNumber && (
                   <>
                     <span>•</span>
-                    <span className="flex items-center gap-1.5 font-mono">
+                    <span className="inline-flex items-center gap-1.5 font-mono">
                       <Phone size={13} className="text-primary" />
-                      {user.phoneNumber}
+                      <PhoneReveal
+                        key={user.id}
+                        phoneNumber={user.phoneNumber}
+                        isVietnamese={isVietnamese}
+                        iconSize={12}
+                        buttonClassName="size-6"
+                        textClassName="text-xs font-mono font-semibold text-foreground"
+                      />
                     </span>
                   </>
                 )}

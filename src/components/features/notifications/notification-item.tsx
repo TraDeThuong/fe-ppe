@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 import { stripEmojis } from "@/lib/strip-emojis";
+import { notificationIncidentTarget } from "@/lib/incident-group";
 import type { NotificationItemDto, NotificationSeverity } from "@/types";
 
 export interface NotificationItemProps {
@@ -132,6 +133,7 @@ export function NotificationItem({
   const cameraCode = meta.cameraCode || meta.cameraId;
   const violationType = meta.violationType;
   const targetIncidentId = (notification.incidentId || meta.incidentId || (notification.type === "PPE_VIOLATION" ? meta.id : undefined)) as string | undefined;
+  const incidentTarget = notificationIncidentTarget({ incidentId: targetIncidentId, content: notification.content });
 
   return (
     <article
@@ -192,7 +194,7 @@ export function NotificationItem({
           </h3>
 
           <p className="text-xs sm:text-sm leading-relaxed text-muted-foreground">
-            {stripEmojis(notification.content)}
+            {stripEmojis(incidentTarget.content)}
           </p>
 
           {/* Metadata chips (Location, Camera, Violation) */}
@@ -241,10 +243,10 @@ export function NotificationItem({
         <div className="flex items-center gap-2">
           {targetIncidentId && (
             <Link
-              href={`/incidents/${encodeURIComponent(targetIncidentId)}`}
+              href={incidentTarget.href!}
               className="inline-flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-all hover:bg-primary/15 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] active:shadow-[inset_1px_1px_3px_var(--shadow-dark)]"
             >
-              <span>{t("notifications.actions.viewIncident")}</span>
+              <span>{incidentTarget.group ? (isVietnamese ? "Mở nhóm xử lý" : "Open incident group") : t("notifications.actions.viewIncident")}</span>
               <ExternalLink className="size-3" />
             </Link>
           )}

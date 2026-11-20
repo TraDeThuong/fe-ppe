@@ -25,6 +25,6 @@ export function useSites(
 }
 
 /** Complete catalog for aggregate KPI panels; the operational table still pages on the server. */
-export function useSitesCatalog() {
-  return useQuery({ queryKey: siteKeys.list({ page: 0, limit: 100 }), queryFn: () => collectCatalog((page, limit) => siteService.getSites({ page, limit })), staleTime: 60_000 });
+export function useSitesCatalog(options?: { enabled?: boolean }) {
+  return useQuery({ queryKey: siteKeys.list({ page: 0, limit: 100 }), queryFn: () => collectCatalog((page, limit) => siteService.getSites({ page, limit })), staleTime: 60_000, enabled: options?.enabled ?? true });
 }

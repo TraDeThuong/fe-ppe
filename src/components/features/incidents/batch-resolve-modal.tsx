@@ -19,6 +19,9 @@ export interface BatchResolveModalProps {
   }) => Promise<void>;
   loading?: boolean;
   canClose?: boolean;
+  groupMode?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
+  failures?: Array<{ id: string; message: string; stage?: "access" | "upload" | "resolve" | "verify" }>;
 }
 
 export function BatchResolveModal({
@@ -28,16 +31,21 @@ export function BatchResolveModal({
   onSubmit,
   loading = false,
   canClose = false,
+  groupMode = false,
+  onDirtyChange,
+  failures = [],
 }: BatchResolveModalProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
-  const { getCameraCode } = useEntityLookup();
+  const { getCameraCode } = useEntityLookup({ enabled: !groupMode });
 
   const [resolutionNote, setResolutionNote] = useState("");
   const [afterFixFile, setAfterFixFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [closeImmediately, setCloseImmediately] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty = open && (!!resolutionNote.trim() || !!afterFixFile);
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
   const cameraSummary = useMemo(() => {
     const labels = new Set<string>();
@@ -59,6 +67,7 @@ export function BatchResolveModal({
 
   useEffect(() => {
     if (!open) {
+      setResolutionNote("");
       setError(null);
       setAfterFixFile(null);
       setCloseImmediately(false);
@@ -67,6 +76,7 @@ export function BatchResolveModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading || incidents.length === 0) return;
     if (!resolutionNote.trim()) {
       setError(
         isVietnamese
@@ -107,7 +117,9 @@ export function BatchResolveModal({
           : `Batch Report Remediation (${incidents.length} incidents)`
       }
       description={
-        isVietnamese
+        groupMode
+          ? (isVietnamese ? "Cùng ghi chú và ảnh sẽ áp dụng cho tất cả hồ sơ đã chọn. Chỉ gửi tổng kết khi khắc phục hết nhóm." : "The same note and photo apply to every selected record. A summary is sent only when the entire group is remediated.")
+          : isVietnamese
           ? "Gửi 1 báo cáo khắc phục chung cho các sự cố đã chọn và tự động báo tín hiệu nghiệm thu lên Quản lý."
           : "Submit one consolidated remediation report and notify the Safety Manager for acceptance."
       }
@@ -147,6 +159,14 @@ export function BatchResolveModal({
       }
     >
       <form id="batch-resolve-form" onSubmit={handleSubmit} className="space-y-4">
+        {failures.length > 0 && <ul className="space-y-1 text-xs text-danger" aria-label={isVietnamese ? "Hồ sơ chưa xử lý được" : "Failed records"}>
+          {failures.map((failure) => <li key={failure.id} title={failure.id}>#{failure.id.slice(0, 8)}…{failure.id.slice(-4)} · {failure.stage && ({
+            access: isVietnamese ? "Quyền / trạng thái" : "Access / status",
+            upload: isVietnamese ? "Tải ảnh" : "Photo upload",
+            resolve: isVietnamese ? "Cập nhật" : "Update",
+            verify: isVietnamese ? "Xác minh" : "Verification",
+          }[failure.stage])}: {failure.message}</li>)}
+        </ul>}
         {error && (
           <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-600 dark:border-rose-900/50 dark:bg-rose-950/30">
             <ShieldAlert className="h-4 w-4 shrink-0" />
@@ -164,6 +184,7 @@ export function BatchResolveModal({
             {t("incidents.modals.resolutionNote")} <span className="text-rose-500">*</span>
           </label>
           <textarea
+            disabled={loading}
             value={resolutionNote}
             onChange={(e) => setResolutionNote(e.target.value)}
             rows={3}
@@ -192,6 +213,7 @@ export function BatchResolveModal({
               <img src={previewUrl} alt="After fix preview" className="max-h-40 w-full object-contain" />
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => setAfterFixFile(null)}
                 className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full bg-background/90 text-foreground shadow hover:bg-danger hover:text-white transition"
               >

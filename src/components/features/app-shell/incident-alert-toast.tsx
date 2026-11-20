@@ -25,6 +25,7 @@ import {
   RESOLVED_REPORT_PREFIX,
 } from "@/lib/incident-workflow";
 import { stripEmojis } from "@/lib/strip-emojis";
+import { notificationIncidentTarget } from "@/lib/incident-group";
 import { incidentService } from "@/services/incident.service";
 import { EVIDENCE_TYPE } from "@/types/incident.types";
 
@@ -88,6 +89,7 @@ export function IncidentAlertToast({
   const { getCameraCode, getSiteName } = useEntityLookup();
 
   const incidentId = data.incidentId;
+  const groupTarget = notificationIncidentTarget({ incidentId, content: data.content });
   const violationLabel = formatViolationLabel(data.violationType, isVietnamese);
   const severity = (data.severity || "CRITICAL").toUpperCase();
 
@@ -97,7 +99,7 @@ export function IncidentAlertToast({
       ? `Phát hiện ${violationLabel}`
       : `${violationLabel} Detected`);
   const content =
-    stripEmojis(data.content) ||
+    stripEmojis(groupTarget.content) ||
     (isVietnamese
       ? "Hệ thống AI camera vừa phát hiện sự cố vi phạm an toàn lao động tại hiện trường."
       : "AI camera system detected a workplace safety compliance violation.");
@@ -430,7 +432,7 @@ export function IncidentAlertToast({
                   : "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] hover:bg-amber-500/20"
               }`}
             >
-              <span>{isVietnamese ? "Xem sự cố" : "Details"}</span>
+              <span>{groupTarget.group ? (isVietnamese ? "Mở nhóm xử lý" : "Open incident group") : (isVietnamese ? "Xem sự cố" : "Details")}</span>
               <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
             </button>
           </div>

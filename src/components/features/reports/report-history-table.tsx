@@ -19,6 +19,9 @@ export interface ReportHistoryTableProps {
   toolbarFilters?: ReactNode;
   currentUserId?: string;
   isAdmin?: boolean;
+  canAccessReport?: (report: ReportGenerationDto) => boolean;
+  lookupEnabled?: boolean;
+  siteName?: string;
   tableState?: Partial<TableProps<ReportGenerationDto>>;
 }
 
@@ -29,11 +32,14 @@ export function ReportHistoryTable({
   toolbarFilters,
   currentUserId,
   isAdmin = false,
+  canAccessReport,
+  lookupEnabled = true,
+  siteName,
   tableState,
 }: ReportHistoryTableProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
-  const { getSiteName } = useEntityLookup();
+  const { getSiteName } = useEntityLookup({ enabled: lookupEnabled });
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const handleDownload = async (item: ReportGenerationDto) => {
@@ -183,7 +189,7 @@ export function ReportHistoryTable({
       id: "siteId",
       header: t("reports.history.site"),
       accessorFn: (item) =>
-        item.siteName ||
+        item.siteName || siteName ||
         (item.siteId
           ? getSiteName(item.siteId, item.siteId.slice(0, 8))
           : isVietnamese
@@ -194,7 +200,7 @@ export function ReportHistoryTable({
         const item = row.original;
         const fileType = item.fileType || item.template?.fileType;
         const resolvedSiteName =
-          item.siteName ||
+          item.siteName || siteName ||
           (item.siteId
             ? getSiteName(item.siteId, item.siteId.slice(0, 8))
             : isVietnamese
@@ -257,11 +263,11 @@ export function ReportHistoryTable({
         const isCompleted = item.status === "COMPLETED";
         const isDownloading = downloadingId === item.id;
         // BOLA Guard đồng bộ BE: chỉ ADMIN hoặc đúng tác giả tạo mới được xem/tải tệp
-        const canAccessFile =
+        const canAccessFile = canAccessReport ? canAccessReport(item) : (
           isAdmin ||
           !currentUserId ||
           !item.generatedBy ||
-          item.generatedBy === currentUserId;
+          item.generatedBy === currentUserId);
         const restrictedTitle = !canAccessFile
           ? t("reports.history.restrictedAccess")
           : undefined;
@@ -325,7 +331,9 @@ export function ReportHistoryTable({
               </>
             ) : (
               <span className="text-[10px] font-medium italic text-muted-foreground">
-                {isVietnamese ? "Chờ hoàn tất" : "Awaiting"}
+                {item.status === "FAILED"
+                  ? (item.errorMessage || (isVietnamese ? "Tạo báo cáo thất bại" : "Report generation failed"))
+                  : (isVietnamese ? "Chờ hoàn tất" : "Awaiting")}
               </span>
             )}
           </div>

@@ -72,14 +72,63 @@ function normalizeAuditItem(raw: any): AuditLogItem {
   };
 }
 
+function isPlainRecord(val: unknown): val is Record<string, unknown> {
+  return Boolean(val) && typeof val === "object" && !Array.isArray(val);
+}
+
+const DIFF_ENVELOPE_KEYS = new Set([
+  "oldValue",
+  "newValue",
+  "previous",
+  "updated",
+  "current",
+  "before",
+  "after",
+  "metadata",
+]);
+
 function normalizeAuditDetail(raw: any): AuditLogDetail {
   const item = normalizeAuditItem(raw);
-  const details = (item.details && typeof item.details === "object" ? item.details : {}) as Record<string, unknown>;
+  const details = isPlainRecord(item.details) ? item.details : {};
+
+  // Backend services store mutations under previous/updated or previous/current (or oldValue/newValue).
+  const rawOld =
+    raw.oldValue ??
+    details.oldValue ??
+    details.previous ??
+    details.before ??
+    null;
+  const rawNew =
+    raw.newValue ??
+    details.newValue ??
+    details.updated ??
+    details.current ??
+    details.after ??
+    null;
+
+  const oldValue = isPlainRecord(rawOld) ? rawOld : null;
+  const newValue = isPlainRecord(rawNew) ? rawNew : null;
+
+  let metadata: Record<string, unknown> | null = null;
+  if (isPlainRecord(raw.metadata)) {
+    metadata = raw.metadata;
+  } else if (isPlainRecord(details.metadata)) {
+    metadata = details.metadata;
+  } else if (Object.keys(details).length > 0) {
+    // Strip diff envelope fields from metadata when a structured diff was extracted
+    const remaining: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(details)) {
+      if ((oldValue || newValue) && DIFF_ENVELOPE_KEYS.has(k)) continue;
+      remaining[k] = v;
+    }
+    metadata = Object.keys(remaining).length > 0 ? remaining : null;
+  }
+
   return {
     ...item,
-    oldValue: (raw.oldValue as Record<string, unknown>) ?? (details.oldValue as Record<string, unknown>) ?? null,
-    newValue: (raw.newValue as Record<string, unknown>) ?? (details.newValue as Record<string, unknown>) ?? (details.oldValue ? null : details),
-    metadata: (raw.metadata as Record<string, unknown>) ?? (details.metadata as Record<string, unknown>) ?? details,
+    oldValue,
+    newValue,
+    metadata,
   };
 }
 

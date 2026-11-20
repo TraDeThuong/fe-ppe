@@ -4,6 +4,7 @@ import type {
   BroadcastNotificationPayload,
   CreateNotificationTemplatePayload,
   DispatchIncidentNotificationPayload,
+  DispatchIncidentNotificationResult,
   EmailLogsListResponse,
   EmailLogsQueryParams,
   ListNotificationsQuery,
@@ -64,12 +65,14 @@ export const notificationService = {
    */
   async getNotifications(
     params?: ListNotificationsQuery,
+    options?: { signal?: AbortSignal; strictPagination?: boolean },
   ): Promise<NotificationListResponse> {
     const res = await apiClient.get<
       unknown,
       NotificationListResponse | NotificationItemDto[]
     >("/notifications", {
       params,
+      signal: options?.signal,
     });
 
     if (
@@ -86,6 +89,7 @@ export const notificationService = {
     }
 
     if (Array.isArray(res)) {
+      if (options?.strictPagination) throw new Error("Thiếu metadata phân trang hộp thư.");
       return {
         data: res.map(sanitizeNotificationItem),
         meta: {
@@ -97,6 +101,7 @@ export const notificationService = {
       };
     }
 
+    if (options?.strictPagination) throw new Error("Phản hồi hộp thư không hợp lệ.");
     return {
       data: [],
       meta: { page: 1, limit: 20, total: 0, totalPages: 0 },
@@ -212,11 +217,11 @@ export const notificationService = {
    */
   async triggerIncidentNotification(
     payload: DispatchIncidentNotificationPayload,
-  ): Promise<{ message: string; notificationCount?: number }> {
+  ): Promise<DispatchIncidentNotificationResult> {
     return (await apiClient.post(
       "/notifications/trigger-incident",
       payload,
-    )) as { message: string; notificationCount?: number };
+    )) as DispatchIncidentNotificationResult;
   },
 
   // ==========================================================================

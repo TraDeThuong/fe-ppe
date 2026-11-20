@@ -2,7 +2,6 @@
 
 import { memo, useMemo, useState } from "react";
 import {
-  Activity,
   AlertOctagon,
   ChevronDown,
   Link2,
@@ -51,12 +50,10 @@ export interface CameraLiveControlDeckProps {
   enableSceneCut: boolean;
   onEnableSceneCutChange: (checked: boolean) => void;
   isStarting: boolean;
-  isApplyingConfig: boolean;
   isStopping: boolean;
   isSavingDb: boolean;
   canManageCamera: boolean;
   onStartStream: () => void;
-  onHotConfig: () => void;
   onStopStream: () => void;
   onSaveToDb: () => void;
   onOpenDeviceTab?: () => void;
@@ -95,12 +92,10 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
   enableSceneCut,
   onEnableSceneCutChange,
   isStarting,
-  isApplyingConfig,
   isStopping,
   isSavingDb,
   canManageCamera,
   onStartStream,
-  onHotConfig,
   onStopStream,
   onSaveToDb,
   onOpenDeviceTab,
@@ -140,7 +135,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
 
   return (
     <section
-      aria-label={isVietnamese ? "Cấu hình AI & Hot Config" : "AI Configuration & Hot Config"}
+      aria-label={isVietnamese ? "Cấu hình AI" : "AI Configuration"}
       className={`relative overflow-hidden rounded-[24px] sm:rounded-[28px] transition-all duration-300 ${NM.chassis} ${
         isExpanded ? "p-4 sm:p-6 lg:p-7" : "px-4 py-3.5 sm:px-6 sm:py-4"
       }`}
@@ -174,7 +169,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
             <div className="min-w-0 space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-base font-extrabold tracking-tight text-foreground sm:text-lg">
-                  {isVietnamese ? "Cấu hình AI & Hot Config" : "AI & Hot Config"}
+                  {isVietnamese ? "Cấu hình AI" : "AI Configuration"}
                 </h2>
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
@@ -274,18 +269,6 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                       ? "Bắt đầu Tracking"
                       : "Start Tracking"}
               </span>
-            </button>
-
-            <button
-              type="button"
-              disabled={!isRunning || isApplyingConfig}
-              onClick={onHotConfig}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-primary disabled:pointer-events-none disabled:opacity-40 ${NM.tactileBtn}`}
-            >
-              <Activity
-                className={`size-3.5 ${isApplyingConfig ? "animate-spin" : ""}`}
-              />
-              <span>{isVietnamese ? "Áp dụng Hot Config" : "Apply Hot Config"}</span>
             </button>
 
             <button
@@ -546,8 +529,8 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
                       {isVietnamese
-                        ? "03. Luật & Ngưỡng Sustain (Hot-Config)"
-                        : "03. Rules & Sustain Thresholds (Hot-Config)"}
+                        ? "03. Luật & Ngưỡng Sustain"
+                        : "03. Rules & Sustain Thresholds"}
                     </span>
                     {safetySource && (
                       <span
@@ -590,8 +573,8 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                     )}
                     <span className="rounded-full bg-accent/15 px-2.5 py-0.5 text-[10px] font-bold text-accent">
                       {isVietnamese
-                        ? "Set mềm trực tiếp không cần restart"
-                        : "Live apply without restart"}
+                        ? "Áp dụng khi bắt đầu hoặc khởi chạy lại"
+                        : "Applied on start or restart"}
                     </span>
                   </div>
                 </div>

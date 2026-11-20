@@ -511,22 +511,27 @@ export function SiteIncidentsTab({
         enableSorting: false,
         cell: ({ row }) => {
           const incident = row.original;
+          const evidenceUrl = getIncidentEvidenceUrl(incident);
           return (
             <div className="flex items-center gap-3 min-w-[210px]">
-              <div className="relative h-11 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-950/80 border border-border/40">
-                <img
-                  src={getIncidentEvidenceUrl(incident)}
-                  alt={incident.description || incident.violationType}
-                  className="h-full w-full object-cover"
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    if (!target.src.includes("/images/camera-live-evidence.jpg")) {
-                      target.src = "/images/camera-live-evidence.jpg";
-                    } else {
-                      target.style.display = "none";
-                    }
-                  }}
-                />
+              <div className="relative flex h-11 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-950/80 border border-border/40">
+                {evidenceUrl ? (
+                  <img
+                    src={evidenceUrl}
+                    alt={incident.description || incident.violationType}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (!target.src.includes("/images/camera-live-evidence.jpg")) {
+                        target.src = "/images/camera-live-evidence.jpg";
+                      } else {
+                        target.style.display = "none";
+                      }
+                    }}
+                  />
+                ) : (
+                  <Camera className="h-4 w-4 text-muted-foreground/60" />
+                )}
               </div>
               <div className="min-w-0">
                 <Link
@@ -1264,19 +1269,23 @@ export function SiteIncidentsTab({
                   >
                     <div className="flex items-start gap-3 min-w-0">
                       <div className="relative h-14 w-20 sm:h-16 sm:w-24 shrink-0 overflow-hidden rounded-xl bg-slate-950/80 border border-border/40 flex items-center justify-center">
-                        <img
-                          src={getIncidentEvidenceUrl(incident)}
-                          alt={incident.description || incident.violationType}
-                          className="h-full w-full object-cover"
-                          onError={(e) => {
-                            const target = e.currentTarget;
-                            if (!target.src.includes("/images/camera-live-evidence.jpg")) {
-                              target.src = "/images/camera-live-evidence.jpg";
-                            } else {
-                              target.style.display = "none";
-                            }
-                          }}
-                        />
+                        {getIncidentEvidenceUrl(incident) ? (
+                          <img
+                            src={getIncidentEvidenceUrl(incident)}
+                            alt={incident.description || incident.violationType}
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              if (!target.src.includes("/images/camera-live-evidence.jpg")) {
+                                target.src = "/images/camera-live-evidence.jpg";
+                              } else {
+                                target.style.display = "none";
+                              }
+                            }}
+                          />
+                        ) : (
+                          <Camera className="h-5 w-5 text-muted-foreground/50" />
+                        )}
                         <AlertTriangle className="pointer-events-none absolute h-5 w-5 text-muted-foreground/40 -z-10" />
                       </div>
 

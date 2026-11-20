@@ -99,6 +99,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
                 }
               }
               setLastAlert({ type: eventName, data: parsed, id: eventId });
+              void queryClient.invalidateQueries({ queryKey: notificationKeys.lists() }, { cancelRefetch: false });
             } catch {
               setLastAlert({
                 type: eventName,

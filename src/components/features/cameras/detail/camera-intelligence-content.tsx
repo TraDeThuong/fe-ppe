@@ -18,7 +18,6 @@ import {
   RestrictedAreaDrawer,
 } from "@/components/features/sites/restricted-area-drawer";
 import {
-  buildCameraHotConfigPayload,
   buildCameraStartPayload,
   canAutoStartCameraSource,
   deriveLiveDefaultsFromConfig,
@@ -183,7 +182,6 @@ export function CameraIntelligenceContent({
   const [streamNonce, setStreamNonce] = useState<number>(() => Date.now());
   const [isStarting, setIsStarting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isApplyingConfig, setIsApplyingConfig] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
 
   const [pingOpen, setPingOpen] = useState(false);
@@ -519,49 +517,6 @@ export function CameraIntelligenceContent({
     [handleStartStream],
   );
 
-  const handleHotConfig = useCallback(async () => {
-    setIsApplyingConfig(true);
-    try {
-      const payload = buildCameraHotConfigPayload({
-        targetFps,
-        aiFps,
-        confirmHelmetSec,
-        confirmVestSec,
-        enableNoHelmet,
-        enableNoVest,
-        enableRestrictedArea,
-        enableSceneCut,
-        roiPolygon: cameraConfig?.roiPolygon,
-      });
-      await aiTestService.updateLiveConfig(liveCameraId, payload);
-      toast.success(
-        isVietnamese
-          ? `Đã áp dụng Hot Config cho ${liveCameraId}`
-          : `Applied Hot Config for ${liveCameraId}`,
-      );
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : isVietnamese
-            ? "Không thể cập nhật Hot Config"
-            : "Unable to update Hot Config",
-      );
-    } finally {
-      setIsApplyingConfig(false);
-    }
-  }, [
-    aiFps,
-    confirmHelmetSec,
-    confirmVestSec,
-    enableNoHelmet,
-    enableNoVest,
-    enableRestrictedArea,
-    enableSceneCut,
-    liveCameraId,
-    targetFps,
-  ]);
-
   const handleStopStream = useCallback(async () => {
     userStoppedRef.current = true;
     setIsStopping(true);
@@ -689,10 +644,6 @@ export function CameraIntelligenceContent({
   const handleStartDefaultStream = useCallback(() => {
     void handleStartStream();
   }, [handleStartStream]);
-
-  const handleHotConfigClick = useCallback(() => {
-    void handleHotConfig();
-  }, [handleHotConfig]);
 
   const handleStopStreamClick = useCallback(() => {
     void handleStopStream();
@@ -842,12 +793,10 @@ export function CameraIntelligenceContent({
           enableSceneCut={enableSceneCut}
           onEnableSceneCutChange={setEnableSceneCut}
           isStarting={isStarting}
-          isApplyingConfig={isApplyingConfig}
           isStopping={isStopping}
           isSavingDb={updateConfigMutation.isPending || updateCameraSafetyMutation.isPending}
           canManageCamera={canManage}
           onStartStream={handleStartDefaultStream}
-          onHotConfig={handleHotConfigClick}
           onStopStream={handleStopStreamClick}
           onSaveToDb={handleSaveToDbClick}
           onOpenDeviceTab={handleJumpToOverrideTab}

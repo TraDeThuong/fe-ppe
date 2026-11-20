@@ -1,6 +1,7 @@
 
 "use client";
 
+import type { CSSProperties } from "react";
 import {
   Camera,
   Flame,
@@ -16,15 +17,21 @@ import type { CameraStatDto } from "@/types";
 export interface ReportCameraRankingProps {
   rankings?: CameraStatDto[];
   loading?: boolean;
+  lookupEnabled?: boolean;
+  confirmedOnly?: boolean;
+  style?: CSSProperties;
 }
 
 export function ReportCameraRanking({
   rankings = [],
   loading = false,
+  lookupEnabled = true,
+  confirmedOnly = false,
+  style,
 }: ReportCameraRankingProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
-  const { getCamera, getSiteName } = useEntityLookup();
+  const { getCamera, getSiteName } = useEntityLookup({ enabled: lookupEnabled });
 
   const getRankBadge = (idx: number) => {
     if (idx === 0) {
@@ -60,6 +67,7 @@ export function ReportCameraRanking({
 
   return (
     <div
+      style={style}
       className="relative flex h-full min-h-0 w-full flex-col overflow-hidden rounded-2xl bg-surface p-4 sm:p-5
       shadow-[7px_7px_18px_var(--shadow-dark),-7px_-7px_18px_var(--shadow-light)]"
     >
@@ -81,9 +89,9 @@ export function ReportCameraRanking({
               {t("reports.charts.rankingsTitle")}
             </h4>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              {isVietnamese
-                ? "Phân tích vi phạm theo camera"
-                : "Violation analysis by camera"}
+              {confirmedOnly
+                ? (isVietnamese ? "Xếp hạng theo vi phạm đã xác nhận, gồm đã khắc phục" : "Ranked by confirmed violations, including resolved")
+                : (isVietnamese ? "Phân tích vi phạm theo camera" : "Violation analysis by camera")}
             </p>
           </div>
         </div>
@@ -139,7 +147,7 @@ export function ReportCameraRanking({
                     )
                   : 0;
 
-              const camEntity = getCamera(item.cameraId);
+              const camEntity = lookupEnabled ? getCamera(item.cameraId) : undefined;
 
               const displayLabel =
                 item.cameraName ||
@@ -222,7 +230,9 @@ export function ReportCameraRanking({
                         className="shrink-0 text-primary"
                       />
                       <span className="truncate text-[10px] text-muted-foreground">
-                        {isVietnamese ? "Xác nhận" : "Confirmed"}
+                        {confirmedOnly
+                          ? (isVietnamese ? "Đã xác nhận" : "Confirmed")
+                          : (isVietnamese ? "Xác nhận" : "Confirmed")}
                         <span className="ml-1 font-bold tabular-nums text-foreground">
                           <AnimatedNumber value={item.confirmedCount} delay={idx * 45} />
                         </span>

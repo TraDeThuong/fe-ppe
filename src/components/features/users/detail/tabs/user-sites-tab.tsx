@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PhoneReveal } from "@/components/ui/phone-reveal";
 import { useLocale } from "@/providers/locale-provider";
 import { useAssignUserSites } from "@/hooks/users";
 import { toast } from "@/lib/toast";
@@ -215,10 +216,16 @@ export function UserSitesTab({
                   {/* Contact phone if available */}
                   {(contactPhones.length > 0 || site.contactPhone) && (
                     <div className="mt-2 text-xs text-muted-foreground flex items-center gap-2">
-                      <Phone size={12} className="text-primary" />
-                      <span className="font-mono text-[11px]">
-                        Hotline: {contactPhones[0] || site.contactPhone}
-                      </span>
+                      <Phone size={12} className="text-primary shrink-0" />
+                      <span className="font-mono text-[11px]">Hotline:</span>
+                      <PhoneReveal
+                        key={site.id}
+                        phoneNumber={contactPhones[0] || site.contactPhone}
+                        isVietnamese={isVietnamese}
+                        iconSize={12}
+                        buttonClassName="size-6"
+                        textClassName="font-mono text-[11px] font-semibold text-foreground"
+                      />
                     </div>
                   )}
                 </div>

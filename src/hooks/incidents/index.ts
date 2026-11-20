@@ -7,3 +7,4 @@ export * from "./use-incident-assignments";
 export * from "./use-incident-comments";
 export * from "./use-evidence-integrity";
 export * from "./use-evidences";
+export * from "./use-hydrated-incidents";

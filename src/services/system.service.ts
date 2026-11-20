@@ -262,6 +262,7 @@ export const systemService = {
           let probeLatency = 0;
           let failureReason: string | undefined;
           let failureKind: ServiceProbeFailureKind | undefined;
+          let verifiedVia: "ai-models-api" | undefined;
 
           if (tgt.probeTarget) {
             const controller = new AbortController();
@@ -292,6 +293,9 @@ export const systemService = {
                           ? parsed.reason
                           : "Target unreachable";
                     } else {
+                      if (tgt.probeTarget === "ai" && parsed.verifiedVia === "ai-models-api") {
+                        verifiedVia = "ai-models-api";
+                      }
                       resData =
                         typeof parsed.uptime === "number"
                           ? { uptime: parsed.uptime }
@@ -384,7 +388,7 @@ export const systemService = {
             name: tgt.name,
             serviceCode: tgt.code,
             port: tgt.port,
-            endpoint: tgt.displayEndpoint ?? tgt.path,
+            endpoint: verifiedVia === "ai-models-api" ? "/api/models (:8000)" : tgt.displayEndpoint ?? tgt.path,
             type: tgt.type,
             status,
             latencyMs,
@@ -395,6 +399,13 @@ export const systemService = {
               ...(status === "DOWN" ? { probeDurationMs: latencyMs } : {}),
               ...(failureKind ? { failureKind } : {}),
               ...(failureReason ? { reason: failureReason } : {}),
+              ...(verifiedVia ? {
+                verifiedVia,
+                note: pickLocaleText(
+                  "AI Engine phản hồi API danh sách mô hình; phiên bản này không có /health. Trạng thái suy luận chưa được kiểm tra.",
+                  "AI Engine responds to the models API; this version has no /health. Inference readiness has not been verified.",
+                ),
+              } : {}),
             },
           } as ServiceHealthItem;
         } catch (error) {

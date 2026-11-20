@@ -10,6 +10,7 @@ import type { IncidentItem, ResolveIncidentPayload } from "@/types";
 export interface ResolveIncidentSubmitPayload extends ResolveIncidentPayload {
   afterFixFile?: File | null;
   closeImmediately?: boolean;
+  advance?: boolean;
 }
 
 export interface ResolveIncidentModalProps {
@@ -19,6 +20,8 @@ export interface ResolveIncidentModalProps {
   onSubmit: (id: string, payload: ResolveIncidentSubmitPayload) => Promise<void>;
   loading?: boolean;
   canClose?: boolean;
+  groupMode?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 export function ResolveIncidentModal({
@@ -28,6 +31,8 @@ export function ResolveIncidentModal({
   onSubmit,
   loading = false,
   canClose = false,
+  groupMode = false,
+  onDirtyChange,
 }: ResolveIncidentModalProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -37,6 +42,8 @@ export function ResolveIncidentModal({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [closeImmediately, setCloseImmediately] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirty = open && (!!resolutionNote.trim() || !!afterFixFile);
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
   useEffect(() => {
     if (!afterFixFile) {
@@ -50,6 +57,7 @@ export function ResolveIncidentModal({
 
   useEffect(() => {
     if (!open) {
+      setResolutionNote("");
       setError(null);
       setAfterFixFile(null);
       setCloseImmediately(false);
@@ -58,7 +66,7 @@ export function ResolveIncidentModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!incident) return;
+    if (!incident || loading) return;
     setError(null);
 
     if (!resolutionNote.trim()) {
@@ -75,6 +83,7 @@ export function ResolveIncidentModal({
         resolutionNote: resolutionNote.trim(),
         afterFixFile,
         closeImmediately: canClose ? closeImmediately : false,
+        advance: groupMode && (e.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "next",
       });
 
       onOpenChange(false);
@@ -105,7 +114,7 @@ export function ResolveIncidentModal({
           : undefined
       }
       footer={
-        <div className="flex w-full items-center justify-end gap-3">
+        <div className="flex w-full flex-wrap items-center justify-end gap-3">
           <Button
             type="button"
             variant="ghost"
@@ -117,16 +126,16 @@ export function ResolveIncidentModal({
           <Button
             form="resolve-incident-form"
             type="submit"
-            variant="primary"
+            variant={groupMode ? "outline" : "primary"}
             disabled={loading}
-            className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+            className={groupMode ? "gap-2" : "gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"}
           >
             {loading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <CheckCircle2 className="w-4 h-4" />
             )}
-            {closeImmediately && canClose
+            {groupMode ? (isVietnamese ? "Lưu báo cáo" : "Save report") : closeImmediately && canClose
               ? isVietnamese
                 ? "Khắc phục & Đóng luôn"
                 : "Resolve & Close"
@@ -134,6 +143,9 @@ export function ResolveIncidentModal({
                 ? "Gửi báo cáo khắc phục"
                 : t("incidents.modals.resolveSubmit")}
           </Button>
+          {groupMode && <Button form="resolve-incident-form" type="submit" value="next" variant="primary" disabled={loading}>
+            {isVietnamese ? "Báo cáo & tiếp theo" : "Report & next"}
+          </Button>}
         </div>
       }
     >
@@ -164,6 +176,7 @@ export function ResolveIncidentModal({
             {t("incidents.modals.resolutionNote")} <span className="text-rose-500">*</span>
           </label>
           <textarea
+            disabled={loading}
             value={resolutionNote}
             onChange={(e) => setResolutionNote(e.target.value)}
             rows={3}
@@ -198,6 +211,7 @@ export function ResolveIncidentModal({
               />
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => setAfterFixFile(null)}
                 className="absolute right-2 top-2 flex size-7 items-center justify-center rounded-full bg-background/90 text-foreground shadow hover:bg-danger hover:text-white transition"
                 title={isVietnamese ? "Bỏ ảnh" : "Remove photo"}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -41,6 +41,8 @@ import {
   resolveIncidentsWithReport,
 } from "@/lib/incident-actions";
 import { isIncidentAssignedToUser } from "@/lib/incident-workflow";
+import { canResolveGroupIncident, nextGroupIncident } from "@/lib/incident-group";
+import { IncidentGroupWorkspace, useIncidentGroupWorkspace } from "@/components/features/incidents/incident-group-workspace";
 import { incidentService, notificationService } from "@/services";
 import {
   EVIDENCE_TYPE,
@@ -83,12 +85,21 @@ interface IncidentDetailContentProps {
 }
 
 export default function IncidentDetailContent({ id }: IncidentDetailContentProps) {
+  const { user } = useAuth();
+  return <IncidentGroupWorkspace id={id}><IncidentDetailBody key={`${user?.id}:${id}`} id={id} /></IncidentGroupWorkspace>;
+}
+
+function IncidentDetailBody({ id }: IncidentDetailContentProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const can = useCan();
+  const canRead = can("PPE_INCIDENT_READ");
+  const groupWorkspace = useIncidentGroupWorkspace();
+  const markSingleDirty = useCallback((dirty: boolean) => groupWorkspace?.markDirty("single", dirty), [groupWorkspace?.markDirty]);
   const { getCamera } = useEntityLookup();
 
   const [isHighlightCompare, setIsHighlightCompare] = useState(false);
@@ -114,26 +125,29 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
   const { lastAlert } = useRealtime();
 
   // Queries lấy dữ liệu thực tế từ Backend
-  const {
-    data: incident,
-    isLoading,
-    isError,
-    error,
-    refetch,
-    isRefetching,
-  } = useIncidentDetail(id);
+  // Group mode shares the verified group snapshot with the detail view. Do not issue a
+  // fifth member-detail request alongside the four group readers, or display a stale assignee.
+  const detailQuery = useIncidentDetail(id, canRead && !groupWorkspace, user?.id);
+  const groupRow = groupWorkspace?.snapshot?.rows.find((row) => row.id === id);
+  const incident = groupWorkspace ? (!groupRow?.error ? groupRow?.incident : undefined) : detailQuery.data;
+  const isLoading = groupWorkspace ? !groupWorkspace.snapshot && !groupWorkspace.query.error && groupWorkspace.readable : detailQuery.isLoading;
+  const isError = groupWorkspace ? !!groupRow?.error || groupWorkspace.query.isError : detailQuery.isError;
+  const error = groupWorkspace ? (groupRow?.error ? new Error(groupRow.error) : groupWorkspace.query.error) : detailQuery.error;
+  const isRefetching = groupWorkspace ? groupWorkspace.query.isFetching : detailQuery.isRefetching;
+  const groupRefresh = groupWorkspace?.refresh;
+  const refetch = useCallback(() => groupRefresh ? groupRefresh() : detailQuery.refetch(), [groupRefresh, detailQuery.refetch]);
 
-  const { data: comments = [] } = useIncidentComments(id);
+  const { data: comments = [] } = useIncidentComments(id, canRead);
 
   // Tự động làm mới dữ liệu khi có cảnh báo/sự kiện liên quan đến sự cố hiện tại
   useEffect(() => {
-    if (!lastAlert) return;
+    if (!lastAlert || !canRead || groupRefresh) return;
     const alertData = lastAlert.data as Record<string, unknown> | undefined;
     const alertIncidentId = (alertData?.incidentId as string) || (alertData?.id as string);
     if (alertIncidentId === id) {
       refetch();
     }
-  }, [lastAlert, id, refetch]);
+  }, [lastAlert, id, refetch, canRead, groupRefresh]);
 
   const incidentCamera = incident?.cameraId ? getCamera(incident.cameraId) : undefined;
 
@@ -151,15 +165,16 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
   }, [incident?.cameraId, incidentCamera]);
 
   // Mutations & Permissions
-  const can = useCan();
-  const canReview = can("PPE_INCIDENT_REVIEW");
-  const canAssign = can("PPE_INCIDENT_MANAGE");
+  const isOfficerRole = (user?.role || "").toUpperCase() === "SAFETY_OFFICER";
+  const canReview = !isOfficerRole && can("PPE_INCIDENT_REVIEW");
+  const canAssign = !isOfficerRole && can("PPE_INCIDENT_MANAGE");
   const canResolve = can("PPE_INCIDENT_UPDATE");
-  const canClose = can("PPE_INCIDENT_MANAGE");
+  const canClose = !isOfficerRole && can("PPE_INCIDENT_MANAGE");
   const canUpdate = can("PPE_INCIDENT_UPDATE");
   const canDeleteEvidence = can("PPE_INCIDENT_DELETE");
   const canTriggerAlert =
-    can("PPE_INCIDENT_UPDATE") || can("PPE_INCIDENT_MANAGE") || can("NOTIFICATION_CREATE");
+    !isOfficerRole &&
+    (can("PPE_INCIDENT_UPDATE") || can("PPE_INCIDENT_MANAGE") || can("NOTIFICATION_CREATE"));
 
   const addCommentMutation = useAddIncidentComment();
   const updateMutation = useUpdateIncident();
@@ -180,10 +195,11 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
   const [isCloseOpen, setIsCloseOpen] = useState(false);
   const [isActionPending, setIsActionPending] = useState(false);
 
-  const isOfficerRole = (user?.role || "").toUpperCase() === "SAFETY_OFFICER";
   const isOfficerAssigned = incident ? isIncidentAssignedToUser(incident, user?.id) : false;
   const awaitingDispatch = isOfficerRole && !isOfficerAssigned;
-  const canSelfOrAssignedResolve = canResolve && (!isOfficerRole || isOfficerAssigned);
+  const canSelfOrAssignedResolve = canResolve && (groupWorkspace
+    ? groupWorkspace.canAct && !!incident && canResolveGroupIncident(incident, user?.id || "")
+    : (!isOfficerRole || isOfficerAssigned));
 
   const refreshDetailAndLists = () => {
     void refetch();
@@ -201,6 +217,7 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
   const handleReview = async (reviewId: string, payload: any) => {
     try {
       await reviewMutation.mutateAsync({ id: reviewId, payload });
+      refreshDetailAndLists();
       setIsReviewOpen(false);
     } catch (err) {
       console.error("Failed to review incident:", err);
@@ -237,6 +254,20 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
 
   const handleResolve = async (_resolveId: string, payload: any) => {
     if (!incident) return;
+    if (groupWorkspace?.group) {
+      const result = await groupWorkspace.resolveMembers([incident.id], payload);
+      if (!result.succeeded.some((record) => record.id === incident.id)) {
+        throw new Error(result.failed[0]?.message || (isVietnamese ? "Chưa xác minh được báo cáo khắc phục." : "Unable to verify the remediation report."));
+      }
+      groupWorkspace.markDirty("single", false);
+      setIsResolveOpen(false);
+      toast.success(isVietnamese ? "Đã lưu báo cáo khắc phục." : "Remediation report saved.");
+      if (payload.advance) {
+        const next = nextGroupIncident(groupWorkspace.group, incident.id, result.snapshot.rows, user?.id || "");
+        if (next) groupWorkspace.navigate(next);
+      }
+      return;
+    }
     setIsActionPending(true);
     try {
       const res = await resolveIncidentsWithReport({
@@ -276,6 +307,7 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
   const handleClose = async (closeId: string, payload?: any) => {
     try {
       await closeMutation.mutateAsync({ id: closeId, payload });
+      refreshDetailAndLists();
       setIsCloseOpen(false);
     } catch (err) {
       console.error("Failed to close incident:", err);
@@ -322,6 +354,10 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
       toast.error(err instanceof Error ? err.message : "Download failed");
     }
   };
+
+  if (!canRead) return <div role="alert" className="rounded-2xl border border-border/40 bg-surface p-6 text-sm text-muted-foreground">
+    {isVietnamese ? "Bạn không có quyền xem hồ sơ sự cố này." : "You do not have permission to view this incident."}
+  </div>;
 
   if (isLoading) {
     return (
@@ -431,13 +467,17 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
   const assignedOfficerName = activeAssignment?.assignedToName;
 
   const handleStepperClick = (stepKey: string) => {
-    if (stepKey === "REVIEWED" && incident.status === "PENDING_REVIEW") {
+    if (stepKey === "REVIEWED" && incident.status === "PENDING_REVIEW" && canReview) {
       setIsReviewOpen(true);
-    } else if (stepKey === "RESOLVING" && incident.status === "CONFIRMED") {
+    } else if (stepKey === "RESOLVING" && incident.status === "CONFIRMED" && canAssign) {
       setIsAssignOpen(true);
-    } else if (stepKey === "RESOLVED" && incident.status === "CONFIRMED") {
+    } else if (
+      stepKey === "RESOLVED" &&
+      incident.status === "CONFIRMED" &&
+      canSelfOrAssignedResolve
+    ) {
       setIsResolveOpen(true);
-    } else if (stepKey === "CLOSED" && incident.status === "RESOLVED") {
+    } else if (stepKey === "CLOSED" && incident.status === "RESOLVED" && canClose) {
       setIsCloseOpen(true);
     }
   };
@@ -776,11 +816,17 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
       />
 
       <ResolveIncidentModal
+        key={id}
         open={isResolveOpen}
-        onOpenChange={setIsResolveOpen}
+        onOpenChange={(open) => {
+          if (!open && groupWorkspace && !groupWorkspace.confirmDiscard("single")) return;
+          setIsResolveOpen(open);
+        }}
         incident={incident}
-        loading={resolveMutation.isPending || isActionPending}
-        canClose={canClose}
+        loading={resolveMutation.isPending || isActionPending || !!groupWorkspace?.busy}
+        canClose={!groupWorkspace && canClose}
+        groupMode={!!groupWorkspace}
+        onDirtyChange={markSingleDirty}
         onSubmit={handleResolve}
       />
 
@@ -799,6 +845,7 @@ export default function IncidentDetailContent({ id }: IncidentDetailContentProps
         loading={updateMutation.isPending}
         onSubmit={async (targetId, payload) => {
           await updateMutation.mutateAsync({ id: targetId, payload });
+          refreshDetailAndLists();
         }}
       />
 

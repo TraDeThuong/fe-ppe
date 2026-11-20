@@ -238,11 +238,12 @@ export const reportingService = {
    * GET /api/v1/reports/history
    */
   async getReportHistory(
-    params?: ReportHistoryQueryDto
+    params?: ReportHistoryQueryDto,
+    options?: { signal?: AbortSignal },
   ): Promise<{ items: ReportGenerationDto[]; meta?: PaginationMeta }> {
       const res = await apiClient.get<unknown, any>(
         "/reports/history",
-        { params }
+        { params, signal: options?.signal }
       );
       return unwrapPaginated<ReportGenerationDto>(res);
   },

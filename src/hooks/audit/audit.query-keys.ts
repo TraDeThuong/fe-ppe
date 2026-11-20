@@ -6,7 +6,7 @@ export const auditQueryKeys = {
     [...auditQueryKeys.all, "list", params ?? {}] as const,
   detail: (id: string) =>
     [...auditQueryKeys.all, "detail", id] as const,
-  summary: (params?: { fromDate?: string; toDate?: string; siteId?: string }) =>
+  summary: (params?: { fromDate?: string; toDate?: string; startDate?: string; endDate?: string; siteId?: string }) =>
     [...auditQueryKeys.all, "summary", params ?? {}] as const,
   configChanges: (params?: { page?: number; limit?: number }) =>
     [...auditQueryKeys.all, "config-changes", params ?? {}] as const,

@@ -35,11 +35,15 @@ import { Button } from "@/components/ui/button";
 import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
 import { useCan } from "@/hooks/use-can";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { EVIDENCE_TYPE, type IncidentItem } from "@/types";
 import { resolveEvidenceUrl } from "@/lib/evidence-url";
-import { groupIncidentsByCamera } from "@/lib/incident-workflow";
+import {
+  groupIncidentsByCamera,
+  isIncidentAssignedToUser,
+} from "@/lib/incident-workflow";
 
 export interface IncidentTableProps {
   incidents: IncidentItem[];
@@ -102,17 +106,19 @@ export function IncidentTable({
 }: IncidentTableProps) {
   const { t, locale } = useLocale();
   const can = useCan();
+  const { user } = useAuth();
   const router = useRouter();
   const isVietnamese = locale === "vi-VN";
+  const isOfficerRole = (user?.role || "").toUpperCase() === "SAFETY_OFFICER";
   const { getSiteName, getCameraCode, getCameraName } = useEntityLookup();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [groupByCameraMode, setGroupByCameraMode] = useState(false);
   const [collapsedCameras, setCollapsedCameras] = useState<Record<string, boolean>>({});
 
-  const canBatchReview = Boolean(onBatchReview) && can("PPE_INCIDENT_REVIEW");
-  const canBatchDispatch = Boolean(onBatchDispatch) && can("PPE_INCIDENT_MANAGE");
+  const canBatchReview = !isOfficerRole && Boolean(onBatchReview) && can("PPE_INCIDENT_REVIEW");
+  const canBatchDispatch = !isOfficerRole && Boolean(onBatchDispatch) && can("PPE_INCIDENT_MANAGE");
   const canBatchResolve = Boolean(onBatchResolve) && can("PPE_INCIDENT_UPDATE");
-  const canBatchClose = Boolean(onBatchClose) && can("PPE_INCIDENT_MANAGE");
+  const canBatchClose = !isOfficerRole && Boolean(onBatchClose) && can("PPE_INCIDENT_MANAGE");
   const canSelectRows =
     canBatchReview || canBatchDispatch || canBatchResolve || canBatchClose;
   const anyBatchPending = batchReviewPending || batchActionPending;
@@ -144,13 +150,35 @@ export function IncidentTable({
   );
 
   const confirmedSelectedItems = useMemo(
-    () => selectedIncidents.filter((i) => i.status === "CONFIRMED"),
-    [selectedIncidents],
+    () =>
+      selectedIncidents.filter(
+        (i) =>
+          i.status === "CONFIRMED" &&
+          (!isOfficerRole || isIncidentAssignedToUser(i, user?.id)),
+      ),
+    [selectedIncidents, isOfficerRole, user?.id],
   );
 
   const resolvedSelectedItems = useMemo(
     () => selectedIncidents.filter((i) => i.status === "RESOLVED"),
     [selectedIncidents],
+  );
+
+  const allPagePendingIds = useMemo(
+    () => incidents.filter((i) => i.status === "PENDING_REVIEW").map((i) => i.id),
+    [incidents],
+  );
+
+  const allPageMyConfirmedIds = useMemo(
+    () =>
+      incidents
+        .filter(
+          (i) =>
+            i.status === "CONFIRMED" &&
+            (!isOfficerRole || isIncidentAssignedToUser(i, user?.id)),
+        )
+        .map((i) => i.id),
+    [incidents, isOfficerRole, user?.id],
   );
 
   const cameraGroups = useMemo(
@@ -315,6 +343,36 @@ export function IncidentTable({
       {incidents.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/40 bg-surface/80 px-3.5 py-2.5 shadow-nm-sm">
           <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+            {canBatchReview && allPagePendingIds.length > 0 && (
+              <button
+                type="button"
+                onClick={() => toggleGroupSelection(allPagePendingIds)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-500/25 transition mr-1"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>
+                  {isVietnamese
+                    ? `Chọn chờ duyệt (${allPagePendingIds.length})`
+                    : `Select Pending (${allPagePendingIds.length})`}
+                </span>
+              </button>
+            )}
+
+            {isOfficerRole && canBatchResolve && allPageMyConfirmedIds.length > 0 && (
+              <button
+                type="button"
+                onClick={() => toggleGroupSelection(allPageMyConfirmedIds)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 transition mr-1"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>
+                  {isVietnamese
+                    ? `Chọn việc của tôi (${allPageMyConfirmedIds.length})`
+                    : `Select My Tasks (${allPageMyConfirmedIds.length})`}
+                </span>
+              </button>
+            )}
+
             <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground mr-1">
               <Camera className="h-3.5 w-3.5 text-primary" />
               <span>
@@ -504,6 +562,24 @@ export function IncidentTable({
                         </span>
                       )}
 
+                      {canBatchReview && onBatchReview && grp.pendingIds.length > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={anyBatchPending}
+                          onClick={() => void onBatchReview(grp.pendingIds, "CONFIRM")}
+                          className="h-7 gap-1 px-2.5 text-[11px]"
+                        >
+                          <CheckCircle2 className="h-3 w-3" />
+                          <span>
+                            {isVietnamese
+                              ? `Xác nhận nhóm (${grp.pendingIds.length})`
+                              : `Confirm Group (${grp.pendingIds.length})`}
+                          </span>
+                        </Button>
+                      )}
+
                       {canBatchDispatch && onBatchDispatch && grp.dispatchableIds.length > 0 && (
                         <Button
                           type="button"
@@ -528,10 +604,36 @@ export function IncidentTable({
                         </Button>
                       )}
 
+                      {canBatchClose && onBatchClose && grp.resolvedIds.length > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={anyBatchPending}
+                          onClick={() =>
+                            void onBatchClose(
+                              grp.items.filter((i) => i.status === "RESOLVED"),
+                            )
+                          }
+                          className="h-7 gap-1 px-2.5 text-[11px]"
+                        >
+                          <Archive className="h-3 w-3" />
+                          <span>
+                            {isVietnamese
+                              ? `Đóng nhóm (${grp.resolvedIds.length})`
+                              : `Close Group (${grp.resolvedIds.length})`}
+                          </span>
+                        </Button>
+                      )}
+
                       {canBatchResolve &&
                         !canBatchDispatch &&
                         onBatchResolve &&
-                        grp.confirmedIds.length > 0 && (
+                        grp.items.some(
+                          (i) =>
+                            i.status === "CONFIRMED" &&
+                            (!isOfficerRole || isIncidentAssignedToUser(i, user?.id)),
+                        ) && (
                           <Button
                             type="button"
                             size="sm"
@@ -539,7 +641,11 @@ export function IncidentTable({
                             disabled={anyBatchPending}
                             onClick={() =>
                               void onBatchResolve(
-                                grp.items.filter((i) => i.status === "CONFIRMED"),
+                                grp.items.filter(
+                                  (i) =>
+                                    i.status === "CONFIRMED" &&
+                                    (!isOfficerRole || isIncidentAssignedToUser(i, user?.id)),
+                                ),
                               )
                             }
                             className="h-7 gap-1 px-2.5 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -547,8 +653,8 @@ export function IncidentTable({
                             <CheckCircle2 className="h-3 w-3" />
                             <span>
                               {isVietnamese
-                                ? `Khắc phục cả nhóm (${grp.confirmedIds.length})`
-                                : `Resolve Group (${grp.confirmedIds.length})`}
+                                ? `Khắc phục nhóm của tôi`
+                                : `Resolve My Group`}
                             </span>
                           </Button>
                         )}
@@ -559,6 +665,7 @@ export function IncidentTable({
                     <div className="divide-y divide-border/20">
                       {grp.items.map((incident) => {
                         const isSelected = selectedIdSet.has(incident.id);
+                        const evidenceUrl = getIncidentEvidenceUrl(incident);
                         const assigneeName =
                           incident.assignments?.find((a) => a.status !== "COMPLETED")
                             ?.assignedToName || incident.assignments?.[0]?.assignedToName;
@@ -582,20 +689,24 @@ export function IncidentTable({
                                   className="h-4 w-4 rounded accent-primary cursor-pointer shrink-0"
                                 />
                               )}
-                              <div className="relative h-10 w-14 shrink-0 overflow-hidden rounded-lg border border-border/40 bg-slate-950/80">
-                                <img
-                                  src={getIncidentEvidenceUrl(incident)}
-                                  alt="Evidence"
-                                  className="h-full w-full object-cover"
-                                  onError={(e) => {
-                                    const target = e.currentTarget;
-                                    if (!target.src.includes("/images/camera-live-evidence.jpg")) {
-                                      target.src = "/images/camera-live-evidence.jpg";
-                                    } else {
-                                      target.style.display = "none";
-                                    }
-                                  }}
-                                />
+                              <div className="relative flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/40 bg-slate-950/80">
+                                {evidenceUrl ? (
+                                  <img
+                                    src={evidenceUrl}
+                                    alt="Evidence"
+                                    className="h-full w-full object-cover"
+                                    onError={(e) => {
+                                      const target = e.currentTarget;
+                                      if (!target.src.includes("/images/camera-live-evidence.jpg")) {
+                                        target.src = "/images/camera-live-evidence.jpg";
+                                      } else {
+                                        target.style.display = "none";
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <Camera className="h-4 w-4 text-muted-foreground/60" />
+                                )}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
@@ -665,22 +776,27 @@ export function IncidentTable({
               enableSorting: false,
               cell: ({ row }) => {
                 const incident = row.original;
+                const evidenceUrl = getIncidentEvidenceUrl(incident);
                 return (
                   <div className="flex items-center gap-3">
-                    <div className="relative h-11 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-950/80 border border-border/40">
-                      <img
-                        src={getIncidentEvidenceUrl(incident)}
-                        alt="Evidence"
-                        className="h-full w-full object-cover"
-                        onError={(e) => {
-                          const target = e.currentTarget;
-                          if (!target.src.includes("/images/camera-live-evidence.jpg")) {
-                            target.src = "/images/camera-live-evidence.jpg";
-                          } else {
-                            target.style.display = "none";
-                          }
-                        }}
-                      />
+                    <div className="relative flex h-11 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-950/80 border border-border/40">
+                      {evidenceUrl ? (
+                        <img
+                          src={evidenceUrl}
+                          alt="Evidence"
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            if (!target.src.includes("/images/camera-live-evidence.jpg")) {
+                              target.src = "/images/camera-live-evidence.jpg";
+                            } else {
+                              target.style.display = "none";
+                            }
+                          }}
+                        />
+                      ) : (
+                        <Camera className="h-4 w-4 text-muted-foreground/60" />
+                      )}
                     </div>
                     <div>
                       <Link
@@ -805,7 +921,31 @@ export function IncidentTable({
               header: t("incidents.table.status"),
               accessorFn: (incident) => incident.status,
               enableSorting: true,
-              cell: ({ row }) => <IncidentStatusBadge status={row.original.status} />,
+              cell: ({ row }) => {
+                const incident = row.original;
+                const activeAssignee =
+                  incident.assignments?.find((a) => a.status !== "COMPLETED") ||
+                  incident.assignments?.[0];
+                const assigneeName = activeAssignee?.assignedToName;
+                const isMine = isIncidentAssignedToUser(incident, user?.id);
+
+                return (
+                  <div className="flex flex-col items-start gap-1">
+                    <IncidentStatusBadge status={incident.status} />
+                    {isMine ? (
+                      <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                        <UserCheck className="h-3 w-3" />
+                        <span>{isVietnamese ? "Việc của bạn" : "Assigned to you"}</span>
+                      </span>
+                    ) : assigneeName ? (
+                      <span className="inline-flex items-center gap-1 rounded-md border border-border/50 bg-muted/40 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        <UserCheck className="h-3 w-3 text-primary" />
+                        <span className="truncate max-w-[140px]">{assigneeName}</span>
+                      </span>
+                    ) : null}
+                  </div>
+                );
+              },
             },
             {
               id: "actions",
@@ -854,7 +994,8 @@ export function IncidentTable({
                       hidden: (incident) =>
                         !onResolve ||
                         incident.status !== "CONFIRMED" ||
-                        !can("PPE_INCIDENT_UPDATE"),
+                        !can("PPE_INCIDENT_UPDATE") ||
+                        (isOfficerRole && !isIncidentAssignedToUser(incident, user?.id)),
                       onClick: (incident) => onResolve?.(incident),
                     },
                     {

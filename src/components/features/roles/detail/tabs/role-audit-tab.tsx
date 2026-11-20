@@ -39,7 +39,7 @@ export function RoleAuditTab({ role }: RoleAuditTabProps) {
     page,
     limit: 20,
     sortBy: "createdAt",
-    sortOrder: "desc",
+    order: "desc",
   });
 
   const logs = auditResult?.items || [];
@@ -59,14 +59,12 @@ export function RoleAuditTab({ role }: RoleAuditTabProps) {
       setDetailData(detail);
     } catch {
       // Fallback to record if detail fetch fails
+      const d = (record.details || {}) as Record<string, unknown>;
       setDetailData({
         ...record,
-        oldValue: (record.details?.oldValue as Record<string, unknown>) || null,
-        newValue:
-          (record.details?.newValue as Record<string, unknown>) ||
-          (record.details as Record<string, unknown>) ||
-          null,
-        metadata: (record.details as Record<string, unknown>) || null,
+        oldValue: (d.oldValue as Record<string, unknown>) ?? (d.previous as Record<string, unknown>) ?? null,
+        newValue: (d.newValue as Record<string, unknown>) ?? (d.updated as Record<string, unknown>) ?? (d.current as Record<string, unknown>) ?? null,
+        metadata: Object.keys(d).length > 0 ? d : null,
       });
     } finally {
       setDetailLoading(false);

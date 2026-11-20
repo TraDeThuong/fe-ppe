@@ -17,15 +17,16 @@ export interface UseReportHistoryResult {
 export type UseReportHistoryOptions = Omit<
   UseQueryOptions<UseReportHistoryResult, Error>,
   "queryKey" | "queryFn"
->;
+> & { scopeUserId?: string };
 
 export function useReportHistory(
   params?: ReportHistoryQueryDto,
   options?: UseReportHistoryOptions,
 ) {
+  const { scopeUserId, ...queryOptions } = options ?? {};
   return useQuery<UseReportHistoryResult, Error>({
-    queryKey: reportingKeys.history(params),
-    queryFn: () => reportingService.getReportHistory(params),
+    queryKey: scopeUserId ? [...reportingKeys.history(params), scopeUserId] : reportingKeys.history(params),
+    queryFn: ({ signal }) => reportingService.getReportHistory(params, { signal }),
     placeholderData: keepPreviousData,
     staleTime: 5 * 1000,
     refetchInterval: (query) => {
@@ -36,6 +37,6 @@ export function useReportHistory(
       // Auto-poll every 4 seconds if there are reports actively generating
       return hasPendingOrProcessing ? 4000 : false;
     },
-    ...options,
+    ...queryOptions,
   });
 }

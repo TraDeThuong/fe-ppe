@@ -15,6 +15,7 @@ import {
   User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PhoneReveal } from "@/components/ui/phone-reveal";
 import { SiteSafetyBadges } from "./site-safety-badges";
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
@@ -151,7 +152,14 @@ export function SiteCardGrid({
                     {site.contactOfficers[0].phones && site.contactOfficers[0].phones.length > 0 && (
                       <span className="flex items-center gap-1 font-mono text-[10.5px]">
                         <Phone className="h-3 w-3 text-muted-foreground shrink-0" />
-                        <span>{site.contactOfficers[0].phones.join(", ")}</span>
+                        <PhoneReveal
+                          key={`${site.id}-officer-phone`}
+                          phoneNumber={site.contactOfficers[0].phones.join(", ")}
+                          isVietnamese={isVietnamese}
+                          iconSize={12}
+                          buttonClassName="size-6"
+                          textClassName="text-[10.5px] font-mono font-semibold text-foreground"
+                        />
                       </span>
                     )}
 
@@ -172,8 +180,15 @@ export function SiteCardGrid({
                   )}
                   {site.contactPhone && (
                     <span className="flex items-center gap-1 font-mono">
-                      <Phone className="h-3 w-3" />
-                      <span>{site.contactPhone}</span>
+                      <Phone className="h-3 w-3 shrink-0" />
+                      <PhoneReveal
+                        key={`${site.id}-contact-phone`}
+                        phoneNumber={site.contactPhone}
+                        isVietnamese={isVietnamese}
+                        iconSize={12}
+                        buttonClassName="size-6"
+                        textClassName="text-[11px] font-mono font-semibold text-foreground"
+                      />
                     </span>
                   )}
                 </div>

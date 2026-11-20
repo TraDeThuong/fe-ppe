@@ -79,15 +79,23 @@ export function IncidentActionGuide({
               </div>
 
               <h4 className="text-sm font-extrabold tracking-tight text-foreground sm:text-base">
-                {isVietnamese
-                  ? "Thẩm duyệt & Xác nhận vi phạm an toàn"
-                  : "Review & Validate Safety Violation"}
+                {onReview
+                  ? isVietnamese
+                    ? "Thẩm duyệt & Xác nhận vi phạm an toàn"
+                    : "Review & Validate Safety Violation"
+                  : isVietnamese
+                    ? "Đang chờ Quản lý An toàn thẩm duyệt cảnh báo AI"
+                    : "Awaiting Safety Manager AI Alert Review"}
               </h4>
 
               <p className="text-xs leading-relaxed text-muted-foreground">
-                {isVietnamese
-                  ? "AI đã phát hiện nghi vấn vi phạm PPE. Hãy đối chiếu ảnh chụp và khung nhận diện bên trái để Xác nhận hoặc Bác bỏ."
-                  : "AI detected a potential PPE violation. Please cross-check camera evidence to confirm or dismiss."}
+                {onReview
+                  ? isVietnamese
+                    ? "AI đã phát hiện nghi vấn vi phạm PPE. Hãy đối chiếu ảnh chụp và khung nhận diện bên trái để Xác nhận hoặc Bác bỏ."
+                    : "AI detected a potential PPE violation. Please cross-check camera evidence to confirm or dismiss."
+                  : isVietnamese
+                    ? "Hồ sơ này mới được Camera AI ghi nhận và đang chờ Quản lý An toàn thẩm duyệt, phân công cán bộ xử lý."
+                    : "This record was newly detected by AI and is awaiting review and assignment by the Safety Manager."}
               </p>
             </div>
           </div>

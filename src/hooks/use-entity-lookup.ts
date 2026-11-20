@@ -14,9 +14,9 @@ import type { CameraItem, SiteItem, ZoneItem } from "@/types";
  * giúp các bảng dữ liệu sự cố và camera loại bỏ hoàn toàn các fallback thô
  * ("Công trường" vô danh hoặc UUID cắt ngắn).
  */
-export function useEntityLookup() {
-  const { data: sitesData, isLoading: sitesLoading } = useSitesCatalog();
-  const { data: camerasData, isLoading: camerasLoading } = useCamerasCatalog();
+export function useEntityLookup(options?: { enabled?: boolean }) {
+  const { data: sitesData, isLoading: sitesLoading } = useSitesCatalog(options);
+  const { data: camerasData, isLoading: camerasLoading } = useCamerasCatalog(options);
 
   const sites = useMemo(() => sitesData ?? [], [sitesData]);
   const cameras = useMemo(() => camerasData ?? [], [camerasData]);

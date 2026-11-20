@@ -131,10 +131,20 @@
 
 | ID | Tiêu đề | Điều kiện | Các bước | Kết quả mong đợi | Trạng thái |
 |---|---|---|---|---|---|
-| SDC-701 | Biểu đồ xu hướng tuân thủ theo tuần của site | Chọn Tab "Phân tích an toàn" | Quan sát biểu đồ đường | Render biểu đồ tuân thủ 7 ngày qua của riêng site này, so sánh với mức trung bình toàn dự án | ✅ |
-| SDC-702 | Biểu đồ nhiệt vi phạm theo khung giờ (Peak Hours) | Có số liệu thống kê | Quan sát biểu đồ cột giờ cao điểm | Nhận diện rõ khung giờ vi phạm nhiều nhất (ví dụ: 13:30 sau giờ nghỉ trưa) | ⬜ |
-| SDC-703 | Nút "Xuất Báo Cáo Tuân Thủ Nhanh (PDF)" | Quản lý an toàn cần báo cáo | Click nút "Tải báo cáo tuần (PDF)" | Hệ thống kích hoạt API sinh báo cáo PDF cho site này và tải về máy | ⬜ |
+| SDC-701 | Xu hướng vi phạm đã xác nhận | Dữ liệu có đủ trạng thái | Chọn Ngày/Tuần/Tháng | Đếm CONFIRMED, RESOLVED và CLOSED từ nhánh RESOLVED; bổ sung kỳ 0, tuần ISO đúng năm | ✅ |
+| SDC-702 | Rủi ro 24 giờ và 3 ca | Ngày có vi phạm ở 00/06/14/22 giờ | Chọn ngày theo giờ | Theo ngày lịch Việt Nam; tổng ba ca bằng tổng 24 giờ; ngày rỗng không có cao điểm | ✅ |
+| SDC-703 | Xuất PDF và thông báo tải | Có quyền xuất, mẫu ACTIVE | Xuất báo cáo; giả lập lỗi tải tệp | Chỉ báo tải thành công sau tải tệp; lỗi vẫn giữ lịch sử để thử lại | ✅ |
+| SDC-704 | Phân loại và xếp hạng camera | Có MULTI_VIOLATION và loại cũ | Đối chiếu các card | Tổng phân loại = tổng xu hướng = tổng camera trước Top 10; báo động giả không được tính | ✅ |
+| SDC-705 | Phân biệt hồ sơ CLOSED | CLOSED từ RESOLVED và DISMISSED | Xem trạng thái xử lý | Hồ sơ báo động giả đã đóng không thành vi phạm thật hoặc đã khắc phục | ✅ |
+| SDC-706 | MTTR và SLA tham chiếu | Có thời lượng 0 phút, thiếu/ngược timestamp | Xem từng mức độ | Chỉ dùng resolvedAt hợp lệ, thiếu mẫu hiện —; SLA ghi rõ tham chiếu | ✅ |
+| SDC-707 | Khoảng ngày | Preset 7/30/90 ngày và ngày không hợp lệ | Thay bộ lọc | Đủ đúng số ngày gồm ngày cuối; khoảng sai không gọi API sự cố kỳ | ✅ |
+| SDC-708 | Tính đầy đủ của dữ liệu | Nhiều trang, lỗi trang, thiếu metadata/lịch sử | Tải Analytics | Không công bố tổng một phần; vượt 5.000 sự cố hoặc 200 chi tiết CLOSED yêu cầu thu hẹp kỳ | ✅ |
+| SDC-709 | Phân trang lịch sử | Công trường có 25 báo cáo | Sang trang 2, đổi công trường | API nhận page/limit đúng; trở về trang 1 và không giữ dòng công trường trước | ✅ |
+| SDC-710 | Quyền truy cập | Tài khoản có/thiếu quyền đọc sự cố, báo cáo, xuất | Thu hồi quyền, đổi tài khoản | Ẩn dữ liệu bị thu hồi; chỉ tác giả hoặc ADMIN có quyền xuất được xem/tải tệp | ✅ |
+| SDC-711 | Làm mới và hủy tải | Đang tải site chậm; có thao tác sự cố | Đổi site nhanh; invalidate sau review | Hủy request cũ; cache theo tài khoản/site/kỳ; cập nhật lại Analytics | ✅ |
+| SDC-712 | Trạng thái lỗi và mobile | Lỗi lịch sử rồi khôi phục | Thử lại; mở ở chiều rộng 390px | Lỗi riêng với rỗng; thử lại tải đúng; bố cục không tràn ngang | ✅ |
 
+Các ca trên được xác minh bằng dữ liệu giả lập API (unit và Playwright), chưa thay thế nghiệm thu với dữ liệu backend thật. Chạy `node --import tsx --test src/lib/__tests__/site-analytics-data.test.ts` và `python3 scripts/test-site-analytics-e2e.py`.
 ---
 
 ## 9. Xử Lý Lỗi, 404 & Khả Năng Phục Hồi

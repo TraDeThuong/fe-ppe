@@ -173,6 +173,22 @@ function shouldGlobalToast(status: number, code: string): boolean {
   return false;
 }
 
+const RATE_LIMIT_TOAST_COOLDOWN_MS = 15_000;
+let lastRateLimitToastAt = 0;
+
+function formatRateLimitMessage(retryAfter?: number): string {
+  if (retryAfter && retryAfter > 0) {
+    return pickLocaleText(
+      `Hệ thống đang nhận quá nhiều yêu cầu. Vui lòng thử lại sau ${retryAfter} giây.`,
+      `Too many requests. Please try again in ${retryAfter} seconds.`,
+    );
+  }
+  return pickLocaleText(
+    "Hệ thống đang nhận quá nhiều yêu cầu. Vui lòng chờ vài giây rồi thử lại.",
+    "Too many requests. Please wait a few seconds and try again.",
+  );
+}
+
 // ── Factory ────────────────────────────────────────────────────────────
 // Mỗi backend microservice = 1 client với baseURL riêng, dùng CHUNG interceptor
 // (auth header + refresh single-flight + chuẩn hóa lỗi).
@@ -275,7 +291,17 @@ export function createApiClient(baseURL: string): AxiosInstance {
       }
 
       if (!config?.suppressToast && shouldGlobalToast(status, code)) {
-        toast.error(message, { id: "api-global-error" });
+        if (status === 429) {
+          const now = Date.now();
+          if (now - lastRateLimitToastAt >= RATE_LIMIT_TOAST_COOLDOWN_MS) {
+            lastRateLimitToastAt = now;
+            toast.error(formatRateLimitMessage(apiError.retryAfter), {
+              id: "api-rate-limit-error",
+            });
+          }
+        } else {
+          toast.error(message, { id: "api-global-error" });
+        }
       }
 
       return Promise.reject(apiError);

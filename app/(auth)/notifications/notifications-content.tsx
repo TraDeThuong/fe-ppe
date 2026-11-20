@@ -111,6 +111,7 @@ export default function NotificationsContent() {
     data: notificationData,
     isLoading: isNotificationsLoading,
     isFetching: isNotificationsFetching,
+    error: notificationsError,
     refetch: refetchNotifications,
   } = useNotifications({
     page,
@@ -265,6 +266,7 @@ export default function NotificationsContent() {
         unreadCount={unreadCount}
         variant="soft-extruded"
         loading={isNotificationsLoading}
+        unavailable={!notificationData && !!notificationsError}
         selectedStat={selectedStat}
         onSelectStat={handleSelectStat}
         onOpenBroadcast={() => setIsBroadcastModalOpen(true)}
@@ -295,10 +297,12 @@ export default function NotificationsContent() {
           <NotificationList
             items={items}
             total={meta.total}
-            page={page}
+            page={meta.page}
             limit={limit}
             totalPages={meta.totalPages}
             isLoading={isNotificationsLoading}
+            error={notificationsError}
+            onRetry={() => void refetchNotifications()}
             onPageChange={(p) => setPage(p)}
             onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
             markingReadId={markAsReadMutation.isPending ? markAsReadMutation.variables : null}

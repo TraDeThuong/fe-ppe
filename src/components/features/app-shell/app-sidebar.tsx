@@ -72,8 +72,17 @@ export function AppSidebar({ badges: badgesProp }: AppSidebarProps = {}) {
     items.some((item) => item.group === group.key),
   );
 
-  const isActive = (route: string) =>
-    Boolean(pathname && (pathname === route || pathname.startsWith(`${route}/`)));
+  const isActive = (route: string) => {
+    if (!pathname) return false;
+    if (pathname === route) return true;
+    if (!pathname.startsWith(`${route}/`)) return false;
+    return !items.some(
+      (other) =>
+        other.route !== route &&
+        other.route.length > route.length &&
+        (pathname === other.route || pathname.startsWith(`${other.route}/`)),
+    );
+  };
 
   // Chỉ thu gọn trên desktop. Mobile ẩn toàn bộ sidebar bằng CSS.
   const iconOnly = collapsed;

@@ -7,14 +7,14 @@ import { reportingService } from "@/services/reporting.service";
 import { reportingKeys } from "./reporting.query-keys";
 import type { GenerateReportDto } from "@/types";
 
-export function useGenerateReport() {
+export function useGenerateReport(options?: { notifySuccess?: boolean }) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (dto: GenerateReportDto) => reportingService.generateReport(dto),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: reportingKeys.historyAll() });
-      toast.success(
+      if (options?.notifySuccess !== false) toast.success(
         pickLocaleText(
           `Đã tạo báo cáo "${data.fileName || "Tài liệu mới"}" thành công và đang tự động tải về máy!`,
           `Report "${data.fileName || "New document"}" generated and downloading automatically!`,

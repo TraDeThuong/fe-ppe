@@ -25,6 +25,15 @@ export type UseIncidentStatusCountsOptions = Omit<
   "queryKey" | "queryFn"
 >;
 
+function isRateLimitError(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "status" in error &&
+      Number((error as { status?: unknown }).status) === 429,
+  );
+}
+
 function normalizeStatusCountsParams(
   siteIdOrParams?: string | null | IncidentStatusCountsQueryParams,
 ): IncidentStatusCountsQueryParams {
@@ -52,13 +61,15 @@ async function fetchIncidentStatusCounts(
     };
     return await incidentService.getStatusCounts(
       Object.keys(query).length > 0 ? query : undefined,
+      { signal, suppressToast: true },
     );
   } catch (error) {
     const status =
       error && typeof error === "object" && "status" in error
         ? Number((error as { status?: unknown }).status)
         : undefined;
-    if (status === 401 || status === 403) {
+    // Tuyệt đối không bắn thêm fallback request khi gặp 401, 403 hoặc 429 (tránh khuếch đại rate-limit)
+    if (status === 401 || status === 403 || status === 429) {
       throw error;
     }
 
@@ -87,21 +98,26 @@ async function fetchIncidentStatusCounts(
 
 /**
  * Lấy bộ đếm nhanh trạng thái sự cố (total, pendingReview, critical, resolved).
- * Tự động đồng bộ khi nhận sự kiện SSE từ RealtimeContext (vi phạm PPE mới / thông báo mới).
+ * Tự động đồng bộ (có debounce 1.5s) khi nhận sự kiện SSE từ RealtimeContext.
  */
 export function useIncidentStatusCounts(
   siteIdOrParams?: string | null | IncidentStatusCountsQueryParams,
   options?: UseIncidentStatusCountsOptions,
 ) {
   const queryClient = useQueryClient();
-  const { lastAlert } = useRealtime();
+  const { lastAlert, isConnected } = useRealtime();
   const normalizedParams = normalizeStatusCountsParams(siteIdOrParams);
 
   const query = useQuery<IncidentStatusCountsResult, Error>({
     queryKey: incidentKeys.statusCounts(normalizedParams),
     queryFn: ({ signal }) => fetchIncidentStatusCounts(normalizedParams, signal),
-    staleTime: 15 * 1000,
-    refetchInterval: 30 * 1000,
+    staleTime: 30 * 1000,
+    refetchInterval: (q) =>
+      isRateLimitError(q.state.error)
+        ? false
+        : isConnected
+          ? 60 * 1000
+          : 30 * 1000,
     refetchIntervalInBackground: false,
     retry: false,
     ...options,
@@ -111,9 +127,13 @@ export function useIncidentStatusCounts(
     if (!lastAlert) return;
     if (options?.enabled === false) return;
 
-    void queryClient.invalidateQueries({
-      queryKey: incidentKeys.statusCountsRoot(),
-    });
+    const timer = setTimeout(() => {
+      void queryClient.invalidateQueries({
+        queryKey: incidentKeys.statusCountsRoot(),
+      });
+    }, 1500);
+
+    return () => clearTimeout(timer);
   }, [lastAlert, options?.enabled, queryClient]);
 
   return query;

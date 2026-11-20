@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
+import { HelpCircle, ShieldCheck } from "lucide-react";
 
 import { mapTableSort } from "@/lib/table-utils";
 import { useTableState } from "@/hooks/use-table-state";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import {
   AuditDetailDrawer,
   AuditFilterToolbar,
+  AuditHelpDialog,
   AuditKpiSummary,
   AuditLogTable,
   AuditTabs,
@@ -31,19 +33,15 @@ import type { AuditLogItem, AuditLogStatus, ExportAuditParams } from "@/types";
 const STAT_TO_URL: Record<AuditStatKey, string> = {
   totalLogs: "total-logs",
   configChanges: "config-changes",
-  incidentReviews: "incident-reviews",
-  successRate: "success-rate",
+  failed: "failed",
 };
 
 const URL_TO_STAT: Record<string, AuditStatKey> = {
   "total-logs": "totalLogs",
   "config-changes": "configChanges",
-  "incident-reviews": "incidentReviews",
-  "success-rate": "successRate",
+  failed: "failed",
   totalLogs: "totalLogs",
   configChanges: "configChanges",
-  incidentReviews: "incidentReviews",
-  successRate: "successRate",
 };
 
 export default function AuditLogsContent() {
@@ -57,6 +55,23 @@ export default function AuditLogsContent() {
   const statParam = searchParams.get("stat");
   const selectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
 
+  // URL state synchronization for tabs
+  const tabParam = searchParams.get("tab");
+  const activeTab: AuditTabKey = tabParam === "configChanges" ? "configChanges" : "all";
+
+  // Clean obsolete/invalid URL query parameters (e.g. ?stat=success-rate or ?tab=incidentReviews)
+  useEffect(() => {
+    const hasInvalidStat = Boolean(statParam && !URL_TO_STAT[statParam]);
+    const hasInvalidTab = Boolean(tabParam && tabParam !== "configChanges" && tabParam !== "all");
+    if (!hasInvalidStat && !hasInvalidTab) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (hasInvalidStat) params.delete("stat");
+    if (hasInvalidTab) params.delete("tab");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [statParam, tabParam, searchParams, pathname, router]);
+
   const handleSelectStat = (stat: AuditStatKey | null) => {
     const params = new URLSearchParams(searchParams.toString());
     if (stat) {
@@ -67,11 +82,6 @@ export default function AuditLogsContent() {
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
-
-  // URL state synchronization for tabs
-  const tabParam = searchParams.get("tab") as AuditTabKey | null;
-  const activeTab: AuditTabKey =
-    tabParam === "configChanges" || tabParam === "incidentReviews" ? tabParam : "all";
 
   const handleTabChange = (tab: AuditTabKey) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -90,26 +100,44 @@ export default function AuditLogsContent() {
   const [limit, setLimit] = useState(10);
   const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState("");
-  const [targetTypeFilter, setTargetTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<AuditLogStatus | "">("");
-  const auditTableState = useTableState([{ id: "createdAt", desc: true }], `${search}:${actionFilter}:${targetTypeFilter}:${statusFilter}:${activeTab}`);
-  const apiSorting = mapTableSort(auditTableState.sorting, { createdAt: "createdAt", action: "action", targetType: "targetType" }, { sortBy: "createdAt", order: "desc" });
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  const auditTableState = useTableState(
+    [{ id: "createdAt", desc: true }],
+    `${search}:${actionFilter}:${statusFilter}:${startDate}:${endDate}:${activeTab}`,
+  );
+  const apiSorting = mapTableSort(
+    auditTableState.sorting,
+    { createdAt: "createdAt", action: "action" },
+    { sortBy: "createdAt", order: "desc" },
+  );
   const debouncedSearch = useDebounce(search, 350);
 
   // Modals state
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
 
   // Queries
-  const { data: summaryData, isLoading: isLoadingSummary } = useAuditSummary();
+  const { data: summaryData, isLoading: isLoadingSummary } = useAuditSummary({
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+  });
 
   const effectiveCategory = useMemo(() => {
     if (activeTab === "configChanges") return "CONFIG";
-    if (activeTab === "incidentReviews") return "INCIDENT_REVIEW";
     return undefined;
   }, [activeTab]);
 
-  const { data: logsData, isLoading: isLoadingLogs, isFetching: isFetchingLogs, error: logsError, refetch: refetchLogs } = useAuditLogs({
+  const {
+    data: logsData,
+    isLoading: isLoadingLogs,
+    isFetching: isFetchingLogs,
+    error: logsError,
+    refetch: refetchLogs,
+  } = useAuditLogs({
     sortBy: apiSorting.sortBy,
     order: apiSorting.order,
     page,
@@ -117,31 +145,31 @@ export default function AuditLogsContent() {
     search: debouncedSearch || undefined,
     category: effectiveCategory,
     action: actionFilter || undefined,
-    targetType: targetTypeFilter || undefined,
     status: (statusFilter as AuditLogStatus) || undefined,
-
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
   });
 
   const { data: detailData, isLoading: isLoadingDetail } = useAuditDetail(selectedRecordId);
   const { mutateAsync: exportLogs, isPending: isExporting } = useExportAuditLogs();
 
-  const totalLogsCount = summaryData?.totalLogs ?? logsData?.meta?.total ?? logsData?.items?.length ?? 0;
-  const configChangesCount = summaryData?.configChangesCount ?? 0;
-  const incidentReviewsCount = summaryData?.incidentReviewsCount ?? 0;
-
-  const hasActiveFilters = Boolean(
-    search ||
-    actionFilter ||
-    targetTypeFilter ||
-    statusFilter ||
-    activeTab !== "all",
+  const hasToolbarFilters = Boolean(
+    search || actionFilter || statusFilter || startDate || endDate,
   );
+  const hasActiveFilters = Boolean(hasToolbarFilters || activeTab !== "all");
+
+  const totalLogsCount =
+    summaryData?.totalLogs ??
+    (activeTab === "all" && !hasToolbarFilters ? logsData?.meta?.total : undefined) ??
+    0;
+  const configChangesCount = summaryData?.configChangesCount ?? 0;
 
   const handleResetFilters = () => {
     setSearch("");
     setActionFilter("");
-    setTargetTypeFilter("");
     setStatusFilter("");
+    setStartDate("");
+    setEndDate("");
     setPage(1);
     if (activeTab !== "all") {
       handleTabChange("all");
@@ -165,148 +193,126 @@ export default function AuditLogsContent() {
     }
   };
 
-  const toolbar = (<AuditFilterToolbar
-
-    search={search}
-
-    onSearchChange={(val) => {
-      setSearch(val);
-      setPage(1);
-    }}
-
-    action={actionFilter}
-
-    onActionChange={(val) => {
-      setActionFilter(val);
-      setPage(1);
-    }}
-
-    targetType={targetTypeFilter}
-
-    onTargetTypeChange={(val) => {
-      setTargetTypeFilter(val);
-      setPage(1);
-    }}
-
-    status={statusFilter}
-
-    onStatusChange={(val) => {
-      setStatusFilter(val as AuditLogStatus | "");
-      setPage(1);
-    }}
-
-    hasActiveFilters={hasActiveFilters}
-
-    onResetFilters={handleResetFilters}
-
-    onExport={() => setExportModalOpen(true)}
-
-  />);
+  const toolbar = (
+    <AuditFilterToolbar
+      search={search}
+      onSearchChange={(val) => {
+        setSearch(val);
+        setPage(1);
+      }}
+      action={actionFilter}
+      onActionChange={(val) => {
+        setActionFilter(val);
+        setPage(1);
+      }}
+      actionDistribution={summaryData?.byAction}
+      showQuickActionFilters={activeTab === "all"}
+      status={statusFilter}
+      onStatusChange={(val) => {
+        setStatusFilter(val as AuditLogStatus | "");
+        setPage(1);
+      }}
+      startDate={startDate}
+      onStartDateChange={(val) => {
+        setStartDate(val);
+        setPage(1);
+      }}
+      endDate={endDate}
+      onEndDateChange={(val) => {
+        setEndDate(val);
+        setPage(1);
+      }}
+      hasActiveFilters={hasActiveFilters}
+      onResetFilters={handleResetFilters}
+      onExport={() => setExportModalOpen(true)}
+    />
+  );
 
   return (
     <div className="space-y-6">
       {/* 1. Header Trang & Huy hiệu An ninh WORM */}
       <PageHeader
-
         icon={ShieldCheck}
-
         title={t("auditLogs.title")}
-
         description={t("auditLogs.description")}
-
         badge={t("audit.badge")}
-
         badgeIcon={ShieldCheck}
-
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setHelpModalOpen(true)}
+            className="gap-1.5 rounded-xl text-xs font-semibold text-primary border-primary/30 hover:bg-primary/10"
+          >
+            <HelpCircle className="h-4 w-4" />
+            <span>{t("audit.help.button")}</span>
+          </Button>
+        }
       />
 
-      {/* 2. Bento Grid 4 Thẻ KPI & Panel Chi Tiết Mở Rộng Dưới Thẻ */}
+      {/* 2. Unified 2-in-1 Bento Card & Panel Chi Tiết Mở Rộng */}
       <AuditKpiSummary
-
         summary={summaryData}
-
         logs={logsData?.items ?? []}
-
         totalLogsCount={totalLogsCount}
-
-        loading={isLoadingSummary || isLoadingLogs}
-
+        loading={isLoadingSummary}
         selectedStat={selectedStat}
-
+        selectedAction={actionFilter}
         onSelectStat={handleSelectStat}
-
         onOpenExport={() => setExportModalOpen(true)}
-
+        onOpenHelp={() => setHelpModalOpen(true)}
         onSwitchTab={handleTabChange}
-
         onFilterStatus={(status) => {
           setStatusFilter(status);
           setPage(1);
         }}
-
         onFilterAction={(action) => {
           setActionFilter(action);
           setPage(1);
         }}
-
         onSelectRecord={handleSelectRecord}
-
       />
 
-      {/* 3. Thanh Tab Phân Loại Nhanh (Tất cả, Đổi Cấu hình, Duyệt Sự cố) */}
+      {/* 3. Thanh Tab Phân Loại Nhanh (Tất cả Nhật ký, Thay đổi Cấu hình) */}
       <AuditTabs
-
         activeTab={activeTab}
-
         onTabChange={handleTabChange}
-
         totalCount={totalLogsCount}
-
         configChangesCount={configChangesCount}
-
-        incidentReviewsCount={incidentReviewsCount}
-
       />
 
       {/* 4. Toolbar Lọc & Bảng Dữ Liệu Nhật Ký */}
       <div className="space-y-4">
-
         <AuditLogTable
-
           items={logsData?.items ?? []}
-
           onSelectRecord={handleSelectRecord}
-
           loading={isLoadingLogs}
-
           page={page}
-
           limit={limit}
-
           total={logsData?.meta?.total ?? totalLogsCount}
-
           totalPages={logsData?.meta?.totalPages ?? Math.max(1, Math.ceil(totalLogsCount / limit))}
-
           onPageChange={setPage}
-
           onLimitChange={(l) => {
             setLimit(l);
             setPage(1);
           }}
-
           tableState={{
             ...auditTableState,
             features: {
               sorting: true,
               globalFilter: false,
-              rowSelection: false
+              rowSelection: false,
             },
             manualPagination: true,
             manualSorting: true,
             manualFiltering: true,
             pagination: { pageIndex: page - 1, pageSize: limit },
-            onPaginationChange: update => {
-              const next = typeof update === "function" ? update({ pageIndex: page - 1, pageSize: limit }) : update;
+            onPaginationChange: (update) => {
+              const next =
+                typeof update === "function"
+                  ? update({ pageIndex: page - 1, pageSize: limit })
+                  : update;
               setPage(next.pageIndex + 1);
               setLimit(next.pageSize);
             },
@@ -317,43 +323,37 @@ export default function AuditLogsContent() {
             onRetry: () => {
               void refetchLogs();
             },
-            toolbar
+            toolbar,
           }}
-
         />
       </div>
 
       {/* 5. Modals & Drawers */}
       <AuditDetailDrawer
-
         open={Boolean(selectedRecordId)}
-
         onOpenChange={(open) => !open && setSelectedRecordId(null)}
-
         detail={detailData ?? null}
-
         loading={isLoadingDetail}
-
       />
 
       <ExportAuditDialog
-
         open={exportModalOpen}
-
         onOpenChange={setExportModalOpen}
-
         onExport={handleExecuteExport}
-
         activeFilters={{
           category: effectiveCategory,
           search: debouncedSearch || undefined,
           action: actionFilter || undefined,
-          targetType: targetTypeFilter || undefined,
           status: (statusFilter as AuditLogStatus) || undefined,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
         }}
-
         loading={isExporting}
+      />
 
+      <AuditHelpDialog
+        open={helpModalOpen}
+        onOpenChange={setHelpModalOpen}
       />
     </div>
   );

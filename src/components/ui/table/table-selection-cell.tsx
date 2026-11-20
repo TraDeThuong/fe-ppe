@@ -71,7 +71,7 @@ export function TableSelectionHeader() {
     <TableSelectionCell
       checked={checked}
       indeterminate={indeterminate}
-      disabled={!hasSelectableRows || loading || fetching}
+      disabled={!hasSelectableRows || loading}
       ariaLabel={
         isVietnamese
           ? "Chọn tất cả dòng trên trang hiện tại"
@@ -94,13 +94,13 @@ export interface TableSelectionRowProps {
 }
 
 export function TableSelectionRow({ row }: TableSelectionRowProps) {
-  const { loading, fetching } = useTableContext();
+  const { loading } = useTableContext();
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   return (
     <TableSelectionCell
       checked={row.getIsSelected()}
-      disabled={!row.getCanSelect() || loading || fetching}
+      disabled={!row.getCanSelect() || loading}
       ariaLabel={isVietnamese ? `Chọn dòng ${row.id}` : `Select row ${row.id}`}
       onChange={(checked) => row.toggleSelected(checked)}
     />

@@ -87,71 +87,120 @@ export function SystemInfoPanel({ healthReport }: SystemInfoPanelProps) {
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/15">
+<div className="space-y-5">
+  {/* =========================================================
+      1. NEUMORPHIC PLATFORM HEADER & EXTERNAL DOC LINKS
+  ========================================================= */}
+  <section className="relative overflow-hidden rounded-[24px] border border-white/65 bg-surface p-4 sm:p-5 shadow-[8px_8px_18px_var(--shadow-dark),-8px_-8px_18px_rgba(255,255,255,0.85)] dark:border-white/[0.06] dark:bg-card dark:shadow-[8px_8px_20px_rgba(0,0,0,0.55),-3px_-3px_10px_rgba(255,255,255,0.03)]">
+    {/* Specular Rim Top Highlight */}
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-x-8 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/40 to-transparent"
+    />
+
+    <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-3.5">
+        {/* Extruded + Debossed Emblem Pod */}
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] border border-white/70 bg-surface text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.9)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.5)]">
+          <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-primary/[0.08] shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.75)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)]">
             <Info className="h-4.5 w-4.5" />
           </div>
-          <div>
-            <h3 className="text-sm sm:text-base font-bold text-foreground">
-              {t("system.platform.title")}
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              {t("system.platform.subTitle")}
-            </p>
-          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {process.env.NODE_ENV !== "production" && (
-            <a
-              href={docsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-border/40 bg-surface px-3 py-1.5 text-xs font-semibold text-primary hover:bg-surface-elevated/60"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              <span>Swagger API Docs</span>
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
+        <div className="min-w-0">
+          <h3 className="truncate text-sm font-extrabold tracking-tight text-foreground sm:text-[15px]">
+            {t("system.platform.title")}
+          </h3>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {t("system.platform.subTitle")}
+          </p>
+        </div>
+      </div>
+
+      {/* Tactile External Links */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        {process.env.NODE_ENV !== "production" && (
           <a
-            href={securityTxtUrl}
+            href={docsUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-border/40 bg-surface px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+            className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-primary/25 bg-primary/[0.08] px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:bg-primary/15 active:shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_rgba(255,255,255,0.85)] dark:bg-primary/15 dark:shadow-[4px_4px_10px_rgba(0,0,0,0.5),-2px_-2px_6px_rgba(255,255,255,0.03)]"
           >
-            <Shield className="h-3.5 w-3.5" />
-            <span>security.txt</span>
-            <ExternalLink className="h-3 w-3" />
+            <FileText className="h-3.5 w-3.5" />
+            <span>Swagger API Docs</span>
+            <ExternalLink className="h-3 w-3 opacity-80" />
           </a>
-        </div>
-      </div>
+        )}
 
-      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-        {infoItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <div
-              key={item.label}
-              className="flex items-start gap-3 rounded-xl sm:rounded-2xl border border-border/40 bg-surface p-4 shadow-[3px_3px_8px_rgba(0,0,0,0.05),-3px_-3px_8px_rgba(255,255,255,0.7)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[6px_8px_16px_rgba(0,0,0,0.08),-4px_-4px_10px_rgba(255,255,255,0.85)] dark:border-black/60 dark:bg-card/90 dark:shadow-[4px_4px_12px_rgba(0,0,0,0.55)] dark:hover:border-black dark:hover:bg-card dark:hover:shadow-[0_16px_28px_rgba(0,0,0,0.95)]"
-            >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary dark:bg-primary/15">
-                <Icon className="h-4.5 w-4.5" />
-              </div>
-              <div className="space-y-1 min-w-0">
-                <span className="text-xs text-muted-foreground block truncate">
-                  {item.label}
-                </span>
-                <p className="font-mono text-xs font-semibold text-foreground truncate">
-                  {item.value}
-                </p>
-              </div>
-            </div>
-          );
-        })}
+        <a
+          href={securityTxtUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-foreground shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:text-accent active:shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45),-2px_-2px_6px_rgba(255,255,255,0.03)]"
+        >
+          <Shield className="h-3.5 w-3.5 text-accent" />
+          <span>security.txt</span>
+          <ExternalLink className="h-3 w-3 text-muted-foreground" />
+        </a>
       </div>
     </div>
+  </section>
+
+  {/* =========================================================
+      2. TELEMETRY & ENVIRONMENT INFO CARDS GRID
+  ========================================================= */}
+  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {infoItems.map((item, idx) => {
+      const Icon = item.icon;
+      const isAccentTone = idx % 3 === 2;
+
+      return (
+        <div
+          key={item.label}
+          className="group relative flex items-center gap-3.5 overflow-hidden rounded-[22px] border border-white/65 bg-surface p-4 shadow-[7px_7px_16px_var(--shadow-dark),-7px_-7px_16px_rgba(255,255,255,0.85)] transition-all duration-300 hover:-translate-y-0.5 dark:border-white/[0.06] dark:bg-card dark:shadow-[7px_7px_18px_rgba(0,0,0,0.55),-3px_-3px_8px_rgba(255,255,255,0.03)]"
+        >
+          {/* Subtle Ambient Corner Glow */}
+          <div
+            aria-hidden="true"
+            className={`pointer-events-none absolute -right-6 -top-6 h-16 w-16 rounded-full opacity-0 blur-xl transition-opacity duration-300 group-hover:opacity-100 ${
+              isAccentTone ? "bg-accent/15" : "bg-primary/15"
+            }`}
+          />
+
+          {/* Extruded + Debossed Icon Pod */}
+          <div
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] border border-white/70 bg-surface shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_rgba(255,255,255,0.9)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.55)] ${
+              isAccentTone ? "text-accent" : "text-primary"
+            }`}
+          >
+            <div
+              className={`flex h-8.5 w-8.5 items-center justify-center rounded-[11px] shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.75)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] ${
+                isAccentTone ? "bg-accent/[0.10]" : "bg-primary/[0.08]"
+              }`}
+            >
+              <Icon className="h-4.5 w-4.5" />
+            </div>
+          </div>
+
+          {/* Label & Recessed Value Plate */}
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <span className="block truncate px-0.5 text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
+              {item.label}
+            </span>
+
+            <div className="rounded-[11px] bg-background/65 px-2.5 py-1.5 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_rgba(255,255,255,0.8)] dark:bg-black/35 dark:shadow-[inset_2px_2px_6px_rgba(0,0,0,0.7)]">
+              <p
+                title={String(item.value)}
+                className="truncate font-mono text-xs font-extrabold text-foreground"
+              >
+                {item.value}
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+</div>
   );
 }

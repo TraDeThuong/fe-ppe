@@ -12,6 +12,24 @@ afterEach(() => {
 });
 
 describe("systemService.checkServicesHealth", () => {
+  it("shows the verified AI models endpoint without inventing uptime or inference readiness", async () => {
+    apiClient.defaults.adapter = async (config) => ({
+      status: 200, statusText: "OK", headers: {}, config,
+      data: { success: true, data: { status: "ok" } },
+    });
+    globalThis.fetch = async (input) => new Response(JSON.stringify({
+      ok: true, latencyMs: 8,
+      ...(String(input).includes("target=ai") ? { verifiedVia: "ai-models-api" } : {}),
+    }), { headers: { "content-type": "application/json" } });
+    const report = await systemService.checkServicesHealth();
+    const ai = report.services.find((service) => service.serviceCode === "ai-service")!;
+    assert.equal(ai.status, "HEALTHY");
+    assert.equal(ai.endpoint, "/api/models (:8000)");
+    assert.equal(ai.uptime, "--");
+    assert.equal(ai.details?.verifiedVia, "ai-models-api");
+    assert.ok(ai.details?.note);
+  });
+
   it("marks 2xx unwrapped apiClient health payloads as HEALTHY without false-positive DOWN", async () => {
     apiClient.defaults.adapter = async (config) => {
       assert.equal(

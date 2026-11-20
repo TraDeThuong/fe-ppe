@@ -4,10 +4,11 @@ import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { ColumnDef, PaginationState, RowSelectionState, SortingState } from "@tanstack/react-table";
-import { Shield, ShieldCheck, ShieldAlert, Pencil, Trash2, Eye, EyeOff, RotateCcw, RefreshCw, UserPlus, Lock, Unlock, Building2, ExternalLink } from "lucide-react";
+import { Shield, ShieldCheck, ShieldAlert, Pencil, Trash2, Eye, RotateCcw, RefreshCw, UserPlus, Lock, Unlock, Building2, ExternalLink } from "lucide-react";
 
 import { Table, TableToolbar, TableContent, TablePagination, TableSelectionHeader, TableSelectionRow, TableRowActions, type TableFeatureSet, type TableRowAction, type TableBulkAction, TableBulkActions, TableFilterPanel } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { PhoneReveal } from "@/components/ui/phone-reveal";
 import { useUsers } from "@/hooks/users";
 import { useQueryClient } from "@tanstack/react-query";
 import { userService } from "@/services/user.service";
@@ -30,73 +31,6 @@ export interface UserTableProps {
   onStatusFilterChange?: (status: string) => void;
   isCreateOpen?: boolean;
   onOpenCreateChange?: (open: boolean) => void;
-}
-
-function PhoneNumberCell({
-  phoneNumber,
-  isVietnamese,
-}: {
-  phoneNumber?: string | null;
-  isVietnamese: boolean;
-}) {
-  const [isVisible, setIsVisible] = useState(false);
-
-  if (!phoneNumber) {
-    return <span className="text-xs font-mono text-muted-foreground">-</span>;
-  }
-
-  if (!isVisible) {
-    return (
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setIsVisible(true);
-        }}
-        title={
-          isVietnamese
-            ? "Nhấn để xem số điện thoại"
-            : "Click to view phone number"
-        }
-        aria-label={
-          isVietnamese
-            ? "Nhấn để xem số điện thoại"
-            : "Click to view phone number"
-        }
-        className="inline-flex size-7 items-center justify-center rounded-lg border border-border/50 bg-background text-muted-foreground shadow-[1.5px_1.5px_3px_var(--shadow-dark),-1.5px_-1.5px_3px_var(--shadow-light)] transition-all hover:text-primary hover:border-primary/40 active:shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)]"
-      >
-        <Eye size={14} />
-      </button>
-    );
-  }
-
-  return (
-    <div className="inline-flex items-center gap-1.5">
-      <span className="text-xs font-mono font-semibold text-foreground">
-        {phoneNumber}
-      </span>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setIsVisible(false);
-        }}
-        title={
-          isVietnamese
-            ? "Ẩn số điện thoại"
-            : "Hide phone number"
-        }
-        aria-label={
-          isVietnamese
-            ? "Ẩn số điện thoại"
-            : "Hide phone number"
-        }
-        className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground hover:bg-muted/60"
-      >
-        <EyeOff size={13} />
-      </button>
-    </div>
-  );
 }
 
 export function UserTable({
@@ -479,7 +413,7 @@ export function UserTable({
         accessorKey: "phoneNumber",
         header: isVietnamese ? "Số điện thoại" : "Phone Number",
         cell: ({ row }) => (
-          <PhoneNumberCell
+          <PhoneReveal
             key={row.original.id}
             phoneNumber={row.original.phoneNumber}
             isVietnamese={isVietnamese}

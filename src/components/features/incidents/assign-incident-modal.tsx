@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Loader2, UserCheck, Building2 } from "lucide-react";
+import { Loader2, UserCheck, Building2, Phone } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { PhoneReveal } from "@/components/ui/phone-reveal";
 import { useLocale } from "@/providers/locale-provider";
 import { useUsers } from "@/hooks/users";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
@@ -87,6 +88,11 @@ export function AssignIncidentModal({
   const [assignedToUserId, setAssignedToUserId] = useState<string>("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const selectedOfficer = useMemo(
+    () => allUsers.find((u) => u.id === assignedToUserId) ?? null,
+    [allUsers, assignedToUserId]
+  );
 
   // Set default selection when users are loaded
   useEffect(() => {
@@ -233,8 +239,7 @@ export function AssignIncidentModal({
               >
                 {siteOfficers.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.fullName || u.email} ({u.role?.name || (isVietnamese ? "Cán bộ tại chỗ" : "Site Officer")}
-                    {u.phoneNumber ? ` - ${u.phoneNumber}` : ""})
+                    {u.fullName || u.email} ({u.role?.name || (isVietnamese ? "Cán bộ tại chỗ" : "Site Officer")})
                   </option>
                 ))}
               </optgroup>
@@ -249,8 +254,7 @@ export function AssignIncidentModal({
               >
                 {safetyOfficers.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.fullName || u.email} ({u.role?.name || (isVietnamese ? "Cán bộ An toàn" : "Safety Officer")}
-                    {u.phoneNumber ? ` - ${u.phoneNumber}` : ""})
+                    {u.fullName || u.email} ({u.role?.name || (isVietnamese ? "Cán bộ An toàn" : "Safety Officer")})
                   </option>
                 ))}
               </optgroup>
@@ -265,6 +269,19 @@ export function AssignIncidentModal({
               </optgroup>
             )}
           </select>
+          {selectedOfficer?.phoneNumber && (
+            <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
+              <Phone className="h-3.5 w-3.5 shrink-0 text-primary" />
+              <span>{isVietnamese ? "SĐT liên hệ:" : "Contact phone:"}</span>
+              <PhoneReveal
+                key={selectedOfficer.id}
+                phoneNumber={selectedOfficer.phoneNumber}
+                isVietnamese={isVietnamese}
+                iconSize={12}
+                buttonClassName="size-6"
+              />
+            </div>
+          )}
         </div>
 
         {/* Note sent with realtime [ĐIỀU PHỐI] signal */}

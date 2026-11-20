@@ -8,9 +8,7 @@ import {
   ArrowLeft,
   Building2,
   CalendarDays,
-  Check,
   ChevronRight,
-  Copy,
   Edit2,
   FileDown,
   Layers,
@@ -23,6 +21,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PhoneReveal } from "@/components/ui/phone-reveal";
 import { useLocale } from "@/providers/locale-provider";
 import { resolveDisplayOfficers, toDateInputValue } from "../site-helpers";
 import type { SiteContactOfficer, SiteItem } from "@/types";
@@ -470,38 +469,21 @@ return (
                           key={pIdx}
                           className="flex min-w-0 items-center justify-between gap-2"
                         >
-                          <a
-                            href={`tel:${phone}`}
-                            className="
-                              flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1
-                              text-[11px] font-medium text-muted-foreground transition-colors
-                              hover:text-primary
-                            "
-                          >
+                          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1 text-[11px] font-medium text-muted-foreground">
                             <Phone className="h-3.5 w-3.5 shrink-0 text-primary/80" />
-                            <span className="break-all font-mono">{phone}</span>
-                          </a>
-
-                          <button
-                            type="button"
-                            onClick={() => handleCopyPhone(phone)}
-                            title={isVietnamese ? "Sao chép số" : "Copy phone"}
-                            aria-label={isVietnamese ? "Sao chép số điện thoại" : "Copy phone number"}
-                            className="
-                              flex h-7 w-7 shrink-0 items-center justify-center rounded-lg
-                              border border-white/70 bg-surface-elevated/70 text-muted-foreground
-                              shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_rgba(255,255,255,0.85)]
-                              transition-all hover:text-primary active:translate-y-px
-                              active:shadow-[inset_2px_2px_3px_var(--shadow-dark)]
-                              dark:border-white/5 dark:bg-background/60
-                            "
-                          >
-                            {copiedPhone === phone ? (
-                              <Check className="h-3.5 w-3.5 text-primary" />
-                            ) : (
-                              <Copy className="h-3.5 w-3.5" />
-                            )}
-                          </button>
+                            <PhoneReveal
+                              key={`${pIdx}-${phone}`}
+                              phoneNumber={phone}
+                              isVietnamese={isVietnamese}
+                              href={`tel:${phone}`}
+                              onCopy={handleCopyPhone}
+                              isCopied={copiedPhone === phone}
+                              className="flex-1 justify-between"
+                              iconSize={13}
+                              buttonClassName="size-6"
+                              textClassName="break-all font-mono text-[11px] font-medium text-foreground hover:text-primary"
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>

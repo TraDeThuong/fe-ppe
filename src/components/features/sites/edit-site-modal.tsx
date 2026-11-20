@@ -542,8 +542,7 @@ export function EditSiteModal({
                             >
                               {safetyManagers.map((u) => (
                                 <option key={u.id} value={u.id}>
-                                  {u.fullName || u.email} ({u.role?.name || "Manager"}
-                                  {u.phoneNumber ? ` - ${u.phoneNumber}` : ""})
+                                  {u.fullName || u.email} ({u.role?.name || "Manager"})
                                 </option>
                               ))}
                             </optgroup>
@@ -558,8 +557,7 @@ export function EditSiteModal({
                             >
                               {safetyOfficers.map((u) => (
                                 <option key={u.id} value={u.id}>
-                                  {u.fullName || u.email} ({u.role?.name || "Officer"}
-                                  {u.phoneNumber ? ` - ${u.phoneNumber}` : ""})
+                                  {u.fullName || u.email} ({u.role?.name || "Officer"})
                                 </option>
                               ))}
                             </optgroup>

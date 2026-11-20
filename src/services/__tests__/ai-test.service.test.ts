@@ -98,5 +98,21 @@ describe("aiTestService (Production 24/7 & Auth integration)", () => {
     assert.equal(syncRes.last_synced_count, 3);
     assert.deepEqual(calls, ["GET /api/live/config", "POST /api/live/sync"]);
   });
+
+  it("treats { supported: false } from /api/live/config proxy as 404 endpoint-not-found without browser network 404", async () => {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ supported: false }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })) as typeof fetch;
+
+    await assert.rejects(
+      () => aiTestService.getLiveRuntimeConfig(),
+      (err: unknown) =>
+        err instanceof AiServiceHttpError &&
+        err.status === 404 &&
+        isAiEndpointNotFoundError(err),
+    );
+  });
 });
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 type ProbeTargetKey = "ai" | "traefik" | "minio";
-type FailureKind = "CONNECTION_REFUSED" | "TIMEOUT" | "HTTP_ERROR" | "UNKNOWN";
+type FailureKind = "CONNECTION_REFUSED" | "TIMEOUT" | "HTTP_ERROR" | "PAYLOAD_UNHEALTHY" | "UNKNOWN";
 
 function resolveProbeUrl(target: ProbeTargetKey): string {
   const aiBase = (
@@ -79,6 +79,55 @@ export async function GET(req: NextRequest) {
       signal: controller.signal,
     });
     const latencyMs = Math.max(1, Date.now() - start);
+
+    // The local AI Test UI exposes /api/models but has no /health endpoint.
+    // Check its existing read-only API only when /health is absent, never to hide a 5xx.
+    if (targetParam === "ai" && response.status === 404) {
+      const modelsResponse = await fetch(`${targetUrl.slice(0, -"/health".length)}/api/models`, {
+        method: "GET",
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      if (!modelsResponse.ok) {
+        return NextResponse.json({
+          ok: false,
+          statusCode: modelsResponse.status,
+          latencyMs: Math.max(1, Date.now() - start),
+          failureKind: "HTTP_ERROR" satisfies FailureKind,
+          reason: `HTTP ${modelsResponse.status} (/api/models; /health unavailable)`,
+        });
+      }
+      let models: unknown;
+      try {
+        models = await modelsResponse.json();
+      } catch (error) {
+        if (controller.signal.aborted) throw error;
+        models = null;
+      }
+      const validModels = Array.isArray(models) && models.every((model: unknown) => {
+        if (!model || typeof model !== "object") return false;
+        const item = model as Record<string, unknown>;
+        return typeof item.name === "string" && item.name.length > 0 &&
+          typeof item.path === "string" && item.path.startsWith("models/") &&
+          typeof item.size_mb === "number" && Number.isFinite(item.size_mb) && item.size_mb >= 0 &&
+          typeof item.is_default === "boolean";
+      });
+      if (!validModels) {
+        return NextResponse.json({
+          ok: false,
+          statusCode: modelsResponse.status,
+          latencyMs: Math.max(1, Date.now() - start),
+          failureKind: "PAYLOAD_UNHEALTHY" satisfies FailureKind,
+          reason: "Invalid AI models API response (/api/models)",
+        });
+      }
+      return NextResponse.json({
+        ok: true,
+        statusCode: modelsResponse.status,
+        latencyMs: Math.max(1, Date.now() - start),
+        verifiedVia: "ai-models-api",
+      });
+    }
 
     if (!response.ok) {
       return NextResponse.json({
