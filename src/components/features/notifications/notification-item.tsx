@@ -90,7 +90,7 @@ export function NotificationItem({
           : undefined
       }
       className={[
-        "group relative flex overflow-hidden rounded-2xl border p-3.5 transition-all duration-200 sm:p-4",
+        "group relative flex overflow-hidden rounded-2xl border px-3 py-2.5 transition-all duration-200 sm:px-3.5 sm:py-2.5",
         isInteractive ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30" : "",
         cardSurfaceClass,
         className,
@@ -101,21 +101,21 @@ export function NotificationItem({
       {/* Left Severity Accent Bar */}
       <span
         aria-hidden="true"
-        className={`mr-3 w-1 shrink-0 rounded-full transition-opacity ${sevConfig.accentBarClass} ${
+        className={`mr-2.5 w-1 shrink-0 rounded-full transition-opacity ${sevConfig.accentBarClass} ${
           isUnread || selected ? "opacity-100" : "opacity-45 group-hover:opacity-80"
         }`}
       />
 
-      <div className="min-w-0 flex-1 space-y-2.5">
+      <div className="min-w-0 flex-1 space-y-1.5">
         {/* Top Row: Category Medallion + Badges + Time */}
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             {/* Kind Medallion */}
             <span
-              className={`inline-flex size-6 shrink-0 items-center justify-center rounded-lg border shadow-[1px_1px_3px_var(--shadow-dark)] ${kindConfig.medallionClass}`}
+              className={`inline-flex size-5 shrink-0 items-center justify-center rounded-lg border shadow-[1px_1px_3px_var(--shadow-dark)] ${kindConfig.medallionClass}`}
               aria-hidden="true"
             >
-              <KindIcon className="size-3.5" />
+              <KindIcon className="size-3" />
             </span>
 
             {/* Unread Beacon */}
@@ -161,23 +161,23 @@ export function NotificationItem({
         </div>
 
         {/* Title + Preview Body + Optional Thumbnail */}
-        <div className="flex items-start gap-3">
-          <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex items-center gap-2.5">
+          <div className="min-w-0 flex-1 space-y-0.5">
             <h3
-              className={`line-clamp-1 text-sm font-bold tracking-tight transition-colors group-hover:text-primary ${
+              className={`line-clamp-1 text-[13px] font-bold tracking-tight transition-colors group-hover:text-primary ${
                 isUnread || selected ? "text-foreground" : "text-foreground/85"
               }`}
             >
               {parsed.cleanTitle}
             </h3>
 
-            <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+            <p className="line-clamp-1 text-[11.5px] leading-snug text-muted-foreground">
               {parsed.cleanBody}
             </p>
           </div>
 
           {notification.evidenceUrl && !imgError && (
-            <div className="relative size-14 shrink-0 overflow-hidden rounded-xl border border-border/40 bg-background shadow-[inset_1px_1px_3px_var(--shadow-dark)]">
+            <div className="relative size-11 shrink-0 overflow-hidden rounded-xl border border-border/40 bg-background shadow-[inset_1px_1px_3px_var(--shadow-dark)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={notification.evidenceUrl}

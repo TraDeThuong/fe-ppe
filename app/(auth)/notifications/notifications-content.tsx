@@ -105,7 +105,7 @@ export default function NotificationsContent() {
 
   // Filtering & Pagination
   const [page, setPage] = useState(1);
-  const limit = 10;
+  const [limit, setLimit] = useState(5);
   const [filter, setFilter] = useState<NotificationFilterState>({
     search: "",
     isRead: undefined,
@@ -162,7 +162,7 @@ export default function NotificationsContent() {
   const meta = notificationData?.meta || {
     total: 0,
     page: 1,
-    limit: 10,
+    limit,
     totalPages: 1,
   };
 
@@ -183,6 +183,11 @@ export default function NotificationsContent() {
 
   const handleFilterChange = (newFilter: NotificationFilterState) => {
     setFilter(newFilter);
+    setPage(1);
+  };
+
+  const handleLimitChange = (nextLimit: number) => {
+    setLimit(nextLimit);
     setPage(1);
   };
 
@@ -325,6 +330,7 @@ export default function NotificationsContent() {
               error={notificationsError}
               onRetry={() => void refetchNotifications()}
               onPageChange={(p) => setPage(p)}
+              onLimitChange={handleLimitChange}
               onResetFilters={handleResetFilters}
               hasActiveFilters={hasActiveFilters}
             />
@@ -341,6 +347,7 @@ export default function NotificationsContent() {
                   error={notificationsError}
                   onRetry={() => void refetchNotifications()}
                   onPageChange={(p) => setPage(p)}
+                  onLimitChange={handleLimitChange}
                   selectedId={selectedNotification?.id ?? null}
                   onSelect={handleSelectNotification}
                   onMarkAsRead={(id) => markAsReadMutation.mutate(id)}

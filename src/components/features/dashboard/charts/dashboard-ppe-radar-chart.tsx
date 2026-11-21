@@ -56,6 +56,31 @@ const VIOLATION_META: Record<
   },
 };
 
+function splitRadarLabel(label: string, maxLineLength = 12): string[] {
+  const trimmed = label.trim();
+  if (trimmed.length <= maxLineLength || !trimmed.includes(" ")) {
+    return [trimmed];
+  }
+  const words = trimmed.split(/\s+/);
+  if (words.length < 2) return [trimmed];
+
+  const mid = trimmed.length / 2;
+  let bestIndex = 1;
+  let bestDiff = Infinity;
+  let acc = 0;
+
+  for (let i = 0; i < words.length - 1; i += 1) {
+    acc += (i > 0 ? 1 : 0) + words[i].length;
+    const diff = Math.abs(acc - mid);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestIndex = i + 1;
+    }
+  }
+
+  return [words.slice(0, bestIndex).join(" "), words.slice(bestIndex).join(" ")];
+}
+
 export function DashboardPpeRadarChart({
   distribution,
   className,
@@ -68,10 +93,10 @@ export function DashboardPpeRadarChart({
   const max = Math.max(1, ...distribution.map((row) => row.count));
   const total = distribution.reduce((sum, row) => sum + row.count, 0);
 
-  const centerX = 150;
-  const centerY = 128;
-  const radius = 74;
-  const labelRadius = radius + 20;
+  const centerX = 180;
+  const centerY = 132;
+  const radius = 66;
+  const labelRadius = radius + 16;
 
   const points = distribution.map((row, index) => {
     const angle =
@@ -144,13 +169,13 @@ export function DashboardPpeRadarChart({
       >
         {/* RADAR STAGE */}
         {showRadar && (
-          <div className={isSplit ? "lg:col-span-5" : "mx-auto w-full max-w-[300px]"}>
+          <div className={isSplit ? "lg:col-span-5" : "mx-auto w-full max-w-[360px]"}>
             <div className="relative overflow-hidden rounded-[22px] border border-border/40 bg-background/75 p-3 shadow-[inset_3px_3px_8px_var(--shadow-dark),inset_-3px_-3px_8px_var(--shadow-light)] dark:border-white/[0.06] dark:bg-background/45 dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.45)]">
               <svg
-                viewBox="0 0 300 256"
+                viewBox="0 0 360 264"
                 role="img"
                 aria-label={t("dashboard.charts.radar")}
-                className="w-full overflow-visible"
+                className="w-full"
               >
                 <defs>
                   <linearGradient
@@ -275,18 +300,37 @@ export function DashboardPpeRadarChart({
                 {/* Axis Labels */}
                 {points.map((point) => {
                   const isActive = hoveredKey === point.key;
+                  const lines = splitRadarLabel(t(`dashboard.type.${point.key}`));
+                  const lineHeight = 12;
+                  const startY =
+                    lines.length > 1
+                      ? point.dominantBaseline === "auto"
+                        ? point.labelY - lineHeight
+                        : point.dominantBaseline === "hanging"
+                          ? point.labelY
+                          : point.labelY - ((lines.length - 1) * lineHeight) / 2
+                      : point.labelY;
+
                   return (
                     <text
                       key={point.key}
                       x={point.labelX}
-                      y={point.labelY}
+                      y={startY}
                       textAnchor={point.textAnchor}
                       dominantBaseline={point.dominantBaseline}
                       fill={isActive ? "var(--primary)" : "currentColor"}
                       className="text-[10px] font-semibold transition-opacity"
                       opacity={isActive ? "1" : "0.78"}
                     >
-                      {t(`dashboard.type.${point.key}`)}
+                      {lines.map((line, idx) => (
+                        <tspan
+                          key={idx}
+                          x={point.labelX}
+                          dy={idx === 0 ? 0 : lineHeight}
+                        >
+                          {line}
+                        </tspan>
+                      ))}
                     </text>
                   );
                 })}
