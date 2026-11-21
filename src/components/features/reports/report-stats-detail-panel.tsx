@@ -23,6 +23,7 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  ShieldQuestion,
   Shirt,
   Timer,
   X,
@@ -45,7 +46,12 @@ import type {
   ViolationTypeStatDto,
 } from "@/types";
 
-export type ReportStatKey = "totalViolations" | "complianceRate" | "mttr" | "reportsCount";
+export type ReportStatKey =
+  | "totalViolations"
+  | "complianceRate"
+  | "mttr"
+  | "pendingReview"
+  | "reportsCount";
 
 export interface ReportStatsDetailPanelProps {
   activeStat: ReportStatKey;
@@ -331,6 +337,7 @@ export function ReportStatsDetailPanel({
             {activeStat === "totalViolations" && <AlertTriangle className="h-4 w-4 sm:h-4.5 sm:w-4.5" />}
             {activeStat === "complianceRate" && <CheckCircle2 className="h-4 w-4 sm:h-4.5 sm:w-4.5" />}
             {activeStat === "mttr" && <Clock className="h-4 w-4 sm:h-4.5 sm:w-4.5" />}
+            {activeStat === "pendingReview" && <ShieldQuestion className="h-4 w-4 sm:h-4.5 sm:w-4.5" />}
             {activeStat === "reportsCount" && <FileText className="h-4 w-4 sm:h-4.5 sm:w-4.5" />}
           </div>
 
@@ -340,6 +347,7 @@ export function ReportStatsDetailPanel({
                 {activeStat === "totalViolations" && t("reports.detail.violationsTitle")}
                 {activeStat === "complianceRate" && t("reports.detail.complianceTitle")}
                 {activeStat === "mttr" && t("reports.detail.mttrTitle")}
+                {activeStat === "pendingReview" && t("reports.detail.pendingTitle")}
                 {activeStat === "reportsCount" && t("reports.detail.reportsTitle")}
               </h3>
 
@@ -347,6 +355,7 @@ export function ReportStatsDetailPanel({
                 {activeStat === "totalViolations" && `${totalViolations} ${isVietnamese ? "vi phạm" : "violations"}`}
                 {activeStat === "complianceRate" && `${complianceRate.toFixed(1)}%`}
                 {activeStat === "mttr" && `${mttrHours.toFixed(1)} ${isVietnamese ? "giờ" : "hrs"}`}
+                {activeStat === "pendingReview" && `${openIncidents} ${isVietnamese ? "chờ duyệt" : "pending"}`}
                 {activeStat === "reportsCount" && `${totalReportsCount} ${isVietnamese ? "tài liệu" : "docs"}`}
               </Badge>
             </div>
@@ -354,6 +363,7 @@ export function ReportStatsDetailPanel({
               {activeStat === "totalViolations" && t("reports.detail.violationsDesc")}
               {activeStat === "complianceRate" && t("reports.detail.complianceDesc")}
               {activeStat === "mttr" && t("reports.detail.mttrDesc")}
+              {activeStat === "pendingReview" && t("reports.detail.pendingDesc")}
               {activeStat === "reportsCount" && t("reports.detail.reportsDesc")}
             </p>
           </div>
@@ -385,6 +395,22 @@ export function ReportStatsDetailPanel({
               >
                 <Building2 className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">{isVietnamese ? "Phạm vi công trường" : "Site Scope"}</span>
+              </Button>
+            </Link>
+          )}
+
+          {activeStat === "pendingReview" && (
+            <Link href="/incidents?status=PENDING_REVIEW">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 sm:h-8 gap-1.5 text-[11px] sm:text-xs text-primary hover:text-primary px-2.5 sm:px-3"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">
+                  {isVietnamese ? "Thẩm duyệt ngay" : "Review Queue"}
+                </span>
               </Button>
             </Link>
           )}
@@ -1233,6 +1259,53 @@ export function ReportStatsDetailPanel({
                 ))}
               </div>
             </section>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================
+          VIEW 5: PENDING REVIEW & FALSE ALARMS
+          ============================================================ */}
+      {activeStat === "pendingReview" && (
+        <div className="space-y-4 animate-in fade-in duration-300">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {[
+              {
+                label: isVietnamese ? "Chờ thẩm duyệt" : "Pending Review",
+                value: openIncidents,
+                caption: isVietnamese ? "Cần cán bộ HSE xác minh" : "Awaiting HSE verification",
+                tone: "text-amber-600 dark:text-amber-400",
+              },
+              {
+                label: isVietnamese ? "Đã xác nhận vi phạm" : "Confirmed",
+                value: trueViolations,
+                caption: isVietnamese ? "Vi phạm PPE thực tế" : "Verified PPE violations",
+                tone: "text-rose-500",
+              },
+              {
+                label: isVietnamese ? "Cảnh báo sai (Dismissed)" : "False Alarms",
+                value: falseAlarms,
+                caption: `${falseAlarmRate.toFixed(1)}% ${isVietnamese ? "trên tổng đã duyệt" : "of reviewed"}`,
+                tone: "text-muted-foreground",
+              },
+              {
+                label: isVietnamese ? "Đã giải quyết / Đóng" : "Resolved / Closed",
+                value: resolvedIncidents,
+                caption: `${resolutionRatePct}% ${isVietnamese ? "trên tổng sự cố" : "of total incidents"}`,
+                tone: "text-emerald-600 dark:text-emerald-400",
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                className="rounded-xl border border-border/35 bg-background/55 px-3.5 py-3 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]"
+              >
+                <p className="text-[10px] font-medium text-muted-foreground">{item.label}</p>
+                <p className={`mt-1.5 font-mono text-2xl font-bold tabular-nums ${item.tone}`}>
+                  {item.value}
+                </p>
+                <p className="mt-1 text-[10px] text-muted-foreground">{item.caption}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}

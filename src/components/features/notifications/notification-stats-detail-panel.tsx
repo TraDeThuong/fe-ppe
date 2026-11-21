@@ -23,6 +23,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/providers/locale-provider";
 import { useRealtime } from "@/contexts/RealtimeContext";
+import { isNotificationRead } from "@/lib/notification-inbox";
+import { notificationIncidentTarget } from "@/lib/incident-group";
 import { stripEmojis } from "@/lib/strip-emojis";
 import { useNotificationSound } from "@/hooks/notifications/use-notification-sound";
 import type { NotificationItemDto, NotificationSeverity, NotificationChannel } from "@/types";
@@ -106,7 +108,7 @@ export function NotificationStatsDetailPanel({
 
   // Danh sách các thông báo chưa đọc
   const unreadItems = useMemo(
-    () => notifications.filter((item) => item.isRead === false || item.status === "PENDING" || item.status === "SENT"),
+    () => notifications.filter((item) => !isNotificationRead(item)),
     [notifications],
   );
 
@@ -547,17 +549,21 @@ export function NotificationStatsDetailPanel({
                         <Volume2 className="size-3.5" />
                       </button>
 
-                      {item.incidentId ? (
-                        <Link href={`/incidents/${item.incidentId}`}>
-                          <button
-                            type="button"
-                            className="rounded-xl border border-primary/30 bg-surface px-2.5 py-1 text-[11px] font-semibold text-primary shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] hover:bg-primary hover:text-primary-foreground transition-all flex items-center gap-1"
-                          >
-                            <ExternalLink className="size-3" />
-                            <span>{isVietnamese ? "Hồ sơ" : "Record"}</span>
-                          </button>
-                        </Link>
-                      ) : null}
+                      {(() => {
+                        const targetIncidentId = item.incidentId || (typeof item.metadata?.incidentId === "string" ? item.metadata.incidentId : undefined);
+                        const incidentTarget = notificationIncidentTarget({ incidentId: targetIncidentId, content: item.content });
+                        return incidentTarget.href ? (
+                          <Link href={incidentTarget.href}>
+                            <button
+                              type="button"
+                              className="rounded-xl border border-primary/30 bg-surface px-2.5 py-1 text-[11px] font-semibold text-primary shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] hover:bg-primary hover:text-primary-foreground transition-all flex items-center gap-1"
+                            >
+                              <ExternalLink className="size-3" />
+                              <span>{isVietnamese ? "Hồ sơ" : "Record"}</span>
+                            </button>
+                          </Link>
+                        ) : null;
+                      })()}
                     </div>
                   </div>
 

@@ -7,7 +7,6 @@ import {
   Database,
   Flame,
   Globe2,
-  Power,
   RotateCcw,
   Save,
   Shield,
@@ -17,9 +16,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Switch } from "@/components/ui/form/selection-controls/switch";
 import { useRoles } from "@/hooks/rbac";
 import { useLocale } from "@/providers/locale-provider";
 import type {
@@ -27,9 +24,11 @@ import type {
   MaintenanceModeStatus,
   UpdateMaintenancePayload,
 } from "@/types";
+import { MaintenanceKpiSummary } from "./maintenance-kpi-summary";
 
 export interface MaintenanceControlPanelProps {
   config?: MaintenanceConfig | null;
+  loading?: boolean;
   onEnable: (data?: any) => Promise<any>;
   onDisable: () => Promise<any>;
   onUpdate: (data: UpdateMaintenancePayload) => Promise<any>;
@@ -49,6 +48,7 @@ function toLocalDateTimeInput(isoValue: string): string {
 
 export function MaintenanceControlPanel({
   config,
+  loading = false,
   onEnable,
   onDisable,
   onUpdate,
@@ -173,85 +173,14 @@ export function MaintenanceControlPanel({
   return (
     <div className="space-y-5">
       {/* ============================================================
-          1. MASTER MAINTENANCE CONTROL
+          1. UNIFIED STATUS & MASTER MAINTENANCE CONTROL
           ============================================================ */}
-      <section
-        className="
-          relative overflow-hidden rounded-2xl border border-border/40
-          bg-background p-4 sm:p-5
-          shadow-[6px_6px_15px_var(--shadow-dark),-6px_-6px_15px_var(--shadow-light)]
-        "
-      >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          {/* Status information */}
-          <div className="flex min-w-0 items-center gap-3.5">
-            <div
-              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition-all duration-300 ${
-                isEnabled
-                  ? "border-rose-500/30 bg-rose-500/10 text-rose-600 shadow-[inset_2px_2px_5px_rgba(244,63,94,0.18),inset_-2px_-2px_5px_rgba(255,255,255,0.45)] dark:text-rose-400"
-                  : "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 shadow-[inset_2px_2px_5px_rgba(16,185,129,0.18),inset_-2px_-2px_5px_rgba(255,255,255,0.45)] dark:text-emerald-400"
-              }`}
-            >
-              <Power className="h-5 w-5" />
-            </div>
-
-            <div className="min-w-0 space-y-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-extrabold tracking-tight text-foreground sm:text-base">
-                  {t("maintenance.switch.label")}
-                </h3>
-
-                <Badge
-                  variant={
-                    isEnabled
-                      ? status === "READ_ONLY"
-                        ? "warning"
-                        : "danger"
-                      : "success"
-                  }
-                  className="px-2.5 py-0.5 text-[10px] font-bold"
-                >
-                  {isEnabled
-                    ? status === "READ_ONLY"
-                      ? t("maintenance.badge.readOnly")
-                      : t("maintenance.badge.active")
-                    : t("maintenance.badge.online")}
-                </Badge>
-              </div>
-
-              <p className="max-w-xl text-xs leading-relaxed text-muted-foreground">
-                {isEnabled
-                  ? t("maintenance.switch.activeDesc")
-                  : t("maintenance.switch.inactiveDesc")}
-              </p>
-            </div>
-          </div>
-
-          {/* Recessed Switch Area */}
-          <div
-            className="
-              flex items-center justify-between gap-3 rounded-xl
-              border border-border/30 bg-background/70 px-4 py-3
-              shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_var(--shadow-light)]
-              sm:min-w-[150px] sm:justify-center
-            "
-          >
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
-              {isEnabled
-                ? isVietnamese ? "Đang bật" : "Enabled"
-                : isVietnamese ? "Đang tắt" : "Disabled"}
-            </span>
-
-            <Switch
-              size="lg"
-              checked={isEnabled}
-              onCheckedChange={handleSwitchChange}
-              disabled={isBusy}
-              aria-label={t("maintenance.switch.label")}
-            />
-          </div>
-        </div>
-      </section>
+      <MaintenanceKpiSummary
+        config={config}
+        loading={loading}
+        onToggleSwitch={handleSwitchChange}
+        isSwitchDisabled={isBusy}
+      />
 
       {/* ============================================================
           2. CONFIGURATION CONSOLE

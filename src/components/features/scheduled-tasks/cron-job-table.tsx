@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   Eye,
   Play,
-  Power,
   RotateCcw,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -177,15 +176,61 @@ export function CronJobTable({
         accessorKey: "isEnabled",
         header: t("cron.table.status"),
         cell: ({ row }) => {
-          const isEnabled = row.original.isEnabled;
+          const job = row.original;
+          const isEnabled = job.isEnabled;
+          const actionDisabled =
+            fetching || Boolean(error) || blockedJobs.has(job.name);
+
+          if (!canManage) {
+            return (
+              <Badge
+                variant={isEnabled ? "success" : "outline"}
+                indicator="dot"
+                className="whitespace-nowrap"
+              >
+                {t(isEnabled ? "cron.enabled" : "cron.disabled")}
+              </Badge>
+            );
+          }
+
+          const toggleLabel = `${t(isEnabled ? "cron.disable" : "cron.enable")}: ${job.name}`;
+
           return (
-            <Badge
-              variant={isEnabled ? "success" : "outline"}
-              indicator="dot"
-              className="whitespace-nowrap"
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isEnabled}
+              aria-label={toggleLabel}
+              title={t(isEnabled ? "cron.disable" : "cron.enable")}
+              disabled={actionDisabled}
+              onClick={(event) => {
+                event.stopPropagation();
+                onToggle(job);
+              }}
+              className={`group/toggle inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold whitespace-nowrap transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${
+                isEnabled
+                  ? "border-emerald-500/35 bg-emerald-500/[0.08] text-emerald-700 shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] hover:border-emerald-500/60 hover:bg-emerald-500/[0.14] dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400"
+                  : "border-border/60 bg-background text-muted-foreground shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] hover:border-primary/40 hover:text-foreground dark:border-white/10"
+              }`}
             >
-              {t(isEnabled ? "cron.enabled" : "cron.disabled")}
-            </Badge>
+              <span
+                aria-hidden="true"
+                className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors duration-200 ${
+                  isEnabled
+                    ? "bg-emerald-500 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.2)]"
+                    : "bg-muted/80 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+                }`}
+              >
+                <span
+                  className={`inline-block size-3 rounded-full transition-transform duration-200 ${
+                    isEnabled
+                      ? "translate-x-3 bg-white shadow-sm"
+                      : "translate-x-0 bg-muted-foreground/60"
+                  }`}
+                />
+              </span>
+              <span>{t(isEnabled ? "cron.enabled" : "cron.disabled")}</span>
+            </button>
           );
         },
       },
@@ -214,15 +259,6 @@ export function CronJobTable({
               hidden: !canManage,
               disabled: isActionDisabled,
               onClick: (item) => onTrigger(item),
-            },
-            {
-              id: "toggle-schedule",
-              label: t(job.isEnabled ? "cron.disable" : "cron.enable"),
-              icon: <Power className="size-3.5" aria-hidden="true" />,
-              variant: job.isEnabled ? "danger" : "outline",
-              hidden: !canManage,
-              disabled: isActionDisabled,
-              onClick: (item) => onToggle(item),
             },
           ];
 

@@ -136,9 +136,9 @@ export function SystemInfoPanel({ healthReport }: SystemInfoPanelProps) {
           href={securityTxtUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-foreground shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:text-accent active:shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45),-2px_-2px_6px_rgba(255,255,255,0.03)]"
+          className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-foreground shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:text-primary active:shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45),-2px_-2px_6px_rgba(255,255,255,0.03)]"
         >
-          <Shield className="h-3.5 w-3.5 text-accent" />
+          <Shield className="h-3.5 w-3.5 text-primary" />
           <span>security.txt</span>
           <ExternalLink className="h-3 w-3 text-muted-foreground" />
         </a>
@@ -150,34 +150,17 @@ export function SystemInfoPanel({ healthReport }: SystemInfoPanelProps) {
       2. TELEMETRY & ENVIRONMENT INFO CARDS GRID
   ========================================================= */}
   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-    {infoItems.map((item, idx) => {
+    {infoItems.map((item) => {
       const Icon = item.icon;
-      const isAccentTone = idx % 3 === 2;
 
       return (
         <div
           key={item.label}
           className="group relative flex items-center gap-3.5 overflow-hidden rounded-[22px] border border-white/65 bg-surface p-4 shadow-[7px_7px_16px_var(--shadow-dark),-7px_-7px_16px_rgba(255,255,255,0.85)] transition-all duration-300 hover:-translate-y-0.5 dark:border-white/[0.06] dark:bg-card dark:shadow-[7px_7px_18px_rgba(0,0,0,0.55),-3px_-3px_8px_rgba(255,255,255,0.03)]"
         >
-          {/* Subtle Ambient Corner Glow */}
-          <div
-            aria-hidden="true"
-            className={`pointer-events-none absolute -right-6 -top-6 h-16 w-16 rounded-full opacity-0 blur-xl transition-opacity duration-300 group-hover:opacity-100 ${
-              isAccentTone ? "bg-accent/15" : "bg-primary/15"
-            }`}
-          />
-
           {/* Extruded + Debossed Icon Pod */}
-          <div
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] border border-white/70 bg-surface shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_rgba(255,255,255,0.9)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.55)] ${
-              isAccentTone ? "text-accent" : "text-primary"
-            }`}
-          >
-            <div
-              className={`flex h-8.5 w-8.5 items-center justify-center rounded-[11px] shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.75)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)] ${
-                isAccentTone ? "bg-accent/[0.10]" : "bg-primary/[0.08]"
-              }`}
-            >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] border border-white/70 bg-surface text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_rgba(255,255,255,0.9)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.55)]">
+            <div className="flex h-8.5 w-8.5 items-center justify-center rounded-[11px] bg-primary/[0.08] shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.75)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)]">
               <Icon className="h-4.5 w-4.5" />
             </div>
           </div>

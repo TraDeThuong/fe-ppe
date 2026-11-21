@@ -66,8 +66,23 @@ export function normalizeNotificationInbox(raw: NotificationItemDto[], userId: s
   return { items, rawTotal: raw.length };
 }
 
+function parseBoundaryTimestamp(raw: string, endOfDay: boolean): number {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw.trim());
+  if (dateOnly) {
+    const year = Number(dateOnly[1]);
+    const month = Number(dateOnly[2]) - 1;
+    const day = Number(dateOnly[3]);
+    return endOfDay
+      ? new Date(year, month, day, 23, 59, 59, 999).getTime()
+      : new Date(year, month, day, 0, 0, 0, 0).getTime();
+  }
+  return Date.parse(raw);
+}
+
 export function notificationInboxPage(snapshot: NotificationInboxSnapshot, params: ListNotificationsQuery = {}): NotificationListResponse {
   const search = params.search?.trim().toLocaleLowerCase();
+  const fromTs = params.fromDate ? parseBoundaryTimestamp(params.fromDate, false) : undefined;
+  const toTs = params.toDate ? parseBoundaryTimestamp(params.toDate, true) : undefined;
   const items = snapshot.items.filter((item) => {
     if (params.isRead !== undefined && isNotificationRead(item) !== params.isRead) return false;
     if (params.status && item.status !== params.status) return false;
@@ -79,7 +94,8 @@ export function notificationInboxPage(snapshot: NotificationInboxSnapshot, param
     if (params.type === "NOTIFICATION" && !["LOW", "NORMAL", "MEDIUM"].includes(item.severity)) return false;
     if (params.type && !["ALERT", "NOTIFICATION"].includes(params.type) && item.type !== params.type && item.severity !== params.type) return false;
     const date = new Date(item.createdAt).getTime();
-    return (!params.fromDate || date >= Date.parse(params.fromDate)) && (!params.toDate || date <= Date.parse(params.toDate));
+    return (fromTs === undefined || !Number.isFinite(fromTs) || date >= fromTs) &&
+      (toTs === undefined || !Number.isFinite(toTs) || date <= toTs);
   });
   const limit = Math.max(1, params.limit ?? 20);
   const totalPages = Math.max(1, Math.ceil(items.length / limit));

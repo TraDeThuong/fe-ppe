@@ -12,17 +12,20 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 import type { AiModelVersionDto } from "@/types";
+import { AiCardHelpButton } from "./ai-metrics-guide-modal";
 
 export interface ActiveModelBannerProps {
   activeVersion?: AiModelVersionDto | null;
   modelName?: string;
   loading?: boolean;
+  onOpenGuide?: () => void;
 }
 
 export function ActiveModelBanner({
   activeVersion,
   modelName,
   loading = false,
+  onOpenGuide,
 }: ActiveModelBannerProps) {
   const { t, locale } = useLocale();
 
@@ -44,12 +47,7 @@ export function ActiveModelBanner({
     {
       icon: Layers,
       label: t("aiMetrics.activeBanner.framework"),
-      value:
-        framework !== "--"
-          ? framework.toUpperCase().includes("FP16")
-            ? framework
-            : `${framework} FP16`
-          : "--",
+      value: framework,
     },
     {
       icon: HardDrive,
@@ -243,6 +241,7 @@ export function ActiveModelBanner({
               {locale === "vi-VN" ? "Test Model Với Video" : "Test Model on Video"}
             </span>
           </Link>
+          {onOpenGuide && <AiCardHelpButton onClick={onOpenGuide} />}
         </div>
       </div>
     </section>

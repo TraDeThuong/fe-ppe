@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { authKeys } from "@/hooks/auth/auth.query-keys";
 import { systemService } from "@/services";
 import type { SystemConfigItem, ToggleFeatureFlagPayload } from "@/types";
 import { systemQueryKeys } from "./system.query-keys";
@@ -39,13 +40,24 @@ export function useFeatureFlags() {
 
       return { previousFlags };
     },
+    onSuccess: (updatedItem, { key }) => {
+      if (!updatedItem) return;
+      queryClient.setQueryData<SystemConfigItem[]>(
+        systemQueryKeys.featureFlags(),
+        (current) =>
+          current?.map((item) => (item.key === key ? { ...item, ...updatedItem } : item)),
+      );
+    },
     onError: (_err, _vars, context) => {
       if (context?.previousFlags) {
         queryClient.setQueryData(systemQueryKeys.featureFlags(), context.previousFlags);
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: systemQueryKeys.all });
+      void queryClient.invalidateQueries({ queryKey: systemQueryKeys.featureFlags() });
+      void queryClient.invalidateQueries({ queryKey: [...systemQueryKeys.all, "configs"] });
+      void queryClient.invalidateQueries({ queryKey: systemQueryKeys.publicConfigs() });
+      void queryClient.invalidateQueries({ queryKey: authKeys.config() });
     },
   });
 

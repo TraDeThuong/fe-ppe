@@ -191,7 +191,7 @@ export function AuditLogTable({
       onRowClick={(row) => onSelectRecord(row.original)}
       {...tableState}
     >
-      <TableToolbar showSearch={false} actions={<TableRefresh />} />
+      {!tableState?.toolbar && <TableToolbar showSearch={false} actions={<TableRefresh />} />}
       <TableContent />
       <TablePagination />
     </Table>

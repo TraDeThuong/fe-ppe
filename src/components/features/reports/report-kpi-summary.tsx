@@ -7,7 +7,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  FileText,
+  ShieldQuestion,
 } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
@@ -84,7 +84,8 @@ export function ReportKpiSummary({
   const mttr = summary
     ? `${summary.meanTimeToResolveHours.toFixed(1)} ${isVietnamese ? "giờ" : "hrs"}`
     : `0.0 ${isVietnamese ? "giờ" : "hrs"}`;
-  const effectiveReportsCount = reportsCount ?? history.length ?? 0;
+  const pendingReviewCount = summary?.openIncidents ?? 0;
+  const falseAlarmRate = summary?.falseAlarmRate ?? 0;
 
   // Hiệu ứng chìm sâu (neumorphic sunken) khi card được chọn:
   // - Chìm xuống dưới (translate-y-1.5)
@@ -186,24 +187,28 @@ export function ReportKpiSummary({
           }
         />
 
-        {/* 4. Báo cáo đã xuất */}
+        {/* 4. Chờ thẩm duyệt & Cảnh báo sai */}
         <StatsCard
-          title={t("reports.kpi.reportsCount")}
-          value={loading ? "..." : effectiveReportsCount}
-          icon={FileText}
+          title={t("reports.kpi.pendingReview")}
+          value={loading ? "..." : pendingReviewCount}
+          icon={ShieldQuestion}
           variant="soft-extruded"
-          tone="primary"
+          tone={pendingReviewCount > 0 ? "warning" : "primary"}
           showGlow={false}
-          description={t("reports.kpi.reportsCountDesc")}
-          onClick={() => handleToggle("reportsCount")}
+          description={
+            isVietnamese
+              ? `${falseAlarmRate.toFixed(1)}% tỷ lệ cảnh báo sai`
+              : `${falseAlarmRate.toFixed(1)}% false alarm rate`
+          }
+          onClick={() => handleToggle("pendingReview")}
           className={`transition-all duration-200 cursor-pointer ${
-            activeStat === "reportsCount"
+            activeStat === "pendingReview"
               ? sunkenClass
               : "hover:border-primary/30"
           }`}
           footer={
             <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
-              {activeStat === "reportsCount" ? (
+              {activeStat === "pendingReview" ? (
                 <span className="flex items-center text-primary font-bold gap-0.5">
                   {t("reports.stats.collapse")} <ChevronUp className="h-3 w-3" />
                 </span>

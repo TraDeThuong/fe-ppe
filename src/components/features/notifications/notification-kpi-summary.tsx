@@ -10,6 +10,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { StatsCard, type StatsCardVariant } from "@/components/ui/stats-cards";
+import { isNotificationRead } from "@/lib/notification-inbox";
 import { useLocale } from "@/providers/locale-provider";
 import type { NotificationItemDto } from "@/types";
 import {
@@ -92,7 +93,7 @@ export function NotificationKpiSummary({
     let resolved = 0;
 
     for (const item of notifications) {
-      if (item.isRead === false || item.status === "PENDING" || item.status === "SENT") {
+      if (!isNotificationRead(item)) {
         unread++;
       } else {
         resolved++;

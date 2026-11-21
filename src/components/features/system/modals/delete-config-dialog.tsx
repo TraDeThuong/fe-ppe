@@ -48,15 +48,16 @@ export function DeleteConfigDialog({
       title={t("system.modals.deleteTitle")}
       description={t("system.modals.deletePrompt")}
       icon={<AlertTriangle className="h-5 w-5 text-danger" />}
+      preventClose={loading}
       size="sm"
       footer={
-        <div className="flex w-full items-center justify-end gap-2.5 sm:w-auto">
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end sm:gap-2.5">
           <Button
             type="button"
             variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={loading}
-            className="flex-1 sm:flex-initial"
+            className="w-full sm:w-auto"
           >
             {t("system.modals.cancel")}
           </Button>
@@ -66,7 +67,7 @@ export function DeleteConfigDialog({
             variant="danger"
             onClick={handleConfirm}
             disabled={!isMatch || loading}
-            className="flex-1 sm:flex-initial"
+            className="w-full sm:w-auto"
           >
             <Trash2 className="mr-1.5 h-4 w-4" />
             <span>{loading ? t("system.modals.deleting") : t("system.modals.confirmDelete")}</span>
@@ -74,25 +75,25 @@ export function DeleteConfigDialog({
         </div>
       }
     >
-      <div className="space-y-4">
-        <div className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-center space-y-1">
+      <div className="space-y-3.5">
+        <div className="space-y-1 rounded-xl border border-danger/30 bg-danger/10 p-3 text-center">
           <p className="text-xs text-muted-foreground">
             {isVietnamese ? "Mã cấu hình sẽ bị xóa vĩnh viễn:" : "Configuration key will be permanently deleted:"}
           </p>
-          <p className="font-mono text-sm font-bold text-danger select-all">
+          <p className="break-all font-mono text-sm font-bold text-danger select-all">
             {targetKey}
           </p>
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-medium text-foreground/80 block">
+          <label className="block text-xs font-medium leading-relaxed text-foreground/80 break-words">
             {isVietnamese ? (
               <>
-                Vui lòng nhập lại chính xác mã <span className="font-mono font-bold text-primary">{targetKey}</span> để xác nhận xóa:
+                Vui lòng nhập lại chính xác mã <span className="break-all font-mono font-bold text-primary">{targetKey}</span> để xác nhận xóa:
               </>
             ) : (
               <>
-                Please type the exact key <span className="font-mono font-bold text-primary">{targetKey}</span> to confirm deletion:
+                Please type the exact key <span className="break-all font-mono font-bold text-primary">{targetKey}</span> to confirm deletion:
               </>
             )}
           </label>

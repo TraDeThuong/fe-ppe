@@ -75,14 +75,14 @@ export function SystemConfigTable({
 
   const getCategoryBadgeClass = (category: string) => {
     switch (category) {
-      case "SECURITY":
-        return "bg-danger/10 text-danger border-danger/30";
       case "FEATURE_FLAG":
-        return "bg-primary/10 text-primary border-primary/30";
+        return "bg-primary/10 text-primary border-primary/25";
+      case "SECURITY":
+        return "bg-background/80 text-foreground border-border/50 dark:bg-black/30";
       case "INTEGRATION":
-        return "bg-info/10 text-info border-info/30";
+        return "bg-background/80 text-foreground/85 border-border/50 dark:bg-black/30";
       default:
-        return "bg-muted/70 text-muted-foreground border-border/40 dark:border-black/50";
+        return "bg-muted/60 text-muted-foreground border-border/40 dark:border-black/50";
     }
   };
 
@@ -109,7 +109,7 @@ export function SystemConfigTable({
                   aria-label={t("system.configs.copyKey")}
                 >
                   {isCopied ? (
-                    <Check className="h-3 w-3 text-success" />
+                    <Check className="h-3 w-3 text-primary" />
                   ) : (
                     <Copy className="h-3 w-3" />
                   )}
@@ -134,7 +134,7 @@ export function SystemConfigTable({
           if (typeof val === "boolean") {
             return (
               <span
-                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${val ? "bg-success/15 text-success" : "bg-muted text-muted-foreground"
+                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${val ? "bg-primary/10 text-primary" : "bg-muted/60 text-muted-foreground"
                   }`}
               >
                 {val ? <Check className="h-3 w-3" /> : null}
@@ -144,7 +144,7 @@ export function SystemConfigTable({
           }
           if (typeof val === "object" && val !== null) {
             return (
-              <span className="font-mono text-[11px] text-info bg-info/10 px-2 py-0.5 rounded border border-info/20 inline-block max-w-[200px] truncate">
+              <span className="font-mono text-[11px] text-foreground bg-background/70 px-2 py-0.5 rounded border border-border/40 inline-block max-w-[200px] truncate dark:bg-black/30">
                 {JSON.stringify(val)}
               </span>
             );
@@ -184,7 +184,7 @@ export function SystemConfigTable({
           return (
             <span
               className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${isPub
-                  ? "border-success/30 bg-success/10 text-success"
+                  ? "border-primary/25 bg-primary/10 text-primary"
                   : "border-border/40 bg-muted/40 text-muted-foreground dark:border-black/50"
                 }`}
             >

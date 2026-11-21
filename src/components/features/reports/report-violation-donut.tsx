@@ -171,296 +171,380 @@ export function ReportViolationDonut({
   }
 
   return (
-    <div className="relative flex h-full w-full flex-col justify-between overflow-hidden rounded-2xl bg-surface p-4 sm:p-5
-      shadow-[7px_7px_18px_var(--shadow-dark),-7px_-7px_18px_var(--shadow-light)]
-    ">
-      {/* Subtle decorative light */}
-      <div className="pointer-events-none absolute -right-20 -top-20 h-52 w-52 rounded-full bg-accent/5 blur-3xl" />
+    <div
+      className="
+        relative flex h-full w-full flex-col justify-between overflow-hidden
+        rounded-[24px] sm:rounded-[30px]
+        border border-white/80 bg-background p-1.5
+        shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)]
+        dark:border-white/10
+      "
+    >
+      {/* INNER MACHINED BEZEL SHELL */}
+      <div className="relative flex flex-1 flex-col justify-between overflow-hidden rounded-[20px] sm:rounded-[25px] border border-[var(--shadow-dark)]/15 bg-background/95 p-4 sm:p-5">
+        {/* 1. Tactical Micro-Grid Background */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-[0.035] dark:opacity-[0.055] [background-image:radial-gradient(hsl(var(--primary))_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_at_top_right,black_30%,transparent_80%)]"
+        />
 
-      {/* ───────────────── HEADER ───────────────── */}
-      <div className="relative flex items-center justify-between gap-3 shrink-0">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface text-primary
-            shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]
-          ">
-            <PieChart size={20} strokeWidth={2.2} />
-          </div>
+        {/* 2. Top Specular Laser Rim (Primary -> Accent) */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-10 top-0 h-[2px] rounded-full bg-gradient-to-r from-transparent via-primary to-accent opacity-80"
+        />
 
-          <div className="min-w-0">
-            <h3 className="truncate text-sm font-extrabold text-foreground">
-              {t("reports.charts.donutTitle")}
-            </h3>
-            <p className="mt-0.5 text-[10px] text-muted-foreground">
-              {t("reports.charts.donutDesc")}
-            </p>
-          </div>
-        </div>
+        {/* 3. Dual Ambient Plasma Orbs */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-accent/15 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -bottom-16 -left-16 h-44 w-44 rounded-full bg-primary/15 blur-3xl"
+        />
 
-        <div className="shrink-0 rounded-xl bg-surface px-3 py-1.5 text-right
-          shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)]
-        ">
-          <p className="text-base font-extrabold leading-none tabular-nums text-primary">
-            <AnimatedNumber value={total} format={(v) => v.toLocaleString()} />
-          </p>
-          <p className="mt-0.5 text-[9px] font-medium text-muted-foreground">
-            {isVietnamese ? "Vi phạm" : "Violations"}
-          </p>
-        </div>
-      </div>
-
-      {/* ───────────────── DONUT CHART ───────────────── */}
-      <div className="relative flex flex-col items-center py-2.5 sm:py-3 shrink-0">
-        {total > 0 ? (
-          <div className="relative flex items-center justify-center">
-            {/* Outer sculpted surface */}
-            <div className="absolute inset-[-10px] rounded-full bg-surface
-              shadow-[5px_5px_12px_var(--shadow-dark),-5px_-5px_12px_var(--shadow-light)]
-            " />
-
-            <svg
-              width={CHART_SIZE}
-              height={CHART_SIZE}
-              viewBox={`0 0 ${CHART_SIZE} ${CHART_SIZE}`}
-              className="relative overflow-visible"
-            >
-              {/* Track */}
-              <circle
-                cx={CENTER}
-                cy={CENTER}
-                r={RADIUS}
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={STROKE_WIDTH}
-                className="text-muted/50"
-              />
-
-              {/* Segments */}
-              {items.map((item) => {
-                const isActive = activeType === item.violationType;
-                const segLength =
-                  ((item.percentage * (donutSweep / 100)) / 100) * CIRCUMFERENCE;
-
-                return (
-                  <circle
-                    key={item.violationType}
-                    cx={CENTER}
-                    cy={CENTER}
-                    r={RADIUS}
-                    fill="none"
-                    stroke={item.color.color}
-                    strokeOpacity={item.color.opacity}
-                    strokeWidth={isActive ? STROKE_WIDTH + 4 : STROKE_WIDTH}
-                    strokeDasharray={`${segLength} ${CIRCUMFERENCE}`}
-                    strokeDashoffset={item.strokeDashoffset}
-                    strokeLinecap="round"
-                    transform={`rotate(-90 ${CENTER} ${CENTER})`}
-                    className="cursor-pointer transition-all duration-300"
-                    style={{
-                      filter: isActive
-                        ? "drop-shadow(0 3px 5px var(--shadow-dark))"
-                        : "none",
-                    }}
-                    onMouseEnter={() => setActiveType(item.violationType)}
-                    onMouseLeave={() => setActiveType(null)}
-                    onClick={() =>
-                      setActiveType((current) =>
-                        current === item.violationType
-                          ? null
-                          : item.violationType,
-                      )
-                    }
-                  />
-                );
-              })}
-            </svg>
-
-            {/* Center */}
-            <div className="absolute flex h-[96px] w-[96px] flex-col items-center justify-center rounded-full bg-surface
-              shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)]
-            ">
-              <Activity size={15} className="mb-0.5 text-accent" />
-
-              <span className="text-2xl font-black leading-none tabular-nums text-primary">
-                <AnimatedNumber
-                  value={activeItem ? activeItem.count : total}
-                  format={(v) => v.toLocaleString()}
-                />
-              </span>
-
-              <span className="mt-1 text-[10px] font-medium text-muted-foreground">
-                {activeItem
-                  ? isVietnamese
-                    ? "Số vụ"
-                    : "Cases"
-                  : isVietnamese
-                    ? "Tổng vụ"
-                    : "Violations"}
+        {/* ───────────────── HEADER DECK ───────────────── */}
+        <div className="relative flex items-center justify-between gap-3 shrink-0 border-b border-[var(--shadow-dark)]/20 pb-3.5">
+          <div className="flex min-w-0 items-center gap-3.5">
+            {/* Dual-tier Neumorphic Icon Pod */}
+            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-background shadow-[5px_5px_10px_var(--shadow-dark),-5px_-5px_10px_var(--shadow-light)] dark:border-white/10">
+              <div className="flex h-8.5 w-8.5 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 via-primary/5 to-accent/25 text-primary shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]">
+                <PieChart size={18} strokeWidth={2.3} />
+              </div>
+              {/* Live Pulse Dot */}
+              <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full border border-background bg-gradient-to-r from-primary to-accent" />
               </span>
             </div>
-          </div>
-        ) : (
-          <div className="flex h-[176px] w-[176px] items-center justify-center rounded-full bg-surface
-            shadow-[inset_5px_5px_12px_var(--shadow-dark),inset_-5px_-5px_12px_var(--shadow-light)]
-          ">
-            <div className="text-center">
-              <PieChart size={26} className="mx-auto mb-1 text-muted-foreground/50" />
-              <p className="text-xs text-muted-foreground">
-                {isVietnamese ? "Chưa có dữ liệu" : "No data available"}
+
+            <div className="min-w-0">
+              <h3 className="truncate text-sm sm:text-base font-black tracking-tight text-foreground">
+                {t("reports.charts.donutTitle")}
+              </h3>
+              <p className="mt-0.5 truncate text-[11px] font-medium text-muted-foreground">
+                {t("reports.charts.donutDesc")}
               </p>
             </div>
           </div>
-        )}
 
-        {total > 0 && (
-          <div className="mt-2.5 flex items-center gap-2 rounded-full bg-surface px-3 py-1
-            shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]
-          ">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-            <span className="text-[10px] font-semibold text-muted-foreground">
-              {activeItem
-                ? `${getLabel(activeItem.violationType)}: ${displayPercentage.toFixed(1)}%`
-                : isVietnamese
-                  ? "Tỷ trọng tổng thể 100%"
-                  : "Total share 100%"}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* ───────────────── DIVIDER ───────────────── */}
-      <div className="my-1.5 h-px w-full bg-gradient-to-r from-transparent via-border/70 to-transparent shrink-0" />
-
-      {/* ───────────────── BREAKDOWN ───────────────── */}
-      <div className="relative flex min-h-0 flex-1 flex-col justify-start">
-        <div className="mb-2 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-1.5">
-            <List size={13} className="text-accent" />
-            <h4 className="text-xs font-bold text-foreground">
-              {isVietnamese ? "Chi tiết phân loại" : "Category Breakdown"}
-            </h4>
-          </div>
-          <span className="text-[10px] text-muted-foreground">
-            {items.length} {isVietnamese ? "nhóm" : "categories"}
-          </span>
-        </div>
-
-        {items.length > 0 ? (
-          <div className="space-y-1.5 overflow-y-auto max-h-[160px] pr-0.5">
-            {items.map((item, index) => {
-              const Icon = getIcon(item.violationType);
-              const isActive = activeType === item.violationType;
-
-              return (
-                <button
-                  key={item.violationType}
-                  type="button"
-                  onMouseEnter={() => setActiveType(item.violationType)}
-                  onMouseLeave={() => setActiveType(null)}
-                  onClick={() =>
-                    setActiveType((current) =>
-                      current === item.violationType
-                        ? null
-                        : item.violationType,
-                    )
-                  }
-                  className={`group w-full rounded-xl p-2 text-left transition-all duration-200
-                    ${
-                      isActive
-                        ? "bg-surface shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)]"
-                        : "bg-surface shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] hover:-translate-y-0.5"
-                    }
-                  `}
-                >
-                  <div className="flex items-center gap-2">
-                    {/* Category icon */}
-                    <div
-                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${item.color.surface} ${item.color.icon}`}
-                    >
-                      <Icon size={14} strokeWidth={2.2} />
-                    </div>
-
-                    {/* Label + progress */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-center justify-between gap-1.5">
-                        <span className="truncate text-[11px] font-semibold text-foreground">
-                          {getLabel(item.violationType)}
-                        </span>
-
-                        <div className="flex shrink-0 items-baseline gap-1">
-                          <span
-                            className={`text-[11px] font-black tabular-nums ${
-                              index % 2 === 0 ? "text-primary" : "text-accent"
-                            }`}
-                          >
-                            <AnimatedNumber
-                              value={item.percentage}
-                              decimals={1}
-                              delay={index * 50}
-                            />
-                            %
-                          </span>
-                          <span className="text-[9px] text-muted-foreground tabular-nums">
-                            (
-                            <AnimatedNumber
-                              value={item.count}
-                              delay={index * 50}
-                              format={(v) => v.toLocaleString()}
-                            />{" "}
-                            {isVietnamese ? "vụ" : "cases"})
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Progress track */}
-                      <div className="mt-1 h-[4px] overflow-hidden rounded-full bg-muted/60
-                        shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)]
-                      ">
-                        <div
-                          className={`h-full rounded-full transition-all duration-700 animate-live-shimmer ${item.color.bar}`}
-                          style={{
-                            width: `${Math.min(item.percentage * (donutSweep / 100), 100)}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex flex-1 flex-col items-center justify-center py-4 text-center">
-            <ShieldAlert
-              size={22}
-              className="mb-1 text-muted-foreground/50"
-            />
-            <p className="text-xs text-muted-foreground">
-              {isVietnamese
-                ? "Chưa có dữ liệu phân loại"
-                : "No category data"}
+          {/* Recessed Digital Total Well */}
+          <div className="shrink-0 rounded-2xl border border-white/50 bg-background px-3.5 py-1.5 text-right shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)] dark:border-white/5">
+            <p className="font-mono text-base sm:text-lg font-black leading-none tabular-nums text-primary">
+              <AnimatedNumber value={total} format={(v) => v.toLocaleString()} />
+            </p>
+            <p className="mt-1 text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">
+              {isVietnamese ? "Vi phạm" : "Violations"}
             </p>
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* ───────────────── FOOTER ───────────────── */}
-      {items.length > 0 && (
-        <div className="mt-2.5 flex items-center justify-between border-t border-border/40 pt-2 shrink-0">
-          <div className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-            <span className="text-[10px] font-medium text-muted-foreground">
-              {items.length} {isVietnamese ? "nhóm vi phạm" : "categories"}
+        {/* ───────────────── 3D TACTILE DONUT STAGE ───────────────── */}
+        <div className="relative flex flex-col items-center py-3 sm:py-3.5 shrink-0">
+          {total > 0 ? (
+            <div className="relative flex items-center justify-center">
+              {/* Outer Extruded Sculpted Bezel Ring */}
+              <div
+                className="
+                  absolute inset-[-14px] rounded-full border border-white/80 bg-background
+                  shadow-[8px_8px_18px_var(--shadow-dark),-8px_-8px_18px_var(--shadow-light)]
+                  dark:border-white/10
+                "
+              />
+
+              {/* Inner Recessed Groove Track */}
+              <div
+                className="
+                  absolute inset-[-3px] rounded-full bg-background/80
+                  shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_var(--shadow-light)]
+                "
+              />
+
+              <svg
+                width={CHART_SIZE}
+                height={CHART_SIZE}
+                viewBox={`0 0 ${CHART_SIZE} ${CHART_SIZE}`}
+                className="relative overflow-visible"
+              >
+                {/* Base Track */}
+                <circle
+                  cx={CENTER}
+                  cy={CENTER}
+                  r={RADIUS}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={STROKE_WIDTH}
+                  className="text-muted/35"
+                />
+
+                {/* Luminous Segments */}
+                {items.map((item) => {
+                  const isActive = activeType === item.violationType;
+                  const segLength =
+                    ((item.percentage * (donutSweep / 100)) / 100) * CIRCUMFERENCE;
+
+                  return (
+                    <circle
+                      key={item.violationType}
+                      cx={CENTER}
+                      cy={CENTER}
+                      r={RADIUS}
+                      fill="none"
+                      stroke={item.color.color}
+                      strokeOpacity={
+                        activeType && !isActive ? 0.35 : item.color.opacity
+                      }
+                      strokeWidth={isActive ? STROKE_WIDTH + 4.5 : STROKE_WIDTH}
+                      strokeDasharray={`${segLength} ${CIRCUMFERENCE}`}
+                      strokeDashoffset={item.strokeDashoffset}
+                      strokeLinecap="round"
+                      transform={`rotate(-90 ${CENTER} ${CENTER})`}
+                      className="cursor-pointer transition-all duration-300"
+                      style={{
+                        filter: isActive
+                          ? `drop-shadow(0 0 8px ${item.color.color})`
+                          : "drop-shadow(0 2px 3px rgba(0,0,0,0.12))",
+                      }}
+                      onMouseEnter={() => setActiveType(item.violationType)}
+                      onMouseLeave={() => setActiveType(null)}
+                      onClick={() =>
+                        setActiveType((current) =>
+                          current === item.violationType
+                            ? null
+                            : item.violationType,
+                        )
+                      }
+                    />
+                  );
+                })}
+              </svg>
+
+              {/* Recessed Cockpit Center Core */}
+              <div
+                className="
+                  absolute flex h-[98px] w-[98px] flex-col items-center justify-center rounded-full
+                  border border-white/50 bg-background
+                  shadow-[inset_5px_5px_11px_var(--shadow-dark),inset_-5px_-5px_11px_var(--shadow-light)]
+                  dark:border-white/5
+                "
+              >
+                <span className="mb-1 flex h-5 w-5 items-center justify-center rounded-full bg-accent/15 text-accent">
+                  <Activity size={12} strokeWidth={2.4} />
+                </span>
+
+                <span className="font-mono text-2xl font-black leading-none tabular-nums text-primary">
+                  <AnimatedNumber
+                    value={activeItem ? activeItem.count : total}
+                    format={(v) => v.toLocaleString()}
+                  />
+                </span>
+
+                <span className="mt-1 text-[9px] font-extrabold uppercase tracking-wider text-muted-foreground">
+                  {activeItem
+                    ? isVietnamese
+                      ? "Số vụ"
+                      : "Cases"
+                    : isVietnamese
+                      ? "Tổng vụ"
+                      : "Violations"}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="
+                flex h-[180px] w-[180px] items-center justify-center rounded-full
+                border border-white/50 bg-background
+                shadow-[inset_6px_6px_14px_var(--shadow-dark),inset_-6px_-6px_14px_var(--shadow-light)]
+                dark:border-white/5
+              "
+            >
+              <div className="text-center">
+                <PieChart size={26} className="mx-auto mb-1.5 text-muted-foreground/50" />
+                <p className="text-xs font-bold text-muted-foreground">
+                  {isVietnamese ? "Chưa có dữ liệu" : "No data available"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Active Share Telemetry Pill */}
+          {total > 0 && (
+            <div
+              className="
+                mt-4 inline-flex items-center gap-2 rounded-full border border-white/60 bg-background px-3.5 py-1
+                shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)]
+                dark:border-white/10
+              "
+            >
+              <span
+                className="h-2 w-2 rounded-full transition-colors duration-300"
+                style={{
+                  backgroundColor: activeItem
+                    ? activeItem.color.color
+                    : "hsl(var(--accent))",
+                }}
+              />
+              <span className="text-[10px] font-extrabold text-foreground/85">
+                {activeItem
+                  ? `${getLabel(activeItem.violationType)}: ${displayPercentage.toFixed(1)}%`
+                  : isVietnamese
+                    ? "Tỷ trọng tổng thể 100%"
+                    : "Total share 100%"}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* ───────────────── RECESSED CATEGORY BREAKDOWN TRAY ───────────────── */}
+        <div className="relative flex min-h-0 flex-1 flex-col justify-start">
+          <div className="mb-2 flex items-center justify-between px-1 shrink-0">
+            <div className="flex items-center gap-1.5">
+              <span className="flex h-5 w-5 items-center justify-center rounded-md bg-accent/15 text-accent">
+                <List size={12} strokeWidth={2.4} />
+              </span>
+              <h4 className="text-[11px] font-black uppercase tracking-wider text-foreground">
+                {isVietnamese ? "Chi tiết phân loại" : "Category Breakdown"}
+              </h4>
+            </div>
+            <span className="rounded-full bg-background px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]">
+              {items.length} {isVietnamese ? "nhóm" : "categories"}
             </span>
           </div>
 
-          <span className="text-[10px] font-semibold text-muted-foreground">
-            {isVietnamese ? "Tổng cộng" : "Total"}:{" "}
-            <span className="font-bold text-primary tabular-nums">
-              <AnimatedNumber value={total} format={(v) => v.toLocaleString()} />
-            </span>
-          </span>
+          {items.length > 0 ? (
+            <div
+              className="
+                rounded-[20px] border border-white/45 bg-background/75 p-2
+                shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)]
+                dark:border-white/5
+              "
+            >
+              <div className="space-y-2 overflow-y-auto max-h-[168px] pr-1">
+                {items.map((item, index) => {
+                  const Icon = getIcon(item.violationType);
+                  const isActive = activeType === item.violationType;
+
+                  return (
+                    <button
+                      key={item.violationType}
+                      type="button"
+                      onMouseEnter={() => setActiveType(item.violationType)}
+                      onMouseLeave={() => setActiveType(null)}
+                      onClick={() =>
+                        setActiveType((current) =>
+                          current === item.violationType
+                            ? null
+                            : item.violationType,
+                        )
+                      }
+                      className={`group relative w-full overflow-hidden rounded-xl p-2.5 text-left transition-all duration-200 cursor-pointer ${isActive
+                          ? "border border-primary/35 bg-background shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_var(--shadow-light)]"
+                          : "border border-white/75 bg-background shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] hover:-translate-y-0.5 hover:border-primary/25 dark:border-white/10"
+                        }`}
+                    >
+                      {/* Active Left LED Strip */}
+                      <div
+                        className={`absolute bottom-2 left-0 top-2 w-1 rounded-r-full transition-opacity duration-200 ${isActive ? "opacity-100" : "opacity-0 group-hover:opacity-60"
+                          }`}
+                        style={{ backgroundColor: item.color.color }}
+                      />
+
+                      <div className="flex items-center gap-2.5 pl-1">
+                        {/* Category Icon Housing */}
+                        <div
+                          className={`flex h-7.5 w-7.5 shrink-0 items-center justify-center rounded-xl shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] ${item.color.surface} ${item.color.icon}`}
+                        >
+                          <Icon size={14} strokeWidth={2.3} />
+                        </div>
+
+                        {/* Label + Progress */}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 items-center justify-between gap-1.5">
+                            <span className="truncate text-[11px] font-extrabold text-foreground">
+                              {getLabel(item.violationType)}
+                            </span>
+
+                            <div className="flex shrink-0 items-baseline gap-1">
+                              <span
+                                className={`font-mono text-[11px] font-black tabular-nums ${index % 2 === 0 ? "text-primary" : "text-accent"
+                                  }`}
+                              >
+                                <AnimatedNumber
+                                  value={item.percentage}
+                                  decimals={1}
+                                  delay={index * 50}
+                                />
+                                %
+                              </span>
+                              <span className="font-mono text-[9px] font-semibold text-muted-foreground tabular-nums">
+                                (
+                                <AnimatedNumber
+                                  value={item.count}
+                                  delay={index * 50}
+                                  format={(v) => v.toLocaleString()}
+                                />{" "}
+                                {isVietnamese ? "vụ" : "cases"})
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Debossed Progress Track */}
+                          <div
+                            className="
+                              mt-1.5 h-[5px] overflow-hidden rounded-full bg-background p-[0.5px]
+                              shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]
+                            "
+                          >
+                            <div
+                              className={`h-full rounded-full transition-all duration-700 animate-live-shimmer ${item.color.bar}`}
+                              style={{
+                                width: `${Math.min(item.percentage * (donutSweep / 100), 100)}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-white/45 bg-background/70 py-5 text-center shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_var(--shadow-light)]">
+              <ShieldAlert
+                size={22}
+                className="mb-1 text-muted-foreground/50"
+              />
+              <p className="text-xs font-bold text-muted-foreground">
+                {isVietnamese
+                  ? "Chưa có dữ liệu phân loại"
+                  : "No category data"}
+              </p>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* ───────────────── FOOTER TELEMETRY BAR ───────────────── */}
+        {items.length > 0 && (
+          <div className="mt-3 flex items-center justify-between border-t border-[var(--shadow-dark)]/20 pt-2.5 shrink-0">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-white/60 bg-background px-2.5 py-0.5 shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] dark:border-white/10">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+              <span className="text-[10px] font-bold text-foreground/85">
+                {items.length} {isVietnamese ? "nhóm vi phạm" : "categories"}
+              </span>
+            </div>
+
+            <span className="text-[10px] font-bold text-muted-foreground">
+              {isVietnamese ? "Tổng cộng" : "Total"}:{" "}
+              <span className="font-mono font-black text-primary tabular-nums">
+                <AnimatedNumber value={total} format={(v) => v.toLocaleString()} />
+              </span>
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -38,25 +38,6 @@ function unwrapArray<T>(res: any): T[] {
   return [];
 }
 
-const DEFAULT_PER_CLASS_METRICS: PerClassMetric[] = [
-  { className: "PERSON", precision: 0.884, recall: 0.892, f1Score: 0.888, sampleCount: 1420 },
-  { className: "HARD_HAT", precision: 0.832, recall: 0.865, f1Score: 0.848, sampleCount: 1180 },
-  { className: "NO_HELMET", precision: 0.795, recall: 0.812, f1Score: 0.803, sampleCount: 420 },
-  { className: "SAFETY_VEST", precision: 0.781, recall: 0.824, f1Score: 0.802, sampleCount: 960 },
-  { className: "NO_VEST", precision: 0.742, recall: 0.800, f1Score: 0.770, sampleCount: 380 },
-];
-
-const DEFAULT_CONFUSION_MATRIX: ConfusionMatrixDto = {
-  classes: ["PERSON", "HARD_HAT", "NO_HELMET", "SAFETY_VEST", "NO_VEST"],
-  matrix: [
-    [1266, 12, 8, 14, 10],
-    [10, 1021, 38, 8, 3],
-    [6, 32, 341, 4, 7],
-    [12, 6, 2, 791, 39],
-    [8, 2, 3, 31, 304],
-  ],
-};
-
 export const aiMetricsService = {
   /**
    * GET /api/v1/statistics/ai-performance
@@ -83,7 +64,7 @@ export const aiMetricsService = {
         this.getActiveModelVersion(),
       ]);
 
-      const rawData = statsRes ? unwrapData< unknown >(statsRes) : null;
+      const rawData = statsRes ? unwrapData<unknown>(statsRes) : null;
       if (rawData && !Array.isArray(rawData) && typeof rawData === "object" && "mAP50" in rawData) {
         return rawData as AiPerformanceDto;
       }
@@ -96,12 +77,13 @@ export const aiMetricsService = {
 
       if (filter?.modelId) {
         targetModel = modelsRes.find((m) => m.id === filter.modelId);
-      }
-      if (!targetModel && activeVersionRes) {
-        targetModel = modelsRes.find((m) => m.id === activeVersionRes.modelId);
-      }
-      if (!targetModel && modelsRes.length > 0) {
-        targetModel = modelsRes[0];
+      } else {
+        if (activeVersionRes) {
+          targetModel = modelsRes.find((m) => m.id === activeVersionRes.modelId);
+        }
+        if (!targetModel && modelsRes.length > 0) {
+          targetModel = modelsRes[0];
+        }
       }
 
       if (filter?.versionId && targetModel?.versions) {
@@ -112,21 +94,33 @@ export const aiMetricsService = {
           targetModel.versions.find((v) => v.status === "DEPLOYED" || v.status === "ACTIVE") ??
           targetModel.versions[0];
       }
-      if (!targetVersion) {
+      if (!targetVersion && (!filter?.modelId || activeVersionRes?.modelId === filter.modelId)) {
         targetVersion = activeVersionRes;
       }
 
-      if (!targetVersion && statRows.length === 0) {
+      if (!targetVersion && !targetModel && statRows.length === 0) {
         return null;
       }
 
       const m = targetVersion?.metrics ?? {};
 
-      // Lọc các bản ghi telemetry khớp với version hiện tại (nếu có)
-      const versionRows =
-        targetVersion && statRows.some((r) => r.modelVersionId === targetVersion?.id)
-          ? statRows.filter((r) => r.modelVersionId === targetVersion?.id)
-          : statRows;
+      // Lọc các bản ghi telemetry khớp với model/version đang chọn
+      const targetModelVersionIds = new Set(
+        (targetModel?.versions ?? []).map((v) => v.id)
+      );
+      if (targetVersion?.id) {
+        targetModelVersionIds.add(targetVersion.id);
+      }
+
+      const versionRows = filter?.versionId
+        ? statRows.filter((r) => r.modelVersionId === filter.versionId)
+        : filter?.modelId
+          ? statRows.filter(
+              (r) => r.modelVersionId && targetModelVersionIds.has(r.modelVersionId)
+            )
+          : targetVersion && statRows.some((r) => r.modelVersionId === targetVersion?.id)
+            ? statRows.filter((r) => r.modelVersionId === targetVersion?.id)
+            : statRows;
 
       const sortedRows = [...versionRows].sort((a, b) =>
         String(a.statDate).localeCompare(String(b.statDate))
@@ -136,47 +130,83 @@ export const aiMetricsService = {
       let weightedLatencySum = 0;
       let weightedFpsSum = 0;
 
+      // Gom nhóm theo ngày (statDate) để xử lý trường hợp nhiều camera trên cùng một ngày
+      const dailyMap = new Map<
+        string,
+        { totalWeight: number; weightedLatency: number; weightedFps: number }
+      >();
+
       for (const row of sortedRows) {
         const frames = Number(row.totalFrames ?? 0);
         const weight = frames > 0 ? frames : 1;
+        const latency = Number(row.avgLatencyMs ?? 0);
+        const fps = Number(row.avgFps ?? 0);
+
         totalFrames += frames;
-        weightedLatencySum += Number(row.avgLatencyMs ?? 0) * weight;
-        weightedFpsSum += Number(row.avgFps ?? 0) * weight;
+        weightedLatencySum += latency * weight;
+        weightedFpsSum += fps * weight;
+
+        const dateKey = String(row.statDate).slice(0, 10);
+        const agg = dailyMap.get(dateKey) ?? {
+          totalWeight: 0,
+          weightedLatency: 0,
+          weightedFps: 0,
+        };
+        agg.totalWeight += weight;
+        agg.weightedLatency += latency * weight;
+        agg.weightedFps += fps * weight;
+        dailyMap.set(dateKey, agg);
       }
 
       const totalWeight =
         totalFrames > 0 ? totalFrames : sortedRows.length > 0 ? sortedRows.length : 0;
 
+      const hasScopedTelemetryFilter = Boolean(
+        filter?.cameraId ||
+          filter?.startDate ||
+          filter?.endDate ||
+          filter?.fromDate ||
+          filter?.toDate
+      );
+
       const averageLatencyMs =
         totalWeight > 0
           ? Number((weightedLatencySum / totalWeight).toFixed(2))
-          : Number(m.latencyMs ?? 0);
+          : hasScopedTelemetryFilter
+            ? 0
+            : Number(m.latencyMs ?? 0);
 
       const averageFps =
         totalWeight > 0
           ? Number((weightedFpsSum / totalWeight).toFixed(2))
-          : Number(m.fps ?? 0);
+          : hasScopedTelemetryFilter
+            ? 0
+            : Number(m.fps ?? 0);
 
       const totalFramesProcessed =
-        totalFrames > 0
+        sortedRows.length > 0
           ? totalFrames
-          : Number(m.totalFramesProcessed ?? m.sampleCount ?? 0);
+          : hasScopedTelemetryFilter
+            ? 0
+            : Number(m.totalFramesProcessed ?? m.sampleCount ?? 0);
 
       const latencyHistory: LatencyDataPoint[] =
-        sortedRows.length > 0
-          ? sortedRows.map((r) => ({
-              timestamp: String(r.statDate).slice(5), // MM-DD
-              latencyMs: Number(r.avgLatencyMs ?? 0),
-              fps: Number(r.avgFps ?? 0),
-            }))
-          : Array.isArray(m.latencyHistory)
-          ? (m.latencyHistory as LatencyDataPoint[])
-          : [];
+        dailyMap.size > 0
+          ? Array.from(dailyMap.entries())
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([dateKey, agg]) => ({
+                timestamp: dateKey.slice(5), // MM-DD
+                latencyMs: Number((agg.weightedLatency / agg.totalWeight).toFixed(2)),
+                fps: Number((agg.weightedFps / agg.totalWeight).toFixed(2)),
+              }))
+          : !hasScopedTelemetryFilter && Array.isArray(m.latencyHistory)
+            ? (m.latencyHistory as LatencyDataPoint[])
+            : [];
 
       const perClassMetrics: PerClassMetric[] =
         Array.isArray(m.perClassMetrics) && m.perClassMetrics.length > 0
           ? (m.perClassMetrics as PerClassMetric[])
-          : DEFAULT_PER_CLASS_METRICS;
+          : [];
 
       const confusionMatrix: ConfusionMatrixDto =
         m.confusionMatrix &&
@@ -186,7 +216,7 @@ export const aiMetricsService = {
         Array.isArray((m.confusionMatrix as ConfusionMatrixDto).matrix) &&
         (m.confusionMatrix as ConfusionMatrixDto).matrix.length > 0
           ? (m.confusionMatrix as ConfusionMatrixDto)
-          : DEFAULT_CONFUSION_MATRIX;
+          : { classes: [], matrix: [] };
 
       const mAP50 = Number(m.mAP50 ?? 0);
       const mAP50_95 = Number(m.mAP50_95 ?? m.mAP95 ?? 0);

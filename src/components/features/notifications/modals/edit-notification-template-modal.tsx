@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/providers/locale-provider";
 import { useNotificationSound } from "@/hooks/notifications/use-notification-sound";
-import { useUpdateNotificationTemplate } from "@/hooks/notifications/use-notification-templates";
+import {
+  useCreateNotificationTemplate,
+  useUpdateNotificationTemplate,
+} from "@/hooks/notifications/use-notification-templates";
 import { SOUND_PRESET_NAMES, type SoundPreset } from "@/services/sound.service";
 import type { NotificationTemplateItemDto, NotificationChannel } from "@/types";
 
@@ -63,6 +66,13 @@ export function EditNotificationTemplateModal({
     }
   }, [template]);
 
+  const createMutation = useCreateNotificationTemplate({
+    onSuccess: () => {
+      onOpenChange(false);
+      onSuccess?.();
+    },
+  });
+
   const updateMutation = useUpdateNotificationTemplate({
     onSuccess: () => {
       onOpenChange(false);
@@ -77,6 +87,20 @@ export function EditNotificationTemplateModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!template || !name.trim() || !contentTemplate.trim()) return;
+
+    // Mẫu hệ thống định sẵn chưa lưu vào DB (id = "sys-...") -> tạo bản ghi trong DB để kích hoạt/chỉnh sửa
+    if (template.id.startsWith("sys-")) {
+      createMutation.mutate({
+        code: template.code,
+        name: name.trim(),
+        channel,
+        subjectTemplate: subjectTemplate.trim() || null,
+        contentTemplate: contentTemplate.trim(),
+        status,
+        description: description.trim() || undefined,
+      });
+      return;
+    }
 
     updateMutation.mutate({
       id: template.id,
@@ -288,12 +312,12 @@ export function EditNotificationTemplateModal({
               type="submit"
               variant="primary"
               size="sm"
-              disabled={updateMutation.isPending}
+              disabled={updateMutation.isPending || createMutation.isPending}
               className="flex items-center gap-1.5 font-bold shadow-[2px_2px_6px_var(--shadow-dark)]"
             >
               <Check className="size-4" />
               <span>
-                {updateMutation.isPending
+                {updateMutation.isPending || createMutation.isPending
                   ? isVietnamese
                     ? "Đang cập nhật..."
                     : "Updating..."

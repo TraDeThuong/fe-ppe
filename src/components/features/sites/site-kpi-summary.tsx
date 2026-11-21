@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertOctagon,
   Building2,
@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
-import { useReportSummary } from "@/hooks/reporting";
+import { useSiteComplianceSummary } from "@/hooks/sites";
+import { useCan } from "@/hooks/use-can";
 import type { SiteItem } from "@/types";
 import { SiteStatsDetailPanel, type SiteStatKey } from "./site-stats-detail-panel";
 
@@ -39,13 +40,25 @@ export function SiteKpiSummary({
   onCreateSite,
 }: SiteKpiSummaryProps) {
   const { t, locale } = useLocale();
+  const can = useCan();
+  const canReadReporting = can("PPE_REPORTING_READ");
+  const canReadIncidents = can("PPE_INCIDENT_READ");
 
-  // Fetch real-time compliance rate & violations from reporting-service
-  const { data: reportingSummary, isLoading: summaryLoading } = useReportSummary(
-    siteId ? { siteId } : undefined
+  const targetSiteIds = useMemo(
+    () => (siteId ? [siteId] : sites.map((s) => s.id)),
+    [siteId, sites],
   );
-  const hasComplianceData = reportingSummary != null && typeof reportingSummary.complianceRate === "number";
-  const complianceRate = hasComplianceData ? reportingSummary.complianceRate : 0;
+
+  // Fetch compliance rate & violations scoped to active sites (reconciled with live incidents)
+  const { data: complianceSummary, isLoading: summaryLoading } =
+    useSiteComplianceSummary(targetSiteIds, {
+      enabled: !loading && targetSiteIds.length > 0,
+      canReadReporting,
+      canReadIncidents,
+    });
+  const hasComplianceData =
+    complianceSummary != null && typeof complianceSummary.complianceRate === "number";
+  const complianceRate = hasComplianceData ? complianceSummary.complianceRate : 0;
   const complianceRateDisplay = hasComplianceData ? `${complianceRate.toFixed(1)}%` : "--%";
 
   const [internalSelectedStat, setInternalSelectedStat] = useState<SiteStatKey | null>(null);
@@ -215,7 +228,7 @@ export function SiteKpiSummary({
           onSafetyConfig={onSafetyConfig}
           onCreateSite={onCreateSite}
           complianceRate={complianceRate}
-          totalViolations={reportingSummary?.trueViolations ?? 0}
+          totalViolations={complianceSummary?.trueViolations ?? 0}
         />
       )}
     </div>

@@ -553,6 +553,9 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
               <option value="NORMAL">
                 {isVietnamese ? "Bình thường (NORMAL) — Bỏ qua mức thấp" : "NORMAL — Ignore low alerts"}
               </option>
+              <option value="MEDIUM">
+                {isVietnamese ? "Trung bình (MEDIUM) — Từ mức trung bình trở lên" : "MEDIUM — Medium & above"}
+              </option>
               <option value="HIGH">
                 {isVietnamese ? "Mức cao (HIGH) — Chỉ nhận cảnh báo nguy cơ cao" : "HIGH — High risk & critical only"}
               </option>
@@ -627,7 +630,10 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
                 {isVietnamese ? "Mức cao (HIGH) — Khẩn cấp & Mức cao" : "HIGH — Critical & High alerts"}
               </option>
               <option value="NORMAL">
-                {isVietnamese ? "Bình thường (NORMAL) — Từ mức vừa trở lên" : "NORMAL — Medium & above"}
+                {isVietnamese ? "Bình thường (NORMAL) — Từ mức vừa trở lên" : "NORMAL — Normal & above"}
+              </option>
+              <option value="MEDIUM">
+                {isVietnamese ? "Trung bình (MEDIUM) — Từ mức trung bình trở lên" : "MEDIUM — Medium & above"}
               </option>
               <option value="LOW">
                 {isVietnamese ? "Mức thấp (LOW) — Mọi vi phạm (Dễ gây đầy hòm thư)" : "LOW — All alerts (May flood inbox)"}

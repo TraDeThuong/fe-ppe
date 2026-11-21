@@ -120,4 +120,16 @@ describe("frontend-only broadcast inbox", () => {
     assert.equal(result.length, 101);
     assert.ok(result.some((item) => item.id === "older"));
   });
+  it("treats YYYY-MM-DD fromDate and toDate as inclusive local day boundaries", () => {
+    const inside = new Date(2026, 10, 18, 15, 30, 0, 0).toISOString();
+    const before = new Date(2026, 10, 17, 23, 59, 59, 999).toISOString();
+    const after = new Date(2026, 10, 19, 0, 0, 0, 0).toISOString();
+    const snapshot = normalizeNotificationInbox([
+      row("inside", "u11", { createdAt: inside }),
+      row("before", "u11", { createdAt: before }),
+      row("after", "u11", { createdAt: after }),
+    ], "u11");
+    const page = notificationInboxPage(snapshot, { fromDate: "2026-11-18", toDate: "2026-11-18" });
+    assert.deepEqual(page.data.map((item) => item.id), ["inside"]);
+  });
 });

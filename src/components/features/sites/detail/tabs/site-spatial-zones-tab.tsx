@@ -957,60 +957,61 @@ export function SiteSpatialZonesTab({
             : undefined
         }
         icon={<AlertTriangle className="h-5 w-5 text-danger" />}
+        preventClose={deleteZoneMutation.isPending}
         size="sm"
+        footer={
+          <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end sm:gap-2.5">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setDeleteZoneTarget(null)}
+              disabled={deleteZoneMutation.isPending}
+              className="w-full sm:w-auto"
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={
+                deleteZoneMutation.isPending ||
+                (deleteZoneLinkedAreasCount > 0 && !forceDeleteZone)
+              }
+              onClick={() => void handleConfirmDeleteZone()}
+              className="w-full sm:w-auto flex items-center justify-center gap-1.5"
+            >
+              {deleteZoneMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              <span>{isVietnamese ? "Xóa phân khu" : "Delete Zone"}</span>
+            </Button>
+          </div>
+        }
       >
-        <div className="space-y-4">
-          <p className="text-xs text-muted-foreground leading-relaxed">
+        <div className="space-y-3">
+          <p className="text-xs leading-relaxed text-muted-foreground break-words">
             {isVietnamese
               ? `Phân khu này đang có ${deleteZoneLinkedCamerasCount} camera và ${deleteZoneLinkedAreasCount} vùng cấm trực thuộc.`
               : `This zone currently contains ${deleteZoneLinkedCamerasCount} cameras and ${deleteZoneLinkedAreasCount} restricted areas.`}
           </p>
 
           {deleteZoneLinkedAreasCount > 0 && (
-            <label className="flex items-start gap-2.5 rounded-xl border border-danger/25 bg-danger/10 p-3 text-xs text-danger cursor-pointer">
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-danger/25 bg-danger/10 p-3 text-xs leading-relaxed text-danger">
               <input
                 type="checkbox"
                 checked={forceDeleteZone}
                 onChange={(e) => setForceDeleteZone(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-danger/40"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-danger/40"
               />
-              <span>
+              <span className="min-w-0 flex-1 break-words">
                 {isVietnamese
                   ? "Xóa ép buộc (gỡ liên kết phân khu khỏi các vùng cấm để các vùng cấm áp dụng cho toàn công trường)."
                   : "Force delete (unassign linked restricted areas to apply site-wide)."}
               </span>
             </label>
           )}
-
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setDeleteZoneTarget(null)}
-              disabled={deleteZoneMutation.isPending}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              disabled={
-                deleteZoneMutation.isPending ||
-                (deleteZoneLinkedAreasCount > 0 && !forceDeleteZone)
-              }
-              onClick={() => void handleConfirmDeleteZone()}
-              className="bg-danger hover:bg-danger/90 text-white"
-            >
-              {deleteZoneMutation.isPending ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-              )}
-              <span>{isVietnamese ? "Xóa phân khu" : "Delete Zone"}</span>
-            </Button>
-          </div>
         </div>
       </Modal>
     </div>

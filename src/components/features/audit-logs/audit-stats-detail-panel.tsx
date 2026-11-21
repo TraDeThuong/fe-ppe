@@ -277,10 +277,10 @@ export function AuditStatsDetailPanel({
                     <button
                       type="button"
                       onClick={() => onFilterAction && onFilterAction("")}
-                      className={`inline-flex items-center rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
+                      className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold transition cursor-pointer ${
                         !selectedAction
-                          ? "border-primary bg-primary/15 text-primary shadow-sm"
-                          : "border-border/30 bg-background/80 text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                          : "border-border/40 bg-background/80 text-muted-foreground hover:border-primary/50 hover:text-foreground"
                       }`}
                     >
                       {t("audit.toolbar.actionAll")}
@@ -288,20 +288,28 @@ export function AuditStatsDetailPanel({
 
                     {Object.entries(actionDistribution).map(([action, count]) => {
                       const isActive = selectedAction === action;
+                      const info = getAuditActionInfo(action, locale);
                       return (
                         <button
                           key={action}
                           type="button"
                           onClick={() => onFilterAction && onFilterAction(isActive ? "" : action)}
                           aria-pressed={isActive}
-                          className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition cursor-pointer ${
+                          title={`${info.code} — ${info.description}`}
+                          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition cursor-pointer ${
                             isActive
-                              ? "border-primary bg-primary/15 text-primary ring-1 ring-primary/30 shadow-sm"
-                              : "border-border/30 bg-background/80 text-foreground hover:border-primary hover:text-primary"
+                              ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                              : "border-border/40 bg-background/80 text-foreground hover:border-primary/50 hover:text-primary"
                           }`}
                         >
-                          <AuditActionBadge action={action} />
-                          <span className="font-mono text-[10px] font-bold opacity-80">({count})</span>
+                          <span>{info.label}</span>
+                          <span
+                            className={`font-mono text-[10px] ${
+                              isActive ? "opacity-90" : "text-muted-foreground"
+                            }`}
+                          >
+                            ({count})
+                          </span>
                         </button>
                       );
                     })}

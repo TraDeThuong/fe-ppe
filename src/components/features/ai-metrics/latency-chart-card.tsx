@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Activity, Clock, Gauge, TrendingDown, TrendingUp } from "lucide-react";
@@ -6,19 +5,25 @@ import { useId } from "react";
 import { useLocale } from "@/providers/locale-provider";
 import { AnimatedNumber, useAnimatedProgress } from "@/components/ui/animated-number";
 import type { LatencyDataPoint } from "@/types";
+import { AiCardHelpButton } from "./ai-metrics-guide-modal";
 
 export interface LatencyChartCardProps {
   latencyHistory?: LatencyDataPoint[];
   avgLatencyMs?: number;
   avgFps?: number;
+  loading?: boolean;
+  onOpenGuide?: () => void;
 }
 
 export function LatencyChartCard({
   latencyHistory = [],
   avgLatencyMs = 0,
   avgFps = 0,
+  loading = false,
+  onOpenGuide,
 }: LatencyChartCardProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVi = locale === "vi-VN";
   const gradientId = useId().replace(/:/g, "");
 
   const history = latencyHistory.filter(
@@ -37,12 +42,26 @@ export function LatencyChartCard({
     ? Math.max(...history.map((point) => point.latencyMs))
     : 100;
 
-  const minVal = hasData ? Math.max(0, Math.min(observedMin - 4, 10)) : 0;
-  const maxVal = hasData ? Math.max(observedMax + 6, 30) : 50;
+  const minVal = hasData ? Math.max(0, Math.floor(observedMin - 4)) : 0;
+  const maxVal = hasData
+    ? Math.max(Math.ceil(observedMax + 6), minVal + 10)
+    : 50;
+
+  const observedFpsMin = hasData
+    ? Math.min(...history.map((point) => point.fps))
+    : 0;
+  const observedFpsMax = hasData
+    ? Math.max(...history.map((point) => point.fps))
+    : 30;
+
+  const minFpsVal = hasData ? Math.max(0, Math.floor(observedFpsMin - 4)) : 0;
+  const maxFpsVal = hasData
+    ? Math.max(Math.ceil(observedFpsMax + 4), minFpsVal + 10)
+    : 40;
 
   const width = 600;
   const height = 220;
-  const paddingX = 42;
+  const paddingX = 44;
   const paddingY = 32;
   const chartWidth = width - paddingX * 2;
   const chartHeight = height - paddingY * 2;
@@ -57,16 +76,27 @@ export function LatencyChartCard({
     const y =
       paddingY +
       chartHeight -
-      ((point.latencyMs - minVal) / (maxVal - minVal || 1)) *
-        chartHeight;
+      ((point.latencyMs - minVal) / (maxVal - minVal || 1)) * chartHeight;
 
-    return { ...point, x, y };
+    const fpsY =
+      paddingY +
+      chartHeight -
+      ((point.fps - minFpsVal) / (maxFpsVal - minFpsVal || 1)) * chartHeight;
+
+    return { ...point, x, y, fpsY };
   });
 
   const pathD = points
     .map(
       (point, index) =>
         `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`
+    )
+    .join(" ");
+
+  const fpsPathD = points
+    .map(
+      (point, index) =>
+        `${index === 0 ? "M" : "L"} ${point.x} ${point.fpsY}`
     )
     .join(" ");
 
@@ -82,10 +112,43 @@ export function LatencyChartCard({
   const highestLatency = hasData
     ? Math.max(...history.map((point) => point.latencyMs))
     : 0;
-  const barSweep = useAnimatedProgress(100, { enabled: hasData });
+
+  const xLabelStep = points.length > 8 ? Math.ceil(points.length / 8) : 1;
+  const barSweep = useAnimatedProgress(100, { enabled: !loading && hasData });
 
   const shellShadow =
     "shadow-[0_2px_0_rgba(255,255,255,0.8)_inset,0_-2px_0_rgba(0,0,0,0.025)_inset,8px_10px_18px_var(--shadow-dark),-8px_-8px_18px_var(--shadow-light)]";
+
+  if (loading) {
+    return (
+      <section
+        aria-busy="true"
+        aria-label="Loading latency and FPS chart"
+        className={`relative isolate overflow-hidden rounded-[26px] border border-border/40 bg-surface p-4 sm:p-5 ${shellShadow}`}
+      >
+        <div className="space-y-5 animate-pulse">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-11 w-11 rounded-[15px] bg-muted/70" />
+              <div className="space-y-2">
+                <div className="h-4 w-48 rounded-full bg-muted/70" />
+                <div className="h-3 w-32 rounded-full bg-muted/50" />
+              </div>
+            </div>
+            <div className="hidden sm:block h-8 w-56 rounded-xl bg-muted/40" />
+          </div>
+
+          <div className="h-[260px] rounded-[20px] bg-muted/40 shadow-[inset_4px_4px_10px_var(--shadow-dark),inset_-4px_-4px_10px_var(--shadow-light)]" />
+
+          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+            {[0, 1, 2, 3].map((idx) => (
+              <div key={idx} className="h-28 rounded-[17px] bg-muted/40" />
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   const stats = [
     {
@@ -94,7 +157,7 @@ export function LatencyChartCard({
       unit: "ms",
       icon: Clock,
       accent: false,
-      note: "Average latency",
+      note: isVi ? "Độ trễ trung bình" : "Average latency",
     },
     {
       label: t("aiMetrics.latencyChart.minLatency"),
@@ -102,7 +165,7 @@ export function LatencyChartCard({
       unit: "ms",
       icon: TrendingDown,
       accent: false,
-      note: "Minimum latency",
+      note: isVi ? "Mức thấp nhất trong kỳ" : "Minimum latency",
     },
     {
       label: t("aiMetrics.latencyChart.maxLatency"),
@@ -110,7 +173,7 @@ export function LatencyChartCard({
       unit: "ms",
       icon: TrendingUp,
       accent: true,
-      note: "Peak latency",
+      note: isVi ? "Đỉnh độ trễ trong kỳ" : "Peak latency",
     },
     {
       label: t("aiMetrics.latencyChart.throughput"),
@@ -118,7 +181,11 @@ export function LatencyChartCard({
       unit: "FPS",
       icon: Gauge,
       accent: false,
-      note: "Average throughput",
+      note: hasData
+        ? `${observedFpsMin.toFixed(1)}–${observedFpsMax.toFixed(1)} FPS`
+        : isVi
+          ? "Thông lượng trung bình"
+          : "Average throughput",
     },
   ];
 
@@ -145,19 +212,22 @@ export function LatencyChartCard({
                 {t("aiMetrics.latencyChart.title")}
               </h4>
               <p className="mt-1 text-[10px] font-medium tracking-[0.12em] text-muted-foreground">
-                REAL-TIME PERFORMANCE
+                INFERENCE TELEMETRY
               </p>
             </div>
           </div>
 
-          <div className="hidden sm:flex w-fit items-center gap-2 rounded-xl border border-border/40 bg-surface px-3 py-2 shadow-[2px_3px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/40" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-            </span>
-            <span className="text-[10px] font-bold text-foreground">
-              {t("aiMetrics.latencyChart.description")}
-            </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="hidden sm:flex w-fit items-center gap-2 rounded-xl border border-border/40 bg-surface px-3 py-2 shadow-[2px_3px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/40" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+              </span>
+              <span className="text-[10px] font-bold text-foreground">
+                {t("aiMetrics.latencyChart.description")}
+              </span>
+            </div>
+            {onOpenGuide && <AiCardHelpButton onClick={onOpenGuide} />}
           </div>
         </header>
 
@@ -166,20 +236,20 @@ export function LatencyChartCard({
           <div className="mb-2 flex items-center justify-between gap-3 px-1">
             <div>
               <p className="text-xs font-extrabold text-foreground">
-                Inference latency
+                {isVi ? "Biến thiên Độ trễ (ms) & Tốc độ khung hình (FPS)" : "Inference latency (ms) & Throughput (FPS)"}
               </p>
               <p className="mt-1 text-[10px] text-muted-foreground">
-                Response time · milliseconds
+                {isVi ? "Trục trái: ms · Trục phải: FPS" : "Left axis: ms · Right axis: FPS"}
               </p>
             </div>
 
             <div className="rounded-lg border border-primary/20 bg-primary/[0.08] px-2.5 py-1.5 text-[10px] font-extrabold text-primary shadow-[0_1px_0_rgba(255,255,255,0.7)_inset,2px_2px_4px_var(--shadow-dark)] tabular-nums">
               {hasData ? (
                 <>
-                  <AnimatedNumber value={history.length} /> samples
+                  <AnimatedNumber value={history.length} /> {isVi ? "ngày" : "days"}
                 </>
               ) : (
-                "No data"
+                isVi ? "Chưa có dữ liệu" : "No data"
               )}
             </div>
           </div>
@@ -188,7 +258,7 @@ export function LatencyChartCard({
             <svg
               viewBox={`0 0 ${width} ${height}`}
               role="img"
-              aria-label="Latency history chart"
+              aria-label="Latency and FPS history chart"
               className="h-auto max-h-[260px] w-full overflow-visible"
             >
               <defs>
@@ -228,10 +298,11 @@ export function LatencyChartCard({
                 </filter>
               </defs>
 
-              {/* Recessed grid */}
+              {/* Recessed grid + dual Y axes */}
               {[0, 0.5, 1].map((ratio) => {
                 const y = paddingY + chartHeight * ratio;
                 const value = maxVal - (maxVal - minVal) * ratio;
+                const fpsAxisVal = maxFpsVal - (maxFpsVal - minFpsVal) * ratio;
 
                 return (
                   <g key={ratio}>
@@ -246,14 +317,25 @@ export function LatencyChartCard({
                       strokeWidth="1"
                     />
                     <text
-                      x={paddingX - 9}
+                      x={paddingX - 8}
                       y={y + 3}
                       textAnchor="end"
                       fill="currentColor"
                       className="text-[9px] text-muted-foreground"
                     >
-                      {value.toFixed(0)}
+                      {value.toFixed(0)}ms
                     </text>
+                    {hasData && (
+                      <text
+                        x={width - paddingX + 8}
+                        y={y + 3}
+                        textAnchor="start"
+                        fill="#10b981"
+                        className="text-[9px] font-semibold"
+                      >
+                        {fpsAxisVal.toFixed(0)}fps
+                      </text>
+                    )}
                   </g>
                 );
               })}
@@ -269,13 +351,13 @@ export function LatencyChartCard({
 
               {hasData && (
                 <>
-                  {/* Soft area */}
+                  {/* Soft area for latency */}
                   <path
                     d={areaD}
                     fill={`url(#${gradientId}-area)`}
                   />
 
-                  {/* Raised data line */}
+                  {/* Raised latency line */}
                   <path
                     d={pathD}
                     fill="none"
@@ -298,54 +380,106 @@ export function LatencyChartCard({
                     className="animate-svg-draw"
                   />
 
-                  {/* Raised data points */}
-                  {points.map((point, index) => (
-                    <g key={`${point.timestamp}-${index}`}>
-                      <circle
-                        cx={point.x}
-                        cy={point.y}
-                        r="7"
-                        fill="var(--shadow-dark)"
-                        opacity="0.15"
-                      />
+                  {/* Secondary FPS line */}
+                  <path
+                    d={fpsPathD}
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="2.2"
+                    strokeDasharray="5 4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
 
-                      <circle
-                        cx={point.x}
-                        cy={point.y}
-                        r="5"
-                        fill="var(--surface)"
-                        stroke="var(--primary)"
-                        strokeWidth="2.5"
-                      />
+                  {/* Data points */}
+                  {points.map((point, index) => {
+                    const showXLabel =
+                      index % xLabelStep === 0 || index === points.length - 1;
+                    const showPointLabels = points.length <= 12;
 
-                      <circle
-                        cx={point.x - 1}
-                        cy={point.y - 1}
-                        r="1.5"
-                        fill="var(--primary)"
-                      />
+                    return (
+                      <g key={`${point.timestamp}-${index}`}>
+                        <title>
+                          {`${point.timestamp}: ${point.latencyMs.toFixed(1)} ms | ${point.fps.toFixed(1)} FPS`}
+                        </title>
 
-                      <text
-                        x={point.x}
-                        y={Math.max(15, point.y - 13)}
-                        textAnchor="middle"
-                        fill="currentColor"
-                        className="text-[10px] font-bold text-foreground"
-                      >
-                        {point.latencyMs.toFixed(1)}
-                      </text>
+                        {/* FPS dot */}
+                        <circle
+                          cx={point.x}
+                          cy={point.fpsY}
+                          r="4"
+                          fill="var(--surface)"
+                          stroke="#10b981"
+                          strokeWidth="2"
+                        />
 
-                      <text
-                        x={point.x}
-                        y={baselineY + 17}
-                        textAnchor="middle"
-                        fill="currentColor"
-                        className="text-[10px] font-medium text-muted-foreground"
-                      >
-                        {point.timestamp}
-                      </text>
-                    </g>
-                  ))}
+                        {showPointLabels && (
+                          <text
+                            x={point.x}
+                            y={Math.max(12, point.fpsY - 9)}
+                            textAnchor="middle"
+                            fill="#10b981"
+                            className="text-[9px] font-bold"
+                          >
+                            {point.fps.toFixed(1)}
+                          </text>
+                        )}
+
+                        {/* Latency dot */}
+                        <circle
+                          cx={point.x}
+                          cy={point.y}
+                          r="7"
+                          fill="var(--shadow-dark)"
+                          opacity="0.15"
+                        />
+
+                        <circle
+                          cx={point.x}
+                          cy={point.y}
+                          r="5"
+                          fill="var(--surface)"
+                          stroke="var(--primary)"
+                          strokeWidth="2.5"
+                        />
+
+                        <circle
+                          cx={point.x - 1}
+                          cy={point.y - 1}
+                          r="1.5"
+                          fill="var(--primary)"
+                        />
+
+                        {showPointLabels && (
+                          <text
+                            x={point.x}
+                            y={
+                              Math.abs(point.y - point.fpsY) < 18 && point.y >= point.fpsY
+                                ? Math.min(baselineY - 6, point.y + 16)
+                                : Math.max(15, point.y - 12)
+                            }
+                            textAnchor="middle"
+                            fill="currentColor"
+                            className="text-[10px] font-bold text-foreground"
+                          >
+                            {point.latencyMs.toFixed(1)}
+                          </text>
+                        )}
+
+                        {showXLabel && (
+                          <text
+                            x={point.x}
+                            y={baselineY + 17}
+                            textAnchor="middle"
+                            fill="currentColor"
+                            className="text-[10px] font-medium text-muted-foreground"
+                          >
+                            {point.timestamp}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
                 </>
               )}
 
@@ -364,15 +498,23 @@ export function LatencyChartCard({
           </div>
 
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-border/30 px-1 pt-3">
-            <div className="flex items-center gap-2">
-              <span className="h-1.5 w-5 rounded-full bg-primary shadow-[0_1px_2px_var(--shadow-dark)]" />
-              <span className="text-[10px] font-semibold text-muted-foreground">
-                Latency
-              </span>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="h-1.5 w-5 rounded-full bg-primary shadow-[0_1px_2px_var(--shadow-dark)]" />
+                <span className="text-[10px] font-semibold text-muted-foreground">
+                  {isVi ? "Độ trễ (ms)" : "Latency (ms)"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="h-0.5 w-5 border-t-2 border-dashed border-emerald-500" />
+                <span className="text-[10px] font-semibold text-muted-foreground">
+                  {isVi ? "Tốc độ (FPS)" : "Throughput (FPS)"}
+                </span>
+              </div>
             </div>
 
             <span className="text-[10px] font-medium text-muted-foreground">
-              Unit: ms
+              {isVi ? "Đơn vị: ms & FPS" : "Unit: ms & FPS"}
             </span>
           </div>
         </div>
@@ -382,11 +524,13 @@ export function LatencyChartCard({
           {stats.map((stat, statIdx) => {
             const Icon = stat.icon;
             const numericStat = Number(stat.value);
-            const targetWidth = stat.accent
-              ? (highestLatency / Math.max(maxVal, 1)) * 100
-              : stat.unit === "FPS"
-                ? Math.min(100, (avgFps / 60) * 100)
-                : Math.min(100, (numericStat / 100) * 100);
+            const targetWidth = !hasData && stat.unit === "ms" && stat.note !== (isVi ? "Độ trễ trung bình" : "Average latency")
+              ? 0
+              : stat.accent
+                ? (highestLatency / Math.max(maxVal, 1)) * 100
+                : stat.unit === "FPS"
+                  ? Math.min(100, (avgFps / 60) * 100)
+                  : Math.min(100, (numericStat / 100) * 100);
 
             return (
               <div
@@ -460,10 +604,10 @@ export function LatencyChartCard({
 
             <div>
               <p className="text-[11px] font-extrabold text-foreground">
-                SLA latency threshold
+                {isVi ? "Ngưỡng SLA độ trễ mục tiêu" : "SLA latency threshold"}
               </p>
               <p className="mt-0.5 text-[10px] text-muted-foreground">
-                Target response time
+                {isVi ? "Thời gian phản hồi cho xử lý thời gian thực" : "Target response time"}
               </p>
             </div>
           </div>

@@ -22,7 +22,6 @@ export interface SidebarBadgesInput {
   offlineCamerasCount?: number;
   reportHistory?: readonly Pick<ReportGenerationDto, "status" | "createdAt" | "generatedAt">[];
   reportsLastSeenAt?: number | null;
-  lockedUsersCount?: number;
   failedAuditLogs?: readonly Pick<AuditLogItem, "status" | "createdAt">[];
   auditLastSeenAt?: number | null;
   maintenanceEnabled?: boolean;
@@ -52,7 +51,6 @@ export function computeSidebarBadges(input: SidebarBadgesInput): SidebarBadgesMa
     offlineCamerasCount = 0,
     reportHistory,
     reportsLastSeenAt,
-    lockedUsersCount = 0,
     failedAuditLogs,
     auditLastSeenAt,
     maintenanceEnabled = false,
@@ -124,16 +122,7 @@ export function computeSidebarBadges(input: SidebarBadgesInput): SidebarBadgesMa
     }
   }
 
-  // 5. Người dùng: tài khoản đang bị khóa / vô hiệu hóa
-  if (can("USER_READ") && lockedUsersCount > 0) {
-    badges.users = {
-      count: lockedUsersCount,
-      variant: "accent",
-      label: formatLabel("nav.badge.users", lockedUsersCount),
-    };
-  }
-
-  // 6. Nhật ký hệ thống: nhật ký mới chưa xem kể từ lần cuối mở trang
+  // 5. Nhật ký hệ thống: nhật ký mới chưa xem kể từ lần cuối mở trang
   if (can("AUDIT_LOG_READ") && failedAuditLogs?.length) {
     const auditCutoff = auditLastSeenAt ?? nowMs - DEFAULT_AUDIT_LOOKBACK_MS;
     let unseenCount = 0;

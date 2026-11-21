@@ -6,12 +6,14 @@ import { StatsCard } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
 import type { AiPerformanceDto } from "@/types";
 import { AiMetricsStatsDetailPanel, type AiMetricStatKey } from "./ai-metrics-stats-detail-panel";
+import { AiCardHelpButton } from "./ai-metrics-guide-modal";
 
 export interface AiMetricsKpiSummaryProps {
   performance?: AiPerformanceDto | null;
   loading?: boolean;
   selectedStat?: AiMetricStatKey | null;
   onSelectStat?: (stat: AiMetricStatKey | null) => void;
+  onOpenStatGuide?: (stat: AiMetricStatKey) => void;
 }
 
 function formatFramesCount(total: number): string {
@@ -26,6 +28,7 @@ export function AiMetricsKpiSummary({
   loading = false,
   selectedStat: propSelectedStat,
   onSelectStat,
+  onOpenStatGuide,
 }: AiMetricsKpiSummaryProps) {
   const { t } = useLocale();
 
@@ -81,17 +84,22 @@ export function AiMetricsKpiSummary({
             activeStat === "map50" ? sunkenClass : "hover:border-primary/30"
           }`}
           footer={
-            <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
-              {activeStat === "map50" ? (
-                <span className="flex items-center text-primary font-bold gap-0.5">
-                  {t("aiMetrics.stats.collapse")} <ChevronUp className="h-3 w-3" />
-                </span>
-              ) : (
-                <span className="flex items-center text-muted-foreground hover:text-foreground gap-0.5">
-                  {t("aiMetrics.stats.viewDetail")} <ChevronDown className="h-3 w-3" />
-                </span>
+            <div className="flex items-center justify-between gap-2 w-full">
+              <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
+                {activeStat === "map50" ? (
+                  <span className="flex items-center text-primary font-bold gap-0.5">
+                    {t("aiMetrics.stats.collapse")} <ChevronUp className="h-3 w-3" />
+                  </span>
+                ) : (
+                  <span className="flex items-center text-muted-foreground hover:text-foreground gap-0.5">
+                    {t("aiMetrics.stats.viewDetail")} <ChevronDown className="h-3 w-3" />
+                  </span>
+                )}
+              </span>
+              {onOpenStatGuide && (
+                <AiCardHelpButton compact onClick={() => onOpenStatGuide("map50")} />
               )}
-            </span>
+            </div>
           }
         />
 
@@ -109,17 +117,22 @@ export function AiMetricsKpiSummary({
             activeStat === "latency" ? sunkenClass : "hover:border-primary/30"
           }`}
           footer={
-            <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
-              {activeStat === "latency" ? (
-                <span className="flex items-center text-primary font-bold gap-0.5">
-                  {t("aiMetrics.stats.collapse")} <ChevronUp className="h-3 w-3" />
-                </span>
-              ) : (
-                <span className="flex items-center text-muted-foreground hover:text-foreground gap-0.5">
-                  {t("aiMetrics.stats.viewDetail")} <ChevronDown className="h-3 w-3" />
-                </span>
+            <div className="flex items-center justify-between gap-2 w-full">
+              <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
+                {activeStat === "latency" ? (
+                  <span className="flex items-center text-primary font-bold gap-0.5">
+                    {t("aiMetrics.stats.collapse")} <ChevronUp className="h-3 w-3" />
+                  </span>
+                ) : (
+                  <span className="flex items-center text-muted-foreground hover:text-foreground gap-0.5">
+                    {t("aiMetrics.stats.viewDetail")} <ChevronDown className="h-3 w-3" />
+                  </span>
+                )}
+              </span>
+              {onOpenStatGuide && (
+                <AiCardHelpButton compact onClick={() => onOpenStatGuide("latency")} />
               )}
-            </span>
+            </div>
           }
         />
 
@@ -137,17 +150,22 @@ export function AiMetricsKpiSummary({
             activeStat === "fps" ? sunkenClass : "hover:border-primary/30"
           }`}
           footer={
-            <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
-              {activeStat === "fps" ? (
-                <span className="flex items-center text-primary font-bold gap-0.5">
-                  {t("aiMetrics.stats.collapse")} <ChevronUp className="h-3 w-3" />
-                </span>
-              ) : (
-                <span className="flex items-center text-muted-foreground hover:text-foreground gap-0.5">
-                  {t("aiMetrics.stats.viewDetail")} <ChevronDown className="h-3 w-3" />
-                </span>
+            <div className="flex items-center justify-between gap-2 w-full">
+              <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
+                {activeStat === "fps" ? (
+                  <span className="flex items-center text-primary font-bold gap-0.5">
+                    {t("aiMetrics.stats.collapse")} <ChevronUp className="h-3 w-3" />
+                  </span>
+                ) : (
+                  <span className="flex items-center text-muted-foreground hover:text-foreground gap-0.5">
+                    {t("aiMetrics.stats.viewDetail")} <ChevronDown className="h-3 w-3" />
+                  </span>
+                )}
+              </span>
+              {onOpenStatGuide && (
+                <AiCardHelpButton compact onClick={() => onOpenStatGuide("fps")} />
               )}
-            </span>
+            </div>
           }
         />
 
@@ -165,17 +183,22 @@ export function AiMetricsKpiSummary({
             activeStat === "samples" ? sunkenClass : "hover:border-primary/30"
           }`}
           footer={
-            <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
-              {activeStat === "samples" ? (
-                <span className="flex items-center text-primary font-bold gap-0.5">
-                  {t("aiMetrics.stats.collapse")} <ChevronUp className="h-3 w-3" />
-                </span>
-              ) : (
-                <span className="flex items-center text-muted-foreground hover:text-foreground gap-0.5">
-                  {t("aiMetrics.stats.viewDetail")} <ChevronDown className="h-3 w-3" />
-                </span>
+            <div className="flex items-center justify-between gap-2 w-full">
+              <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
+                {activeStat === "samples" ? (
+                  <span className="flex items-center text-primary font-bold gap-0.5">
+                    {t("aiMetrics.stats.collapse")} <ChevronUp className="h-3 w-3" />
+                  </span>
+                ) : (
+                  <span className="flex items-center text-muted-foreground hover:text-foreground gap-0.5">
+                    {t("aiMetrics.stats.viewDetail")} <ChevronDown className="h-3 w-3" />
+                  </span>
+                )}
+              </span>
+              {onOpenStatGuide && (
+                <AiCardHelpButton compact onClick={() => onOpenStatGuide("samples")} />
               )}
-            </span>
+            </div>
           }
         />
       </div>

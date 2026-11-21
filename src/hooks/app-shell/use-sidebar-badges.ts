@@ -17,7 +17,6 @@ import { useIncidentStatusCounts } from "@/hooks/incidents";
 import { useUnreadCount } from "@/hooks/notifications";
 import { useCameraStatusCounts } from "@/hooks/cameras";
 import { useReportHistory } from "@/hooks/reporting";
-import { useUserSummary } from "@/hooks/users";
 import { useAuditLogs } from "@/hooks/audit";
 import { useMaintenanceStatus } from "@/hooks/maintenance";
 import { useCronJobs } from "@/hooks/cron";
@@ -50,7 +49,6 @@ function useComputeSidebarBadges(): SidebarBadgesMap {
   const canNotifications = can("NOTIFICATION_READ");
   const canCameras = can("PPE_CAMERA_READ");
   const canReports = can("PPE_REPORTING_READ");
-  const canUsers = can("USER_READ");
   const canAudit = can("AUDIT_LOG_READ");
   const canMaintenance = can("MAINTENANCE_MANAGE");
   const canCron = can("CRON_JOB_READ");
@@ -106,13 +104,6 @@ function useComputeSidebarBadges(): SidebarBadgesMap {
     },
   );
 
-  const userSummaryQuery = useUserSummary({
-    enabled: canUsers,
-    staleTime: 60 * 1000,
-    refetchInterval: 2 * 60 * 1000,
-    refetchIntervalInBackground: false,
-  });
-
   const auditFailedQuery = useAuditLogs(
     { page: 1, limit: 20 },
     {
@@ -138,7 +129,6 @@ function useComputeSidebarBadges(): SidebarBadgesMap {
       offlineCamerasCount: cameraCountsQuery.data?.offline ?? 0,
       reportHistory: reportHistoryQuery.data?.items,
       reportsLastSeenAt,
-      lockedUsersCount: userSummaryQuery.data?.locked ?? 0,
       failedAuditLogs: auditFailedQuery.data?.items,
       auditLastSeenAt,
       maintenanceEnabled: Boolean(maintenanceQuery.data?.enabled),
@@ -154,7 +144,6 @@ function useComputeSidebarBadges(): SidebarBadgesMap {
     cameraCountsQuery.data?.offline,
     reportHistoryQuery.data?.items,
     reportsLastSeenAt,
-    userSummaryQuery.data?.locked,
     auditFailedQuery.data?.items,
     auditLastSeenAt,
     maintenanceQuery.data?.enabled,

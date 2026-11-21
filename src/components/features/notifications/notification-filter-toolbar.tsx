@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, X, Filter, CheckCheck, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -40,13 +40,25 @@ export function NotificationFilterToolbar({
   const isVietnamese = locale === "vi-VN";
   const [searchInput, setSearchInput] = useState(filter.search || "");
   const debouncedSearch = useDebounce(searchInput, 300);
+  const latestFilterRef = useRef(filter);
+  const latestOnFilterChangeRef = useRef(onFilterChange);
+  const prevFilterSearchRef = useRef(filter.search);
+  latestFilterRef.current = filter;
+  latestOnFilterChangeRef.current = onFilterChange;
 
-  // Đồng bộ debounced search với filter ngoài
   useEffect(() => {
-    if (debouncedSearch !== filter.search) {
-      onFilterChange({ ...filter, search: debouncedSearch });
+    if (prevFilterSearchRef.current !== filter.search && filter.search === "") {
+      setSearchInput("");
     }
-  }, [debouncedSearch, filter, onFilterChange]);
+    prevFilterSearchRef.current = filter.search;
+  }, [filter.search]);
+
+  useEffect(() => {
+    const currentFilter = latestFilterRef.current;
+    if (debouncedSearch !== currentFilter.search) {
+      latestOnFilterChangeRef.current({ ...currentFilter, search: debouncedSearch });
+    }
+  }, [debouncedSearch]);
 
   const hasActiveFilters = Boolean(
     filter.search ||
@@ -71,12 +83,22 @@ export function NotificationFilterToolbar({
     });
   };
 
+  const readStatusOptions: Array<{
+    key: "all" | "unread" | "read";
+    label: string;
+    value: boolean | undefined;
+  }> = [
+    { key: "all", label: t("notifications.filter.all"), value: undefined },
+    { key: "unread", label: t("notifications.filter.unread"), value: false },
+    { key: "read", label: t("notifications.filter.read"), value: true },
+  ];
+
   return (
     <div
-      className={`flex flex-col gap-3 rounded-2xl border border-border/30 bg-background p-3 shadow-[6px_6px_15px_var(--shadow-dark),-6px_-6px_15px_var(--shadow-light)] sm:p-4 ${className}`}
+      className={`flex flex-col gap-3 rounded-2xl border border-border/30 bg-background p-3.5 shadow-[6px_6px_15px_var(--shadow-dark),-6px_-6px_15px_var(--shadow-light)] sm:p-4 ${className}`}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        {/* Search Bar Input */}
+      {/* Top Row: Search + Quick Read Status Pills + Global Actions */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative min-w-0 flex-1">
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-muted-foreground">
             <Search className="size-4" />
@@ -102,8 +124,32 @@ export function NotificationFilterToolbar({
           )}
         </div>
 
-        {/* Global Actions: Mark All Read & Refresh */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Quick 1-click Read Status Switcher */}
+          <div
+            role="group"
+            aria-label={isVietnamese ? "Trạng thái đọc" : "Read status"}
+            className="inline-flex items-center gap-1 rounded-xl border border-border/30 bg-background p-1 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+          >
+            {readStatusOptions.map((opt) => {
+              const active = filter.isRead === opt.value;
+              return (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => onFilterChange({ ...filter, isRead: opt.value })}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
+                    active
+                      ? "bg-primary text-primary-foreground shadow-[2px_2px_5px_var(--shadow-dark)]"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+
           {onMarkAllRead && (
             <Button
               type="button"
@@ -135,39 +181,17 @@ export function NotificationFilterToolbar({
         </div>
       </div>
 
-      {/* Filter Row */}
-      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/20 text-xs">
-        <span className="flex items-center gap-1 text-muted-foreground font-medium pr-1">
+      {/* Bottom Filter Strip: Severity, Channel, Date Range */}
+      <div className="flex flex-wrap items-center gap-2 border-t border-border/20 pt-2.5 text-xs">
+        <span className="flex items-center gap-1 pr-1 font-medium text-muted-foreground">
           <Filter className="size-3" />
           <span>{isVietnamese ? "Bộ lọc:" : "Filters:"}</span>
         </span>
 
-        {/* Trạng thái Đã đọc / Chưa đọc */}
-        <select
-          value={
-            filter.isRead === undefined
-              ? "all"
-              : filter.isRead
-                ? "read"
-                : "unread"
-          }
-          onChange={(e) => {
-            const val = e.target.value;
-            onFilterChange({
-              ...filter,
-              isRead: val === "all" ? undefined : val === "read",
-            });
-          }}
-          className="rounded-lg border border-border/40 bg-background px-2.5 py-1.5 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
-        >
-          <option value="all">{t("notifications.filter.all")}</option>
-          <option value="unread">{t("notifications.filter.unread")}</option>
-          <option value="read">{t("notifications.filter.read")}</option>
-        </select>
-
-        {/* Mức độ nghiêm trọng (Severity) */}
+        {/* Severity */}
         <select
           value={filter.severity || "all"}
+          aria-label={t("notifications.filter.allSeverity")}
           onChange={(e) => {
             const val = e.target.value;
             onFilterChange({
@@ -185,9 +209,10 @@ export function NotificationFilterToolbar({
           <option value="LOW">{t("notifications.severity.LOW")}</option>
         </select>
 
-        {/* Kênh nhận tin (Channel) */}
+        {/* Channel */}
         <select
           value={filter.channel || "all"}
+          aria-label={t("notifications.filter.allChannels")}
           onChange={(e) => {
             const val = e.target.value;
             onFilterChange({
@@ -200,35 +225,54 @@ export function NotificationFilterToolbar({
         >
           <option value="all">{t("notifications.filter.allChannels")}</option>
           <option value="IN_APP">Web (In-App)</option>
+          <option value="WEB">Web</option>
           <option value="EMAIL">Email</option>
         </select>
 
-        {/* Khoảng ngày */}
-        <input
-          type="date"
-          value={filter.fromDate || ""}
-          onChange={(e) =>
-            onFilterChange({ ...filter, fromDate: e.target.value || undefined })
-          }
-          aria-label={isVietnamese ? "Từ ngày" : "From date"}
-          className="rounded-lg border border-border/40 bg-background px-2 py-1 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
-        />
-        <input
-          type="date"
-          value={filter.toDate || ""}
-          onChange={(e) =>
-            onFilterChange({ ...filter, toDate: e.target.value || undefined })
-          }
-          aria-label={isVietnamese ? "Đến ngày" : "To date"}
-          className="rounded-lg border border-border/40 bg-background px-2 py-1 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
-        />
+        {/* Date Range with explicit labels */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <label className="inline-flex items-center gap-1.5 text-muted-foreground">
+            <span className="text-[11px] font-medium">
+              {isVietnamese ? "Từ" : "From"}
+            </span>
+            <input
+              type="date"
+              value={filter.fromDate || ""}
+              onChange={(e) =>
+                onFilterChange({
+                  ...filter,
+                  fromDate: e.target.value || undefined,
+                })
+              }
+              aria-label={isVietnamese ? "Từ ngày" : "From date"}
+              className="rounded-lg border border-border/40 bg-background px-2 py-1 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
+            />
+          </label>
 
-        {/* Reset filter button */}
+          <label className="inline-flex items-center gap-1.5 text-muted-foreground">
+            <span className="text-[11px] font-medium">
+              {isVietnamese ? "Đến" : "To"}
+            </span>
+            <input
+              type="date"
+              value={filter.toDate || ""}
+              onChange={(e) =>
+                onFilterChange({
+                  ...filter,
+                  toDate: e.target.value || undefined,
+                })
+              }
+              aria-label={isVietnamese ? "Đến ngày" : "To date"}
+              className="rounded-lg border border-border/40 bg-background px-2 py-1 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
+            />
+          </label>
+        </div>
+
         {hasActiveFilters && (
           <button
             type="button"
             onClick={handleResetFilters}
-            className="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+            className="ml-auto inline-flex items-center gap-1 rounded-lg border border-primary/25 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary transition-colors hover:bg-primary/15"
           >
             <X className="size-3" />
             <span>{t("notifications.filter.reset")}</span>

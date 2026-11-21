@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense } from "react";
-import { usePathname } from "next/navigation";
+import { Suspense, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasRouteAccess } from "@/config/navigation";
+import { hasRouteAccess, isFullMaintenanceMode } from "@/config/navigation";
 import { MaintenanceAdminBanner } from "@/components/features/maintenance";
 import { useMaintenanceStatus } from "@/hooks/maintenance";
 import { SidebarBadgesProvider } from "@/hooks/app-shell";
@@ -15,6 +15,7 @@ import { ForbiddenView } from "./forbidden-view";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const { data: maintenanceStatus } = useMaintenanceStatus();
 
   const isBypassed = Boolean(
@@ -23,6 +24,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       user?.permissions?.includes("MAINTENANCE_BYPASS"),
   );
   const isMaintenanceActive = Boolean(maintenanceStatus?.enabled);
+  const isFullMaintenance = isFullMaintenanceMode(maintenanceStatus);
+  const canManageMaintenance = hasRouteAccess(
+    "/maintenance",
+    user?.permissions ?? [],
+    user?.role,
+  );
+  const maintenanceLocked = isFullMaintenance && canManageMaintenance;
+  const isMaintenanceRoute =
+    pathname === "/maintenance" || pathname.startsWith("/maintenance/");
+
+  useEffect(() => {
+    if (maintenanceLocked && !isMaintenanceRoute) {
+      router.replace("/maintenance");
+    }
+  }, [maintenanceLocked, isMaintenanceRoute, router]);
 
   const forbidden = !hasRouteAccess(
     pathname,
@@ -40,7 +56,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Desktop sidebar */}
         <div className="hidden md:flex">
-          <AppSidebar />
+          <AppSidebar maintenanceLocked={maintenanceLocked} />
         </div>
 
         {/* Desktop vertical transition */}
@@ -60,13 +76,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Main content */}
         <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
           {isMaintenanceActive && isBypassed && <MaintenanceAdminBanner />}
-          <AppHeader />
+          <AppHeader maintenanceLocked={maintenanceLocked} />
 
           <main
             data-page-scroll
             className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden bg-background p-3 sm:p-6 lg:p-8"
           >
-            {forbidden ? <ForbiddenView /> : children}
+            {maintenanceLocked && !isMaintenanceRoute ? null : forbidden ? (
+              <ForbiddenView />
+            ) : (
+              children
+            )}
           </main>
         </div>
       </div>

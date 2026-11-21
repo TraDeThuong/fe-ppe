@@ -1494,11 +1494,34 @@ export function SiteIncidentsTab({
             ? "Nhập lý do bác bỏ cảnh báo giả cho các sự cố đang chọn."
             : "Provide a dismissal reason for the selected alerts."
         }
+        preventClose={batchReviewMutation.isPending}
         size="sm"
+        footer={
+          <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end sm:gap-2.5">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setBatchRejectOpen(false)}
+              disabled={batchReviewMutation.isPending}
+              className="w-full sm:w-auto"
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              form="site-batch-reject-form"
+              type="submit"
+              variant="danger"
+              disabled={batchReviewMutation.isPending}
+              className="w-full sm:w-auto"
+            >
+              {isVietnamese ? "Xác nhận bác bỏ" : "Confirm Dismiss"}
+            </Button>
+          </div>
+        }
       >
-        <form onSubmit={handleBatchRejectSubmit} className="space-y-4">
+        <form id="site-batch-reject-form" onSubmit={handleBatchRejectSubmit} className="space-y-3">
           {batchRejectError && (
-            <div className="rounded-xl border border-danger/30 bg-danger/10 p-2.5 text-xs text-danger">
+            <div className="rounded-xl border border-danger/30 bg-danger/10 p-2.5 text-xs text-danger break-words">
               {batchRejectError}
             </div>
           )}
@@ -1511,29 +1534,9 @@ export function SiteIncidentsTab({
                 ? "VD: Báo động giả do ánh sáng / góc khuất camera..."
                 : "e.g.: False alarm caused by lighting / occlusion..."
             }
-            className="w-full rounded-xl border border-border/40 bg-background p-3 text-xs text-foreground focus:border-danger focus:outline-none"
+            className="w-full resize-none rounded-xl border border-border/40 bg-background p-3 text-xs sm:text-sm text-foreground focus:border-danger focus:outline-none"
             required
           />
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setBatchRejectOpen(false)}
-              disabled={batchReviewMutation.isPending}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              disabled={batchReviewMutation.isPending}
-              className="bg-danger hover:bg-danger/90 text-white"
-            >
-              {isVietnamese ? "Xác nhận bác bỏ" : "Confirm Dismiss"}
-            </Button>
-          </div>
         </form>
       </Modal>
     </div>

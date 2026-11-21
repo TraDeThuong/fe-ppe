@@ -5,10 +5,13 @@ import { CheckCircle2, Layers, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
 import type { AiModelDto, AiModelVersionDto } from "@/types";
+import { AiCardHelpButton } from "./ai-metrics-guide-modal";
 
 export interface ModelGovernanceTableProps {
   models: AiModelDto[];
   onDeploy?: (modelId: string, version: AiModelVersionDto) => void;
+  onRefresh?: () => void;
+  onOpenGuide?: () => void;
   canDeploy?: boolean;
   loading?: boolean;
 }
@@ -16,6 +19,8 @@ export interface ModelGovernanceTableProps {
 export function ModelGovernanceTable({
   models,
   onDeploy,
+  onRefresh,
+  onOpenGuide,
   canDeploy = true,
   loading = false,
 }: ModelGovernanceTableProps) {
@@ -38,6 +43,12 @@ export function ModelGovernanceTable({
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
             <CheckCircle2 className="h-3 w-3" />
             {t("aiMetrics.governance.activeBadge")}
+          </span>
+        );
+      case "STAGING":
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/20">
+            {t("aiMetrics.governance.stagingBadge")}
           </span>
         );
       case "DEVELOPMENT":
@@ -66,9 +77,12 @@ export function ModelGovernanceTable({
             {t("aiMetrics.governance.title")}
           </h4>
         </div>
-        <span className="text-xs text-muted-foreground">
-          {t("aiMetrics.governance.versionsRegistered", { count: allVersions.length })}
-        </span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs text-muted-foreground">
+            {t("aiMetrics.governance.versionsRegistered", { count: allVersions.length })}
+          </span>
+          {onOpenGuide && <AiCardHelpButton onClick={onOpenGuide} />}
+        </div>
       </div>
 
       {/* Table */}
@@ -187,6 +201,7 @@ export function ModelGovernanceTable({
             }
           }]}
           loading={loading}
+          onRetry={onRefresh}
           getRowId={row => row.id}
           features={{
             globalFilter: true,

@@ -37,29 +37,16 @@ export function DeleteCameraDialog({
       title={t("cameras.modals.deleteTitle")}
       description={t("cameras.modals.deletePrompt")}
       icon={<AlertTriangle className="h-5 w-5 text-danger" />}
+      preventClose={loading}
       size="sm"
-    >
-      <div className="space-y-4">
-        <div className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-center">
-          <p className="font-mono text-sm font-bold text-danger">
-            {camera?.code}
-          </p>
-          <p className="mt-1 text-xs text-foreground font-semibold">
-            {camera?.name}
-          </p>
-          {camera?.location && (
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {camera.location}
-            </p>
-          )}
-        </div>
-
-        <div className="flex items-center justify-end gap-3 pt-2">
+      footer={
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end sm:gap-2.5">
           <Button
             type="button"
             variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={loading}
+            className="w-full sm:w-auto"
           >
             {t("common.cancel")}
           </Button>
@@ -69,7 +56,7 @@ export function DeleteCameraDialog({
             variant="danger"
             onClick={handleConfirm}
             disabled={loading}
-            className="flex items-center gap-2"
+            className="w-full sm:w-auto flex items-center justify-center gap-2"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -79,6 +66,20 @@ export function DeleteCameraDialog({
             <span>{isVietnamese ? "Xác nhận xóa" : "Confirm Delete"}</span>
           </Button>
         </div>
+      }
+    >
+      <div className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-center">
+        <p className="font-mono text-sm font-bold text-danger break-all">
+          {camera?.code}
+        </p>
+        <p className="mt-1 text-xs font-semibold text-foreground break-words [overflow-wrap:anywhere]">
+          {camera?.name}
+        </p>
+        {camera?.location && (
+          <p className="mt-0.5 text-[11px] text-muted-foreground break-words [overflow-wrap:anywhere]">
+            {camera.location}
+          </p>
+        )}
       </div>
     </Modal>
   );

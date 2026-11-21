@@ -39,6 +39,9 @@ export function CloseIncidentDialog({
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
+      size="sm"
+      preventClose={loading}
+      icon={<Archive className="h-5 w-5 text-primary" />}
       title={t("incidents.modals.closeTitle")}
       description={
         incident
@@ -47,31 +50,14 @@ export function CloseIncidentDialog({
               : `Are you sure you want to review and close incident record #${incident.id.slice(0, 8)}? Once closed, the record will be archived and its status cannot be modified.`)
           : undefined
       }
-    >
-      <div className="space-y-4 pt-2">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-[var(--neu-text-primary)]">
-            {t("incidents.modals.closeNote")}
-          </label>
-          <textarea
-            value={closeNote}
-            onChange={(e) => setCloseNote(e.target.value)}
-            rows={2}
-            placeholder={
-              isVietnamese
-                ? "Ghi chú nghiệm thu, đánh giá kết quả xử lý..."
-                : "Closing notes, resolution evaluation..."
-            }
-            className="w-full px-3.5 py-2.5 rounded-xl bg-[var(--neu-inset)] border border-[var(--neu-border)] text-sm text-[var(--neu-text-primary)] placeholder-[var(--neu-text-secondary)]/50 focus:outline-none focus:ring-2 focus:ring-slate-500/30 transition-all resize-none"
-          />
-        </div>
-
-        <div className="flex items-center justify-end gap-3 pt-2">
+      footer={
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end sm:gap-2.5">
           <Button
             type="button"
             variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={loading}
+            className="w-full sm:w-auto"
           >
             {t("common.cancel")}
           </Button>
@@ -80,16 +66,33 @@ export function CloseIncidentDialog({
             variant="primary"
             onClick={handleConfirm}
             disabled={loading}
-            className="gap-2 bg-slate-700 hover:bg-slate-800 text-white dark:bg-slate-800 dark:hover:bg-slate-700"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-800 text-white dark:bg-slate-800 dark:hover:bg-slate-700"
           >
             {loading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Archive className="w-4 h-4" />
+              <Archive className="h-4 w-4" />
             )}
-            {t("incidents.modals.closeConfirm")}
+            <span>{t("incidents.modals.closeConfirm")}</span>
           </Button>
         </div>
+      }
+    >
+      <div className="space-y-2">
+        <label className="block text-xs font-semibold text-foreground sm:text-sm">
+          {t("incidents.modals.closeNote")}
+        </label>
+        <textarea
+          value={closeNote}
+          onChange={(e) => setCloseNote(e.target.value)}
+          rows={3}
+          placeholder={
+            isVietnamese
+              ? "Ghi chú nghiệm thu, đánh giá kết quả xử lý..."
+              : "Closing notes, resolution evaluation..."
+          }
+          className="w-full resize-none rounded-xl border border-border/50 bg-background px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/50 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] transition-all focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
       </div>
     </Dialog>
   );

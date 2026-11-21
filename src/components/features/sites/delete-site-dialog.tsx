@@ -35,40 +35,27 @@ export function DeleteSiteDialog({
       onOpenChange={onOpenChange}
       title={t("sites.modals.deleteTitle")}
       description={t("sites.modals.deletePrompt")}
-      icon={<AlertTriangle className="h-5 w-5 text-accent" />}
+      icon={<AlertTriangle className="h-5 w-5 text-danger" />}
+      preventClose={loading}
       size="sm"
-    >
-      <div className="space-y-4">
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-center">
-          <p className="font-mono text-sm font-bold text-primary">
-            {site?.code}
-          </p>
-          <p className="mt-1 text-xs text-foreground font-semibold">
-            {site?.name}
-          </p>
-          {site?.address && (
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {site.address}
-            </p>
-          )}
-        </div>
-
-        <div className="flex items-center justify-end gap-3 pt-2">
+      footer={
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end sm:gap-2.5">
           <Button
             type="button"
             variant="ghost"
             onClick={() => onOpenChange(false)}
             disabled={loading}
+            className="w-full sm:w-auto"
           >
             {t("common.cancel")}
           </Button>
 
           <Button
             type="button"
-            variant="primary"
+            variant="danger"
             onClick={handleConfirm}
             disabled={loading}
-            className="flex items-center gap-2"
+            className="w-full sm:w-auto flex items-center justify-center gap-2"
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -78,6 +65,20 @@ export function DeleteSiteDialog({
             <span>{t("sites.modals.confirmDelete")}</span>
           </Button>
         </div>
+      }
+    >
+      <div className="rounded-xl border border-danger/25 bg-danger/10 p-3 text-center">
+        <p className="font-mono text-sm font-bold text-danger break-all">
+          {site?.code}
+        </p>
+        <p className="mt-1 text-xs font-semibold text-foreground break-words [overflow-wrap:anywhere]">
+          {site?.name}
+        </p>
+        {site?.address && (
+          <p className="mt-0.5 text-[11px] text-muted-foreground break-words [overflow-wrap:anywhere]">
+            {site.address}
+          </p>
+        )}
       </div>
     </Modal>
   );

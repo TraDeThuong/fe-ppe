@@ -19,7 +19,11 @@ const headerActionClass =
   "hover:text-primary active:shadow-nm-pressed " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50";
 
-export function AppHeader() {
+export interface AppHeaderProps {
+  maintenanceLocked?: boolean;
+}
+
+export function AppHeader({ maintenanceLocked = false }: AppHeaderProps = {}) {
   const { t, locale, setLocale } = useLocale();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -138,24 +142,28 @@ export function AppHeader() {
             </button>
 
             {/* Site selector */}
-            <div className="relative z-10 min-w-0 max-w-[45%] sm:max-w-none">
-              <SiteSelector />
-            </div>
+            {!maintenanceLocked && (
+              <div className="relative z-10 min-w-0 max-w-[45%] sm:max-w-none">
+                <SiteSelector />
+              </div>
+            )}
 
             <div className="min-w-0 flex-1" />
 
             {/* Notifications */}
-            <div
-              className="
-                relative z-10 flex h-9 w-9 shrink-0 items-center justify-center
-                sm:h-9 sm:w-auto sm:rounded-xl sm:border sm:px-1
-                sm:border-[color-mix(in_srgb,var(--shadow-light)_30%,transparent)]
-                sm:bg-background
-                sm:shadow-[3px_3px_6px_color-mix(in_srgb,var(--shadow-dark)_25%,transparent),-3px_-3px_6px_color-mix(in_srgb,var(--shadow-light)_75%,transparent)]
-              "
-            >
-              <NotificationBell />
-            </div>
+            {!maintenanceLocked && (
+              <div
+                className="
+                  relative z-10 flex h-9 w-9 shrink-0 items-center justify-center
+                  sm:h-9 sm:w-auto sm:rounded-xl sm:border sm:px-1
+                  sm:border-[color-mix(in_srgb,var(--shadow-light)_30%,transparent)]
+                  sm:bg-background
+                  sm:shadow-[3px_3px_6px_color-mix(in_srgb,var(--shadow-dark)_25%,transparent),-3px_-3px_6px_color-mix(in_srgb,var(--shadow-light)_75%,transparent)]
+                "
+              >
+                <NotificationBell />
+              </div>
+            )}
 
             {/* Theme: desktop only */}
             <div className="relative hidden sm:flex">
@@ -207,7 +215,7 @@ export function AppHeader() {
 
             {/* User profile */}
             <div className="relative z-10 shrink-0">
-              <UserMenu />
+              <UserMenu maintenanceLocked={maintenanceLocked} />
             </div>
           </div>
         </div>
@@ -217,6 +225,7 @@ export function AppHeader() {
       <MobileSidebar
         open={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
+        maintenanceLocked={maintenanceLocked}
       />
 
       {/* Sculpted transition below header */}

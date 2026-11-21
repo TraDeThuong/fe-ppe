@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Bell, Radio, Send, ShieldAlert } from "lucide-react";
+import { Bell, Radio, Send } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +10,7 @@ import {
   NotificationTabs,
   NotificationFilterToolbar,
   NotificationList,
+  NotificationDetailPanel,
   NotificationPreferencesCard,
   NotificationTemplatesTab,
   NotificationEmailLogsTab,
@@ -21,18 +22,19 @@ import {
   EditNotificationTemplateModal,
   DeleteNotificationTemplateDialog,
   CustomDispatchNotificationModal,
+  useNotificationTabAccess,
   type NotificationTabKey,
   type NotificationFilterState,
   type NotificationStatKey,
 } from "@/components/features/notifications";
 import {
+  useAllNotifications,
   useNotifications,
   useUnreadCount,
   useMarkAsRead,
   useMarkAllAsRead,
   useDeleteNotification,
 } from "@/hooks/notifications";
-import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useLocale } from "@/providers/locale-provider";
 import type { NotificationItemDto, NotificationTemplateItemDto } from "@/types";
@@ -59,8 +61,12 @@ export default function NotificationsContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const { user } = useAuth();
   const { isConnected } = useRealtime();
+  const {
+    canBroadcast,
+    canManageTemplates,
+    allowedTabs,
+  } = useNotificationTabAccess();
 
   // URL state synchronization for stats (giống hệt trang role)
   const statParam = searchParams.get("stat");
@@ -77,12 +83,13 @@ export default function NotificationsContent() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  // Tab navigation state
+  // Tab navigation state (derived directly from URL + RBAC access so back/forward/links always sync)
   const tabParam = searchParams.get("tab") as NotificationTabKey | null;
-  const [activeTab, setActiveTab] = useState<NotificationTabKey>(tabParam || "inbox");
+  const activeTab: NotificationTabKey =
+    tabParam && allowedTabs.includes(tabParam) ? tabParam : "inbox";
 
   const handleTabChange = (tab: NotificationTabKey) => {
-    setActiveTab(tab);
+    if (!allowedTabs.includes(tab)) return;
     const params = new URLSearchParams(searchParams.toString());
     if (tab === "inbox") {
       params.delete("tab");
@@ -104,6 +111,9 @@ export default function NotificationsContent() {
     isRead: undefined,
     severity: undefined,
     channel: undefined,
+    type: undefined,
+    fromDate: undefined,
+    toDate: undefined,
   });
 
   // Queries
@@ -125,6 +135,7 @@ export default function NotificationsContent() {
     toDate: filter.toDate,
   });
 
+  const { data: allNotifications = [] } = useAllNotifications();
   const { data: unreadCount = 0 } = useUnreadCount();
 
   // Mutations
@@ -144,22 +155,8 @@ export default function NotificationsContent() {
   const [previewTemplate, setPreviewTemplate] = useState<NotificationTemplateItemDto | null>(null);
   const [testSendTemplate, setTestSendTemplate] = useState<NotificationTemplateItemDto | null>(null);
   const [deletingNotification, setDeletingNotification] = useState<NotificationItemDto | null>(null);
-
-  // RBAC Capabilities
-  const role = user?.role || "";
-  const permissions = user?.permissions || [];
-  const canBroadcast =
-    role === "ADMIN" ||
-    role === "SUPER_ADMIN" ||
-    role === "SAFETY_MANAGER" ||
-    role === "SAFETY_OFFICER" ||
-    permissions.includes("NOTIFICATION_CREATE");
-
-  const canManageTemplates =
-    role === "ADMIN" ||
-    role === "SUPER_ADMIN" ||
-    role === "SAFETY_MANAGER" ||
-    permissions.includes("NOTIFICATION_TEMPLATE_MANAGE");
+  const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
   const items = notificationData?.data || [];
   const meta = notificationData?.meta || {
@@ -169,11 +166,19 @@ export default function NotificationsContent() {
     totalPages: 1,
   };
 
+  const selectedNotification = useMemo(
+    () => items.find((item) => item.id === selectedNotificationId) ?? items[0] ?? null,
+    [items, selectedNotificationId],
+  );
+
   const hasActiveFilters = Boolean(
     filter.search ||
       filter.isRead !== undefined ||
       filter.severity ||
-      filter.channel,
+      filter.channel ||
+      filter.type ||
+      filter.fromDate ||
+      filter.toDate,
   );
 
   const handleFilterChange = (newFilter: NotificationFilterState) => {
@@ -187,22 +192,37 @@ export default function NotificationsContent() {
       isRead: undefined,
       severity: undefined,
       channel: undefined,
+      type: undefined,
+      fromDate: undefined,
+      toDate: undefined,
     });
     setPage(1);
+  };
+
+  const handleSelectNotification = (item: NotificationItemDto) => {
+    setSelectedNotificationId(item.id);
+    if (typeof window !== "undefined" && !window.matchMedia("(min-width: 1280px)").matches) {
+      setMobileDetailOpen(true);
+    }
   };
 
   const handleConfirmDelete = async () => {
     if (!deletingNotification) return;
     try {
-      await deleteMutation.mutateAsync(deletingNotification.id);
+      const deletedId = deletingNotification.id;
+      await deleteMutation.mutateAsync(deletedId);
       setDeletingNotification(null);
+      if (selectedNotificationId === deletedId) {
+        setSelectedNotificationId(null);
+        setMobileDetailOpen(false);
+      }
     } catch {
       // Toast handled by mutation
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-10">
       {/* 1. Header Trang & Trạng thái Realtime SSE */}
       <PageHeader
         icon={Bell}
@@ -261,15 +281,15 @@ export default function NotificationsContent() {
 
       {/* 2. Thẻ KPI Thống kê Neumorphism Tương tác (Sunken khi chọn + Khung chi tiết mở ra) */}
       <NotificationKpiSummary
-        notifications={items}
-        totalCount={meta.total}
+        notifications={allNotifications}
+        totalCount={allNotifications.length}
         unreadCount={unreadCount}
         variant="soft-extruded"
         loading={isNotificationsLoading}
         unavailable={!notificationData && !!notificationsError}
         selectedStat={selectedStat}
         onSelectStat={handleSelectStat}
-        onOpenBroadcast={() => setIsBroadcastModalOpen(true)}
+        onOpenBroadcast={canBroadcast ? () => setIsBroadcastModalOpen(true) : undefined}
         onOpenPreferences={() => handleTabChange("preferences")}
         onMarkAllAsRead={() => markAllAsReadMutation.mutate()}
         onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
@@ -294,26 +314,119 @@ export default function NotificationsContent() {
             isRefreshing={isNotificationsFetching}
           />
 
-          <NotificationList
-            items={items}
-            total={meta.total}
-            page={meta.page}
-            limit={limit}
-            totalPages={meta.totalPages}
-            isLoading={isNotificationsLoading}
-            error={notificationsError}
-            onRetry={() => void refetchNotifications()}
-            onPageChange={(p) => setPage(p)}
-            onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
-            markingReadId={markAsReadMutation.isPending ? markAsReadMutation.variables : null}
-            onDelete={(id) => {
-              const target = items.find((item) => item.id === id);
-              if (target) setDeletingNotification(target);
-            }}
-            deletingId={deleteMutation.isPending ? deleteMutation.variables : null}
-            onResetFilters={handleResetFilters}
-            hasActiveFilters={hasActiveFilters}
-          />
+          {!isNotificationsLoading && items.length === 0 ? (
+            <NotificationList
+              items={items}
+              total={meta.total}
+              page={meta.page}
+              limit={limit}
+              totalPages={meta.totalPages}
+              isLoading={isNotificationsLoading}
+              error={notificationsError}
+              onRetry={() => void refetchNotifications()}
+              onPageChange={(p) => setPage(p)}
+              onResetFilters={handleResetFilters}
+              hasActiveFilters={hasActiveFilters}
+            />
+          ) : (
+            <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12">
+              <div className="xl:col-span-5">
+                <NotificationList
+                  items={items}
+                  total={meta.total}
+                  page={meta.page}
+                  limit={limit}
+                  totalPages={meta.totalPages}
+                  isLoading={isNotificationsLoading}
+                  error={notificationsError}
+                  onRetry={() => void refetchNotifications()}
+                  onPageChange={(p) => setPage(p)}
+                  selectedId={selectedNotification?.id ?? null}
+                  onSelect={handleSelectNotification}
+                  onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
+                  markingReadId={markAsReadMutation.isPending ? markAsReadMutation.variables : null}
+                  onDelete={(id) => {
+                    const target = items.find((item) => item.id === id);
+                    if (target) setDeletingNotification(target);
+                  }}
+                  deletingId={deleteMutation.isPending ? deleteMutation.variables : null}
+                  onResetFilters={handleResetFilters}
+                  hasActiveFilters={hasActiveFilters}
+                />
+              </div>
+
+              <div className="hidden xl:sticky xl:top-4 xl:col-span-7 xl:block">
+                {isNotificationsLoading ? (
+                  <div className="space-y-4 rounded-3xl border border-border/30 bg-background p-6 shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]">
+                    <div className="flex items-center gap-3">
+                      <div className="size-11 rounded-2xl bg-muted/40 animate-pulse" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-48 rounded bg-muted/40 animate-pulse" />
+                        <div className="h-5 w-3/4 rounded bg-muted/30 animate-pulse" />
+                      </div>
+                    </div>
+                    <div className="h-24 rounded-2xl bg-muted/20 animate-pulse" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="h-16 rounded-xl bg-muted/20 animate-pulse" />
+                      <div className="h-16 rounded-xl bg-muted/20 animate-pulse" />
+                      <div className="h-16 rounded-xl bg-muted/20 animate-pulse" />
+                      <div className="h-16 rounded-xl bg-muted/20 animate-pulse" />
+                    </div>
+                  </div>
+                ) : (
+                  <NotificationDetailPanel
+                    notification={selectedNotification}
+                    onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
+                    isMarkingRead={
+                      markAsReadMutation.isPending &&
+                      markAsReadMutation.variables === selectedNotification?.id
+                    }
+                    onDelete={(id) => {
+                      const target = items.find((item) => item.id === id);
+                      if (target) setDeletingNotification(target);
+                    }}
+                    isDeleting={
+                      deleteMutation.isPending &&
+                      deleteMutation.variables === selectedNotification?.id
+                    }
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Responsive Detail Modal for Mobile/Tablet (< xl) */}
+          {mobileDetailOpen && selectedNotification && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 backdrop-blur-sm xl:hidden"
+              onClick={() => setMobileDetailOpen(false)}
+            >
+              <div
+                className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <NotificationDetailPanel
+                  notification={selectedNotification}
+                  onClose={() => setMobileDetailOpen(false)}
+                  onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
+                  isMarkingRead={
+                    markAsReadMutation.isPending &&
+                    markAsReadMutation.variables === selectedNotification.id
+                  }
+                  onDelete={(id) => {
+                    const target = items.find((item) => item.id === id);
+                    if (target) setDeletingNotification(target);
+                  }}
+                  isDeleting={
+                    deleteMutation.isPending &&
+                    deleteMutation.variables === selectedNotification.id
+                  }
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 

@@ -9,6 +9,7 @@ import type { CronJobItem } from "@/types/cron.types";
 import { CronToolbar } from "../cron-toolbar";
 import { CronJobTable } from "../cron-job-table";
 import { CronJobCardGrid } from "../cron-job-card-grid";
+import { CronKpiSummary } from "../cron-kpi-summary";
 
 function render(element: React.ReactElement) {
   const client = new QueryClient({
@@ -88,6 +89,27 @@ describe("Scheduled Tasks views", () => {
     assert.doesNotMatch(html, /min-w-56 flex-wrap/);
     assert.match(html, /Cần làm mới trước khi thử lại\./);
     assert.match(html, /data-clickable=""/);
+    assert.match(html, /role="switch"[^>]*aria-checked="true"[^>]*aria-label="Tắt lịch: daily-summary-digest"/);
+    assert.match(html, /role="switch"[^>]*aria-checked="false"[^>]*aria-label="Bật lịch: weekly-summary-digest"/);
+    assert.match(html, /role="switch"[^>]*aria-label="Tắt lịch: cleanup-audit-logs"[^>]*disabled=""/);
+
+    const readOnlyHtml = render(
+      <CronJobTable
+        jobs={SAMPLE_JOBS}
+        allJobs={SAMPLE_JOBS}
+        loading={false}
+        fetching={false}
+        error={null}
+        filtered={false}
+        canManage={false}
+        blockedJobs={new Set()}
+        onRetry={() => {}}
+        onTrigger={() => {}}
+        onToggle={() => {}}
+        onViewDetail={() => {}}
+      />
+    );
+    assert.doesNotMatch(readOnlyHtml, /role="switch"/);
   });
 
   it("CronJobCardGrid renders cards, conflict badge, recent execution, and disabled controls for blocked jobs", () => {
@@ -175,5 +197,19 @@ describe("Scheduled Tasks views", () => {
     );
     assert.match(emptyFilteredHtml, /Không có tác vụ phù hợp/);
     assert.match(emptyFilteredHtml, /Khôi phục bộ lọc/);
+  });
+
+  it("CronKpiSummary combines 3 stats into a single unified card without Scheduler Engine / UTC+7 stat", () => {
+    const html = render(<CronKpiSummary jobs={SAMPLE_JOBS} />);
+
+    assert.match(html, /data-testid="cron-kpi-total"/);
+    assert.match(html, /data-testid="cron-kpi-enabled"/);
+    assert.match(html, /data-testid="cron-kpi-disabled"/);
+    assert.match(html, /Tổng tác vụ/);
+    assert.match(html, /Lịch đang bật/);
+    assert.match(html, /Lịch đang tắt/);
+    assert.match(html, /67%/);
+    assert.doesNotMatch(html, /Hạ tầng Scheduler/);
+    assert.doesNotMatch(html, /UTC\+7/);
   });
 });

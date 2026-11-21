@@ -53,18 +53,21 @@ const URL_TO_STAT: Record<string, SystemStatKey> = {
 export default function SystemContent() {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
-  const { user } = useAuth();
+  const { user, status: authStatus } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   // Kiểm tra quyền RBAC quản trị hệ thống
   const canManage = useMemo(() => {
+    const role = (user?.role || "").toUpperCase();
     return (
-      user?.role === "ADMIN" ||
+      role === "ADMIN" ||
+      role === "SUPER_ADMIN" ||
       Boolean(user?.permissions?.includes("SYSTEM_CONFIG_MANAGE"))
     );
   }, [user]);
+  const showReadOnlyWarning = authStatus !== "loading" && !canManage;
 
   // URL state synchronization for active tab
   const tabFromUrl = searchParams.get("tab") as SystemTabKey | null;
@@ -139,12 +142,15 @@ export default function SystemContent() {
   const {
     data: featureFlags = [],
     isLoading: isLoadingFlags,
+    error: flagsError,
+    refetch: refetchFlags,
     toggleFlag,
     isToggling,
   } = useFeatureFlags();
 
   const {
     data: healthReport,
+    isLoading: isLoadingHealth,
     refetch: refetchHealth,
     isFetching: isRefreshingHealth,
   } = useSystemHealth(30000);
@@ -159,10 +165,6 @@ export default function SystemContent() {
   } = useSystemMutations();
 
   const totalConfigsCount = configsData?.meta?.total ?? configsData?.items?.length ?? 0;
-  const activeFlagsCount = useMemo(
-    () => featureFlags.filter((f) => Boolean(f.value)).length,
-    [featureFlags],
-  );
 
   // Handlers
   const handleOpenToggleDialog = (flag: SystemConfigItem, enabled: boolean) => {
@@ -311,9 +313,9 @@ export default function SystemContent() {
       />
 
       {/* Thông báo chế độ Read-only cho Safety Manager / người dùng không có quyền Manage */}
-      {!canManage && (
-        <div className="flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3.5 sm:p-4 text-amber-700 dark:text-amber-400 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.05)]">
-          <ShieldAlert className="h-5 w-5 shrink-0" />
+      {showReadOnlyWarning && (
+        <div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-surface p-3.5 sm:p-4 text-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] dark:bg-card">
+          <ShieldAlert className="h-5 w-5 shrink-0 text-primary" />
           <div className="text-xs">
             <p className="font-semibold">{t("system.readOnlyTitle")}</p>
             <p className="text-muted-foreground mt-0.5">
@@ -325,62 +327,44 @@ export default function SystemContent() {
 
       {/* 2. Bento Console KPI Summary (Thiết kế chuẩn tương tự như trang /roles) */}
       <SystemKpiSummary
-
         totalConfigs={totalConfigsCount}
-
         healthReport={healthReport}
-
         featureFlags={featureFlags}
-
         configs={configsData?.items ?? []}
-
         loading={isLoadingConfigs || isLoadingFlags}
-
+        healthLoading={isLoadingHealth}
         selectedStat={selectedStat}
-
         onSelectStat={handleSelectStat}
-
         activeTab={activeTab}
-
         onSelectTab={handleTabChange}
-
         onRefreshHealth={() => refetchHealth()}
-
         isRefreshingHealth={isRefreshingHealth}
-
         onCreateConfig={() => setCreateModalOpen(true)}
-
         onToggleFlag={handleOpenToggleDialog}
-
+        isTogglingFlag={isToggling}
         canManage={canManage}
-
       />
 
       {/* 3. Neumorphic Tabs (Thiết kế cuộn ngang thông minh cho mobile) */}
       <SystemTabs
-
         activeTab={activeTab}
-
         onTabChange={handleTabChange}
-
         flagsCount={featureFlags.length}
-
         configsCount={totalConfigsCount}
-
       />
 
       {/* Tab 1: Feature Flags */}
       {activeTab === "flags" && (
         <FeatureFlagsTab
-
           flags={featureFlags}
-
           onToggle={handleOpenToggleDialog}
-
           loading={isLoadingFlags}
-
           canManage={canManage}
-
+          isToggling={isToggling}
+          error={flagsError}
+          onRetry={() => {
+            void refetchFlags();
+          }}
         />
       )}
 

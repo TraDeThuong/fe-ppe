@@ -60,22 +60,41 @@ export function AiMetricsStatsDetailPanel({
     : "--";
   const fpsNum = performance ? performance.averageFps : 0;
 
+  const samplesCount = performance?.totalFramesProcessed ?? 0;
   const samplesFormatted = performance
-    ? formatFramesCount(performance.totalFramesProcessed)
+    ? formatFramesCount(samplesCount)
     : "--";
 
   // Cấu hình hiển thị theo từng loại stat
   const config = useMemo(() => {
     switch (activeStat) {
-      case "map50":
+      case "map50": {
+        const mapStatusText =
+          mapNum <= 0
+            ? t("aiMetrics.stats.statusWarning")
+            : mapNum >= 90
+              ? t("aiMetrics.stats.statusExcellent")
+              : mapNum >= 80
+                ? t("aiMetrics.stats.statusGood")
+                : t("aiMetrics.stats.statusWarning");
+        const isStrong = mapNum >= 90;
+        const isGood = mapNum >= 80;
         return {
           icon: Zap,
           title: t("aiMetrics.detail.map50.title"),
           subtitle: t("aiMetrics.detail.map50.subtitle"),
           value: mapFormatted,
-          statusText: mapNum >= 90 ? t("aiMetrics.stats.statusExcellent") : t("aiMetrics.stats.statusGood"),
-          statusColor: mapNum >= 90 ? "text-emerald-500" : "text-primary",
-          badgeBg: mapNum >= 90 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" : "bg-primary/10 text-primary border-primary/20",
+          statusText: mapStatusText,
+          statusColor: isStrong
+            ? "text-emerald-500"
+            : isGood
+              ? "text-primary"
+              : "text-amber-500",
+          badgeBg: isStrong
+            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+            : isGood
+              ? "bg-primary/10 text-primary border-primary/20"
+              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
           whatIsIt: t("aiMetrics.detail.map50.whatIsIt"),
           benchmark: t("aiMetrics.detail.map50.benchmark"),
           safetyImpact: t("aiMetrics.detail.map50.safetyImpact"),
@@ -85,63 +104,100 @@ export function AiMetricsStatsDetailPanel({
           jumpTarget: "per-class-breakdown",
           jumpLabel: t("aiMetrics.stats.exploreBreakdown"),
         };
-      case "latency":
+      }
+      case "latency": {
+        const hasLatency = latencyNum > 0;
+        const isRealtime = hasLatency && latencyNum <= 40;
         return {
           icon: Gauge,
           title: t("aiMetrics.detail.latency.title"),
           subtitle: t("aiMetrics.detail.latency.subtitle"),
           value: latencyFormatted,
-          statusText: latencyNum <= 35 ? t("aiMetrics.stats.statusRealtime") : t("aiMetrics.stats.statusGood"),
-          statusColor: latencyNum <= 35 ? "text-emerald-500" : "text-amber-500",
-          badgeBg: latencyNum <= 35 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+          statusText: !hasLatency
+            ? t("aiMetrics.stats.statusWarning")
+            : isRealtime
+              ? t("aiMetrics.stats.statusRealtime")
+              : t("aiMetrics.stats.statusWarning"),
+          statusColor: isRealtime ? "text-emerald-500" : "text-amber-500",
+          badgeBg: isRealtime
+            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+            : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
           whatIsIt: t("aiMetrics.detail.latency.whatIsIt"),
           benchmark: t("aiMetrics.detail.latency.benchmark"),
           safetyImpact: t("aiMetrics.detail.latency.safetyImpact"),
           takeaway: t("aiMetrics.detail.latency.takeaway"),
-          progressPercent: Math.min(100, Math.max(0, (1 - latencyNum / 100) * 100)),
+          progressPercent: hasLatency
+            ? Math.min(100, Math.max(0, (1 - latencyNum / 100) * 100))
+            : 0,
           progressLabel: `Latency: ${latencyFormatted} (Target: ≤ 40 ms)`,
           jumpTarget: "latency-timeline",
           jumpLabel: t("aiMetrics.stats.exploreLatency"),
         };
-      case "fps":
+      }
+      case "fps": {
+        const hasFps = fpsNum > 0;
+        const isSmooth = fpsNum >= 25;
         return {
           icon: Activity,
           title: t("aiMetrics.detail.fps.title"),
           subtitle: t("aiMetrics.detail.fps.subtitle"),
           value: fpsFormatted,
-          statusText: fpsNum >= 28 ? t("aiMetrics.stats.statusRealtime") : t("aiMetrics.stats.statusGood"),
-          statusColor: fpsNum >= 28 ? "text-emerald-500" : "text-primary",
-          badgeBg: fpsNum >= 28 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" : "bg-primary/10 text-primary border-primary/20",
+          statusText: !hasFps
+            ? t("aiMetrics.stats.statusWarning")
+            : isSmooth
+              ? t("aiMetrics.stats.statusRealtime")
+              : t("aiMetrics.stats.statusGood"),
+          statusColor: isSmooth
+            ? "text-emerald-500"
+            : hasFps
+              ? "text-primary"
+              : "text-amber-500",
+          badgeBg: isSmooth
+            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+            : hasFps
+              ? "bg-primary/10 text-primary border-primary/20"
+              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
           whatIsIt: t("aiMetrics.detail.fps.whatIsIt"),
           benchmark: t("aiMetrics.detail.fps.benchmark"),
           safetyImpact: t("aiMetrics.detail.fps.safetyImpact"),
           takeaway: t("aiMetrics.detail.fps.takeaway"),
-          progressPercent: Math.min(100, Math.max(0, (fpsNum / 35) * 100)),
+          progressPercent: hasFps
+            ? Math.min(100, Math.max(0, (fpsNum / 35) * 100))
+            : 0,
           progressLabel: `Speed: ${fpsFormatted} (Standard: 25 - 30 FPS)`,
           jumpTarget: "latency-timeline",
           jumpLabel: t("aiMetrics.stats.exploreLatency"),
         };
+      }
       case "samples":
-      default:
+      default: {
+        const hasSamples = samplesCount > 0;
         return {
           icon: Cpu,
           title: t("aiMetrics.detail.samples.title"),
           subtitle: t("aiMetrics.detail.samples.subtitle"),
           value: samplesFormatted,
-          statusText: t("aiMetrics.stats.statusContinuous"),
-          statusColor: "text-emerald-500",
-          badgeBg: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+          statusText: hasSamples
+            ? t("aiMetrics.stats.statusContinuous")
+            : t("aiMetrics.stats.statusWarning"),
+          statusColor: hasSamples ? "text-emerald-500" : "text-amber-500",
+          badgeBg: hasSamples
+            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+            : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
           whatIsIt: t("aiMetrics.detail.samples.whatIsIt"),
           benchmark: t("aiMetrics.detail.samples.benchmark"),
           safetyImpact: t("aiMetrics.detail.samples.safetyImpact"),
           takeaway: t("aiMetrics.detail.samples.takeaway"),
-          progressPercent: 95,
-          progressLabel: `Processed: ${samplesFormatted} frames 24/7`,
+          progressPercent: hasSamples
+            ? Math.min(100, Math.max(12, Math.round(Math.log10(samplesCount + 1) * 16)))
+            : 0,
+          progressLabel: `Processed: ${samplesFormatted} frames`,
           jumpTarget: "model-governance",
           jumpLabel: t("aiMetrics.governance.title"),
         };
+      }
     }
-  }, [activeStat, mapFormatted, mapNum, latencyFormatted, latencyNum, fpsFormatted, fpsNum, samplesFormatted, t]);
+  }, [activeStat, mapFormatted, mapNum, latencyFormatted, latencyNum, fpsFormatted, fpsNum, samplesFormatted, samplesCount, t]);
 
   const CurrentIcon = config.icon;
 

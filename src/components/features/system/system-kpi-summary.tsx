@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Activity, ChevronDown, ChevronUp, Cpu, Server, Settings2 } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-cards";
+import { isFeatureFlagEnabled } from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 import type { SystemConfigItem, SystemHealthReport } from "@/types";
 import {
@@ -19,6 +20,7 @@ export interface SystemKpiSummaryProps {
   featureFlags?: SystemConfigItem[];
   configs?: SystemConfigItem[];
   loading?: boolean;
+  healthLoading?: boolean;
   selectedStat?: SystemStatKey | null;
   onSelectStat?: (stat: SystemStatKey | null) => void;
   activeTab?: SystemTabKey;
@@ -27,6 +29,7 @@ export interface SystemKpiSummaryProps {
   isRefreshingHealth?: boolean;
   onCreateConfig?: () => void;
   onToggleFlag?: (flag: SystemConfigItem, enabled: boolean) => void;
+  isTogglingFlag?: boolean;
   canManage?: boolean;
 }
 
@@ -36,14 +39,16 @@ export function SystemKpiSummary({
   featureFlags = [],
   configs = [],
   loading = false,
+  healthLoading = false,
   selectedStat: propSelectedStat,
   onSelectStat,
-  activeTab: _activeTab,
+  activeTab,
   onSelectTab,
   onRefreshHealth,
   isRefreshingHealth = false,
   onCreateConfig,
   onToggleFlag,
+  isTogglingFlag = false,
   canManage = true,
 }: SystemKpiSummaryProps) {
   const { t } = useLocale();
@@ -61,10 +66,23 @@ export function SystemKpiSummary({
     }
   };
 
-  const healthyServices = healthReport?.healthyCount ?? 12;
-  const totalServices = healthReport?.totalServices ?? 12;
-  const avgLatency = healthReport?.averageLatencyMs ?? 24;
-  const activeFlagsCount = featureFlags.filter((f) => Boolean(f.value)).length;
+  const healthyServices = healthReport?.healthyCount;
+  const totalServices = healthReport?.totalServices;
+  const avgLatency = healthReport?.averageLatencyMs;
+  const activeFlagsCount = featureFlags.filter((f) => isFeatureFlagEnabled(f.value)).length;
+  const isHealthPending = loading || healthLoading;
+
+  const healthValue = isHealthPending
+    ? "..."
+    : typeof healthyServices === "number" && typeof totalServices === "number"
+      ? `${healthyServices}/${totalServices}`
+      : "--";
+
+  const latencyValue = isHealthPending
+    ? "..."
+    : typeof avgLatency === "number"
+      ? `${avgLatency} ms`
+      : "--";
 
   // Hiệu ứng chìm sâu (neumorphic sunken) khi card được chọn (chuẩn thiết kế như trang /roles):
   // - Chìm xuống dưới (!translate-y-1.5)
@@ -112,7 +130,7 @@ export function SystemKpiSummary({
           value={loading ? "..." : totalConfigs}
           icon={Settings2}
           variant="soft-extruded"
-          tone="info"
+          tone="primary"
           showGlow={false}
           description={t("system.stats.totalConfigsDesc")}
           onClick={() => handleToggle("configs")}
@@ -137,10 +155,10 @@ export function SystemKpiSummary({
         {/* 3. Cụm Dịch vụ */}
         <StatsCard
           title={t("system.stats.servicesHealthy")}
-          value={loading ? "..." : `${healthyServices}/${totalServices}`}
+          value={healthValue}
           icon={Server}
           variant="soft-extruded"
-          tone={healthyServices === totalServices ? "success" : "warning"}
+          tone="primary"
           showGlow={false}
           description={t("system.stats.servicesHealthyDesc")}
           onClick={() => handleToggle("health")}
@@ -165,10 +183,10 @@ export function SystemKpiSummary({
         {/* 4. Độ trễ trung bình & Hạ tầng */}
         <StatsCard
           title={t("system.stats.averageLatency")}
-          value={loading ? "..." : `${avgLatency} ms`}
+          value={latencyValue}
           icon={Activity}
           variant="soft-extruded"
-          tone={avgLatency < 100 ? "success" : "danger"}
+          tone="primary"
           showGlow={false}
           description={t("system.stats.averageLatencyDesc")}
           onClick={() => handleToggle("latency")}
@@ -195,6 +213,7 @@ export function SystemKpiSummary({
       {activeStat && (
         <SystemStatsDetailPanel
           activeStat={activeStat}
+          activeTab={activeTab}
           totalConfigs={totalConfigs}
           healthReport={healthReport}
           featureFlags={featureFlags}
@@ -207,6 +226,7 @@ export function SystemKpiSummary({
           isRefreshingHealth={isRefreshingHealth}
           onCreateConfig={onCreateConfig}
           onToggleFlag={onToggleFlag}
+          isTogglingFlag={isTogglingFlag}
           canManage={canManage}
         />
       )}

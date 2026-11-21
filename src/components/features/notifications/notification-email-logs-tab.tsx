@@ -1,8 +1,8 @@
 "use client";
-import { Table, TableToolbar, TableContent, TablePagination, TableRefresh } from "@/components/ui/table";
+import { Table, TableContent, TablePagination, TableRefresh } from "@/components/ui/table";
 
 import { useState } from "react";
-import { Mail, RefreshCw, CheckCircle2, Clock, AlertTriangle, Search, X } from "lucide-react";
+import { Mail, RefreshCw, CheckCircle2, Clock, AlertTriangle, Loader2, Search, X } from "lucide-react";
 import { useEmailLogs, useRetryEmail } from "@/hooks/notifications";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useCan } from "@/hooks/use-can";
@@ -45,9 +45,14 @@ export function NotificationEmailLogsTab({ className = "" }: { className?: strin
             <Mail className="size-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-foreground sm:text-lg">
-              {t("notifications.tabs.emailLogs")}
-            </h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base font-bold text-foreground sm:text-lg">
+                {t("notifications.tabs.emailLogs")}
+              </h2>
+              <span className="rounded-full border border-primary/20 bg-primary/[0.06] px-2.5 py-0.5 font-mono text-[11px] font-semibold text-primary">
+                {meta.total} {isVietnamese ? "bản ghi" : "records"}
+              </span>
+            </div>
             <p className="text-xs text-muted-foreground">
               {isVietnamese
                 ? "Theo dõi trạng thái phát hành email từ hàng đợi gửi thư phi tập trung"
@@ -73,7 +78,11 @@ export function NotificationEmailLogsTab({ className = "" }: { className?: strin
             {toEmail && (
               <button
                 type="button"
-                onClick={() => setToEmail("")}
+                onClick={() => {
+                  setToEmail("");
+                  setPage(1);
+                }}
+                aria-label={isVietnamese ? "Xóa tìm kiếm email" : "Clear email search"}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               >
                 <X className="size-3" />
@@ -91,10 +100,11 @@ export function NotificationEmailLogsTab({ className = "" }: { className?: strin
           >
             <option value="ALL">{isVietnamese ? "Tất cả trạng thái" : "All Statuses"}</option>
             <option value="SENT">{isVietnamese ? "Thành công (SENT)" : "Sent (SENT)"}</option>
-            <option value="PROCESSING">{isVietnamese ? "Đang xử lý" : "Processing"}</option>
+            <option value="PROCESSING">{isVietnamese ? "Đang xử lý (PROCESSING)" : "Processing (PROCESSING)"}</option>
             <option value="PENDING">{isVietnamese ? "Chờ gửi (PENDING)" : "Pending (PENDING)"}</option>
             <option value="FAILED">{isVietnamese ? "Thất bại (FAILED)" : "Failed (FAILED)"}</option>
           </select>
+          <TableRefresh />
         </div>
       </div>
       {/* Logs Table */}
@@ -119,10 +129,10 @@ export function NotificationEmailLogsTab({ className = "" }: { className?: strin
       enableSorting: true,
       cell: ({ row }) => {
         const log = row.original;
-        return <div className={"font-semibold max-w-xs truncate"}>
-          {stripEmojis(log.subject)}
+        return <div className={"font-semibold max-w-xs"}>
+          <p className="truncate" title={stripEmojis(log.subject)}>{stripEmojis(log.subject)}</p>
           {log.lastError && (
-            <p className="mt-0.5 truncate text-[10px] text-destructive">
+            <p className="mt-0.5 line-clamp-2 break-words text-[10px] font-normal text-destructive" title={log.lastError}>
               {log.lastError}
             </p>
           )}
@@ -159,6 +169,11 @@ export function NotificationEmailLogsTab({ className = "" }: { className?: strin
               <AlertTriangle className="size-3" />
               <span>{isVietnamese ? "Thất bại" : "Failed"}</span>
             </span>
+          ) : log.status === "PROCESSING" ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+              <Loader2 className="size-3 animate-spin" />
+              <span>{isVietnamese ? "Đang xử lý" : "Processing"}</span>
+            </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
               <Clock className="size-3" />
@@ -183,18 +198,25 @@ export function NotificationEmailLogsTab({ className = "" }: { className?: strin
     {
       id: "sentAt",
       header: isVietnamese ? "Thời gian gửi" : "Sent At",
-      accessorFn: (log) => log.sentAt,
+      accessorFn: (log) => log.sentAt ?? log.createdAt,
       enableSorting: true,
       cell: ({ row }) => {
         const log = row.original;
-        return <div className={"text-muted-foreground font-medium"}>
-          {log.sentAt
-            ? new Date(log.sentAt).toLocaleString(isVietnamese ? "vi-VN" : "en-US", {
-              hour: "2-digit",
-              minute: "2-digit",
-              day: "2-digit",
-              month: "2-digit",
-            })
+        const formatOpts: Intl.DateTimeFormatOptions = {
+          hour: "2-digit",
+          minute: "2-digit",
+          day: "2-digit",
+          month: "2-digit",
+        };
+        const loc = isVietnamese ? "vi-VN" : "en-US";
+        if (log.sentAt) {
+          return <div className="text-muted-foreground font-medium">
+            {new Date(log.sentAt).toLocaleString(loc, formatOpts)}
+          </div>;
+        }
+        return <div className="text-muted-foreground/80 text-[11px]">
+          {log.createdAt
+            ? `${isVietnamese ? "Tạo: " : "Queued: "}${new Date(log.createdAt).toLocaleString(loc, formatOpts)}`
             : "—"}
         </div>;
       }
@@ -237,16 +259,15 @@ export function NotificationEmailLogsTab({ className = "" }: { className?: strin
       void refetch();
     }}
     rowCount={meta.total}
-    pageCount={meta.totalPages}
+    pageCount={Math.max(1, meta.totalPages)}
     pagination={{ pageIndex: page - 1, pageSize: limit }}
     onPaginationChange={update => {
       const next = typeof update === "function" ? update({ pageIndex: page - 1, pageSize: limit }) : update;
       setPage(next.pageIndex + 1);
       setLimit(next.pageSize);
     }}
-    filterKey={`${toEmail}:${statusFilter}`}
+    filterKey={`${debouncedEmail}:${statusFilter}`}
   >
-    <TableToolbar showSearch={false} actions={<TableRefresh />} />
     <TableContent />
     <TablePagination />
   </Table>);

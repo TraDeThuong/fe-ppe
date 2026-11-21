@@ -5,23 +5,34 @@ import { Grid, CircleHelp } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import type { ConfusionMatrixDto } from "@/types";
+import { AiCardHelpButton } from "./ai-metrics-guide-modal";
 
 export interface ConfusionMatrixHeatmapProps {
   confusionMatrix?: ConfusionMatrixDto | null;
   loading?: boolean;
   className?: string;
+  selectedClass?: string | null;
+  onSelectClass?: (className: string | null) => void;
+  onOpenGuide?: () => void;
 }
 
 export function ConfusionMatrixHeatmap({
   confusionMatrix,
   loading = false,
   className = "",
+  selectedClass = null,
+  onSelectClass,
+  onOpenGuide,
 }: ConfusionMatrixHeatmapProps) {
   const { t, locale } = useLocale();
   const isVi = locale === "vi-VN";
 
   const classes = confusionMatrix?.classes ?? [];
   const matrix = confusionMatrix?.matrix ?? [];
+  const normalizedSelected = selectedClass?.toUpperCase().trim() ?? null;
+  const hasSelectedMatch =
+    normalizedSelected !== null &&
+    classes.some((cls) => cls.toUpperCase().trim() === normalizedSelected);
 
   const formatClassName = (name: string) => {
     switch (name) {
@@ -89,11 +100,14 @@ export function ConfusionMatrixHeatmap({
           </div>
         </div>
 
-        <div className="hidden sm:flex shrink-0 items-center gap-2 rounded-xl border border-border/40 bg-surface px-3 py-2 shadow-[2px_3px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-          <span className="text-[10px] font-semibold text-muted-foreground sm:text-xs">
-            {t("aiMetrics.matrix.description")}
-          </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="hidden sm:flex shrink-0 items-center gap-2 rounded-xl border border-border/40 bg-surface px-3 py-2 shadow-[2px_3px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+            <span className="text-[10px] font-semibold text-muted-foreground sm:text-xs">
+              {t("aiMetrics.matrix.description")}
+            </span>
+          </div>
+          {onOpenGuide && <AiCardHelpButton onClick={onOpenGuide} />}
         </div>
       </header>
 
@@ -136,13 +150,26 @@ export function ConfusionMatrixHeatmap({
                     </span>
                   </th>
 
-                  {classes.map((cls) => (
-                    <th key={cls} className="min-w-[70px] p-1 align-bottom">
-                      <span className="mx-auto block max-w-[90px] text-[10px] font-extrabold leading-relaxed text-foreground sm:text-[11px]">
-                        {formatClassName(cls)}
-                      </span>
-                    </th>
-                  ))}
+                  {classes.map((cls) => {
+                    const isColSelected =
+                      hasSelectedMatch &&
+                      cls.toUpperCase().trim() === normalizedSelected;
+                    return (
+                      <th key={cls} className="min-w-[70px] p-1 align-bottom">
+                        <span
+                          className={`mx-auto block max-w-[90px] text-[10px] font-extrabold leading-relaxed sm:text-[11px] ${
+                            isColSelected
+                              ? "text-primary underline decoration-primary/60 underline-offset-4"
+                              : hasSelectedMatch
+                                ? "text-muted-foreground/60"
+                                : "text-foreground"
+                          }`}
+                        >
+                          {formatClassName(cls)}
+                        </span>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
 
@@ -152,20 +179,44 @@ export function ConfusionMatrixHeatmap({
                     (acc, val) => acc + val,
                     0
                   );
+                  const rowClass = classes[rowIdx] || `Class ${rowIdx}`;
+                  const isRowSelected =
+                    hasSelectedMatch &&
+                    rowClass.toUpperCase().trim() === normalizedSelected;
 
                   return (
-                    <tr key={classes[rowIdx] || rowIdx}>
+                    <tr key={rowClass}>
                       {/* Row label: sculpted tile */}
                       <th className="p-0 text-left">
-                        <div className="flex min-h-[46px] sm:min-h-[48px] items-center rounded-xl border border-border/40 bg-surface px-2 text-[10px] font-bold leading-relaxed text-foreground shadow-[0_1px_0_rgba(255,255,255,0.8)_inset,2px_3px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] sm:text-[11px]">
-                          {formatClassName(
-                            classes[rowIdx] || `Class ${rowIdx}`
-                          )}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onSelectClass?.(
+                              isRowSelected ? null : classes[rowIdx] ?? null
+                            )
+                          }
+                          disabled={!onSelectClass || !classes[rowIdx]}
+                          className={`flex w-full min-h-[46px] sm:min-h-[48px] items-center rounded-xl border px-2 text-left text-[10px] font-bold leading-relaxed transition-all sm:text-[11px] ${
+                            onSelectClass ? "cursor-pointer" : "cursor-default"
+                          } ${
+                            isRowSelected
+                              ? "border-primary/70 bg-primary/10 text-primary ring-1 ring-primary/30 shadow-[0_1px_0_rgba(255,255,255,0.8)_inset,2px_3px_5px_var(--shadow-dark)]"
+                              : hasSelectedMatch
+                                ? "border-border/30 bg-surface/60 text-muted-foreground/70"
+                                : "border-border/40 bg-surface text-foreground shadow-[0_1px_0_rgba(255,255,255,0.8)_inset,2px_3px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]"
+                          }`}
+                        >
+                          {formatClassName(rowClass)}
+                        </button>
                       </th>
 
                       {row.map((val, colIdx) => {
                         const isDiagonal = rowIdx === colIdx;
+                        const colClass = classes[colIdx] || `Class ${colIdx}`;
+                        const isColSelected =
+                          hasSelectedMatch &&
+                          colClass.toUpperCase().trim() === normalizedSelected;
+                        const isCellHighlighted = isRowSelected || isColSelected;
                         const pct =
                           rowTotal > 0 ? (val / rowTotal) * 100 : 0;
 
@@ -173,16 +224,22 @@ export function ConfusionMatrixHeatmap({
                           <td key={colIdx} className="p-0">
                             <div
                               title={`${formatClassName(
-                                classes[rowIdx] || `Class ${rowIdx}`
+                                rowClass
                               )} → ${formatClassName(
-                                classes[colIdx] || `Class ${colIdx}`
+                                colClass
                               )}: ${val.toLocaleString(locale)} (${pct.toFixed(1)}%)`}
-                              className={`relative flex min-h-[46px] sm:min-h-[48px] flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl border transition-transform duration-200 hover:z-10 hover:-translate-y-0.5 ${
+                              className={`relative flex min-h-[46px] sm:min-h-[48px] flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl border transition-all duration-200 hover:z-10 hover:-translate-y-0.5 ${
                                 isDiagonal
                                   ? "border-primary/25 bg-primary/[0.10] text-foreground shadow-[0_1px_0_rgba(255,255,255,0.85)_inset,0_2px_0_rgba(0,0,0,0.025),3px_4px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)]"
                                   : val > 0
                                   ? "border-accent/25 bg-accent/[0.10] text-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]"
                                   : "border-border/20 bg-surface/35 text-muted-foreground/60 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+                              } ${
+                                isCellHighlighted
+                                  ? "ring-2 ring-primary/45 z-10"
+                                  : hasSelectedMatch
+                                    ? "opacity-40"
+                                    : ""
                               }`}
                             >
                               {isDiagonal && (

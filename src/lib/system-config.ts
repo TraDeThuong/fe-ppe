@@ -26,3 +26,37 @@ export function getConfig<T = unknown>(
   const value = config[key];
   return (value === undefined || value === null ? fallback : value) as T;
 }
+
+/**
+ * Chuẩn hóa giá trị Feature Flag từ DB/API về boolean an toàn.
+ * Tránh lỗi `Boolean("false") === true` khi flag được lưu dạng chuỗi.
+ */
+export function isFeatureFlagEnabled(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (
+      normalized === "" ||
+      normalized === "false" ||
+      normalized === "0" ||
+      normalized === "off" ||
+      normalized === "no"
+    ) {
+      return false;
+    }
+    if (
+      normalized === "true" ||
+      normalized === "1" ||
+      normalized === "on" ||
+      normalized === "yes"
+    ) {
+      return true;
+    }
+    return false;
+  }
+  if (value && typeof value === "object" && "enabled" in value) {
+    return isFeatureFlagEnabled((value as { enabled?: unknown }).enabled);
+  }
+  return Boolean(value);
+}

@@ -33,7 +33,6 @@ export function NotificationTemplatesTab({
   const isVietnamese = locale === "vi-VN";
   const { playPreset } = useNotificationSound();
 
-  const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [selectedType, setSelectedType] = useState<"ALL" | "SYSTEM" | "CUSTOM">("ALL");
@@ -60,10 +59,10 @@ export function NotificationTemplatesTab({
       const predefined = PREDEFINED_SYSTEM_TEMPLATES.find((p) => p.code === bt.code);
       list.push({
         ...bt,
-        isSystem: Boolean(predefined) || bt.code.startsWith("PPE_") || bt.code.startsWith("VERIFY_") || bt.code.startsWith("RESET_"),
+        isSystem: Boolean(predefined),
         category: predefined?.category || (bt.code.includes("PPE") ? "PPE" : "OPERATIONS"),
         soundPreset: predefined?.soundPreset || (bt.code.includes("CRITICAL") ? "critical" : "warning"),
-
+        description: bt.description || (predefined ? (isVietnamese ? predefined.description : predefined.descriptionEn) : undefined),
       });
       handledCodes.add(bt.code);
     });
@@ -252,7 +251,6 @@ export function NotificationTemplatesTab({
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
-                  setPage(1);
                 }}
                 placeholder={isVietnamese ? "Tìm theo mã code, tên mẫu..." : "Search by code or title..."}
                 className="w-full rounded-2xl border border-black/[0.05] bg-background/75 py-2 pl-10 pr-8 text-xs font-medium text-foreground placeholder:text-muted-foreground/70 shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)] outline-none transition-all focus:border-primary/40 dark:border-white/[0.06]"
@@ -488,7 +486,7 @@ export function NotificationTemplatesTab({
       onRetry={() => {
         void refetch();
       }}
-      filterKey={`${search}:${selectedCategory}:${selectedType}`}
+      filterKey={`${debouncedSearch}:${selectedCategory}:${selectedType}`}
       getRowId={(row) => row.id}
       features={{
         globalFilter: false,

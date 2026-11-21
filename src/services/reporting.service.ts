@@ -116,12 +116,16 @@ export const reportingService = {
   /**
    * GET /api/v1/statistics/summary
    */
-  async getSummary(params?: ReportingFilterParams): Promise<StatisticsSummaryDto> {
+  async getSummary(
+    params?: ReportingFilterParams,
+    options?: { signal?: AbortSignal; suppressToast?: boolean },
+  ): Promise<StatisticsSummaryDto> {
     try {
-      const res = await apiClient.get<unknown>(
-        "/statistics/summary",
-        { params }
-      );
+      const res = await apiClient.get<unknown>("/statistics/summary", {
+        params,
+        signal: options?.signal,
+        ...(options?.suppressToast ? { suppressToast: true } : {}),
+      } as Record<string, unknown>);
       const data = unwrapData<StatisticsSummaryDto>(res);
       return data && typeof data === "object" && "totalIncidents" in data
         ? data

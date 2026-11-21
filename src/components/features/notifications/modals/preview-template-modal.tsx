@@ -27,6 +27,17 @@ const DEFAULT_SAMPLE_VARIABLES: Record<string, unknown> = {
   actionUrl: "http://localhost:3000/incidents",
 };
 
+function interpolateTemplate(
+  raw: string | null | undefined,
+  vars: Record<string, unknown>,
+): string {
+  if (!raw) return "";
+  return raw.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key: string) => {
+    const val = vars[key];
+    return val !== undefined && val !== null ? String(val) : match;
+  });
+}
+
 export function PreviewTemplateModal({
   open,
   onOpenChange,
@@ -42,15 +53,45 @@ export function PreviewTemplateModal({
   const [previewData, setPreviewData] = useState<PreviewTemplateResponse | null>(null);
 
   const previewMutation = usePreviewNotificationTemplate({
+    suppressToast: true,
     onSuccess: (data) => {
       setPreviewData(data);
+    },
+    onError: () => {
+      if (!template) return;
+      try {
+        const parsedVars = JSON.parse(variablesText) as Record<string, unknown>;
+        const subject = template.subjectTemplate
+          ? interpolateTemplate(template.subjectTemplate, parsedVars)
+          : null;
+        setPreviewData({
+          code: template.code,
+          subject,
+          title: subject,
+          content: interpolateTemplate(template.contentTemplate, parsedVars),
+        });
+      } catch {
+        // ignore invalid JSON
+      }
     },
   });
 
   const runPreview = (varsJson?: string) => {
     if (!template) return;
     try {
-      const parsedVars = JSON.parse(varsJson ?? variablesText);
+      const parsedVars = JSON.parse(varsJson ?? variablesText) as Record<string, unknown>;
+      if (template.id.startsWith("sys-")) {
+        const subject = template.subjectTemplate
+          ? interpolateTemplate(template.subjectTemplate, parsedVars)
+          : null;
+        setPreviewData({
+          code: template.code,
+          subject,
+          title: subject,
+          content: interpolateTemplate(template.contentTemplate, parsedVars),
+        });
+        return;
+      }
       previewMutation.mutate({
         code: template.code,
         payload: { variables: parsedVars },

@@ -34,7 +34,13 @@ export function CronToggleConfirmDialog({
       loading={pending}
       variant={isDisabling ? "warning" : "default"}
       title={isDisabling ? t("cron.confirmDisable") : t("cron.confirmEnable")}
+      description={
+        isDisabling
+          ? t("cron.confirmDisableDesc", { name: jobTitle })
+          : t("cron.confirmEnableDesc", { name: jobTitle, cron: job.cron })
+      }
       itemName={jobTitle}
+      itemLabel={isVietnamese ? "Tác vụ định kỳ" : "Scheduled job"}
       confirmText={isDisabling ? t("cron.disable") : t("cron.enable")}
       cancelText={t("cron.cancel")}
       icon={
@@ -46,29 +52,27 @@ export function CronToggleConfirmDialog({
       }
     >
       <div className="space-y-3 text-xs sm:text-sm">
-        <p className="leading-relaxed text-foreground">
-          {isDisabling
-            ? t("cron.confirmDisableDesc", { name: jobTitle })
-            : t("cron.confirmEnableDesc", { name: jobTitle, cron: job.cron })}
-        </p>
-
         {isDisabling && job.name.startsWith("cleanup-") && (
           <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 p-3 text-warning-foreground dark:text-warning">
-            <AlertTriangle className="size-4 shrink-0 mt-0.5" />
-            <p className="text-xs leading-relaxed">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <p className="min-w-0 flex-1 text-xs leading-relaxed break-words">
               {t("cron.cleanupImpact")}
             </p>
           </div>
         )}
 
-        <div className="rounded-xl border border-border/50 bg-muted/40 p-2.5 font-mono text-xs">
-          <div className="flex justify-between items-center text-muted-foreground">
-            <span>{isVietnamese ? "Mã tác vụ:" : "Job Key:"}</span>
-            <span className="font-semibold text-primary">{job.name}</span>
+        <div className="space-y-1.5 rounded-xl border border-border/50 bg-muted/40 p-3 font-mono text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-muted-foreground">
+            <span className="shrink-0">{isVietnamese ? "Mã tác vụ:" : "Job Key:"}</span>
+            <span className="min-w-0 break-all text-right font-semibold text-primary">
+              {job.name}
+            </span>
           </div>
-          <div className="flex justify-between items-center text-muted-foreground mt-1">
-            <span>{isVietnamese ? "Biểu thức Cron:" : "Cron Expression:"}</span>
-            <span className="font-semibold text-foreground">{job.cron}</span>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-muted-foreground">
+            <span className="shrink-0">{isVietnamese ? "Biểu thức Cron:" : "Cron Expression:"}</span>
+            <span className="min-w-0 break-all text-right font-semibold text-foreground">
+              {job.cron}
+            </span>
           </div>
         </div>
       </div>

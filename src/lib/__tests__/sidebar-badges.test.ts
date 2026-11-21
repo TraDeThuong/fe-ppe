@@ -23,7 +23,6 @@ describe("sidebar-badges", () => {
       pendingIncidentsCount: 12,
       unreadNotificationsCount: 5,
       offlineCamerasCount: 3,
-      lockedUsersCount: 2,
       maintenanceEnabled: true,
       cronJobs: [{ lastStatus: "FAILED" }],
       formatLabel,
@@ -49,7 +48,6 @@ describe("sidebar-badges", () => {
         { status: "COMPLETED", createdAt: tenMinutesAgo, generatedAt: tenMinutesAgo },
       ],
       reportsLastSeenAt: oneHourAgoMs,
-      lockedUsersCount: 3,
       failedAuditLogs: [
         { status: "FAILED", createdAt: twoHoursAgo },
         { status: "FAILED", createdAt: tenMinutesAgo },
@@ -86,11 +84,7 @@ describe("sidebar-badges", () => {
       variant: "primary",
       label: "nav.badge.reports:2",
     });
-    assert.deepEqual(badges.users, {
-      count: 3,
-      variant: "accent",
-      label: "nav.badge.users:3",
-    });
+    assert.equal(badges.users, undefined);
     assert.deepEqual(badges.auditLogs, {
       count: 2, // both FAILED and SUCCESS logs after oneHourAgoMs
       variant: "accent",
@@ -122,7 +116,6 @@ describe("sidebar-badges", () => {
         { status: "COMPLETED", createdAt: twoHoursAgo, generatedAt: twoHoursAgo },
       ],
       reportsLastSeenAt: now,
-      lockedUsersCount: 0,
       failedAuditLogs: [{ status: "FAILED", createdAt: twoHoursAgo }],
       auditLastSeenAt: now,
       maintenanceEnabled: false,

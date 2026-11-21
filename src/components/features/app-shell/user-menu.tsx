@@ -15,7 +15,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
 import { ROLE_LABELS } from "@/config/navigation";
 
-export function UserMenu() {
+export interface UserMenuProps {
+  maintenanceLocked?: boolean;
+}
+
+export function UserMenu({ maintenanceLocked = false }: UserMenuProps = {}) {
   const { user, logout } = useAuth();
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -150,49 +154,51 @@ export function UserMenu() {
           </div>
 
           {/* Navigation */}
-          <div className="mt-2 space-y-1 p-0.5">
-            <Link
-              href="/settings/profile"
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className={itemClass}
-            >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-[2px_2px_5px_rgba(0,0,0,0.045),-2px_-2px_5px_rgba(255,255,255,0.5)] transition-colors group-hover:text-primary">
-                <UserRound className="size-4" />
-              </span>
-              <span className="flex-1 font-medium">
-                {t("userMenu.profile")}
-              </span>
-            </Link>
+          {!maintenanceLocked && (
+            <div className="mt-2 space-y-1 p-0.5">
+              <Link
+                href="/settings/profile"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className={itemClass}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-[2px_2px_5px_rgba(0,0,0,0.045),-2px_-2px_5px_rgba(255,255,255,0.5)] transition-colors group-hover:text-primary">
+                  <UserRound className="size-4" />
+                </span>
+                <span className="flex-1 font-medium">
+                  {t("userMenu.profile")}
+                </span>
+              </Link>
 
-            <Link
-              href="/settings/security"
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className={itemClass}
-            >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-[2px_2px_5px_rgba(0,0,0,0.045),-2px_-2px_5px_rgba(255,255,255,0.5)] transition-colors group-hover:text-primary">
-                <ShieldCheck className="size-4" />
-              </span>
-              <span className="flex-1 font-medium">
-                {t("userMenu.security")}
-              </span>
-            </Link>
+              <Link
+                href="/settings/security"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className={itemClass}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-[2px_2px_5px_rgba(0,0,0,0.045),-2px_-2px_5px_rgba(255,255,255,0.5)] transition-colors group-hover:text-primary">
+                  <ShieldCheck className="size-4" />
+                </span>
+                <span className="flex-1 font-medium">
+                  {t("userMenu.security")}
+                </span>
+              </Link>
 
-            <Link
-              href="/change-password"
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className={itemClass}
-            >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-[2px_2px_5px_rgba(0,0,0,0.045),-2px_-2px_5px_rgba(255,255,255,0.5)] transition-colors group-hover:text-primary">
-                <KeyRound className="size-4" />
-              </span>
-              <span className="flex-1 font-medium">
-                {t("userMenu.changePassword")}
-              </span>
-            </Link>
-          </div>
+              <Link
+                href="/change-password"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className={itemClass}
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background text-muted-foreground shadow-[2px_2px_5px_rgba(0,0,0,0.045),-2px_-2px_5px_rgba(255,255,255,0.5)] transition-colors group-hover:text-primary">
+                  <KeyRound className="size-4" />
+                </span>
+                <span className="flex-1 font-medium">
+                  {t("userMenu.changePassword")}
+                </span>
+              </Link>
+            </div>
+          )}
 
           {/* Logout */}
           <div className="mt-2 border-t border-border/40 pt-2">

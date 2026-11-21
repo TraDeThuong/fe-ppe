@@ -15,13 +15,14 @@ import { incidentKeys, useIncidentStatusCounts } from "@/hooks/incidents";
 import {
   reportingKeys,
   useGenerateReport,
-  useReportSummary,
   useReportTemplates,
 } from "@/hooks/reporting";
 import {
+  siteKeys,
   useArchiveSite,
   useDeleteSite,
   useRestrictedAreas,
+  useSiteComplianceSummary,
   useSiteDetail,
   useSiteZones,
   useUpdateSite,
@@ -134,15 +135,16 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
   );
   const pendingIncidentsCount = incidentCounts?.pendingReview ?? 0;
 
-  // Fetch site-specific safety report summary for Compliance Rate
-  const { data: reportSummary } = useReportSummary(
-    { siteId },
-    { enabled: canReadReporting },
+  // Fetch site-specific safety compliance summary (reconciled with live incidents)
+  const { data: complianceSummary } = useSiteComplianceSummary(
+    siteId ? [siteId] : [],
+    {
+      enabled: Boolean(siteId),
+      canReadReporting,
+      canReadIncidents,
+    },
   );
-  const complianceRate =
-    reportSummary && reportSummary.totalIncidents > 0
-      ? reportSummary.complianceRate
-      : 100;
+  const complianceRate = complianceSummary?.complianceRate ?? 100;
 
   // Templates & report generation for Hero "Export Report"
   const { data: reportTemplates = [] } = useReportTemplates({
@@ -187,6 +189,7 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
     void queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
     void queryClient.invalidateQueries({ queryKey: incidentKeys.statusCountsRoot() });
     void queryClient.invalidateQueries({ queryKey: reportingKeys.all });
+    void queryClient.invalidateQueries({ queryKey: siteKeys.complianceSummaryRoot() });
   }, [lastAlert, siteId, queryClient]);
 
   const handleUpdateSite = async (id: string, payload: UpdateSitePayload) => {

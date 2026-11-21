@@ -6,10 +6,31 @@ import {
   SegmentedControl,
   type SegmentedControlOption,
 } from "@/components/ui/segmented-control";
-import { useAuth } from "@/contexts/AuthContext";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 
 export type NotificationTabKey = "inbox" | "preferences" | "templates" | "emailLogs";
+
+export function useNotificationTabAccess() {
+  const can = useCan();
+  const canViewTemplates =
+    can("NOTIFICATION_TEMPLATE_READ") || can("NOTIFICATION_TEMPLATE_MANAGE");
+  const canViewEmailLogs = can("NOTIFICATION_TEMPLATE_MANAGE");
+  const canManageTemplates = can("NOTIFICATION_TEMPLATE_MANAGE");
+  const canBroadcast = can("NOTIFICATION_CREATE");
+
+  const allowedTabs: NotificationTabKey[] = ["inbox", "preferences"];
+  if (canViewTemplates) allowedTabs.push("templates");
+  if (canViewEmailLogs) allowedTabs.push("emailLogs");
+
+  return {
+    canViewTemplates,
+    canViewEmailLogs,
+    canManageTemplates,
+    canBroadcast,
+    allowedTabs,
+  };
+}
 
 export interface NotificationTabsProps {
   activeTab: NotificationTabKey;
@@ -25,20 +46,7 @@ export function NotificationTabs({
   className = "",
 }: NotificationTabsProps) {
   const { t } = useLocale();
-  const { user } = useAuth();
-
-  const permissions = user?.permissions || [];
-  const role = user?.role || "";
-
-  // Phân quyền hiển thị các Tab Quản trị
-  const canViewTemplates =
-    permissions.includes("NOTIFICATION_TEMPLATE_READ") ||
-    role === "ADMIN" ||
-    role === "SAFETY_MANAGER";
-
-  const canViewEmailLogs =
-    permissions.includes("NOTIFICATION_READ") &&
-    (role === "ADMIN" || role === "SAFETY_MANAGER");
+  const { canViewTemplates, canViewEmailLogs } = useNotificationTabAccess();
 
   const tabOptions = useMemo<SegmentedControlOption<NotificationTabKey>[]>(() => {
     const options: SegmentedControlOption<NotificationTabKey>[] = [

@@ -17,6 +17,7 @@ import {
 import { useLocale } from "@/providers/locale-provider";
 import { AnimatedNumber, useAnimatedProgress } from "@/components/ui/animated-number";
 import type { PerClassMetric } from "@/types";
+import { AiCardHelpButton } from "./ai-metrics-guide-modal";
 
 // ============================================================================
 // 1. CHUẨN MOCK DATA THEO TẬP NHẬN DIỆN YOLO / RT-DETR PPE THỰC TẾ
@@ -243,6 +244,8 @@ export interface PerClassMetricsCardProps {
   selectedClass?: string | null;
   /** Callback khi người dùng nhấp chọn hoặc hủy chọn một phân lớp */
   onSelectClass?: (className: string | null) => void;
+  /** Mở modal giải thích thẻ */
+  onOpenGuide?: () => void;
 }
 
 // ============================================================================
@@ -256,6 +259,7 @@ export function PerClassMetricsCard({
   useMockFallback = false,
   selectedClass = null,
   onSelectClass,
+  onOpenGuide,
 }: PerClassMetricsCardProps) {
   const { t, locale } = useLocale();
   const isVi = locale === "vi-VN";
@@ -472,6 +476,8 @@ export function PerClassMetricsCard({
                 {t("aiMetrics.perClass.class")}
               </span>
             </div>
+
+            {onOpenGuide && <AiCardHelpButton onClick={onOpenGuide} />}
 
             {/* Nút toggle mock data khi backend chưa có telemetry (chỉ hiện ở dev) */}
             {process.env.NODE_ENV === "development" && (!metrics || metrics.length === 0) && (

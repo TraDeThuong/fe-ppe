@@ -67,12 +67,13 @@ export const incidentService = {
    */
   async getIncidents(
     params?: IncidentQueryParams,
-    options?: { signal?: AbortSignal },
+    options?: { signal?: AbortSignal; suppressToast?: boolean },
   ): Promise<{ items: IncidentItem[]; meta?: PaginationMeta }> {
     const res = await apiClient.get<unknown, any>("/incidents", {
       params,
       signal: options?.signal,
-    });
+      ...(options?.suppressToast ? { suppressToast: true } : {}),
+    } as Record<string, unknown>);
     return unwrapPaginated<IncidentItem>(res);
   },
 
@@ -89,8 +90,14 @@ export const incidentService = {
    * GET /api/v1/incidents/:id
    * Lấy chi tiết sự cố kèm bằng chứng hình ảnh và nhật ký phân công.
    */
-  async getIncidentById(id: string, options?: { signal?: AbortSignal }): Promise<IncidentItem> {
-    const res = await apiClient.get<unknown>(`/incidents/${id}`, { signal: options?.signal });
+  async getIncidentById(
+    id: string,
+    options?: { signal?: AbortSignal; suppressToast?: boolean },
+  ): Promise<IncidentItem> {
+    const res = await apiClient.get<unknown>(`/incidents/${id}`, {
+      signal: options?.signal,
+      ...(options?.suppressToast ? { suppressToast: true } : {}),
+    } as Record<string, unknown>);
     return unwrapData<IncidentItem>(res);
   },
 

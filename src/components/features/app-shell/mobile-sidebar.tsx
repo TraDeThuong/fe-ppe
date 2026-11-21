@@ -28,12 +28,14 @@ export interface MobileSidebarProps {
   open?: boolean;
   onClose?: () => void;
   badges?: SidebarBadgesMap;
+  maintenanceLocked?: boolean;
 }
 
 export function MobileSidebar({
   open: controlledOpen,
   onClose,
   badges: badgesProp,
+  maintenanceLocked = false,
 }: MobileSidebarProps = {}) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -92,7 +94,10 @@ export function MobileSidebar({
 
   if (!mounted) return null;
 
-  const items = getVisibleNavItems(user?.permissions ?? []);
+  const items = getVisibleNavItems(user?.permissions ?? [], {
+    maintenanceLocked,
+    role: user?.role,
+  });
 
   const groups = NAV_GROUPS.filter((group) =>
     items.some((item) => item.group === group.key),

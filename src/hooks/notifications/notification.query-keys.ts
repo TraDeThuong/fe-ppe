@@ -15,5 +15,7 @@ export const notificationKeys = {
   templateDetail: (code: string) =>
     [...notificationKeys.all, "templates", "detail", code] as const,
   emailLogs: (params?: unknown) =>
-    [...notificationKeys.all, "email-logs", params] as const,
+    params === undefined
+      ? ([...notificationKeys.all, "email-logs"] as const)
+      : ([...notificationKeys.all, "email-logs", params] as const),
 };

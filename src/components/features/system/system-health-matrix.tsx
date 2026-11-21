@@ -130,8 +130,8 @@ export function SystemHealthMatrix({
           return (
             <span
               className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium ${isInfra
-                  ? "border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400"
-                  : "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                  ? "border-primary/25 bg-primary/10 text-primary"
+                  : "border-border/50 bg-background/70 text-foreground dark:bg-black/30"
                 }`}
             >
               {isInfra ? t("system.health.typeInfra") : t("system.health.typeService")}

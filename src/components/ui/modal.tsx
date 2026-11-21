@@ -90,7 +90,7 @@ interface ModalEngineProps extends ModalProps {
 }
 
 const SIZE_CLASSES: Record<ModalSize, string> = {
-  sm: "max-w-sm",
+  sm: "max-w-[460px]",
   md: "max-w-lg",
   lg: "max-w-2xl",
   xl: "max-w-4xl",
@@ -133,7 +133,7 @@ export function ModalHeader({
       className={[
         "flex shrink-0 items-start justify-between gap-3",
         "px-4 pb-3 pt-4",
-        "sm:gap-4 sm:px-6 sm:pb-5 sm:pt-6",
+        "sm:gap-4 sm:px-6 sm:pb-4 sm:pt-5",
         className,
       ]
         .filter(Boolean)
@@ -161,7 +161,7 @@ export function ModalTitle({
     <h2
       id={id ?? context.titleId}
       className={[
-        "text-base font-bold tracking-tight sm:text-lg",
+        "text-base font-bold leading-snug tracking-tight break-words [overflow-wrap:anywhere] sm:text-lg",
         className,
       ]
         .filter(Boolean)
@@ -189,7 +189,7 @@ export function ModalDescription({
     <p
       id={id ?? context.descriptionId}
       className={[
-        "mt-1 text-xs sm:mt-1.5 sm:text-sm leading-relaxed",
+        "mt-1 text-xs leading-relaxed break-words [overflow-wrap:anywhere] sm:mt-1.5 sm:text-sm",
         "text-muted-foreground",
         className,
       ]
@@ -301,9 +301,9 @@ export function ModalContent({
   return (
     <div
       className={[
-        "min-h-0 flex-1 overflow-y-auto overscroll-contain",
+        "min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain break-words",
         "border-y border-border/30",
-        "px-4 py-4 sm:px-6 sm:py-6",
+        "px-4 py-3.5 sm:px-6 sm:py-5",
         effectClass(resolvedContentEffect),
         className,
       ]
@@ -621,10 +621,10 @@ function ModalEngine({
                 <>
                   {/* Default Monolithic Header */}
                   <ModalHeader>
-                    <div className="flex min-w-0 items-start gap-3 sm:gap-3.5">
+                    <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-3.5">
                       {icon && <ModalIcon>{icon}</ModalIcon>}
 
-                      <div className="min-w-0 pt-0.5">
+                      <div className="min-w-0 flex-1 pt-0.5">
                         {title && <ModalTitle>{title}</ModalTitle>}
                         {description && (
                           <ModalDescription>{description}</ModalDescription>

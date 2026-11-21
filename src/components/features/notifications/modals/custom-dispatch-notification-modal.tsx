@@ -46,8 +46,8 @@ export function CustomDispatchNotificationModal({
   const [actionUrl, setActionUrl] = useState("");
 
   const { data: usersData } = useUsers(
-    { limit: 50, isActive: true },
-    { enabled: open && targetScope === "SPECIFIC_USERS" },
+    { limit: 100, isActive: true },
+    { enabled: open && targetScope !== "BROADCAST" },
   );
   const availableUsers = usersData?.data ?? [];
 
@@ -100,17 +100,43 @@ export function CustomDispatchNotificationModal({
     e.preventDefault();
     if (!title.trim() || !content.trim()) return;
 
-    if (targetScope === "SPECIFIC_USERS") {
-      if (selectedUserIds.length === 0) return;
+    if (targetScope !== "BROADCAST") {
+      const scopedUsers =
+        targetScope === "SPECIFIC_USERS"
+          ? availableUsers.filter((u) => selectedUserIds.includes(u.id))
+          : targetScope === "SAFETY_OFFICERS"
+            ? availableUsers.filter((u) => (u.role?.name || "").toUpperCase() === "SAFETY_OFFICER")
+            : availableUsers.filter((u) =>
+                ["SAFETY_MANAGER", "MANAGER", "ADMIN"].includes((u.role?.name || "").toUpperCase()),
+              );
+
+      const userIds =
+        targetScope === "SPECIFIC_USERS"
+          ? selectedUserIds
+          : scopedUsers.map((u) => u.id);
+
+      if (userIds.length === 0) return;
+
+      const selectedChannels: NotificationChannel[] = channels.length > 0 ? channels : ["IN_APP"];
+      const recipientEmails = selectedChannels.includes("EMAIL")
+        ? Object.fromEntries(
+            scopedUsers
+              .filter((u) => Boolean(u.email))
+              .map((u) => [u.id, u.email as string]),
+          )
+        : undefined;
+
       sendMutation.mutate({
-        userIds: selectedUserIds,
-        channels: channels.length > 0 ? channels : ["IN_APP"],
+        userIds,
+        channels: selectedChannels,
         title: title.trim(),
         content: content.trim(),
         severity,
         actionUrl: actionUrl.trim() || undefined,
+        ...(recipientEmails && Object.keys(recipientEmails).length > 0 ? { recipientEmails } : {}),
         metadata: {
           templateCode: selectedTemplateCode,
+          targetScope,
           soundPreset,
           dispatchedAt: new Date().toISOString(),
         },

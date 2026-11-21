@@ -271,6 +271,7 @@ export interface SendNotificationPayload {
   metadata?: Record<string, unknown>;
   templateKey?: string;
   templateData?: Record<string, unknown>;
+  recipientEmails?: Record<string, string> | string[];
 }
 
 export interface DispatchIncidentNotificationPayload {

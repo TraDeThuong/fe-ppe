@@ -191,8 +191,36 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
 ];
 
+export interface VisibleNavOptions {
+  /** Khi bật bảo trì toàn diện (MAINTENANCE), chỉ giữ lại trang /maintenance */
+  maintenanceLocked?: boolean;
+  role?: string;
+}
+
+/** Chỉ trả về true khi hệ thống đang bật bảo trì toàn diện (không áp dụng cho READ_ONLY) */
+export function isFullMaintenanceMode(
+  status?: { enabled?: boolean; status?: string } | null,
+): boolean {
+  return Boolean(status?.enabled) && status?.status === "MAINTENANCE";
+}
+
 /** Lọc menu theo permissions của user hiện tại */
-export function getVisibleNavItems(permissions: string[]): NavItem[] {
+export function getVisibleNavItems(
+  permissions: string[],
+  options?: VisibleNavOptions,
+): NavItem[] {
+  if (options?.maintenanceLocked) {
+    const maintenanceItem = NAV_ITEMS.find(
+      (item) => item.route === "/maintenance",
+    );
+    if (!maintenanceItem) return [];
+    const canManage =
+      options.role === "ADMIN" ||
+      options.role === "SUPER_ADMIN" ||
+      permissions.includes("MAINTENANCE_MANAGE");
+    return canManage ? [maintenanceItem] : [];
+  }
+
   return NAV_ITEMS.filter((item) => {
     if (item.hidden) return false;
     if (item.anyPermissions && item.anyPermissions.length > 0) {

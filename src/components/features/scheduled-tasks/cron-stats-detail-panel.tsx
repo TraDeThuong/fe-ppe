@@ -6,24 +6,20 @@ import {
   CalendarClock,
   CirclePause,
   CirclePlay,
-  Cpu,
   Filter,
-  Layers,
-  Lock,
   Play,
   Power,
-  ShieldCheck,
   Sparkles,
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CRON_TIMEZONE, describeCronSchedule } from "@/lib/cron";
+import { describeCronSchedule } from "@/lib/cron";
 import { useLocale } from "@/providers/locale-provider";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import type { CronJobItem, CronJobName, CronScheduleFilter } from "@/types/cron.types";
 
-export type CronStatKey = "total" | "enabled" | "disabled" | "engine";
+export type CronStatKey = "total" | "enabled" | "disabled";
 
 export interface CronStatsDetailPanelProps {
   activeStat: CronStatKey;
@@ -115,7 +111,6 @@ export function CronStatsDetailPanel({
               {activeStat === "total" && <CalendarClock className="h-5 w-5" />}
               {activeStat === "enabled" && <CirclePlay className="h-5 w-5" />}
               {activeStat === "disabled" && <CirclePause className="h-5 w-5 text-accent-foreground" />}
-              {activeStat === "engine" && <Cpu className="h-5 w-5" />}
             </div>
           </div>
 
@@ -125,7 +120,6 @@ export function CronStatsDetailPanel({
                 {activeStat === "total" && t("cron.detail.allTitle")}
                 {activeStat === "enabled" && t("cron.detail.enabledTitle")}
                 {activeStat === "disabled" && t("cron.detail.disabledTitle")}
-                {activeStat === "engine" && t("cron.detail.engineTitle")}
               </h3>
 
               {/* Inset Neumorphic Pill Counter */}
@@ -137,14 +131,12 @@ export function CronStatsDetailPanel({
                 {activeStat === "total" && `${jobs.length} ${isVietnamese ? "TÁC VỤ" : "JOBS"}`}
                 {activeStat === "enabled" && `${enabledJobs.length} / ${jobs.length}`}
                 {activeStat === "disabled" && `${disabledJobs.length} / ${jobs.length}`}
-                {activeStat === "engine" && "NODE-CRON V3"}
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground truncate mt-0.5 hidden sm:block">
               {activeStat === "total" && t("cron.detail.allDesc")}
               {activeStat === "enabled" && t("cron.detail.enabledDesc")}
               {activeStat === "disabled" && t("cron.detail.disabledDesc")}
-              {activeStat === "engine" && t("cron.detail.engineDesc")}
             </p>
           </div>
         </div>
@@ -447,82 +439,6 @@ export function CronStatsDetailPanel({
               })}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* BODY 4: ENGINE & ARCHITECTURE                                         */}
-      {/* ===================================================================== */}
-      {activeStat === "engine" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3.5">
-            {[
-              {
-                icon: CalendarClock,
-                label: isVietnamese ? "Múi giờ hệ thống" : "System Timezone",
-                value: CRON_TIMEZONE,
-                sub: "UTC+7",
-              },
-              {
-                icon: Layers,
-                label: isVietnamese ? "Engine định thời" : "Scheduler Engine",
-                value: "NestJS Tasks",
-                sub: "node-cron v3",
-              },
-              {
-                icon: Lock,
-                label: isVietnamese ? "Cơ chế an toàn" : "Concurrency Safe",
-                value: "Idempotent Lock",
-                sub: "Mutex guarded",
-              },
-              {
-                icon: Cpu,
-                label: isVietnamese ? "Trạng thái runtime" : "Runtime State",
-                value: "In-Memory",
-                sub: "Volatile switch",
-              },
-            ].map((spec, i) => {
-              const SpecIcon = spec.icon;
-              return (
-                <div
-                  key={i}
-                  className="rounded-2xl border border-white/70 bg-surface/90 p-3 sm:p-3.5 shadow-[5px_5px_12px_var(--shadow-dark),-5px_-5px_12px_var(--shadow-light)] dark:border-white/[0.07] dark:bg-card/85"
-                >
-                  <div className="flex items-center justify-between gap-1 text-primary mb-1.5">
-                    <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground truncate">
-                      {spec.label}
-                    </span>
-                    <SpecIcon className="h-3.5 w-3.5 shrink-0 opacity-80" />
-                  </div>
-                  <p className="font-mono text-xs sm:text-sm font-bold text-foreground truncate">
-                    {spec.value}
-                  </p>
-                  <p className="mt-0.5 font-mono text-[10px] text-primary/80">
-                    {spec.sub}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Recessed Governance Plaque */}
-          <div className="flex items-start gap-3 rounded-2xl border border-primary/15 bg-gradient-to-r from-primary/[0.05] via-background/60 to-accent/[0.08] p-3.5 sm:p-4 shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)]">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-[2px_2px_6px_var(--shadow-dark),-2px_-2px_6px_var(--shadow-light)]">
-              <ShieldCheck className="h-4 w-4" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs font-bold tracking-tight text-foreground">
-                {isVietnamese
-                  ? "Chính sách an toàn dữ liệu"
-                  : "Data Safety Policy"}
-              </p>
-              <p className="text-[11px] leading-relaxed text-muted-foreground">
-                {isVietnamese
-                  ? "Các tác vụ dọn dẹp hệ thống tuân thủ giới hạn lưu trữ dữ liệu và kiểm tra toàn vẹn trước khi loại bỏ bản ghi."
-                  : "All system cleanup tasks enforce retention periods and verify referential constraints before purging records."}
-              </p>
-            </div>
-          </div>
         </div>
       )}
     </div>

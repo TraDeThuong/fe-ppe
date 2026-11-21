@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   MaintenanceControlPanel,
-  MaintenanceKpiSummary,
   MaintenancePreviewCard,
 } from "@/components/features/maintenance";
 import {
@@ -38,18 +37,22 @@ export default function MaintenanceContent() {
 
   const isEnabled = Boolean(config?.enabled);
   const status = config?.status || "ONLINE";
+  const isFullMaintenance = isEnabled && status === "MAINTENANCE";
 
   const breadcrumbs = useMemo(
-    () => [
-      {
-        label: isVietnamese ? "Quản trị" : "Admin",
-        href: "/system",
-      },
-      {
-        label: t("maintenance.title"),
-      },
-    ],
-    [isVietnamese, t],
+    () =>
+      isFullMaintenance
+        ? undefined
+        : [
+            {
+              label: isVietnamese ? "Quản trị" : "Admin",
+              href: "/system",
+            },
+            {
+              label: t("maintenance.title"),
+            },
+          ],
+    [isFullMaintenance, isVietnamese, t],
   );
 
   return (
@@ -94,13 +97,11 @@ export default function MaintenanceContent() {
         }
       />
 
-      {/* 2. KPI SUMMARY METRICS */}
-      <MaintenanceKpiSummary config={config} loading={isLoading} />
-
-      {/* 3. BẢNG ĐIỀU KHIỂN TRUNG TÂM (FULL WIDTH) */}
+      {/* 2. BẢNG ĐIỀU KHIỂN & TRẠNG THÁI VẬN HÀNH */}
       <div className="w-full">
         <MaintenanceControlPanel
           config={config}
+          loading={isLoading}
           onEnable={enableMaintenance}
           onDisable={disableMaintenance}
           onUpdate={updateConfig}

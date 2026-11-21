@@ -4,6 +4,7 @@ export * from "./notification-predefined-data";
 export * from "./notification-tabs";
 export * from "./notification-filter-toolbar";
 export * from "./notification-item";
+export * from "./notification-detail-panel";
 export * from "./notification-list";
 export * from "./notification-skeleton";
 export * from "./notification-empty-state";

@@ -23,4 +23,7 @@ export const siteKeys = {
   zoneRestrictedAreas: (zoneId: string) => [...siteKeys.all, "zone-restricted-areas", zoneId] as const,
   allRestrictedAreas: (params?: RestrictedAreaQueryParams) =>
     [...siteKeys.all, "all-restricted-areas", params] as const,
+  complianceSummaryRoot: () => [...siteKeys.all, "compliance-summary"] as const,
+  complianceSummary: (siteIds: string[]) =>
+    [...siteKeys.all, "compliance-summary", siteIds] as const,
 };

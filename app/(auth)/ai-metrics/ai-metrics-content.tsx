@@ -21,6 +21,8 @@ import {
   CreateModelVersionModal,
   RecordAiBenchmarkModal,
   ModelDetailModal,
+  AiMetricsGuideModal,
+  type AiCardGuideKey,
   type AiMetricStatKey,
 } from "@/components/features/ai-metrics";
 import {
@@ -78,12 +80,15 @@ export default function AiMetricsContent() {
   // Filters
   const [selectedModelId, setSelectedModelId] = useState("");
   const [selectedCameraId, setSelectedCameraId] = useState("");
-  const [period, setPeriod] = useState("7d");
+  const [period, setPeriod] = useState("all");
   const [selectedClass, setSelectedClass] = useState<string | null>(null);
 
   const dateRange = useMemo(() => {
+    if (period === "all") {
+      return { startDate: undefined, endDate: undefined };
+    }
     const end = new Date();
-    const start = new Date();
+    const start = new Date(end);
     if (period === "24h") {
       start.setDate(end.getDate() - 1);
     } else if (period === "30d") {
@@ -91,7 +96,14 @@ export default function AiMetricsContent() {
     } else {
       start.setDate(end.getDate() - 7);
     }
-    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    // Dùng múi giờ Việt Nam để khớp với statDate trên Backend (tránh lệch 1 ngày trước 07:00 sáng theo UTC)
+    const fmt = (d: Date) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Ho_Chi_Minh",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(d);
     return { startDate: fmt(start), endDate: fmt(end) };
   }, [period]);
 
@@ -138,6 +150,7 @@ export default function AiMetricsContent() {
   const [isCreateVersionOpen, setIsCreateVersionOpen] = useState(false);
   const [isRecordTelemetryOpen, setIsRecordTelemetryOpen] = useState(false);
   const [detailModelId, setDetailModelId] = useState<string | null>(null);
+  const [guideKey, setGuideKey] = useState<AiCardGuideKey | null>(null);
 
   const handleOpenDeploy = (_modelId: string, version: AiModelVersionDto) => {
     setSelectedCandidate(version);
@@ -242,6 +255,7 @@ export default function AiMetricsContent() {
         activeVersion={activeVersion}
         modelName={activeModelName}
         loading={isActiveLoading}
+        onOpenGuide={() => setGuideKey("active-model")}
       />
 
       {/* Bento Console KPI Summary với hiệu ứng sunken và Panel giải thích chi tiết */}
@@ -250,6 +264,7 @@ export default function AiMetricsContent() {
         loading={isPerfLoading}
         selectedStat={selectedStat}
         onSelectStat={handleSelectStat}
+        onOpenStatGuide={(stat) => setGuideKey(stat)}
       />
 
       {/* Filter Toolbar */}
@@ -274,6 +289,7 @@ export default function AiMetricsContent() {
             loading={isPerfLoading}
             selectedClass={selectedClass}
             onSelectClass={setSelectedClass}
+            onOpenGuide={() => setGuideKey("per-class")}
           />
         </div>
 
@@ -281,6 +297,9 @@ export default function AiMetricsContent() {
           <ConfusionMatrixHeatmap
             confusionMatrix={performance?.confusionMatrix}
             loading={isPerfLoading}
+            selectedClass={selectedClass}
+            onSelectClass={setSelectedClass}
+            onOpenGuide={() => setGuideKey("confusion-matrix")}
           />
         </div>
       </div>
@@ -291,6 +310,8 @@ export default function AiMetricsContent() {
           latencyHistory={performance?.latencyHistory}
           avgLatencyMs={performance?.averageLatencyMs}
           avgFps={performance?.averageFps}
+          loading={isPerfLoading}
+          onOpenGuide={() => setGuideKey("latency-chart")}
         />
       </div>
 
@@ -299,6 +320,8 @@ export default function AiMetricsContent() {
         <ModelGovernanceTable
           models={models}
           onDeploy={handleOpenDeploy}
+          onRefresh={refetchModels}
+          onOpenGuide={() => setGuideKey("governance")}
           canDeploy={canManageModels}
           loading={isModelsLoading}
         />
@@ -344,6 +367,14 @@ export default function AiMetricsContent() {
       <ModelDetailModal
         modelId={detailModelId}
         onClose={() => setDetailModelId(null)}
+      />
+
+      <AiMetricsGuideModal
+        openKey={guideKey}
+        onClose={() => setGuideKey(null)}
+        performance={performance}
+        activeVersion={activeVersion}
+        activeModelName={activeModelName}
       />
     </div>
   );

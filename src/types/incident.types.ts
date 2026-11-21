@@ -208,6 +208,7 @@ export interface IncidentQueryParams {
   toDate?: string;
   sortBy?: "detectedAt" | "createdAt" | "severity" | "status";
   sortOrder?: "asc" | "desc";
+  includeAssignments?: boolean;
 }
 
 export interface InitialEvidencePayload {

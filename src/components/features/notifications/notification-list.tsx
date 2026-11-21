@@ -1,7 +1,8 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Inbox } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import { isNotificationRead } from "@/lib/notification-inbox";
 import { NotificationItem } from "./notification-item";
 import { NotificationSkeleton } from "./notification-skeleton";
 import { NotificationEmptyState } from "./notification-empty-state";
@@ -17,6 +18,8 @@ export interface NotificationListProps {
   error?: Error | null;
   onRetry?: () => void;
   onPageChange?: (page: number) => void;
+  selectedId?: string | null;
+  onSelect?: (notification: NotificationItemDto) => void;
   onMarkAsRead?: (id: string) => void;
   markingReadId?: string | null;
   onDelete?: (id: string) => void;
@@ -36,6 +39,8 @@ export function NotificationList({
   error,
   onRetry,
   onPageChange,
+  selectedId,
+  onSelect,
   onMarkAsRead,
   markingReadId,
   onDelete,
@@ -46,10 +51,28 @@ export function NotificationList({
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  const errorNotice = error ? <div role="alert" className="space-y-3 rounded-xl border border-danger/30 bg-surface p-4 text-sm">
-    <p>{isVietnamese ? "Không tải được đầy đủ hộp thư." : "Unable to load the complete inbox."} {error.message}</p>
-    {onRetry && <button onClick={onRetry} className="font-semibold text-primary underline">{isVietnamese ? "Thử lại" : "Retry"}</button>}
-  </div> : null;
+  const errorNotice = error ? (
+    <div
+      role="alert"
+      className="space-y-3 rounded-xl border border-danger/30 bg-surface p-4 text-sm"
+    >
+      <p>
+        {isVietnamese
+          ? "Không tải được đầy đủ hộp thư."
+          : "Unable to load the complete inbox."}{" "}
+        {error.message}
+      </p>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="font-semibold text-primary underline"
+        >
+          {isVietnamese ? "Thử lại" : "Retry"}
+        </button>
+      )}
+    </div>
+  ) : null;
 
   if (error && !items?.length) return errorNotice;
 
@@ -62,17 +85,58 @@ export function NotificationList({
   }
 
   const startIdx = Math.max(1, (page - 1) * limit + 1);
-  const endIdx = Math.min(total, page * limit);
+  const endIdx = Math.min(total || items.length, page * limit);
+  const unreadInPage = items.filter((item) => !isNotificationRead(item)).length;
 
   return (
-    <div className={`space-y-4 ${className}`}>
+    <div className={`space-y-3 ${className}`}>
       {errorNotice}
+
+      {/* Compact List Summary Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/30 bg-background/80 px-3.5 py-2.5 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Inbox className="size-3.5 text-primary" />
+          <span>
+            {isVietnamese ? (
+              <>
+                Đang xem{" "}
+                <span className="font-bold text-foreground">
+                  {startIdx}–{endIdx}
+                </span>{" "}
+                / <span className="font-bold text-foreground">{total}</span>{" "}
+                thông báo
+              </>
+            ) : (
+              <>
+                Showing{" "}
+                <span className="font-bold text-foreground">
+                  {startIdx}–{endIdx}
+                </span>{" "}
+                of <span className="font-bold text-foreground">{total}</span>
+              </>
+            )}
+          </span>
+        </div>
+
+        {unreadInPage > 0 && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
+            <span className="size-1.5 rounded-full bg-primary animate-pulse" />
+            <span>
+              {unreadInPage}{" "}
+              {isVietnamese ? "chưa đọc trong trang" : "unread on page"}
+            </span>
+          </span>
+        )}
+      </div>
+
       {/* Notifications Cards Container */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2.5">
         {items.map((notification) => (
           <NotificationItem
             key={notification.id}
             notification={notification}
+            selected={selectedId === notification.id}
+            onSelect={onSelect}
             onMarkAsRead={onMarkAsRead}
             isMarkingRead={markingReadId === notification.id}
             onDelete={onDelete}
@@ -83,25 +147,22 @@ export function NotificationList({
 
       {/* Neumorphic Pagination Footer */}
       {totalPages > 1 && onPageChange && (
-        <div className="flex flex-col items-center justify-between gap-3 rounded-2xl border border-border/30 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] sm:flex-row sm:p-4">
-          <p className="text-xs text-muted-foreground font-medium">
+        <div className="flex flex-col items-center justify-between gap-3 rounded-2xl border border-border/30 bg-background p-3 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] sm:flex-row sm:px-4 sm:py-3">
+          <p className="text-xs font-medium text-muted-foreground">
             {isVietnamese ? (
               <>
-                Hiển thị <span className="font-bold text-foreground">{startIdx}</span> -{" "}
-                <span className="font-bold text-foreground">{endIdx}</span> trên{" "}
-                <span className="font-bold text-foreground">{total}</span> thông báo
+                Trang <span className="font-bold text-foreground">{page}</span> /{" "}
+                <span className="font-bold text-foreground">{totalPages}</span>
               </>
             ) : (
               <>
-                Showing <span className="font-bold text-foreground">{startIdx}</span> -{" "}
-                <span className="font-bold text-foreground">{endIdx}</span> of{" "}
-                <span className="font-bold text-foreground">{total}</span> notifications
+                Page <span className="font-bold text-foreground">{page}</span> of{" "}
+                <span className="font-bold text-foreground">{totalPages}</span>
               </>
             )}
           </p>
 
           <div className="flex items-center gap-1.5">
-            {/* Prev Button */}
             <button
               type="button"
               onClick={() => onPageChange(page - 1)}
@@ -112,7 +173,6 @@ export function NotificationList({
               <ChevronLeft className="size-4" />
             </button>
 
-            {/* Page numbers */}
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
               .map((p, idx, arr) => {
@@ -122,7 +182,9 @@ export function NotificationList({
                 return (
                   <div key={p} className="flex items-center gap-1.5">
                     {showEllipsis && (
-                      <span className="px-1 text-xs text-muted-foreground">...</span>
+                      <span className="px-1 text-xs text-muted-foreground">
+                        ...
+                      </span>
                     )}
                     <button
                       type="button"
@@ -139,7 +201,6 @@ export function NotificationList({
                 );
               })}
 
-            {/* Next Button */}
             <button
               type="button"
               onClick={() => onPageChange(page + 1)}

@@ -60,6 +60,7 @@ export function AiMetricsToolbar({
             onChange={(e) => onPeriodChange(e.target.value)}
             className="w-full sm:w-auto rounded-xl border border-border/40 bg-surface px-3 py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
           >
+            <option value="all">{t("aiMetrics.toolbar.periodAll")}</option>
             <option value="24h">{t("aiMetrics.toolbar.period24h")}</option>
             <option value="7d">{t("aiMetrics.toolbar.period7d")}</option>
             <option value="30d">{t("aiMetrics.toolbar.period30d")}</option>

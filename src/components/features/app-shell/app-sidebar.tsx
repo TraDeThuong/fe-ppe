@@ -28,9 +28,13 @@ const COLLAPSED_KEY = "ppe_sidebar_collapsed";
 
 export interface AppSidebarProps {
   badges?: SidebarBadgesMap;
+  maintenanceLocked?: boolean;
 }
 
-export function AppSidebar({ badges: badgesProp }: AppSidebarProps = {}) {
+export function AppSidebar({
+  badges: badgesProp,
+  maintenanceLocked = false,
+}: AppSidebarProps = {}) {
   const { user } = useAuth();
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -66,7 +70,10 @@ export function AppSidebar({ badges: badgesProp }: AppSidebarProps = {}) {
     });
   };
 
-  const items = getVisibleNavItems(user?.permissions ?? []);
+  const items = getVisibleNavItems(user?.permissions ?? [], {
+    maintenanceLocked,
+    role: user?.role,
+  });
 
   const groups = NAV_GROUPS.filter((group) =>
     items.some((item) => item.group === group.key),
@@ -125,7 +132,7 @@ export function AppSidebar({ badges: badgesProp }: AppSidebarProps = {}) {
         ].join(" ")}
       >
         <Link
-          href="/"
+          href={maintenanceLocked ? "/maintenance" : "/"}
           aria-label={t("app.name")}
           className="group/brand flex min-w-0 items-center gap-3 rounded-2xl
             outline-none focus-visible:ring-2 focus-visible:ring-primary/50"

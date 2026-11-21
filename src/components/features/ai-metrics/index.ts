@@ -8,3 +8,4 @@ export * from "./model-governance-table";
 export * from "./deploy-model-dialog";
 export * from "./ai-metrics-stats-detail-panel";
 export * from "./ai-model-governance-modals";
+export * from "./ai-metrics-guide-modal";

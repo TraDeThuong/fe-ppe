@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { isFeatureFlagEnabled } from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 import type { ServiceHealthItem, SystemConfigItem, SystemHealthReport } from "@/types";
 import type { SystemTabKey } from "./system-tabs";
@@ -30,6 +31,7 @@ export type SystemStatKey = "flags" | "configs" | "health" | "latency";
 
 export interface SystemStatsDetailPanelProps {
   activeStat: SystemStatKey;
+  activeTab?: SystemTabKey;
   totalConfigs: number;
   healthReport?: SystemHealthReport;
   featureFlags: SystemConfigItem[];
@@ -40,11 +42,13 @@ export interface SystemStatsDetailPanelProps {
   isRefreshingHealth?: boolean;
   onCreateConfig?: () => void;
   onToggleFlag?: (flag: SystemConfigItem, enabled: boolean) => void;
+  isTogglingFlag?: boolean;
   canManage?: boolean;
 }
 
 export function SystemStatsDetailPanel({
   activeStat,
+  activeTab,
   totalConfigs,
   healthReport,
   featureFlags,
@@ -55,6 +59,7 @@ export function SystemStatsDetailPanel({
   isRefreshingHealth = false,
   onCreateConfig,
   onToggleFlag,
+  isTogglingFlag = false,
   canManage = true,
 }: SystemStatsDetailPanelProps) {
   const { t, locale } = useLocale();
@@ -66,10 +71,10 @@ export function SystemStatsDetailPanel({
   const services = healthReport?.services ?? [];
   const healthyCount = healthReport?.healthyCount ?? services.filter((s) => s.status === "HEALTHY").length;
   const totalServices = healthReport?.totalServices ?? services.length;
-  const avgLatency = healthReport?.averageLatencyMs ?? 24;
+  const avgLatency = healthReport?.averageLatencyMs;
 
   const activeFlagsCount = useMemo(
-    () => featureFlags.filter((f) => Boolean(f.value)).length,
+    () => featureFlags.filter((f) => isFeatureFlagEnabled(f.value)).length,
     [featureFlags],
   );
 
@@ -103,21 +108,21 @@ export function SystemStatsDetailPanel({
     switch (status) {
       case "HEALTHY":
         return (
-          <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 text-[11px] font-semibold text-success">
+          <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
             <CheckCircle2 className="h-3 w-3" />
             {t("system.health.statusHealthy")}
           </span>
         );
       case "DEGRADED":
         return (
-          <span className="inline-flex items-center gap-1 rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[11px] font-semibold text-warning">
-            <Clock className="h-3 w-3" />
+          <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[11px] font-semibold text-foreground dark:bg-black/30">
+            <Clock className="h-3 w-3 text-muted-foreground" />
             {t("system.health.statusDegraded")}
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 rounded-full border border-danger/30 bg-danger/10 px-2 py-0.5 text-[11px] font-semibold text-danger">
+          <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/60 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
             <XCircle className="h-3 w-3" />
             {t("system.health.statusDown")}
           </span>
@@ -162,8 +167,8 @@ export function SystemStatsDetailPanel({
             <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_5px_var(--primary)]" />
             {activeStat === "flags" && `${activeFlagsCount}/${featureFlags.length}`}
             {activeStat === "configs" && `${totalConfigs}`}
-            {activeStat === "health" && `${healthyCount}/${totalServices}`}
-            {activeStat === "latency" && `${avgLatency} ms`}
+            {activeStat === "health" && (healthReport ? `${healthyCount}/${totalServices}` : "--")}
+            {activeStat === "latency" && (typeof avgLatency === "number" ? `${avgLatency} ms` : "--")}
           </span>
         </div>
         <p className="mt-0.5 hidden truncate text-xs text-muted-foreground sm:block">
@@ -259,9 +264,9 @@ export function SystemStatsDetailPanel({
       </div>
 
       {/* Interactive Flags List */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {featureFlags.slice(0, 4).map((flag) => {
-          const isEnabled = Boolean(flag.value);
+      <div className="grid max-h-72 grid-cols-1 gap-3 overflow-y-auto pr-0.5 sm:grid-cols-2">
+        {featureFlags.map((flag) => {
+          const isEnabled = isFeatureFlagEnabled(flag.value);
           return (
             <div
               key={flag.id}
@@ -273,7 +278,11 @@ export function SystemStatsDetailPanel({
             >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="truncate rounded-md bg-background/65 px-2 py-0.5 font-mono text-xs font-extrabold text-primary shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark)] dark:bg-black/30">
+                  <span
+                    className={`truncate rounded-md bg-background/65 px-2 py-0.5 font-mono text-xs font-extrabold shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark)] dark:bg-black/30 ${
+                      isEnabled ? "text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
                     {flag.key}
                   </span>
                   <span
@@ -301,10 +310,12 @@ export function SystemStatsDetailPanel({
               {onToggleFlag && (
                 <button
                   type="button"
-                  disabled={!canManage}
+                  role="switch"
+                  aria-checked={isEnabled}
+                  disabled={!canManage || isTogglingFlag}
                   onClick={() => onToggleFlag(flag, !isEnabled)}
                   aria-label={`Toggle ${flag.key}`}
-                  className={`relative inline-flex h-[24px] w-[44px] shrink-0 cursor-pointer items-center rounded-full transition-all duration-300 focus:outline-none disabled:opacity-40 ${
+                  className={`relative inline-flex h-[24px] w-[44px] shrink-0 cursor-pointer items-center rounded-full transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-40 ${
                     isEnabled
                       ? "bg-primary/15 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.75)]"
                       : "bg-background/80 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] dark:bg-black/45 dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.75)]"
@@ -319,7 +330,7 @@ export function SystemStatsDetailPanel({
                   >
                     <span
                       className={`h-1 w-1 rounded-full ${
-                        isEnabled ? "bg-white" : "bg-muted-foreground/30"
+                        isEnabled ? "bg-primary-foreground" : "bg-muted-foreground/30"
                       }`}
                     />
                   </span>
@@ -331,20 +342,22 @@ export function SystemStatsDetailPanel({
       </div>
 
       {/* Bottom Action Jump */}
-      <div className="flex justify-end pt-1">
-        <button
-          type="button"
-          onClick={() => onSelectTab("flags")}
-          className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:brightness-105 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
-        >
-          <span>
-            {t("system.detail.goToTab", {
-              tab: t("system.tabs.featureFlags"),
-            })}
-          </span>
-          <ArrowRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
+      {activeTab !== "flags" && (
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={() => onSelectTab("flags")}
+            className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:brightness-105 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
+          >
+            <span>
+              {t("system.detail.goToTab", {
+                tab: t("system.tabs.featureFlags"),
+              })}
+            </span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   )}
 
@@ -364,11 +377,11 @@ export function SystemStatsDetailPanel({
           </p>
         </div>
 
-        <div className="rounded-[15px] border border-accent/25 bg-surface p-3 shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-accent/20 dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5)]">
-          <span className="block text-[10.5px] font-extrabold tracking-wider text-accent">
+        <div className="rounded-[15px] border border-white/60 bg-surface p-3 shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.85)] dark:border-white/[0.05] dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5)]">
+          <span className="block text-[10.5px] font-extrabold tracking-wider text-muted-foreground">
             SECURITY
           </span>
-          <p className="mt-1 font-mono text-lg font-black tabular-nums text-accent">
+          <p className="mt-1 font-mono text-lg font-black tabular-nums text-foreground">
             {categoryStats.counts.SECURITY || 0}
           </p>
         </div>
@@ -404,7 +417,7 @@ export function SystemStatsDetailPanel({
           </span>
 
           <span className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-2.5 py-1 text-muted-foreground shadow-[2px_2px_4px_var(--shadow-dark)] dark:bg-card dark:shadow-[2px_2px_5px_rgba(0,0,0,0.5)]">
-            <Lock className="h-3.5 w-3.5 text-accent" />
+            <Lock className="h-3.5 w-3.5 text-muted-foreground" />
             <strong className="font-mono font-extrabold text-foreground">
               {categoryStats.privateCount}
             </strong>{" "}
@@ -503,10 +516,10 @@ export function SystemStatsDetailPanel({
                   <span
                     className={`h-2 w-2 shrink-0 rounded-full ${
                       svc.status === "HEALTHY"
-                        ? "animate-pulse bg-primary shadow-[0_0_6px_var(--primary)]"
+                        ? "animate-pulse bg-primary"
                         : svc.status === "DEGRADED"
-                          ? "bg-accent"
-                          : "bg-muted-foreground"
+                          ? "bg-foreground/60"
+                          : "bg-muted-foreground/50"
                     }`}
                   />
                   <p className="truncate font-extrabold text-foreground">
@@ -586,12 +599,12 @@ export function SystemStatsDetailPanel({
           </p>
         </div>
 
-        <div className="rounded-[18px] border border-accent/25 bg-surface p-3.5 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] dark:border-accent/20 dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.5)]">
+        <div className="rounded-[18px] border border-white/60 bg-surface p-3.5 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] dark:border-white/[0.05] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.5)]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold text-accent">
+            <span className="text-xs font-extrabold text-muted-foreground">
               {t("system.detail.slowLatency")}
             </span>
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent/15 text-accent shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark)]">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-background/70 text-muted-foreground shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark)] dark:bg-black/30">
               <ShieldAlert className="h-3.5 w-3.5" />
             </div>
           </div>

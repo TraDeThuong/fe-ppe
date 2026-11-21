@@ -222,6 +222,7 @@ export default function AuditLogsContent() {
         setEndDate(val);
         setPage(1);
       }}
+      totalCount={logsData?.meta?.total ?? totalLogsCount}
       hasActiveFilters={hasActiveFilters}
       onResetFilters={handleResetFilters}
       onExport={() => setExportModalOpen(true)}

@@ -188,6 +188,8 @@ export function AssignmentModals({
         onOpenChange={(open) => {
           if (!open) onClearBatchReject();
         }}
+        size="sm"
+        preventClose={batchReviewPending}
         title={
           isVietnamese
             ? `Bác bỏ hàng loạt (${batchRejectIds?.length ?? 0} sự cố)`
@@ -198,10 +200,32 @@ export function AssignmentModals({
             ? "Bắt buộc nhập lý do bác bỏ (tối thiểu 3 ký tự) theo quy chuẩn kiểm toán an toàn."
             : "A dismissal reason (minimum 3 characters) is required for safety audit compliance."
         }
+        footer={
+          <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end sm:gap-2.5">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClearBatchReject}
+              disabled={batchReviewPending}
+              className="w-full sm:w-auto"
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              form="assignment-batch-reject-form"
+              type="submit"
+              variant="danger"
+              disabled={batchReviewPending}
+              className="w-full sm:w-auto"
+            >
+              {isVietnamese ? "Xác nhận bác bỏ" : "Confirm Dismiss"}
+            </Button>
+          </div>
+        }
       >
-        <form onSubmit={onSubmitBatchReject} className="space-y-4 pt-2">
+        <form id="assignment-batch-reject-form" onSubmit={onSubmitBatchReject} className="space-y-3">
           {batchRejectError && (
-            <p className="rounded-xl border border-danger/30 bg-danger/10 p-2.5 text-xs text-danger">
+            <p className="rounded-xl border border-danger/30 bg-danger/10 p-2.5 text-xs text-danger break-words">
               {batchRejectError}
             </p>
           )}
@@ -214,25 +238,8 @@ export function AssignmentModals({
                 ? "Ví dụ: Ánh sáng phản chiếu / nhận diện nhầm vật thể..."
                 : "Example: Light reflection / false object detection..."
             }
-            className="w-full rounded-xl border border-border/50 bg-background p-3 text-xs text-foreground focus:border-primary focus:outline-none"
+            className="w-full resize-none rounded-xl border border-border/50 bg-background p-3 text-xs sm:text-sm text-foreground focus:border-primary focus:outline-none"
           />
-          <div className="flex items-center justify-end gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onClearBatchReject}
-              disabled={batchReviewPending}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              variant="danger"
-              disabled={batchReviewPending}
-            >
-              {isVietnamese ? "Xác nhận bác bỏ" : "Confirm Dismiss"}
-            </Button>
-          </div>
         </form>
       </Dialog>
 
@@ -242,6 +249,8 @@ export function AssignmentModals({
         onOpenChange={(open) => {
           if (!open) onClearBatchClose();
         }}
+        size="sm"
+        preventClose={batchActionPending}
         title={
           isVietnamese
             ? `Nghiệm thu & Đóng hàng loạt (${batchCloseItems?.length ?? 0} hồ sơ)`
@@ -252,8 +261,32 @@ export function AssignmentModals({
             ? "Sau khi đóng, hồ sơ sự cố sẽ được khóa vĩnh viễn để lưu trữ kiểm toán an toàn."
             : "Once closed, incident records are permanently locked for safety audit archiving."
         }
+        footer={
+          <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end sm:gap-2.5">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClearBatchClose}
+              disabled={batchActionPending}
+              className="w-full sm:w-auto"
+            >
+              {t("common.cancel")}
+            </Button>
+            <Button
+              form="assignment-batch-close-form"
+              type="submit"
+              variant="primary"
+              disabled={batchActionPending}
+              className="w-full sm:w-auto bg-emerald-600 text-white hover:bg-emerald-700"
+            >
+              {isVietnamese
+                ? `Xác nhận Đóng (${batchCloseItems?.length ?? 0})`
+                : `Confirm Close (${batchCloseItems?.length ?? 0})`}
+            </Button>
+          </div>
+        }
       >
-        <form onSubmit={onSubmitBatchClose} className="space-y-4 pt-2">
+        <form id="assignment-batch-close-form" onSubmit={onSubmitBatchClose} className="space-y-3">
           <textarea
             rows={3}
             value={batchCloseNote}
@@ -263,28 +296,8 @@ export function AssignmentModals({
                 ? "Ghi chú nghiệm thu (tùy chọn): Đã kiểm tra ảnh hiện trường sau khắc phục đạt yêu cầu..."
                 : "Acceptance note (optional): Verified field remediation evidence..."
             }
-            className="w-full rounded-xl border border-border/50 bg-background p-3 text-xs text-foreground focus:border-primary focus:outline-none"
+            className="w-full resize-none rounded-xl border border-border/50 bg-background p-3 text-xs sm:text-sm text-foreground focus:border-primary focus:outline-none"
           />
-          <div className="flex items-center justify-end gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onClearBatchClose}
-              disabled={batchActionPending}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={batchActionPending}
-              className="bg-emerald-600 text-white hover:bg-emerald-700"
-            >
-              {isVietnamese
-                ? `Xác nhận Đóng (${batchCloseItems?.length ?? 0})`
-                : `Confirm Close (${batchCloseItems?.length ?? 0})`}
-            </Button>
-          </div>
         </form>
       </Dialog>
     </>

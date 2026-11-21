@@ -5,3 +5,4 @@ export * from "./use-site-safety-config";
 export * from "./use-site-zones";
 export * from "./use-restricted-areas";
 export * from "./use-site-mutations";
+export * from "./use-site-compliance";

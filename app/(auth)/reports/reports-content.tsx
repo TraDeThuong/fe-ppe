@@ -2,36 +2,45 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  BarChart3,
-  Calculator,
-  FilePlus2,
-  FileText,
-  History,
-  LayoutTemplate,
-  RefreshCw,
-} from "lucide-react";
-import { useTableState } from "@/hooks/use-table-state";
-import { PageHeader } from "@/components/features/app-shell/page-header";
-import { Button } from "@/components/ui/button";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { toast } from "@/lib/toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import { reportingService } from "@/services/reporting.service";
+import { incidentService } from "@/services/incident.service";
+import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
+import { addCalendarDays, vietnamToday } from "@/lib/dashboard-data";
 import {
+  canAccessGeneratedReport,
+  computeReportArchiveStats,
+  computeResolutionFunnel,
+  computeRoleSegmentedPersonnelStats,
+  computeSiteComparisonStats,
+  filterIncidentsInDateRange,
+  getReportDateRange,
+  getVietnamDateBoundaries,
+  reconcileReportTrends,
+} from "@/lib/report-analytics-data";
+import {
+  ReportsHeader,
+  ReportsArchiveKpiSummary,
+  ReportTypeOverviewStrip,
+  ReportHistoryList,
+  ReportInlineViewer,
   ReportKpiSummary,
   ReportFilterToolbar,
   ReportTrendChart,
   ReportViolationDonut,
-  ReportCameraRanking,
+  ReportResolutionFunnelCard,
+  ReportPersonnelPerformanceCard,
   ReportTemplateCards,
-  ReportHistoryTable,
   GenerateReportModal,
   ReportPreviewModal,
   CreateReportTemplateModal,
-  AggregateDailyModal,
+  type ReportsPageTab,
+  type ReportArchiveKpiKey,
   type ReportStatKey,
   type TrendGroupBy,
 } from "@/components/features/reports";
@@ -43,14 +52,14 @@ import {
   useReportTemplates,
   useCreateReportTemplate,
   useDeleteReportTemplate,
-  useAggregateDaily,
   useReportHistory,
   useGenerateReport,
-  useIncidents,
   useEntityLookup,
+  useHydratedIncidents,
 } from "@/hooks";
 import type {
   CameraStatDto,
+  IncidentItem,
   ReportGenerationDto,
   ReportTemplateDto,
   ReportingFilterParams,
@@ -63,6 +72,7 @@ const STAT_TO_URL: Record<ReportStatKey, string> = {
   totalViolations: "violations",
   complianceRate: "compliance",
   mttr: "mttr",
+  pendingReview: "pending",
   reportsCount: "reports",
 };
 
@@ -74,58 +84,142 @@ const URL_TO_STAT: Record<string, ReportStatKey> = {
   "compliance-rate": "complianceRate",
   complianceRate: "complianceRate",
   mttr: "mttr",
+  pending: "pendingReview",
+  "pending-review": "pendingReview",
+  pendingReview: "pendingReview",
   reports: "reportsCount",
   "reports-count": "reportsCount",
   reportsCount: "reportsCount",
 };
 
 const MAX_DATE_RANGE_DAYS = 90;
+const MAX_REPORT_INCIDENT_PAGES = 50;
+const MAX_CONCURRENT_DETAIL_FETCHES = 4;
+let activeDetailFetches = 0;
+let detailRateLimitedUntilMs = 0;
+const detailPendingQueue: Array<() => void> = [];
 
-function getIsoWeekKey(dateStr: string): string {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  if (Number.isNaN(d.getTime())) return dateStr;
-  const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const dayNr = (target.getUTCDay() + 6) % 7;
-  target.setUTCDate(target.getUTCDate() - dayNr + 3);
-  const firstThursday = target.valueOf();
-  target.setUTCMonth(0, 1);
-  if (target.getUTCDay() !== 4) {
-    target.setUTCMonth(0, 1 + (((4 - target.getUTCDay()) + 7) % 7));
+async function fetchIncidentDetailThrottled(
+  incidentId: string,
+  signal?: AbortSignal,
+): Promise<IncidentItem | null> {
+  if (Date.now() < detailRateLimitedUntilMs) return null;
+  if (activeDetailFetches >= MAX_CONCURRENT_DETAIL_FETCHES) {
+    await new Promise<void>((resolve) => {
+      detailPendingQueue.push(resolve);
+    });
   }
-  const weekNum = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
-  const weekYear = new Date(firstThursday).getUTCFullYear();
-  return `${weekYear}-W${String(weekNum).padStart(2, "0")}`;
+  if (signal?.aborted || Date.now() < detailRateLimitedUntilMs) {
+    const next = detailPendingQueue.shift();
+    if (next) next();
+    return null;
+  }
+  activeDetailFetches += 1;
+  try {
+    return await incidentService.getIncidentById(incidentId, {
+      signal,
+      suppressToast: true,
+    });
+  } catch (err) {
+    if (err && typeof err === "object" && "status" in err && Number((err as { status?: unknown }).status) === 429) {
+      detailRateLimitedUntilMs = Date.now() + 20 * 1000;
+      return null;
+    }
+    return null;
+  } finally {
+    activeDetailFetches = Math.max(0, activeDetailFetches - 1);
+    const next = detailPendingQueue.shift();
+    if (next) next();
+  }
 }
 
-function computeDateRange(period: string): { startDate: string; endDate: string } {
-  const now = new Date();
-  const endDate = now.toISOString().slice(0, 10);
+async function fetchAllIncidentsInRange(
+  params: { siteId?: string; fromDate: string; toDate: string },
+  signal?: AbortSignal,
+): Promise<IncidentItem[]> {
+  const firstPage = await incidentService.getIncidents(
+    {
+      siteId: params.siteId,
+      fromDate: params.fromDate,
+      toDate: params.toDate,
+      page: 1,
+      limit: 100,
+      sortBy: "detectedAt",
+      sortOrder: "desc",
+      includeAssignments: true,
+    },
+    { signal },
+  );
 
-  const daysBack = period === "today" ? 0 : period === "7d" ? 7 : 30;
-  const start = new Date(now.getTime() - daysBack * 86400000);
-  const startDate = start.toISOString().slice(0, 10);
+  const byId = new Map<string, IncidentItem>();
+  for (const item of firstPage.items) {
+    byId.set(item.id, item);
+  }
 
-  return { startDate, endDate };
+  const totalPages = Math.min(firstPage.meta?.totalPages ?? 1, MAX_REPORT_INCIDENT_PAGES);
+  for (let page = 2; page <= totalPages; page += 3) {
+    signal?.throwIfAborted();
+    const batchPages = Array.from(
+      { length: Math.min(3, totalPages - page + 1) },
+      (_, offset) =>
+        incidentService.getIncidents(
+          {
+            siteId: params.siteId,
+            fromDate: params.fromDate,
+            toDate: params.toDate,
+            page: page + offset,
+            limit: 100,
+            sortBy: "detectedAt",
+            sortOrder: "desc",
+            includeAssignments: true,
+          },
+          { signal },
+        ),
+    );
+    const results = await Promise.all(batchPages);
+    for (const res of results) {
+      for (const item of res.items) {
+        byId.set(item.id, item);
+      }
+    }
+  }
+
+  return Array.from(byId.values());
 }
 
 export default function ReportsContent() {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const { user } = useAuth();
-  const canExportReports = useCan()("PPE_REPORTING_EXPORT");
+  const can = useCan();
+  const canExportReports = can("PPE_REPORTING_EXPORT");
+  const canViewUsers = can("USER_READ");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const createTemplateMutation = useCreateReportTemplate();
   const deleteTemplateMutation = useDeleteReportTemplate();
-  const aggregateDailyMutation = useAggregateDaily();
   const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
-  const [isAggregateOpen, setIsAggregateOpen] = useState(false);
   const [deleteTemplateTarget, setDeleteTemplateTarget] =
     useState<ReportTemplateDto | null>(null);
 
-  // URL state synchronization for stats
+  // URL state synchronization for top-level tab & stats
+  const tabParam = searchParams.get("tab");
+  const activeTab: ReportsPageTab = tabParam === "reports" ? "reports" : "analytics";
+
+  const handleTabChange = (nextTab: ReportsPageTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextTab === "reports") {
+      params.set("tab", "reports");
+      params.delete("stat");
+    } else {
+      params.delete("tab");
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
   const statParam = searchParams.get("stat");
   const selectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
 
@@ -140,31 +234,30 @@ export default function ReportsContent() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  // Filter States
+  // Filter States (Analytics Tab)
   const [selectedSiteId, setSelectedSiteId] = useState("");
   const [period, setPeriod] = useState("30d");
   const [customStartDate, setCustomStartDate] = useState(
-    () => new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10)
+    () => addCalendarDays(vietnamToday(), -29)
   );
   const [customEndDate, setCustomEndDate] = useState(
-    () => new Date().toISOString().slice(0, 10)
+    () => vietnamToday()
   );
+  const [trendGroupBy, setTrendGroupBy] = useState<TrendGroupBy>("DAY");
 
+  // Filter & Selection States (Reports Tab)
+  const [reportsSiteId, setReportsSiteId] = useState("");
   const [historyType, setHistoryType] = useState("");
   const [historyStatus, setHistoryStatus] = useState("");
-  const [exportsView, setExportsView] = useState<"history" | "templates">("history");
-  const [trendGroupBy, setTrendGroupBy] = useState<TrendGroupBy>("DAY");
-  const historyTable = useTableState([], `${selectedSiteId}:${historyType}:${historyStatus}`);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [archiveKpiFilter, setArchiveKpiFilter] = useState<ReportArchiveKpiKey | null>(null);
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const historyPageSize = 10;
 
-  const { startDate, endDate } = useMemo(() => {
-    if (period === "custom") {
-      return {
-        startDate: customStartDate || computeDateRange("30d").startDate,
-        endDate: customEndDate || computeDateRange("30d").endDate,
-      };
-    }
-    return computeDateRange(period);
-  }, [period, customStartDate, customEndDate]);
+  const { startDate, endDate } = useMemo(
+    () => getReportDateRange(period, customStartDate, customEndDate),
+    [period, customStartDate, customEndDate],
+  );
 
   const rangeError = useMemo(() => {
     if (!startDate || !endDate) return null;
@@ -238,35 +331,146 @@ export default function ReportsContent() {
     data: historyResult,
     isLoading: isHistoryLoading,
     isFetching: isHistoryFetching,
-    error: historyError,
     refetch: refetchHistory,
   } = useReportHistory({
-    page: historyTable.pagination.pageIndex + 1,
-    limit: historyTable.pagination.pageSize,
+    page: historyPage,
+    limit: historyPageSize,
     reportType: historyType || undefined,
     status: historyStatus || undefined,
-    siteId: selectedSiteId || undefined,
+    siteId: reportsSiteId || undefined,
   });
 
-  // Live Incidents Query (đảm bảo luôn đồng bộ với ppe_incident_db thực tế)
+  const { fromDate, toDate } = useMemo(
+    () => getVietnamDateBoundaries(startDate, endDate),
+    [startDate, endDate],
+  );
+
+  // Live Incidents Query (đảm bảo luôn đồng bộ đầy đủ với ppe_incident_db thực tế trong khoảng thời gian chọn)
   const {
-    data: incidentsData,
+    data: periodIncidents = [],
     isLoading: isIncidentsLoading,
     refetch: refetchIncidents,
-  } = useIncidents({
-    siteId: selectedSiteId || undefined,
-    limit: 100,
+  } = useQuery({
+    queryKey: [
+      ...incidentKeys.lists(),
+      "reports-period",
+      { siteId: selectedSiteId || undefined, fromDate, toDate },
+    ],
+    enabled: isDateRangeValid,
+    staleTime: 30 * 1000,
+    queryFn: ({ signal }) =>
+      fetchAllIncidentsInRange(
+        { siteId: selectedSiteId || undefined, fromDate, toDate },
+        signal,
+      ),
   });
 
-  const filteredIncidents = useMemo(() => {
-    const all = incidentsData?.items ?? [];
-    return all.filter((inc) => {
-      if (selectedSiteId && inc.siteId !== selectedSiteId) return false;
-      const d = (inc.detectedAt || inc.createdAt || "").slice(0, 10);
-      if (!d) return true;
-      return d >= startDate && d <= endDate;
+  const filteredIncidents = useMemo(
+    () =>
+      filterIncidentsInDateRange(
+        periodIncidents,
+        startDate,
+        endDate,
+        selectedSiteId || undefined,
+      ),
+    [periodIncidents, selectedSiteId, startDate, endDate],
+  );
+
+  // Hydrate assignments & directory user names for Row 2 Funnel & Personnel Performance
+  const {
+    incidents: hydratedIncidents,
+    isHydratingAssignments,
+    usersById,
+    siteManagersBySiteId,
+    siteOfficersBySiteId,
+    allUsers,
+  } = useHydratedIncidents(filteredIncidents, {
+    enabled: activeTab === "analytics" && isDateRangeValid,
+    includeClosed: true,
+    maxHydrateCount: 60,
+  });
+
+  // Hydrate statusHistory (via throttled GET /incidents/:id) for non-PENDING incidents
+  // so Safety Manager reviews/closures & Admin interventions are accurately attributed without BE changes.
+  const historyFallbackIds = useMemo(() => {
+    if (activeTab !== "analytics" || !isDateRangeValid || isHydratingAssignments) return [];
+    const ids: string[] = [];
+    for (const inc of hydratedIncidents) {
+      const status = String(inc.status || "").toUpperCase();
+      if (status === "PENDING_REVIEW") continue;
+      if (Array.isArray(inc.statusHistory) && inc.statusHistory.length > 0) continue;
+      ids.push(inc.id);
+      if (ids.length >= 60) break;
+    }
+    return ids;
+  }, [activeTab, isDateRangeValid, isHydratingAssignments, hydratedIncidents]);
+
+  const detailHistoryQueries = useQueries({
+    queries: historyFallbackIds.map((id) => ({
+      queryKey: incidentKeys.detail(id),
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        fetchIncidentDetailThrottled(id, signal),
+      staleTime: 5 * 60 * 1000,
+      gcTime: 15 * 60 * 1000,
+      retry: false,
+      refetchOnWindowFocus: false,
+      enabled: activeTab === "analytics" && isDateRangeValid,
+    })),
+  });
+
+  const isHydratingHistory = detailHistoryQueries.some((q) => q.isLoading);
+
+  const enrichedIncidents = useMemo(() => {
+    if (historyFallbackIds.length === 0) return hydratedIncidents;
+    const detailMap = new Map<string, IncidentItem>();
+    historyFallbackIds.forEach((id, idx) => {
+      const detail = detailHistoryQueries[idx]?.data;
+      if (detail) detailMap.set(id, detail);
     });
-  }, [incidentsData, selectedSiteId, startDate, endDate]);
+    if (detailMap.size === 0) return hydratedIncidents;
+    return hydratedIncidents.map((inc) => {
+      const detail = detailMap.get(inc.id);
+      if (!detail) return inc;
+      return {
+        ...inc,
+        assignments: detail.assignments?.length ? detail.assignments : inc.assignments,
+        statusHistory: detail.statusHistory?.length ? detail.statusHistory : inc.statusHistory,
+      };
+    });
+  }, [hydratedIncidents, historyFallbackIds, detailHistoryQueries]);
+
+  const resolutionFunnel = useMemo(
+    () => computeResolutionFunnel(enrichedIncidents),
+    [enrichedIncidents],
+  );
+
+  const siteComparisonStats = useMemo(() => {
+    const scopedSites = selectedSiteId
+      ? sites.filter((site) => site.id === selectedSiteId)
+      : sites;
+    return computeSiteComparisonStats(enrichedIncidents, scopedSites, getSiteName);
+  }, [enrichedIncidents, sites, selectedSiteId, getSiteName]);
+
+  const personnelPerformance = useMemo(
+    () =>
+      computeRoleSegmentedPersonnelStats(enrichedIncidents, {
+        usersById,
+        allUsers,
+        siteManagersBySiteId,
+        siteOfficersBySiteId,
+        selectedSiteId,
+        resolveSiteName: getSiteName,
+      }),
+    [
+      enrichedIncidents,
+      usersById,
+      allUsers,
+      siteManagersBySiteId,
+      siteOfficersBySiteId,
+      selectedSiteId,
+      getSiteName,
+    ],
+  );
 
   // Reconcile Summary: ưu tiên số liệu đầy đủ nhất giữa Reporting Rollup và Live Incidents
   const isRollupAuthoritative = useMemo(() => {
@@ -381,41 +585,19 @@ export default function ReportsContent() {
     };
   }, [isRollupAuthoritative, rawSummary, filteredIncidents, startDate, endDate]);
 
-  // Reconcile Trends (hỗ trợ gom nhóm DAY / WEEK / MONTH đồng bộ BE)
-  const trends: TrendItemDto[] = useMemo(() => {
-    if (isRollupAuthoritative && rawTrends.length > 0) return rawTrends;
-    if (filteredIncidents.length === 0) return rawTrends;
-
-    const map = new Map<string, TrendItemDto>();
-    for (const inc of filteredIncidents) {
-      const rawDateKey = (inc.detectedAt || inc.createdAt || "").slice(0, 10);
-      if (!rawDateKey) continue;
-      const dateKey =
-        trendGroupBy === "WEEK"
-          ? getIsoWeekKey(rawDateKey)
-          : trendGroupBy === "MONTH"
-            ? rawDateKey.slice(0, 7)
-            : rawDateKey;
-      const existing = map.get(dateKey) || {
-        date: dateKey,
-        totalIncidents: 0,
-        trueViolations: 0,
-        falseAlarms: 0,
-        resolvedCount: 0,
-      };
-      existing.totalIncidents += 1;
-      if (inc.status === "DISMISSED") {
-        existing.falseAlarms += 1;
-      } else {
-        existing.trueViolations += 1;
-      }
-      if (inc.status === "RESOLVED" || inc.status === "CLOSED") {
-        existing.resolvedCount += 1;
-      }
-      map.set(dateKey, existing);
-    }
-    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [isRollupAuthoritative, rawTrends, filteredIncidents, trendGroupBy]);
+  // Reconcile Trends (hỗ trợ gom nhóm DAY / WEEK / MONTH đồng bộ BE, lấp đầy chuỗi thời gian liên tục)
+  const trends: TrendItemDto[] = useMemo(
+    () =>
+      reconcileReportTrends({
+        rawTrends,
+        rawSummary,
+        filteredIncidents,
+        startDate,
+        endDate,
+        groupBy: trendGroupBy,
+      }),
+    [rawTrends, rawSummary, filteredIncidents, startDate, endDate, trendGroupBy],
+  );
 
   // Reconcile Violation Distribution
   const distribution: ViolationTypeStatDto[] = useMemo(() => {
@@ -560,9 +742,81 @@ export default function ReportsContent() {
     prevProcessingIdsRef.current = currentlyProcessing;
   }, [historyResult?.items, locale, t]);
 
+  const isAdminUser = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+
+  const archiveStats = useMemo(
+    () =>
+      computeReportArchiveStats(
+        history,
+        templates,
+        historyResult?.meta?.total,
+      ),
+    [history, templates, historyResult?.meta?.total],
+  );
+
+  // Auto-select first accessible completed report (or first item) for inline preview
+  useEffect(() => {
+    if (history.length === 0) {
+      if (selectedReportId !== null) setSelectedReportId(null);
+      return;
+    }
+    const stillExists = history.some((item) => item.id === selectedReportId);
+    if (stillExists) return;
+
+    const preferred =
+      history.find(
+        (item) =>
+          item.status === "COMPLETED" &&
+          canAccessGeneratedReport(item, user?.id, isAdminUser),
+      ) || history[0];
+    setSelectedReportId(preferred?.id ?? null);
+  }, [history, selectedReportId, user?.id, isAdminUser]);
+
+  const selectedReport = useMemo(
+    () => history.find((item) => item.id === selectedReportId) ?? null,
+    [history, selectedReportId],
+  );
+
   const handleOpenGenerate = (template?: ReportTemplateDto) => {
     setSelectedTemplate(template || null);
     setIsGenerateOpen(true);
+  };
+
+  const handleQuickGenerateForType = (reportType: string) => {
+    const active = templates.filter(
+      (tpl) => !tpl.status || tpl.status.toUpperCase() === "ACTIVE",
+    );
+    const match = active.find((tpl) => {
+      const code = tpl.code.toUpperCase();
+      if (reportType === "DAILY") return code.includes("DAILY");
+      if (reportType === "WEEKLY") return code.includes("WEEKLY");
+      if (reportType === "MONTHLY") return code.includes("MONTHLY");
+      if (reportType === "VIOLATION_SUMMARY") return code.includes("VIOLATION");
+      if (reportType === "AI_PERFORMANCE") return code.includes("AI");
+      return false;
+    });
+    handleOpenGenerate(match || active[0]);
+  };
+
+  const handleSelectArchiveKpi = (key: ReportArchiveKpiKey) => {
+    setArchiveKpiFilter((prev) => (prev === key ? null : key));
+    if (key === "all") {
+      setHistoryType("");
+      setHistoryStatus("");
+      setHistoryPage(1);
+    } else if (key === "periodic") {
+      setHistoryType((prev) => (prev === "DAILY" ? "" : "DAILY"));
+      setHistoryPage(1);
+    } else if (key === "specialized") {
+      setHistoryType((prev) =>
+        prev === "VIOLATION_SUMMARY" ? "" : "VIOLATION_SUMMARY",
+      );
+      setHistoryPage(1);
+    } else if (key === "templates") {
+      document
+        .getElementById("reports-templates-section")
+        ?.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   const handleOpenPreview = (report: ReportGenerationDto) => {
@@ -580,267 +834,196 @@ export default function ReportsContent() {
     refetchIncidents();
   };
 
-  const isRefetching = isSummaryRefetching;
+  const isRefetching = isSummaryRefetching || isHistoryFetching;
   const isOverallLoading = isSummaryLoading && isIncidentsLoading;
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <PageHeader
-        icon={BarChart3}
-        title={t("reports.title")}
-        description={t("reports.description")}
-        badge="Analytics & Exports"
-        badgeIcon={BarChart3}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="ghost"
-              onClick={handleRefreshAll}
-              disabled={isRefetching}
-              className="gap-2"
-            >
-              <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
-              <span>{t("common.refresh")}</span>
-            </Button>
-
-            {canExportReports && (
-              <>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsAggregateOpen(true)}
-                  className="gap-1.5"
-                >
-                  <Calculator className="h-4 w-4 text-primary" />
-                  <span>{isVietnamese ? "Tổng hợp ngày" : "Aggregate Daily"}</span>
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => handleOpenGenerate()}
-                  className="gap-1.5"
-                >
-                  <FilePlus2 className="h-4 w-4" />
-                  <span>{t("reports.toolbar.generateBtn")}</span>
-                </Button>
-              </>
-            )}
-          </div>
-        }
+      {/* Header 2 tầng đồng bộ phong cách CameraFleetHeader */}
+      <ReportsHeader
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        totalIncidents={summary.totalIncidents}
+        complianceRate={summary.complianceRate}
+        totalReports={archiveStats.totalReports}
+        activeTemplates={archiveStats.activeTemplatesCount}
+        isRefreshing={isRefetching}
+        canExportReports={canExportReports}
+        onRefreshAll={handleRefreshAll}
+        onGenerateReport={() => handleOpenGenerate()}
+        onCreateTemplate={() => setIsCreateTemplateOpen(true)}
       />
 
-      {/* Bento Console KPI Summary with Interactive Detail Panel */}
-      <ReportKpiSummary
-        summary={summary}
-        reportsCount={historyResult?.meta?.total ?? history.length}
-        loading={isOverallLoading}
-        selectedStat={selectedStat}
-        onSelectStat={handleSelectStat}
-        distribution={distribution}
-        trends={trends}
-        cameraRankings={cameraRankings}
-        templates={templates}
-        history={history}
-        sites={sites}
-        incidents={filteredIncidents}
-        onGenerateReport={(tpl) => handleOpenGenerate(tpl)}
-        onViewHistory={() => setExportsView("history")}
-      />
-
-      {/* ===================================================================== */}
-      {/* SECTION 1: THỐNG KÊ & PHÂN TÍCH AN TOÀN (Safety Analytics)            */}
-      {/* ===================================================================== */}
-      <section className="space-y-4">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface text-primary shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]">
-              <BarChart3 className="h-4 w-4" />
-            </div>
-            <div>
-              <h2 className="text-sm font-extrabold tracking-tight text-foreground sm:text-base">
-                {t("reports.sections.analyticsTitle")}
-              </h2>
-              <p className="text-[11px] text-muted-foreground">
-                {t("reports.sections.analyticsDesc")}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Filter Toolbar (Scope & Timeframe for Analytics) */}
-        <ReportFilterToolbar
-          sites={sites}
-          selectedSiteId={selectedSiteId}
-          onSiteChange={setSelectedSiteId}
-          period={period}
-          onPeriodChange={setPeriod}
-          startDate={customStartDate}
-          endDate={customEndDate}
-          activeDateRangeLabel={activeDateRangeLabel}
-          rangeError={rangeError}
-          onStartDateChange={setCustomStartDate}
-          onEndDateChange={setCustomEndDate}
-        />
-
-        {/* 2-Column Analytics Charts: Trends (8 cols) & Violation Breakdown (4 cols) */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
-          <div className="flex flex-col lg:col-span-8">
-            <ReportTrendChart
-              trends={trends}
-              loading={isTrendsLoading && isIncidentsLoading}
-              dateRangeLabel={activeDateRangeLabel}
-              groupBy={trendGroupBy}
-              onGroupByChange={setTrendGroupBy}
-            />
-          </div>
-          <div className="flex flex-col lg:col-span-4">
-            <ReportViolationDonut
-              distribution={distribution}
-              loading={isDistributionLoading && isIncidentsLoading}
-            />
-          </div>
-        </div>
-
-        {/* Camera Violations Ranking */}
-        <ReportCameraRanking
-          rankings={cameraRankings}
-          loading={isOverallLoading}
-        />
-      </section>
-
-      {/* ===================================================================== */}
-      {/* SECTION 2: BÁO CÁO & XUẤT TÀI LIỆU (Reports & Exports)               */}
-      {/* ===================================================================== */}
-      <section
-        id="reports-history-section"
-        className="space-y-4 border-t border-border/40 pt-6"
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface text-primary shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]">
-              <FileText className="h-4 w-4" />
-            </div>
-            <div>
-              <h2 className="text-sm font-extrabold tracking-tight text-foreground sm:text-base">
-                {t("reports.sections.exportsTitle")}
-              </h2>
-              <p className="text-[11px] text-muted-foreground">
-                {t("reports.sections.exportsDesc")}
-              </p>
-            </div>
-          </div>
-
-          {/* Segmented Switch: Lịch sử Xuất Báo cáo | Mẫu Báo cáo Tiêu chuẩn */}
-          <div className="flex w-full items-center gap-1 rounded-xl bg-background/75 p-1 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:w-fit">
-            <button
-              type="button"
-              onClick={() => setExportsView("history")}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 sm:flex-none ${
-                exportsView === "history"
-                  ? "bg-surface text-primary shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <History className="h-3.5 w-3.5" />
-              <span>{t("reports.sections.tabHistory")}</span>
-              <span className="rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums text-primary">
-                {historyResult?.meta?.total ?? history.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setExportsView("templates")}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all duration-200 sm:flex-none ${
-                exportsView === "templates"
-                  ? "bg-surface text-primary shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <LayoutTemplate className="h-3.5 w-3.5" />
-              <span>{t("reports.sections.tabTemplates")}</span>
-              <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-extrabold tabular-nums text-muted-foreground">
-                {templates.length}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {exportsView === "history" ? (
-          <ReportHistoryTable
-            history={history}
-            loading={isHistoryLoading}
-            onPreview={handleOpenPreview}
-            currentUserId={user?.id}
-            isAdmin={user?.role === "ADMIN" || user?.role === "SUPER_ADMIN"}
-            toolbarFilters={
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={historyType}
-                  onChange={(e) => setHistoryType(e.target.value)}
-                  aria-label={t("reports.history.type")}
-                  className="h-9 rounded-xl border border-border/40 bg-background px-2.5 text-xs font-semibold text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] focus:border-primary focus:outline-none"
-                >
-                  <option value="">
-                    {t("reports.history.type")}: {t("table.all")}
-                  </option>
-                  {[
-                    "DAILY",
-                    "WEEKLY",
-                    "MONTHLY",
-                    "VIOLATION_SUMMARY",
-                    "AI_PERFORMANCE",
-                  ].map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={historyStatus}
-                  onChange={(e) => setHistoryStatus(e.target.value)}
-                  aria-label={t("reports.history.status")}
-                  className="h-9 rounded-xl border border-border/40 bg-background px-2.5 text-xs font-semibold text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] focus:border-primary focus:outline-none"
-                >
-                  <option value="">
-                    {t("reports.history.status")}: {t("table.all")}
-                  </option>
-                  {["PENDING", "PROCESSING", "COMPLETED", "FAILED"].map(
-                    (value) => (
-                      <option key={value} value={value}>
-                        {value}
-                      </option>
-                    )
-                  )}
-                </select>
-              </div>
-            }
-            tableState={{
-              ...historyTable,
-              rowCount: historyResult?.meta?.total ?? history.length,
-              pageCount: historyResult?.meta?.totalPages ?? 1,
-              fetching: isHistoryFetching,
-              error: historyError,
-              onRetry: () => {
-                void refetchHistory();
-              },
-            }}
-          />
-        ) : (
-          <ReportTemplateCards
+      {activeTab === "analytics" ? (
+        /* =================================================================== */
+        /* TAB 01: THỐNG KÊ & PHÂN TÍCH AN TOÀN (Safety Analytics)             */
+        /* =================================================================== */
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* KPI riêng cho Tab Thống kê (4 thẻ an toàn + Detail Panel) */}
+          <ReportKpiSummary
+            summary={summary}
+            loading={isOverallLoading}
+            selectedStat={selectedStat}
+            onSelectStat={handleSelectStat}
+            distribution={distribution}
+            trends={trends}
+            cameraRankings={cameraRankings}
             templates={templates}
-            hideHeader
-            canExport={canExportReports}
-            onSelectTemplate={(tpl) => handleOpenGenerate(tpl)}
-            onCreateTemplate={
-              canExportReports ? () => setIsCreateTemplateOpen(true) : undefined
-            }
-            onDeleteTemplate={
-              canExportReports ? (tpl) => setDeleteTemplateTarget(tpl) : undefined
-            }
+            history={history}
+            sites={sites}
+            incidents={filteredIncidents}
+            onGenerateReport={(tpl) => handleOpenGenerate(tpl)}
+            onViewHistory={() => handleTabChange("reports")}
           />
-        )}
-      </section>
+
+          {/* Filter Toolbar (Scope & Timeframe for Analytics) */}
+          <ReportFilterToolbar
+            sites={sites}
+            selectedSiteId={selectedSiteId}
+            onSiteChange={setSelectedSiteId}
+            period={period}
+            onPeriodChange={setPeriod}
+            startDate={customStartDate}
+            endDate={customEndDate}
+            activeDateRangeLabel={activeDateRangeLabel}
+            rangeError={rangeError}
+            onStartDateChange={setCustomStartDate}
+            onEndDateChange={setCustomEndDate}
+          />
+
+          {/* Row 1: 2-Column Analytics Charts: Trends (8 cols) & Violation Breakdown (4 cols) */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
+            <div className="flex flex-col lg:col-span-8">
+              <ReportTrendChart
+                trends={trends}
+                loading={(isTrendsLoading || isIncidentsLoading) && trends.length === 0}
+                dateRangeLabel={activeDateRangeLabel}
+                groupBy={trendGroupBy}
+                onGroupByChange={setTrendGroupBy}
+              />
+            </div>
+            <div className="flex flex-col lg:col-span-4">
+              <ReportViolationDonut
+                distribution={distribution}
+                loading={(isDistributionLoading || isIncidentsLoading) && distribution.length === 0}
+              />
+            </div>
+          </div>
+
+          {/* Row 2: Resolution Funnel / Site Comparison (5 cols) & Personnel Performance (7 cols) */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
+            <div className="flex flex-col lg:col-span-5">
+              <ReportResolutionFunnelCard
+                funnel={resolutionFunnel}
+                siteStats={siteComparisonStats}
+                selectedSiteId={selectedSiteId}
+                onSelectSite={setSelectedSiteId}
+                loading={isIncidentsLoading && filteredIncidents.length === 0}
+              />
+            </div>
+            <div className="flex flex-col lg:col-span-7">
+              <ReportPersonnelPerformanceCard
+                summary={personnelPerformance}
+                loading={isIncidentsLoading && filteredIncidents.length === 0}
+                hydrating={isHydratingAssignments || isHydratingHistory}
+                canViewUsers={canViewUsers}
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* =================================================================== */
+        /* TAB 02: BÁO CÁO & XEM TÀI LIỆU TRỰC TIẾP (Reports & Inline View)   */
+        /* =================================================================== */
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* KPI riêng cho Tab Báo cáo */}
+          <ReportsArchiveKpiSummary
+            stats={archiveStats}
+            loading={isHistoryLoading}
+            activeFilter={archiveKpiFilter}
+            onSelectCard={handleSelectArchiveKpi}
+          />
+
+          {/* Danh mục 5 Loại Báo cáo Hệ thống */}
+          <ReportTypeOverviewStrip
+            selectedType={historyType}
+            onSelectType={(nextType) => {
+              setHistoryType(nextType);
+              setHistoryPage(1);
+            }}
+            countsByType={archiveStats.byType}
+            totalCount={archiveStats.totalReports}
+            templates={templates}
+            canExportReports={canExportReports}
+            onQuickGenerateForType={handleQuickGenerateForType}
+          />
+
+          {/* Master-Detail Workspace: Danh sách Hồ sơ (4 cols) + Trình xem Trực tiếp (8 cols) */}
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 items-stretch">
+            <div className="xl:col-span-4">
+              <ReportHistoryList
+                history={history}
+                selectedReportId={selectedReport?.id ?? null}
+                onSelectReport={(report) => setSelectedReportId(report.id)}
+                loading={isHistoryLoading}
+                fetching={isHistoryFetching}
+                onRefresh={() => {
+                  void refetchHistory();
+                }}
+                sites={sites}
+                selectedSiteId={reportsSiteId}
+                onSiteChange={(siteId) => {
+                  setReportsSiteId(siteId);
+                  setHistoryPage(1);
+                }}
+                selectedType={historyType}
+                onTypeChange={(type) => {
+                  setHistoryType(type);
+                  setHistoryPage(1);
+                }}
+                selectedStatus={historyStatus}
+                onStatusChange={(status) => {
+                  setHistoryStatus(status);
+                  setHistoryPage(1);
+                }}
+                page={historyPage}
+                pageCount={Math.max(1, historyResult?.meta?.totalPages ?? 1)}
+                total={historyResult?.meta?.total ?? history.length}
+                onPageChange={setHistoryPage}
+                currentUserId={user?.id}
+                isAdmin={isAdminUser}
+              />
+            </div>
+
+            <div className="xl:col-span-8">
+              <ReportInlineViewer
+                report={selectedReport}
+                currentUserId={user?.id}
+                isAdmin={isAdminUser}
+                onOpenModalPreview={handleOpenPreview}
+              />
+            </div>
+          </div>
+
+          {/* Danh mục Mẫu Báo cáo Tiêu chuẩn */}
+          <section
+            id="reports-templates-section"
+            className="border-t border-border/40 pt-6"
+          >
+            <ReportTemplateCards
+              templates={templates}
+              canExport={canExportReports}
+              onSelectTemplate={(tpl) => handleOpenGenerate(tpl)}
+              onCreateTemplate={
+                canExportReports ? () => setIsCreateTemplateOpen(true) : undefined
+              }
+              onDeleteTemplate={
+                canExportReports ? (tpl) => setDeleteTemplateTarget(tpl) : undefined
+              }
+            />
+          </section>
+        </div>
+      )}
 
       {/* Generate Report Modal */}
       <GenerateReportModal
@@ -849,7 +1032,7 @@ export default function ReportsContent() {
         templates={templates}
         sites={sites}
         selectedTemplate={selectedTemplate}
-        defaultSiteId={selectedSiteId}
+        defaultSiteId={activeTab === "reports" ? reportsSiteId || selectedSiteId : selectedSiteId}
         defaultStartDate={startDate}
         defaultEndDate={endDate}
         loading={generateMutation.isPending}
@@ -857,6 +1040,8 @@ export default function ReportsContent() {
           const createdReport = await generateMutation.mutateAsync(dto);
           setIsGenerateOpen(false);
           if (createdReport) {
+            setSelectedReportId(createdReport.id);
+            handleTabChange("reports");
             try {
               // Tự động tải file về máy tính ngay lập tức
               await reportingService.downloadReportFile(createdReport);
@@ -880,15 +1065,6 @@ export default function ReportsContent() {
         onOpenChange={setIsCreateTemplateOpen}
         loading={createTemplateMutation.isPending}
         onSubmit={(dto) => createTemplateMutation.mutateAsync(dto)}
-      />
-
-      <AggregateDailyModal
-        open={isAggregateOpen}
-        onOpenChange={setIsAggregateOpen}
-        sites={sites}
-        defaultSiteId={selectedSiteId}
-        loading={aggregateDailyMutation.isPending}
-        onSubmit={(payload) => aggregateDailyMutation.mutateAsync(payload)}
       />
 
       <ConfirmDialog
