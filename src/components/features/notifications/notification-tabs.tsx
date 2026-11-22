@@ -13,8 +13,7 @@ export type NotificationTabKey = "inbox" | "preferences" | "templates" | "emailL
 
 export function useNotificationTabAccess() {
   const can = useCan();
-  const canViewTemplates =
-    can("NOTIFICATION_TEMPLATE_READ") || can("NOTIFICATION_TEMPLATE_MANAGE");
+  const canViewTemplates = can("NOTIFICATION_TEMPLATE_READ");
   const canViewEmailLogs = can("NOTIFICATION_TEMPLATE_MANAGE");
   const canManageTemplates = can("NOTIFICATION_TEMPLATE_MANAGE");
   const canBroadcast = can("NOTIFICATION_CREATE");

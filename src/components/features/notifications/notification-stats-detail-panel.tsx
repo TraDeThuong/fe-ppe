@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/providers/locale-provider";
 import { useRealtime } from "@/contexts/RealtimeContext";
-import { isNotificationRead } from "@/lib/notification-inbox";
+import { getNotificationChannels, isNotificationRead } from "@/lib/notification-inbox";
 import { notificationIncidentTarget } from "@/lib/incident-group";
 import { stripEmojis } from "@/lib/strip-emojis";
 import { useNotificationSound } from "@/hooks/notifications/use-notification-sound";
@@ -71,6 +71,12 @@ function getSeverityBadge(severity?: NotificationSeverity, isVietnamese: boolean
       return (
         <Badge variant="warning" size="sm" shape="pill" className="text-[10px] font-bold">
           {isVietnamese ? "Mức cao" : "High"}
+        </Badge>
+      );
+    case "MEDIUM":
+      return (
+        <Badge variant="info" size="sm" shape="pill" className="text-[10px] font-semibold">
+          {isVietnamese ? "Trung bình" : "Medium"}
         </Badge>
       );
     case "NORMAL":
@@ -135,7 +141,7 @@ export function NotificationStatsDetailPanel({
     for (const item of notifications) {
       if (item.severity === "CRITICAL") critical++;
       else if (item.severity === "HIGH") high++;
-      else if (item.severity === "NORMAL") normal++;
+      else if (item.severity === "MEDIUM" || item.severity === "NORMAL") normal++;
       else low++;
     }
     return { critical, high, normal, low };
@@ -148,11 +154,13 @@ export function NotificationStatsDetailPanel({
     let webhook = 0;
     let zalo = 0;
     for (const item of notifications) {
-      if (item.channel === "IN_APP" || item.channel === "WEB") inApp++;
-      else if (item.channel === "EMAIL") email++;
-      else if (item.channel === "WEBHOOK") webhook++;
-      else if (item.channel === "ZALO_ZNS") zalo++;
-      else inApp++;
+      for (const ch of getNotificationChannels(item)) {
+        if (ch === "IN_APP" || ch === "WEB") inApp++;
+        else if (ch === "EMAIL") email++;
+        else if (ch === "WEBHOOK") webhook++;
+        else if (ch === "ZALO_ZNS") zalo++;
+        else inApp++;
+      }
     }
     return { inApp, email, webhook, zalo };
   }, [notifications]);
@@ -401,7 +409,7 @@ export function NotificationStatsDetailPanel({
                       </span>
                       {getSeverityBadge(item.severity, isVietnamese)}
                       <span className="font-mono text-[9px] font-medium text-primary/80 px-1.5 py-0.5 rounded-md border border-primary/15 bg-primary/[0.05]">
-                        {item.channel}
+                        {getNotificationChannels(item).join(" · ")}
                       </span>
                     </div>
                     <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">

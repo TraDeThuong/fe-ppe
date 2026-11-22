@@ -370,7 +370,7 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
       </div>
 
       <ResourceAuditTrailCard
-        targetType="SITE"
+        targetType="PPE_SITE"
         targetId={site.id}
         title={isVietnamese ? "Nhật ký Tác động Công trường" : "Site Audit Trail"}
       />

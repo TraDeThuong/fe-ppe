@@ -48,15 +48,22 @@ export function ScheduledTasksScreen() {
   const { t, locale } = useLocale();
 
   const [search, setSearch] = useState("");
-  const debouncedSearch = useDebounce(search, 300);
   const [filter, setFilter] = useState<CronScheduleFilter>("all");
   const [viewMode, setViewMode] = useState<CronViewMode>("table");
   const [selectedStat, setSelectedStat] = useState<CronStatKey | null>(null);
 
-  const canRead = canReadCron(status, user?.permissions ?? []);
-  const canManage = canRead && Boolean(user?.permissions.includes("CRON_JOB_MANAGE"));
-  const canReadAudit = Boolean(user?.permissions.includes("AUDIT_LOG_READ"));
-  const query = useCronJobs(canRead, debouncedSearch);
+  const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
+  const canRead =
+    status === "authenticated" &&
+    (isAdmin || canReadCron(status, user?.permissions ?? []));
+  const canManage =
+    canRead && (isAdmin || Boolean(user?.permissions.includes("CRON_JOB_MANAGE")));
+  const canReadAudit =
+    status === "authenticated" &&
+    (isAdmin || Boolean(user?.permissions.includes("AUDIT_LOG_READ")));
+  // Luôn tải toàn bộ danh sách cron job (~5–10 jobs) để lọc client-side đa ngôn ngữ,
+  // giữ chính xác KPI tổng quan, phát hiện xung đột lịch và cache khi bật/tắt job.
+  const query = useCronJobs(canRead);
   const recentAuditQuery = useCronRecentExecutions(canRead && canReadAudit);
   const { trigger, toggle } = useCronMutations();
 

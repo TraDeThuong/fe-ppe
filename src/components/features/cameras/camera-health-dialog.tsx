@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Activity, AlertTriangle, CheckCircle, Clock, Loader2, Wifi, Zap } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,10 @@ export function CameraHealthDialog({
   const isVietnamese = locale === "vi-VN";
 
   const pingMutation = usePingCamera();
+  const resetPing = pingMutation.reset;
+  useEffect(() => {
+    resetPing();
+  }, [open, camera?.id, resetPing]);
   const { data: logs = [], isLoading: logsLoading } = useCameraHealthLogs(
     camera?.id || "",
     open && Boolean(camera?.id),

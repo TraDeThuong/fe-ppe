@@ -24,6 +24,7 @@ import {
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import type { PermissionDto, RoleDto, ResourceCategory } from "@/types";
 import { RESOURCE_CATEGORY_ORDER, getPermissionCategory } from "@/types";
@@ -57,6 +58,8 @@ export function PermissionMatrixDrawer({
   loading = false,
 }: PermissionMatrixDrawerProps) {
   const { t, locale } = useLocale();
+  const can = useCan();
+  const canAssign = can("ROLE_PERMISSION_ASSIGN");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<"ALL" | ResourceCategory>("ALL");
@@ -143,6 +146,7 @@ export function PermissionMatrixDrawer({
   };
 
   const handleToggle = (perm: PermissionDto) => {
+    if (!canAssign) return;
     if (isAdminRole && lockedPermissionNames.has(perm.name)) {
       return; // Protected by anti-lockout rule
     }
@@ -159,6 +163,7 @@ export function PermissionMatrixDrawer({
   };
 
   const handleSelectAllGroup = (perms: PermissionDto[], select: boolean) => {
+    if (!canAssign) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
       perms.forEach((p) => {
@@ -175,9 +180,13 @@ export function PermissionMatrixDrawer({
   };
 
   const handleSave = async () => {
-    if (!role) return;
-    await onSave(role.id, Array.from(selectedIds));
-    onOpenChange(false);
+    if (!canAssign || !role || selectedIds.size === 0) return;
+    try {
+      await onSave(role.id, Array.from(selectedIds));
+      onOpenChange(false);
+    } catch {
+      // Lỗi đã được hiển thị qua mutation toast
+    }
   };
 
   const visibleCategories = useMemo(() => {
@@ -214,16 +223,18 @@ export function PermissionMatrixDrawer({
             {t("roles.matrix.cancel")}
           </Button>
 
-          <Button
-            type="button"
-            variant="primary"
-            onClick={handleSave}
-            disabled={loading}
-            className="flex-1 sm:flex-initial"
-          >
-            <Shield className="mr-1.5 h-4 w-4" />
-            <span>{loading ? t("roles.matrix.saving") : t("roles.matrix.save")}</span>
-          </Button>
+          {canAssign && (
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleSave}
+              disabled={loading || selectedIds.size === 0}
+              className="flex-1 sm:flex-initial"
+            >
+              <Shield className="mr-1.5 h-4 w-4" />
+              <span>{loading ? t("roles.matrix.saving") : t("roles.matrix.save")}</span>
+            </Button>
+          )}
         </div>
       }
     >
@@ -245,35 +256,37 @@ export function PermissionMatrixDrawer({
             })}
           </span>
 
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedIds(new Set(allPermissions.map((p) => p.id)))}
-              className="text-xs h-7"
-            >
-              {t("roles.matrix.selectAll")}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (isAdminRole) {
-                  const coreIds = allPermissions
-                    .filter((p) => lockedPermissionNames.has(p.name))
-                    .map((p) => p.id);
-                  setSelectedIds(new Set(coreIds));
-                } else {
-                  setSelectedIds(new Set());
-                }
-              }}
-              className="text-xs h-7"
-            >
-              {t("roles.matrix.deselectAll")}
-            </Button>
-          </div>
+          {canAssign && (
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedIds(new Set(allPermissions.map((p) => p.id)))}
+                className="text-xs h-7"
+              >
+                {t("roles.matrix.selectAll")}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (isAdminRole) {
+                    const coreIds = allPermissions
+                      .filter((p) => lockedPermissionNames.has(p.name))
+                      .map((p) => p.id);
+                    setSelectedIds(new Set(coreIds));
+                  } else {
+                    setSelectedIds(new Set());
+                  }
+                }}
+                className="text-xs h-7"
+              >
+                {t("roles.matrix.deselectAll")}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Search & 8-Group Quick Filter Toolbar */}
@@ -401,23 +414,25 @@ export function PermissionMatrixDrawer({
                       )}
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => handleSelectAllGroup(perms, !allSelected)}
-                      className="inline-flex items-center gap-1 text-xs text-primary font-medium hover:underline shrink-0"
-                    >
-                      {allSelected ? (
-                        <>
-                          <CheckSquare className="h-3.5 w-3.5" />{" "}
-                          <span>{t("roles.matrix.deselectGroup")}</span>
-                        </>
-                      ) : (
-                        <>
-                          <Square className="h-3.5 w-3.5" />{" "}
-                          <span>{t("roles.matrix.selectGroup")}</span>
-                        </>
-                      )}
-                    </button>
+                    {canAssign && (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectAllGroup(perms, !allSelected)}
+                        className="inline-flex items-center gap-1 text-xs text-primary font-medium hover:underline shrink-0"
+                      >
+                        {allSelected ? (
+                          <>
+                            <CheckSquare className="h-3.5 w-3.5" />{" "}
+                            <span>{t("roles.matrix.deselectGroup")}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Square className="h-3.5 w-3.5" />{" "}
+                            <span>{t("roles.matrix.selectGroup")}</span>
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   {!isCollapsed && (
@@ -433,7 +448,9 @@ export function PermissionMatrixDrawer({
                           <div
                             key={perm.id}
                             onClick={() => handleToggle(perm)}
-                            className={`flex items-start gap-2.5 rounded-xl border p-2.5 cursor-pointer transition ${
+                            className={`flex items-start gap-2.5 rounded-xl border p-2.5 transition ${
+                              canAssign ? "cursor-pointer" : "cursor-default"
+                            } ${
                               isChecked
                                 ? "border-primary/40 bg-primary/5 shadow-[inset_1px_1px_2px_rgba(0,0,0,0.05)] dark:bg-primary/10"
                                 : "border-border/30 bg-surface hover:bg-surface-elevated/40 dark:border-black/40 dark:bg-background/40 dark:hover:border-black"

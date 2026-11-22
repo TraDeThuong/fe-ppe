@@ -127,6 +127,7 @@ export const aiMetricsService = {
       );
 
       let totalFrames = 0;
+      let totalWeight = 0;
       let weightedLatencySum = 0;
       let weightedFpsSum = 0;
 
@@ -143,6 +144,7 @@ export const aiMetricsService = {
         const fps = Number(row.avgFps ?? 0);
 
         totalFrames += frames;
+        totalWeight += weight;
         weightedLatencySum += latency * weight;
         weightedFpsSum += fps * weight;
 
@@ -157,9 +159,6 @@ export const aiMetricsService = {
         agg.weightedFps += fps * weight;
         dailyMap.set(dateKey, agg);
       }
-
-      const totalWeight =
-        totalFrames > 0 ? totalFrames : sortedRows.length > 0 ? sortedRows.length : 0;
 
       const hasScopedTelemetryFilter = Boolean(
         filter?.cameraId ||

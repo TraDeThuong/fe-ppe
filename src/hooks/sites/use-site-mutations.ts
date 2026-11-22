@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { siteService } from "@/services/site.service";
+import { cameraKeys } from "@/hooks/cameras/camera.query-keys";
 import { siteKeys } from "./site.query-keys";
 import type { CreateSitePayload, UpdateSitePayload } from "@/types";
 
@@ -14,6 +15,7 @@ export function useCreateSite() {
     mutationFn: (payload: CreateSitePayload) => siteService.createSite(payload),
     onSuccess: (newSite) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: siteKeys.complianceSummaryRoot() });
       toast.success(
         pickLocaleText(
           `Đã thêm công trường "${newSite.name}" thành công.`,
@@ -66,6 +68,7 @@ export function useDeleteSite() {
       siteService.deleteSite(id, force),
     onSuccess: (_, { name }) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.all });
+      queryClient.invalidateQueries({ queryKey: cameraKeys.all });
       toast.success(
         name
           ? pickLocaleText(
@@ -93,6 +96,7 @@ export function useArchiveSite() {
       siteService.archiveSite(id),
     onSuccess: (_, { name }) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.all });
+      queryClient.invalidateQueries({ queryKey: cameraKeys.all });
       toast.success(
         name
           ? pickLocaleText(

@@ -32,7 +32,6 @@ import {
 import { useCameraHealthLogs, usePingCamera } from "@/hooks/cameras";
 import { useLocale } from "@/providers/locale-provider";
 import { getDbIncidentSnapshotUrl } from "../camera-live-helpers";
-import { CameraLiveControlDeck } from "./camera-live-control-deck";
 import { CameraDeviceAdvancedPanels } from "./camera-device-advanced-panels";
 import type { LiveVideoItem } from "@/types/ai-test.types";
 import type { CameraConfigItem, CameraItem, IncidentItem } from "@/types";
@@ -195,7 +194,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
               <Database className="size-4" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-base font-extrabold tracking-tight text-foreground">
                   {isVietnamese
                     ? "Sự cố đã lưu trong Incident DB"
@@ -517,7 +516,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <select
                 value={healthStatusFilter}
                 onChange={(e) => setHealthStatusFilter(e.target.value)}
@@ -558,7 +557,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2.5 text-center text-xs">
+          <div className="grid grid-cols-1 min-[400px]:grid-cols-3 gap-2.5 text-center text-xs">
             <div className={`rounded-xl p-2.5 ${NM.recessed}`}>
               <span className="text-[10px] font-bold uppercase text-muted-foreground">
                 {isVietnamese ? "Độ trễ" : "Latency"}
@@ -666,7 +665,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                 <Wrench className="size-4" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-sm font-extrabold text-foreground">
                     {isVietnamese
                       ? "Nguồn chạy thử AI (Override cho Dev)"

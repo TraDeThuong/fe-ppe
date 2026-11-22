@@ -166,7 +166,7 @@ export function SystemHealthMatrix({
         id: "status",
         accessorKey: "status",
         sortFn: (left, right) => {
-          const rank = { HEALTHY: 1, DEGRADED: 2, DOWN: 3 };
+          const rank = { DOWN: 1, DEGRADED: 2, HEALTHY: 3 };
           return rank[left.original.status] - rank[right.original.status];
         },
         header: t("system.health.tableStatus"),
@@ -230,7 +230,7 @@ export function SystemHealthMatrix({
         header: t("system.health.tableUptime"),
         cell: ({ row }) => (
           <span className="font-mono text-xs text-muted-foreground">
-            {row.original.uptime ?? "14d 8h"}
+            {row.original.uptime || "—"}
           </span>
         ),
 

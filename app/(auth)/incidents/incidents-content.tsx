@@ -177,10 +177,24 @@ export default function IncidentsContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    setStatusFilter(statusParam || (statParam === "pending-review" || statParam === "pendingReview" ? "PENDING_REVIEW" : statParam === "resolved" ? "RESOLVED" : ""));
-    setSeverityFilter(statParam === "critical" ? "CRITICAL" : "");
+    setStatusFilter(
+      statusParam ||
+        (statParam === "pending-review" || statParam === "pendingReview"
+          ? "PENDING_REVIEW"
+          : statParam === "resolved"
+            ? "RESOLVED"
+            : ""),
+    );
     setPage(1);
   }, [statusParam, statParam]);
+
+  useEffect(() => {
+    if (statParam === "critical") {
+      setSeverityFilter("CRITICAL");
+    } else if (statParam) {
+      setSeverityFilter("");
+    }
+  }, [statParam]);
 
   // Đồng bộ với Global Site Selector khi người dùng đổi site từ Header
   useEffect(() => {
@@ -208,7 +222,7 @@ export default function IncidentsContent() {
     toDate,
     sortBy: apiSorting.sortBy,
     sortOrder: apiSorting.order,
-
+    includeAssignments: true,
   };
 
   const { data: incidentData, isLoading, refetch, isRefetching, error } = useIncidents(queryParams);
@@ -257,6 +271,7 @@ export default function IncidentsContent() {
       siteId: siteIdFilter || undefined,
       cameraId: cameraIdFilter || undefined,
       limit: 100,
+      includeAssignments: true,
       fromDate,
       toDate,
       sortBy: "detectedAt",
@@ -663,9 +678,7 @@ export default function IncidentsContent() {
         userRole={user?.role}
         criticalCount={
           statusCounts?.critical ??
-          overviewIncidents.filter(
-            (i) => i.severity === "CRITICAL" || i.severity === "HIGH",
-          ).length
+          overviewIncidents.filter((i) => i.severity === "CRITICAL").length
         }
       />
 
@@ -674,7 +687,7 @@ export default function IncidentsContent() {
 
         incidents={overviewIncidents}
 
-        totalIncidentsCount={meta?.total ?? overviewIncidents.length}
+        totalIncidentsCount={statusCounts?.total ?? meta?.total ?? overviewIncidents.length}
 
         statusCounts={statusCounts}
 
@@ -831,12 +844,20 @@ export default function IncidentsContent() {
               managerName: user?.fullName || user?.email || undefined,
             });
             invalidateAllIncidentQueries([selectedIncident.id]);
-            if (res.assignedCount > 0) {
+            if (res.assignedCount > 0 && res.failedCount === 0) {
               toast.success(
                 isVietnamese
                   ? `Đã phân công & phát tín hiệu xử lý cho sự cố #${selectedIncident.id.slice(0, 8)}.`
                   : `Dispatched incident #${selectedIncident.id.slice(0, 8)} to officer.`,
               );
+            } else {
+              const reason =
+                res.failedItems[0]?.message ||
+                (isVietnamese
+                  ? "Không thể phân công sự cố cho cán bộ đã chọn."
+                  : "Unable to dispatch incident to the selected officer.");
+              toast.error(reason);
+              throw new Error(reason);
             }
           } finally {
             setSingleActionPending(false);

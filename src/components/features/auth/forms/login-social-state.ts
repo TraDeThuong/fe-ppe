@@ -1,4 +1,8 @@
-import { getConfig, SYSTEM_CONFIG_KEYS } from "@/lib/system-config";
+import {
+  getConfig,
+  isFeatureFlagEnabled,
+  SYSTEM_CONFIG_KEYS,
+} from "@/lib/system-config";
 import type { SystemPublicConfig } from "@/types";
 
 export type SocialLoginSlotState = "loading" | "enabled" | "hidden";
@@ -24,7 +28,7 @@ export function resolveSocialLoginSlotState({
   if (!mounted) return "loading";
 
   if (publicConfig !== undefined) {
-    return Boolean(
+    return isFeatureFlagEnabled(
       getConfig(publicConfig, SYSTEM_CONFIG_KEYS.socialLoginEnabled, false),
     )
       ? "enabled"

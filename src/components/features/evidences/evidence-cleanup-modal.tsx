@@ -145,10 +145,16 @@ export function EvidenceCleanupModal({
 
       const inc = ev.incident ?? mergedIncidentsMap.get(ev.incidentId);
       const status = inc?.status;
-      const isActiveIncident =
-        status === "PENDING_REVIEW" || status === "CONFIRMED";
+      // Fail-closed: nếu chưa xác minh được trạng thái sự cố (ngoài phạm vi incident đã tải),
+      // coi như đang hoạt động để Khóa bảo vệ không bao giờ xóa nhầm bằng chứng sự cố chưa đóng.
+      const isActiveOrUnknownIncident =
+        !status || status === "PENDING_REVIEW" || status === "CONFIRMED";
 
-      if (protectActiveIncidents && isActiveIncident && preset !== "DISMISSED_ONLY") {
+      if (
+        protectActiveIncidents &&
+        isActiveOrUnknownIncident &&
+        preset !== "DISMISSED_ONLY"
+      ) {
         return false;
       }
 
@@ -159,7 +165,7 @@ export function EvidenceCleanupModal({
       if (preset === "REFERENCE_ONLY") {
         const isRef = isReferenceEvidenceItem(ev);
         if (!isRef) return false;
-        if (protectActiveIncidents && isActiveIncident) return false;
+        if (protectActiveIncidents && isActiveOrUnknownIncident) return false;
         return true;
       }
 

@@ -56,9 +56,9 @@ export function useReviewIncident() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: ReviewIncidentPayload }) =>
       incidentService.reviewIncident(id, payload),
-    onSuccess: (updatedIncident, { id, payload }) => {
+    onSuccess: (_updatedIncident, { id, payload }) => {
       invalidateIncidentListsAndCounts(queryClient);
-      queryClient.setQueryData(incidentKeys.detail(id), updatedIncident);
+      void queryClient.invalidateQueries({ queryKey: incidentKeys.detail(id) });
       if (payload.decision === "CONFIRMED") {
         toast.success(
           pickLocaleText(
@@ -99,6 +99,7 @@ export function useBatchReviewIncidents() {
     }) => incidentService.batchReviewIncidents(payload),
     onSuccess: (result) => {
       invalidateIncidentListsAndCounts(queryClient);
+      void queryClient.invalidateQueries({ queryKey: incidentKeys.details() });
       toast.success(
         pickLocaleText(
           `Đã thẩm duyệt hàng loạt ${result.updatedCount}/${result.total} sự cố thành công.`,
@@ -125,9 +126,9 @@ export function useResolveIncident() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: ResolveIncidentPayload }) =>
       incidentService.resolveIncident(id, payload),
-    onSuccess: (updatedIncident, { id }) => {
+    onSuccess: (_updatedIncident, { id }) => {
       invalidateIncidentListsAndCounts(queryClient);
-      queryClient.setQueryData(incidentKeys.detail(id), updatedIncident);
+      void queryClient.invalidateQueries({ queryKey: incidentKeys.detail(id) });
       toast.success(
         pickLocaleText(
           "Đã cập nhật trạng thái giải quyết sự cố thành công.",
@@ -154,9 +155,9 @@ export function useCloseIncident() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload?: CloseIncidentPayload }) =>
       incidentService.closeIncident(id, payload),
-    onSuccess: (updatedIncident, { id }) => {
+    onSuccess: (_updatedIncident, { id }) => {
       invalidateIncidentListsAndCounts(queryClient);
-      queryClient.setQueryData(incidentKeys.detail(id), updatedIncident);
+      void queryClient.invalidateQueries({ queryKey: incidentKeys.detail(id) });
       toast.success(
         pickLocaleText(
           "Đã nghiệm thu và đóng hồ sơ sự cố thành công.",
@@ -180,9 +181,9 @@ export function useUpdateIncident() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateIncidentPayload }) =>
       incidentService.updateIncident(id, payload),
-    onSuccess: (updatedIncident, { id }) => {
+    onSuccess: (_updatedIncident, { id }) => {
       invalidateIncidentListsAndCounts(queryClient);
-      queryClient.setQueryData(incidentKeys.detail(id), updatedIncident);
+      void queryClient.invalidateQueries({ queryKey: incidentKeys.detail(id) });
       toast.success(
         pickLocaleText(
           "Đã cập nhật thông tin sự cố thành công.",
@@ -208,8 +209,10 @@ export function useDeleteIncident() {
 
   return useMutation({
     mutationFn: (id: string) => incidentService.deleteIncident(id),
-    onSuccess: () => {
+    onSuccess: (_res, id) => {
       invalidateIncidentListsAndCounts(queryClient);
+      void queryClient.invalidateQueries({ queryKey: incidentKeys.detail(id) });
+      void queryClient.invalidateQueries({ queryKey: incidentKeys.evidences() });
       toast.success(
         pickLocaleText("Đã xóa sự cố thành công.", "Incident deleted successfully."),
       );

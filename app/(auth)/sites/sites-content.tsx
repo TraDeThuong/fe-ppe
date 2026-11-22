@@ -227,8 +227,12 @@ export default function SitesContent() {
       {/* Toolbar & Filters */}
       {viewMode !== "table" ? toolbar : null}
 
-      {/* Tenancy Notice Banner for unassigned personnel */}
-      {currentUser?.role !== "ADMIN" && !isLoading && sites.length === 0 && (
+      {/* Tenancy Notice Banner for unassigned personnel (chỉ hiện khi không có bộ lọc nào đang bật) */}
+      {currentUser?.role !== "ADMIN" &&
+        !isLoading &&
+        !search.trim() &&
+        !statusFilter &&
+        sites.length === 0 && (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 sm:p-5 flex items-start gap-3.5 shadow-sm">
           <ShieldAlert className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
           <div className="space-y-1">

@@ -8,7 +8,6 @@ import type {
   GenerateReportDto,
   HourlyRiskResponseDto,
   PaginationMeta,
-  ReportContentResult,
   ReportDownloadResult,
   ReportGenerationDto,
   ReportHistoryQueryDto,
@@ -18,13 +17,6 @@ import type {
   TrendItemDto,
   ViolationTypeStatDto,
 } from "@/types";
-
-interface ApiResponse<T> {
-  success: boolean;
-  message?: string;
-  data: T;
-  meta?: PaginationMeta;
-}
 
 function unwrapData<T>(res: any): T {
   if (res && typeof res === "object") {
@@ -270,16 +262,6 @@ export const reportingService = {
       `/reports/templates/${id}`
     );
     return { message: res?.message || "Report template deleted successfully" };
-  },
-
-  /**
-   * GET /api/v1/reports/:id/content
-   */
-  async getReportContent(id: string): Promise<ReportContentResult> {
-    const res = await apiClient.get<unknown>(
-      `/reports/${id}/content`
-    );
-    return unwrapData<ReportContentResult>(res);
   },
 
   /**

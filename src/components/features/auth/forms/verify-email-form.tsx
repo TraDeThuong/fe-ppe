@@ -107,6 +107,10 @@ function ResendPanel() {
     suppressToast: true,
     onSuccess: () => setSent(true),
     onError: (error) => {
+      // Token Turnstile chỉ dùng 1 lần — reset sau mọi lỗi để lần gửi lại luôn hợp lệ
+      setTurnstileToken(null);
+      turnstileRef.current?.reset();
+
       // 422: lỗi theo field → gắn thẳng dưới ô email
       if (error instanceof ApiError && error.status === 422 && error.errors?.length) {
         for (const fieldError of error.errors) {
@@ -136,8 +140,6 @@ function ResendPanel() {
           error.code === ErrorCode.CAPTCHA_INVALID)
       ) {
         setCaptchaFailure(t("verifyEmail.captchaRequired"));
-        setTurnstileToken(null);
-        turnstileRef.current?.reset();
         return;
       }
 

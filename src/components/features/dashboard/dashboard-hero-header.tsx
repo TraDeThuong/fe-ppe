@@ -156,7 +156,7 @@ export function DashboardHeroHeader({
   return (
     <section
       aria-label="Dashboard Command Console Header"
-      className={`relative overflow-hidden rounded-[30px] p-5 sm:p-7 transition-all duration-300 ${NM.chassis}`}
+      className={`relative overflow-hidden rounded-[24px] p-4 sm:rounded-[30px] sm:p-7 transition-all duration-300 ${NM.chassis}`}
     >
       {/* Top specular highlight */}
       <div
@@ -238,7 +238,7 @@ export function DashboardHeroHeader({
 
                 <span
                   title={resolvedSiteLabel}
-                  className={`inline-flex max-w-[240px] items-center gap-1.5 rounded-xl px-3 py-1 text-[11px] font-semibold text-foreground ${NM.recessed}`}
+                  className={`inline-flex max-w-full sm:max-w-[240px] items-center gap-1.5 rounded-xl px-3 py-1 text-[11px] font-semibold text-foreground ${NM.recessed}`}
                 >
                   <Building2 className="size-3.5 shrink-0 text-primary" />
                   <span className="truncate">{resolvedSiteLabel}</span>

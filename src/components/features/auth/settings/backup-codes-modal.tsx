@@ -70,8 +70,9 @@ export function BackupCodesModal({ codes, onClose }: BackupCodesModalProps) {
           <button
             type="button"
             onClick={onClose}
+            disabled={!confirmed}
             aria-label={t("security.2fa.cancel")}
-            className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground"
+            className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
           >
             <X className="size-5" aria-hidden="true" />
           </button>

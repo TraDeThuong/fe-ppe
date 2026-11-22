@@ -297,7 +297,7 @@ export function RoleComparisonTab({
   ========================================================= */}
       <div className="lg:col-span-8">
         {comparedList.length === 0 ? (
-          <div className="flex h-[560px] flex-col items-center justify-center rounded-[24px] border border-white/60 bg-surface p-8 text-center shadow-[8px_8px_18px_var(--shadow-dark),-8px_-8px_18px_rgba(255,255,255,0.85)] dark:border-white/[0.06] dark:bg-card dark:shadow-[8px_8px_20px_rgba(0,0,0,0.55)]">
+          <div className="flex h-[380px] sm:h-[560px] flex-col items-center justify-center rounded-[24px] border border-white/60 bg-surface p-6 sm:p-8 text-center shadow-[8px_8px_18px_var(--shadow-dark),-8px_-8px_18px_rgba(255,255,255,0.85)] dark:border-white/[0.06] dark:bg-card dark:shadow-[8px_8px_20px_rgba(0,0,0,0.55)]">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-[16px] bg-primary/10 text-primary shadow-[inset_2px_2px_5px_var(--shadow-dark)]">
               <CheckCircle2 className="h-6 w-6" />
             </div>
@@ -319,8 +319,8 @@ export function RoleComparisonTab({
         ) : (
           <div className="overflow-hidden rounded-[24px] border border-white/60 bg-surface shadow-[8px_8px_18px_var(--shadow-dark),-8px_-8px_18px_rgba(255,255,255,0.85)] dark:border-white/[0.06] dark:bg-card dark:shadow-[8px_8px_20px_rgba(0,0,0,0.55),-3px_-3px_10px_rgba(255,255,255,0.03)]">
             {/* Chiều cao rộng rãi 560px, cuộn nội bộ mượt mà */}
-            <div className="h-[560px] overflow-auto">
-              <table className="w-full border-collapse text-left text-xs">
+            <div className="max-h-[70dvh] sm:h-[560px] sm:max-h-none overflow-auto">
+              <table className="w-full min-w-[540px] border-collapse text-left text-xs">
                 <thead className="sticky top-0 z-10 bg-surface/95 backdrop-blur-md dark:bg-card/95">
                   <tr className="border-b border-border/30 text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
                     <th className="px-5 py-3.5">

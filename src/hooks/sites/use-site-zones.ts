@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { siteService } from "@/services/site.service";
+import { cameraKeys } from "@/hooks/cameras/camera.query-keys";
 import { siteKeys } from "./site.query-keys";
 import type {
   CreateZonePayload,
@@ -42,6 +43,7 @@ export function useCreateZone() {
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
       queryClient.invalidateQueries({ queryKey: siteKeys.all });
+      queryClient.invalidateQueries({ queryKey: cameraKeys.all });
       toast.success(
         pickLocaleText(
           `Đã thêm phân khu "${newZone.name}" thành công.`,
@@ -114,6 +116,7 @@ export function useDeleteZone() {
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
       queryClient.invalidateQueries({ queryKey: siteKeys.all });
+      queryClient.invalidateQueries({ queryKey: cameraKeys.all });
       toast.success(
         name
           ? pickLocaleText(

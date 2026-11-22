@@ -165,7 +165,7 @@ export function EvidenceQuickInspectorModal({
       .getEvidenceDownloadUrl(current.id, { action: "VIEW" })
       .then((res) => {
         if (active && res?.downloadUrl) {
-          setResolvedVideoUrl(res.downloadUrl);
+          setResolvedVideoUrl(resolveEvidenceUrl(res.downloadUrl) || res.downloadUrl);
         }
       })
       .catch(() => {
@@ -337,8 +337,8 @@ export function EvidenceQuickInspectorModal({
       description={`${cameraCode}${siteCode ? ` (${siteCode})` : ""} • ${new Date(
         current.capturedAt,
       ).toLocaleString(locale)}`}
-      className="h-[92vh] max-w-[96vw]"
-      contentClassName="flex-1 overflow-hidden p-0"
+      className="h-[92dvh] max-w-[96vw]"
+      contentClassName="flex-1 overflow-y-auto lg:overflow-hidden p-0"
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -406,9 +406,9 @@ export function EvidenceQuickInspectorModal({
     >
       <div className="grid h-full min-h-0 grid-cols-1 lg:grid-cols-[1fr_360px]">
         {/* Left Viewport: Dark Forensic Lab */}
-        <div className="flex min-h-0 flex-col bg-slate-950 text-slate-100">
+        <div className="flex min-h-[260px] sm:min-h-[340px] lg:min-h-0 flex-col bg-slate-950 text-slate-100">
           {/* Viewport Toolbar */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-slate-900/80 px-4 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-slate-900/80 px-3 sm:px-4 py-2.5">
             <div className="flex flex-wrap items-center gap-1.5">
               <Badge
                 variant={
@@ -424,7 +424,7 @@ export function EvidenceQuickInspectorModal({
               </Badge>
 
               {hasComparePair && (
-                <div className="ml-2 inline-flex items-center rounded-lg border border-white/15 bg-slate-950/80 p-0.5 text-[11px]">
+                <div className="sm:ml-2 inline-flex max-w-full flex-wrap items-center rounded-lg border border-white/15 bg-slate-950/80 p-0.5 text-[11px]">
                   <button
                     type="button"
                     onClick={() => setDisplayMode("single")}

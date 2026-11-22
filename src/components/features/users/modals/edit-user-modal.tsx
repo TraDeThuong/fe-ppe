@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Pencil, User, Phone, CheckCircle2, AlertTriangle, Building2, Shield } from "lucide-react";
+import { Pencil, User, Phone, AlertTriangle, Building2 } from "lucide-react";
 import { SculptedModal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { useUpdateUser } from "@/hooks/users";
+import { useCan } from "@/hooks/use-can";
+import { useAssignUserSites, useUpdateUser, useUserDetail } from "@/hooks/users";
 import { useSitesCatalog } from "@/hooks/sites";
-import { userService } from "@/services/user.service";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
 import type { UserResponseDto } from "@/types";
@@ -18,30 +18,50 @@ export interface EditUserModalProps {
 }
 
 export function EditUserModal({ open, onOpenChange, user }: EditUserModalProps) {
-  const { t, locale } = useLocale();
+  const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canReadSites = can("PPE_SITE_READ");
+  const canManageSites =
+    can("USER_ROLE_ASSIGN") || can("ROLE_PERMISSION_ASSIGN");
 
   const { user: currentAdmin } = useAuth();
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [assignedSiteIds, setAssignedSiteIds] = useState<string[]>([]);
-  const [isAssigningSites, setIsAssigningSites] = useState(false);
 
-  const { data: sitesCatalog, isLoading: sitesLoading } = useSitesCatalog();
+  // Khi mở từ kết quả tìm kiếm FTS, BE searchFts không trả siteIds -> fetch detail để tránh ghi đè rỗng
+  const needsFreshSites = Boolean(
+    open && user?.id && canManageSites && user.siteIds === undefined,
+  );
+  const { data: freshUserDetail } = useUserDetail(
+    user?.id ?? "",
+    { enabled: needsFreshSites },
+  );
+  const effectiveInitialSiteIds = useMemo(
+    () => user?.siteIds ?? freshUserDetail?.siteIds ?? [],
+    [user?.siteIds, freshUserDetail?.siteIds],
+  );
+
+  const { data: sitesCatalog, isLoading: sitesLoading } = useSitesCatalog({
+    enabled: open && canReadSites && canManageSites,
+  });
   const allSites = useMemo(() => sitesCatalog ?? [], [sitesCatalog]);
 
   const isSelf = Boolean(currentAdmin?.id && user?.id === currentAdmin.id);
   const updateUserMutation = useUpdateUser();
+  const assignUserSitesMutation = useAssignUserSites();
+  const isAssigningSites = assignUserSitesMutation.isPending;
 
   useEffect(() => {
-    if (user) {
+    if (open && user) {
       setFullName(user.fullName || "");
       setPhoneNumber(user.phoneNumber || "");
       setIsActive(user.isActive);
-      setAssignedSiteIds(user.siteIds || []);
+      setAssignedSiteIds(effectiveInitialSiteIds);
     }
-  }, [user]);
+  }, [open, user, effectiveInitialSiteIds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,22 +73,21 @@ export function EditUserModal({ open, onOpenChange, user }: EditUserModalProps) 
         payload: {
           fullName: fullName.trim() || undefined,
           phoneNumber: phoneNumber.trim() || undefined,
-          isActive: isSelf ? true : isActive,
+          ...(canManageSites ? { isActive: isSelf ? true : isActive } : {}),
         },
       });
 
-      // Synchronize assigned sites if admin changed them
-      const initialSites = user.siteIds || [];
-      const hasChanged =
-        initialSites.length !== assignedSiteIds.length ||
-        assignedSiteIds.some((id) => !initialSites.includes(id));
+      // Đồng bộ phân công công trường qua useAssignUserSites (tự invalidate cache + toast lỗi chuẩn)
+      if (canManageSites && user.role?.name !== "ADMIN") {
+        const hasChanged =
+          effectiveInitialSiteIds.length !== assignedSiteIds.length ||
+          assignedSiteIds.some((id) => !effectiveInitialSiteIds.includes(id));
 
-      if (hasChanged) {
-        setIsAssigningSites(true);
-        try {
-          await userService.assignUserSites(user.id, assignedSiteIds);
-        } finally {
-          setIsAssigningSites(false);
+        if (hasChanged) {
+          await assignUserSitesMutation.mutateAsync({
+            id: user.id,
+            siteIds: assignedSiteIds,
+          });
         }
       }
 

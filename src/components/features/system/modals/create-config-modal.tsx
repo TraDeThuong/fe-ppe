@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Settings } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,27 @@ export function CreateConfigModal({
   const [isPublic, setIsPublic] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!open) {
+      setKey("");
+      setCategory("GENERAL");
+      setValueType("string");
+      setValueStr("");
+      setDescription("");
+      setIsPublic(false);
+      setError(null);
+    }
+  }, [open]);
+
+  const handleValueTypeChange = (
+    nextType: "string" | "number" | "boolean" | "json",
+  ) => {
+    setValueType(nextType);
+    if (nextType === "boolean") {
+      setValueStr((prev) => (prev === "false" ? "false" : "true"));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -44,8 +65,9 @@ export function CreateConfigModal({
     if (valueType === "boolean") {
       parsedValue = valueStr === "true";
     } else if (valueType === "number") {
-      const num = Number(valueStr);
-      if (isNaN(num)) {
+      const trimmed = valueStr.trim();
+      const num = Number(trimmed);
+      if (!trimmed || !Number.isFinite(num)) {
         setError(isVietnamese ? "Giá trị phải là một con số hợp lệ." : "Value must be a valid number.");
         return;
       }
@@ -161,7 +183,9 @@ export function CreateConfigModal({
             <select
               value={valueType}
               onChange={(e) =>
-                setValueType(e.target.value as "string" | "number" | "boolean" | "json")
+                handleValueTypeChange(
+                  e.target.value as "string" | "number" | "boolean" | "json",
+                )
               }
               className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
             >

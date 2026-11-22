@@ -151,15 +151,15 @@ export function EvidenceFilterBar({
   const violationOptions: SelectOption[] = useMemo(
     () => [
       { value: "", label: t("evidences.filters.allViolations") },
-      { value: VIOLATION_TYPE.NO_HELMET, label: t("incidents.violations.noHelmet") },
-      { value: VIOLATION_TYPE.NO_VEST, label: t("incidents.violations.noVest") },
+      { value: VIOLATION_TYPE.NO_HELMET, label: t("incidents.violation.noHelmet") },
+      { value: VIOLATION_TYPE.NO_VEST, label: t("incidents.violation.noVest") },
       {
         value: VIOLATION_TYPE.RESTRICTED_AREA,
-        label: t("incidents.violations.restrictedArea"),
+        label: t("incidents.violation.restrictedArea"),
       },
       {
         value: VIOLATION_TYPE.MULTI_VIOLATION,
-        label: t("incidents.violations.multiViolation"),
+        label: t("incidents.violation.multi"),
       },
     ],
     [t],
@@ -296,9 +296,9 @@ export function EvidenceFilterBar({
         </div>
 
         {/* Cụm điều khiển nhanh bên phải */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2.5 sm:gap-3">
           {/* Khoảng thời gian (Date Presets) */}
-          <div className="flex items-center gap-1 rounded-xl bg-background p-1 shadow-[inset_2.5px_2.5px_5px_var(--shadow-dark),inset_-2.5px_-2.5px_5px_var(--shadow-light)]">
+          <div className="flex max-w-full items-center gap-1 overflow-x-auto no-scrollbar rounded-xl bg-background p-1 shadow-[inset_2.5px_2.5px_5px_var(--shadow-dark),inset_-2.5px_-2.5px_5px_var(--shadow-light)]">
             {datePresets.map((preset) => {
               const isActive = datePreset === preset.value;
               return (
@@ -306,7 +306,7 @@ export function EvidenceFilterBar({
                   key={preset.value}
                   type="button"
                   onClick={() => onDatePresetChange(preset.value)}
-                  className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${isActive
+                  className={`shrink-0 whitespace-nowrap cursor-pointer rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-bold transition-all ${isActive
                       ? "bg-background text-primary shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)]"
                       : "text-muted-foreground hover:text-foreground"
                     }`}
@@ -318,13 +318,14 @@ export function EvidenceFilterBar({
           </div>
 
           {/* Chế độ xem (Grid / List) */}
-          <div className="rounded-xl bg-background p-0.5 shadow-[inset_2.5px_2.5px_5px_var(--shadow-dark),inset_-2.5px_-2.5px_5px_var(--shadow-light)]">
+          <div className="max-w-full overflow-hidden rounded-xl bg-background p-0.5 shadow-[inset_2.5px_2.5px_5px_var(--shadow-dark),inset_-2.5px_-2.5px_5px_var(--shadow-light)]">
             <SegmentedControl
               size="sm"
               aria-label={t("evidences.view.label")}
               options={viewOptions}
               value={viewMode}
               onValueChange={onViewModeChange}
+              className="max-w-full"
             />
           </div>
 
@@ -359,14 +360,14 @@ export function EvidenceFilterBar({
             <label className="block px-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
               {t("evidences.filters.typeLabel")}
             </label>
-            <div className="flex h-9.5 items-center rounded-xl bg-background p-1 shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)]">
+            <div className="flex min-h-9.5 max-w-full items-center overflow-hidden rounded-xl bg-background p-1 shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)]">
               <SegmentedControl
                 size="sm"
                 aria-label={t("evidences.filters.typeLabel")}
                 options={typeOptions}
                 value={evidenceType}
                 onValueChange={onEvidenceTypeChange}
-                className="w-full"
+                className="w-full max-w-full"
               />
             </div>
           </div>

@@ -92,10 +92,10 @@ async function doRefresh(): Promise<boolean> {
     tokenStore.setTokens(tokens.accessToken, tokens.refreshToken);
     return true;
   } catch (error) {
-    // Mất mạng chỉ là lỗi tạm thời — giữ session, request gốc sẽ toast "mất kết nối".
+    // Mất mạng hoặc lỗi 5xx gateway chỉ là lỗi tạm thời — giữ phiên để lần tải sau phục hồi.
     // Chỉ xóa phiên khi backend thực sự từ chối refresh token (401/4xx).
-    const isNetworkError = axios.isAxiosError(error) && !error.response;
-    if (!isNetworkError) {
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+    if (status !== undefined && status >= 400 && status < 500) {
       tokenStore.clear();
       eventBus.emit(AUTH_SESSION_EXPIRED_EVENT);
     }

@@ -132,11 +132,11 @@ export function AdminOversightWorkspace({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex w-full sm:w-auto items-center gap-2">
           <select
             value={siteFilter}
             onChange={(e) => onSiteChange(e.target.value)}
-            className="rounded-xl border border-border/50 bg-background px-3 py-1.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
+            className="w-full sm:w-auto max-w-full rounded-xl border border-border/50 bg-background px-3 py-1.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
             aria-label={isVietnamese ? "Lọc theo công trường" : "Filter by site"}
           >
             <option value="">

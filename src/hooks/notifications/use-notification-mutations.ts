@@ -70,9 +70,10 @@ export function useMarkAllAsRead(
     ...restOptions,
     mutationFn: () => apply(),
     onSuccess: async (...args) => {
-      await queryClient.invalidateQueries({
-        queryKey: notificationKeys.lists(),
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: notificationKeys.all }),
+        queryClient.invalidateQueries({ queryKey: notificationKeys.emailLogs() }),
+      ]);
       toast.success(
         pickLocaleText(
           "Đã đánh dấu tất cả thông báo là đã đọc.",
@@ -178,9 +179,10 @@ export function useSendNotification(
     mutationFn: (payload: SendNotificationPayload) =>
       notificationService.sendNotification(payload),
     onSuccess: async (...args) => {
-      await queryClient.invalidateQueries({
-        queryKey: notificationKeys.lists(),
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: notificationKeys.all }),
+        queryClient.invalidateQueries({ queryKey: notificationKeys.emailLogs() }),
+      ]);
       toast.success(
         pickLocaleText(
           "Đã gửi thông báo thành công.",

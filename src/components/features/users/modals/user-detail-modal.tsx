@@ -39,13 +39,13 @@ export function UserDetailModal({
   onEditClick,
   onResetPasswordClick,
 }: UserDetailModalProps) {
-  const { t, locale } = useLocale();
+  const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const [activeTab, setActiveTab] = useState<"info" | "sessions">("info");
 
   const { data: sessions = [], isLoading: isLoadingSessions } = useUserSessions(
     user?.id || "",
-    { enabled: Boolean(open && user?.id) },
+    { enabled: Boolean(open && user?.id && !user.deletedAt) },
   );
 
   const revokeSessionMutation = useRevokeUserSession();
@@ -89,7 +89,7 @@ export function UserDetailModal({
       footer={
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2">
-            {onEditClick && (
+            {onEditClick && !isDeleted && (
               <Button
                 variant="outline"
                 size="sm"
@@ -103,7 +103,7 @@ export function UserDetailModal({
                 {isVietnamese ? "Chỉnh sửa" : "Edit Profile"}
               </Button>
             )}
-            {onResetPasswordClick && (
+            {onResetPasswordClick && !isDeleted && (
               <Button
                 variant="outline"
                 size="sm"

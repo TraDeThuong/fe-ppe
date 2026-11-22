@@ -50,6 +50,7 @@ export function NotificationList({
   onDelete,
   deletingId,
   onResetFilters,
+  hasActiveFilters = false,
   className = "",
 }: NotificationListProps) {
   const { locale } = useLocale();
@@ -85,7 +86,11 @@ export function NotificationList({
   }
 
   if (!items || items.length === 0) {
-    return <NotificationEmptyState onResetFilters={onResetFilters} />;
+    return (
+      <NotificationEmptyState
+        onResetFilters={hasActiveFilters ? onResetFilters : undefined}
+      />
+    );
   }
 
   const startIdx = Math.max(1, (page - 1) * limit + 1);

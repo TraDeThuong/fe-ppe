@@ -79,10 +79,10 @@ export default function DeactivateConfirmPage() {
   // ── Thành công: màn "tạm biệt" ──
   if (status.kind === "success") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background p-6">
+      <main className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-6">
         <div
           data-testid="deactivate-confirm-success"
-          className="w-full max-w-md rounded-[1.75rem] border border-border/40 bg-card p-8 text-center shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]"
+          className="w-full max-w-md rounded-2xl sm:rounded-[1.75rem] border border-border/40 bg-card p-5 sm:p-8 text-center shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]"
         >
           <div className="flex flex-col items-center gap-4">
             <span className="flex size-14 items-center justify-center rounded-full bg-success/15 text-success">
@@ -106,10 +106,10 @@ export default function DeactivateConfirmPage() {
   // ── Link thiếu token / token hết hạn hoặc sai ──
   if (status.kind === "missingToken" || status.kind === "invalidToken") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background p-6">
+      <main className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-6">
         <div
           data-testid="deactivate-confirm-invalid"
-          className="w-full max-w-md rounded-[1.75rem] border border-border/40 bg-card p-8 text-center shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]"
+          className="w-full max-w-md rounded-2xl sm:rounded-[1.75rem] border border-border/40 bg-card p-5 sm:p-8 text-center shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]"
         >
           <div className="flex flex-col items-center gap-4">
             <TriangleAlert className="size-10 text-danger" aria-hidden="true" />
@@ -130,10 +130,10 @@ export default function DeactivateConfirmPage() {
 
   // ── Lỗi hệ thống (mạng/5xx): cho thử lại ──
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
+    <main className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-6">
       <div
         data-testid="deactivate-confirm-error"
-        className="w-full max-w-md rounded-[1.75rem] border border-border/40 bg-card p-8 text-center shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]"
+        className="w-full max-w-md rounded-2xl sm:rounded-[1.75rem] border border-border/40 bg-card p-5 sm:p-8 text-center shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]"
       >
         <div className="flex flex-col items-center gap-4">
           <TriangleAlert className="size-10 text-warning" aria-hidden="true" />

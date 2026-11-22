@@ -482,7 +482,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                     {isVietnamese ? "02. Xung Nhịp FPS" : "02. Frame Rate Clock"}
                   </span>
                   <span className="font-mono text-[10px] font-bold text-muted-foreground">
-                    1–60 Hz
+                    1–30 Hz
                   </span>
                 </div>
 
@@ -495,11 +495,13 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                       size="sm"
                       type="number"
                       min={1}
-                      max={60}
+                      max={30}
                       step={1}
                       value={targetFps}
                       onChange={(e) =>
-                        onTargetFpsChange(Number(e.target.value) || 25)
+                        onTargetFpsChange(
+                          Math.min(30, Math.max(1, Number(e.target.value) || 25)),
+                        )
                       }
                     />
                   </div>
@@ -512,10 +514,14 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                       size="sm"
                       type="number"
                       min={1}
-                      max={60}
+                      max={30}
                       step={1}
                       value={aiFps}
-                      onChange={(e) => onAiFpsChange(Number(e.target.value) || 15)}
+                      onChange={(e) =>
+                        onAiFpsChange(
+                          Math.min(30, Math.max(1, Number(e.target.value) || 15)),
+                        )
+                      }
                     />
                   </div>
                 </div>

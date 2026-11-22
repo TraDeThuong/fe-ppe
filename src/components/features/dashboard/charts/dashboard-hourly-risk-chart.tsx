@@ -393,7 +393,7 @@ export function DashboardHourlyRiskChart({
 
             <div
               className={
-                isFull ? "space-y-2.5" : "grid grid-cols-3 gap-2.5"
+                isFull ? "space-y-2.5" : "grid grid-cols-1 sm:grid-cols-3 gap-2.5"
               }
             >
               {shifts.map((shift) => {

@@ -31,8 +31,9 @@ import { WebhookDeliveriesDrawer } from "./webhook-deliveries-drawer";
 const SUGGESTED_EVENTS = [
   "*",
   "ppe.incident.created",
+  "ppe.incident.assigned",
   "ppe.incident.resolved",
-  "ppe.incident.status_changed",
+  "user.updated",
   "system.ping",
   "job.completed",
   "job.failed",
@@ -257,7 +258,7 @@ export function WebhooksTab({
                         ? "Tạm tắt"
                         : "Inactive"}
                   </Badge>
-                  <span className="truncate font-mono text-xs font-bold text-foreground">
+                  <span className="max-w-full break-all sm:truncate font-mono text-xs font-bold text-foreground">
                     {item.url}
                   </span>
                 </div>
@@ -421,7 +422,7 @@ export function WebhooksTab({
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
             <Button type="button" variant="ghost" onClick={() => setModalMode(null)}>
               {isVi ? "Hủy" : "Cancel"}
             </Button>

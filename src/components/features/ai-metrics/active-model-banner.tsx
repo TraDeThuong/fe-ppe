@@ -132,24 +132,35 @@ export function ActiveModelBanner({
                 shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)]
               "
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  activeVersion ? "bg-emerald-500" : "bg-amber-500"
+                }`}
+              />
             </span>
           </div>
 
           <div className="min-w-0">
             <div className="mb-1.5 flex flex-wrap items-center gap-2">
               <span
-                className="
+                className={`
                   inline-flex items-center gap-1.5
                   rounded-full bg-background px-2 py-1
                   text-[9px] font-bold uppercase tracking-[0.13em]
-                  text-emerald-600
                   shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)]
-                  dark:text-emerald-400
-                "
+                  ${
+                    activeVersion
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-amber-600 dark:text-amber-400"
+                  }
+                `}
               >
                 <CheckCircle2 className="h-3 w-3" />
-                {t("aiMetrics.governance.activeBadge")}
+                {activeVersion
+                  ? t("aiMetrics.governance.activeBadge")
+                  : locale === "vi-VN"
+                    ? "Chưa triển khai"
+                    : "Not Deployed"}
               </span>
 
               <span className="text-[10px] font-medium tracking-wide text-muted-foreground">

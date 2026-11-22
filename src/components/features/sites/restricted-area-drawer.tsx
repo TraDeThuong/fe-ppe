@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertOctagon,
   Camera,
@@ -147,12 +147,21 @@ export function RestrictedAreaDrawer({
     [area, isCameraMode, selectedSiteAreaId, siteAreas],
   );
 
-  // Initialize form state when opening modal
+  const initSessionRef = useRef<string | null>(null);
+
+  // Initialize form state only when opening modal or switching target area (not on background siteAreas refetch)
   useEffect(() => {
     if (!open) {
+      initSessionRef.current = null;
       setValidationError(null);
       return;
     }
+
+    const sessionKey = `${isCameraMode ? "cam" : "site"}:${area?.id ?? "new"}:${fixedCamera?.id ?? ""}:${defaultZoneId ?? ""}`;
+    if (initSessionRef.current === sessionKey) {
+      return;
+    }
+    initSessionRef.current = sessionKey;
 
     if (!isCameraMode) {
       // Site-metadata mode: only name, zoneId, status, description

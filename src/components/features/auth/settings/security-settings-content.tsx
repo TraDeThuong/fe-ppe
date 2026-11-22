@@ -94,7 +94,7 @@ export function SecuritySettingsContent() {
         <nav
           aria-label={t("security.title")}
           role="tablist"
-          className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5"
+          className="flex gap-1.5 overflow-x-auto no-scrollbar sm:grid sm:grid-cols-3 lg:grid-cols-5"
         >
           {TABS.map(({ id, icon: Icon }) => {
             const active = tab === id;
@@ -142,8 +142,8 @@ export function SecuritySettingsContent() {
                   document.getElementById(`security-tab-${nextTab}`)?.focus();
                 }}
                 className={`
-                  group relative flex min-h-11 items-center justify-center gap-2
-                  rounded-xl border px-3 py-2.5 text-sm font-medium
+                  group relative flex min-h-10 sm:min-h-11 shrink-0 whitespace-nowrap sm:shrink sm:min-w-0 items-center justify-center gap-2
+                  rounded-xl border px-3 py-2 sm:py-2.5 text-xs sm:text-sm font-medium
                   transition-all duration-200
                   focus-visible:outline-none focus-visible:ring-2
                   focus-visible:ring-primary focus-visible:ring-offset-2
@@ -165,7 +165,7 @@ export function SecuritySettingsContent() {
                   aria-hidden="true"
                 />
 
-                <span className="truncate">
+                <span className="sm:truncate">
                   {t(`security.tab.${id}`)}
                 </span>
 

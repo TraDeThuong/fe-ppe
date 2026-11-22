@@ -93,7 +93,7 @@ export function DashboardScopeFilterBar({
         {/* Left: Portal Select Filters + Optional Custom Date Range */}
         <div className="flex flex-wrap items-end gap-3">
           {canViewSites && onSiteChange && (
-            <div className="w-full min-w-[210px] space-y-1.5 sm:w-auto sm:min-w-[230px]">
+            <div className="w-full space-y-1.5 sm:w-auto sm:min-w-[230px]">
               <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
                 <Building2 className="size-3 text-primary" />
                 {t("dashboard.activeSite")}
@@ -109,7 +109,7 @@ export function DashboardScopeFilterBar({
             </div>
           )}
 
-          <div className="w-full min-w-[175px] space-y-1.5 sm:w-auto sm:min-w-[190px]">
+          <div className="w-full space-y-1.5 sm:w-auto sm:min-w-[190px]">
             <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
               <CalendarRange className="size-3 text-primary" />
               {t("dashboard.period.title")}

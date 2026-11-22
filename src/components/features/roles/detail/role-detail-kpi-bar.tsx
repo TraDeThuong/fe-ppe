@@ -59,7 +59,7 @@ export function RoleDetailKpiBar({
           </div>
         ),
         badgeRender: (
-          <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary border border-primary/20 font-mono">
+          <span className="inline-flex shrink-0 whitespace-nowrap items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary border border-primary/20 font-mono">
             {coveragePercent}%
           </span>
         ),
@@ -84,7 +84,7 @@ export function RoleDetailKpiBar({
           </div>
         ),
         badgeRender: (
-          <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary border border-primary/20">
+          <span className="inline-flex shrink-0 whitespace-nowrap items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary border border-primary/20">
             {assignedUsersCount > 0
               ? isVietnamese
                 ? "Đang gán"
@@ -116,7 +116,7 @@ export function RoleDetailKpiBar({
           </div>
         ),
         badgeRender: (
-          <span className="inline-flex items-center rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent border border-accent/25 font-mono">
+          <span className="inline-flex shrink-0 whitespace-nowrap items-center rounded-full bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent border border-accent/25 font-mono">
             {totalPagesCount > 0
               ? `${Math.round((accessiblePagesCount / totalPagesCount) * 100)}%`
               : "0%"}
@@ -141,7 +141,7 @@ export function RoleDetailKpiBar({
           </div>
         ),
         badgeRender: (
-          <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary border border-primary/20">
+          <span className="inline-flex shrink-0 whitespace-nowrap items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary border border-primary/20">
             {role.isSystem ? t("roles.detail.immutable") : t("roles.badge.custom")}
           </span>
         ),
@@ -196,23 +196,29 @@ export function RoleDetailKpiBar({
             <div className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/10" />
 
             {/* Card Header */}
-            <div className="flex items-center justify-between gap-1.5">
-              <div className="flex min-w-0 items-center gap-2">
-                <span
-                  className={`
-                    flex size-7 shrink-0 items-center justify-center rounded-lg
-                    border border-black/[0.04] shadow-sm dark:border-white/[0.05]
-                    ${card.toneIcon}
-                  `}
-                >
-                  <Icon className="size-3.5 sm:size-4 stroke-[2]" />
-                </span>
-                <span className="truncate text-[11px] sm:text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
-                  {card.title}
-                </span>
+            <div className="space-y-1.5 sm:space-y-0">
+              <div className="flex items-center justify-between gap-1.5">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span
+                    className={`
+                      flex size-7 shrink-0 items-center justify-center rounded-lg
+                      border border-black/[0.04] shadow-sm dark:border-white/[0.05]
+                      ${card.toneIcon}
+                    `}
+                  >
+                    <Icon className="size-3.5 sm:size-4 stroke-[2]" />
+                  </span>
+                  <span className="hidden sm:inline truncate text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
+                    {card.title}
+                  </span>
+                </div>
+
+                {card.badgeRender}
               </div>
 
-              {card.badgeRender}
+              <span className="block sm:hidden text-[11px] font-semibold leading-snug text-muted-foreground group-hover:text-foreground transition-colors">
+                {card.title}
+              </span>
             </div>
 
             {/* Card Body */}

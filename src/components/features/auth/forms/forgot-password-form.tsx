@@ -62,6 +62,9 @@ export function ForgotPasswordForm() {
       setSubmitted(true);
     },
     onError: (error) => {
+      // Token Turnstile chỉ dùng 1 lần — reset sau mọi lỗi để lần gửi lại luôn hợp lệ
+      resetTurnstileToken();
+
       // 422: lỗi theo field → gắn thẳng dưới đúng ô input
       if (error instanceof ApiError && error.status === 422 && error.errors?.length) {
         for (const fieldError of error.errors) {
@@ -82,7 +85,6 @@ export function ForgotPasswordForm() {
           error.code === ErrorCode.CAPTCHA_INVALID)
       ) {
         setFailure({ kind: "captcha", message: t("forgotPassword.captchaRequired") });
-        resetTurnstileToken();
         return;
       }
 

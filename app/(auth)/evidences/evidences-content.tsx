@@ -45,6 +45,7 @@ import {
   type EvidenceDatePreset,
   type EvidenceLifecycleScope,
 } from "@/lib/evidence-utils";
+import { resolveEvidenceUrl } from "@/lib/evidence-url";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
 import { incidentService } from "@/services";
@@ -183,8 +184,7 @@ export default function EvidencesContent() {
       violationType ||
       checksumFilter !== "all" ||
       datePreset !== "all" ||
-      lifecycleScope !== "all" ||
-      archivedIds.size > 0,
+      lifecycleScope !== "all",
   );
 
   // When client-enriched filters are active, fetch larger slice (BE max=100) for accurate filtering
@@ -237,7 +237,11 @@ export default function EvidencesContent() {
   const meta = data?.meta;
 
   const visibleEvidences = useMemo(() => {
-    if (!hasClientFilters) return rawEvidences;
+    if (!hasClientFilters) {
+      return archivedIds.size > 0
+        ? rawEvidences.filter((ev) => !archivedIds.has(ev.id))
+        : rawEvidences;
+    }
     return filterEvidencesClientSide(
       rawEvidences,
       {
@@ -400,7 +404,8 @@ export default function EvidencesContent() {
       const res = await incidentService.getEvidenceDownloadUrl(ev.id, {
         action: "DOWNLOAD",
       });
-      window.open(res.downloadUrl, "_blank", "noopener,noreferrer");
+      const safeUrl = resolveEvidenceUrl(res.downloadUrl) || res.downloadUrl;
+      window.open(safeUrl, "_blank", "noopener,noreferrer");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("evidences.actions.downloadError"));
     }
@@ -503,10 +508,10 @@ export default function EvidencesContent() {
   };
 
   const handleConfirmBatchDelete = async () => {
-    const targets =
-      selectedItems.length > 0
-        ? selectedItems
-        : Array.from(selectedIds).map((id) => ({ id }));
+    const byId = new Map(rawEvidences.map((ev) => [ev.id, ev]));
+    const targets = Array.from(selectedIds).map(
+      (id) => byId.get(id) ?? { id },
+    );
     setIsBatchDeleteConfirmOpen(false);
     await batchDelete.runBatchDelete(targets);
     setSelectedIds(new Set());
@@ -638,11 +643,20 @@ export default function EvidencesContent() {
         }}
         archivedCount={archivedIds.size}
         sortBy={sortBy}
-        onSortByChange={setSortBy}
+        onSortByChange={(v) => {
+          setSortBy(v);
+          setPage(1);
+        }}
         sortOrder={sortOrder}
-        onToggleSortOrder={() => setSortOrder((o) => (o === "desc" ? "asc" : "desc"))}
+        onToggleSortOrder={() => {
+          setSortOrder((o) => (o === "desc" ? "asc" : "desc"));
+          setPage(1);
+        }}
         viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        onViewModeChange={(v) => {
+          setViewMode(v);
+          setPage(1);
+        }}
         onResetFilters={handleResetFilters}
         visibleCount={paginatedEvidences.length}
         selectedCount={selectedIds.size}

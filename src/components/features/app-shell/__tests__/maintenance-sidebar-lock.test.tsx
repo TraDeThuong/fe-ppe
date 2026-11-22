@@ -15,6 +15,10 @@ import { LocaleProvider } from "@/providers/locale-provider";
 import {
   getVisibleNavItems,
   isFullMaintenanceMode,
+  isMaintenanceBypassed,
+  isNavItemActive,
+  NAV_ITEMS,
+  ROUTE_ANY_PERMISSIONS,
 } from "@/config/navigation";
 import { AppSidebar } from "../app-sidebar";
 
@@ -138,5 +142,39 @@ describe("AppSidebar maintenanceLocked rendering", () => {
     assert.ok(html.includes('href="/incidents"'));
     assert.ok(html.includes('href="/users"'));
     assert.ok(html.includes('href="/maintenance"'));
+  });
+});
+
+describe("navigation helpers (activePrefix, maintenance bypass, MAINTENANCE_READ)", () => {
+  it("highlights Settings nav item on both /settings/profile and /settings/security", () => {
+    const settingsItem = NAV_ITEMS.find((i) => i.key === "settings")!;
+    assert.equal(isNavItemActive("/settings/profile", settingsItem, NAV_ITEMS), true);
+    assert.equal(isNavItemActive("/settings/security", settingsItem, NAV_ITEMS), true);
+    assert.equal(isNavItemActive("/dashboard", settingsItem, NAV_ITEMS), false);
+  });
+
+  it("allows MAINTENANCE_READ users to see /maintenance in sidebar and ROUTE_ANY_PERMISSIONS", () => {
+    assert.deepEqual(ROUTE_ANY_PERMISSIONS["/maintenance"], [
+      "MAINTENANCE_READ",
+      "MAINTENANCE_MANAGE",
+    ]);
+    const items = getVisibleNavItems(["MAINTENANCE_READ"], {
+      maintenanceLocked: false,
+      role: "USER",
+    });
+    assert.ok(items.some((i) => i.route === "/maintenance"));
+  });
+
+  it("checks isMaintenanceBypassed for ADMIN, SUPER_ADMIN, and MAINTENANCE_MANAGE", () => {
+    assert.equal(isMaintenanceBypassed({ role: "ADMIN", permissions: [] }), true);
+    assert.equal(isMaintenanceBypassed({ role: "SUPER_ADMIN", permissions: [] }), true);
+    assert.equal(
+      isMaintenanceBypassed({ role: "MANAGER", permissions: ["MAINTENANCE_MANAGE"] }),
+      true,
+    );
+    assert.equal(
+      isMaintenanceBypassed({ role: "USER", permissions: ["MAINTENANCE_READ"] }),
+      false,
+    );
   });
 });

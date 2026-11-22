@@ -434,7 +434,7 @@ export function ReportPersonnelPerformanceCard({
         <div
           role="tablist"
           aria-label={isVietnamese ? "Phân tách theo vai trò" : "Role segmentation"}
-          className="relative z-20 mt-3 grid grid-cols-3 gap-1.5 rounded-2xl border border-black/[0.04] bg-background/80 p-1 shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)] dark:border-white/5 shrink-0"
+          className="relative z-20 mt-3 flex overflow-x-auto no-scrollbar sm:grid sm:grid-cols-3 gap-1.5 rounded-2xl border border-black/[0.04] bg-background/80 p-1 shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)] dark:border-white/5 shrink-0"
         >
           {roleTabs.map((tab) => {
             const Icon = tab.icon;
@@ -446,7 +446,7 @@ export function ReportPersonnelPerformanceCard({
                 role="tab"
                 aria-selected={isSelected}
                 onClick={() => handleRoleTabChange(tab.key)}
-                className={`flex items-center justify-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-extrabold transition-all cursor-pointer select-none ${
+                className={`flex shrink-0 whitespace-nowrap items-center justify-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-extrabold transition-all cursor-pointer select-none ${
                   isSelected
                     ? "bg-primary text-primary-foreground shadow-[2px_2px_7px_var(--shadow-dark)]"
                     : "text-muted-foreground hover:text-foreground"
@@ -470,7 +470,7 @@ export function ReportPersonnelPerformanceCard({
 
         {/* ROLE-SPECIFIC SUMMARY METRIC STRIP */}
         {roleTab === "officer" && (
-          <div className="relative z-10 mt-3 grid grid-cols-3 gap-2.5 shrink-0">
+          <div className="relative z-10 mt-3 grid grid-cols-1 min-[420px]:grid-cols-3 gap-2.5 shrink-0">
             <div className="rounded-2xl border border-white/50 bg-background/80 px-3 py-2 shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_var(--shadow-light)] dark:border-white/5">
               <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 <Users className="h-3 w-3 text-primary" />
@@ -521,7 +521,7 @@ export function ReportPersonnelPerformanceCard({
         )}
 
         {roleTab === "manager" && (
-          <div className="relative z-10 mt-3 grid grid-cols-3 gap-2.5 shrink-0">
+          <div className="relative z-10 mt-3 grid grid-cols-1 min-[420px]:grid-cols-3 gap-2.5 shrink-0">
             <div className="rounded-2xl border border-white/50 bg-background/80 px-3 py-2 shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_var(--shadow-light)] dark:border-white/5">
               <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 <ClipboardCheck className="h-3 w-3 text-primary" />
@@ -566,7 +566,7 @@ export function ReportPersonnelPerformanceCard({
         )}
 
         {roleTab === "admin" && (
-          <div className="relative z-10 mt-3 grid grid-cols-3 gap-2.5 shrink-0">
+          <div className="relative z-10 mt-3 grid grid-cols-1 min-[420px]:grid-cols-3 gap-2.5 shrink-0">
             <div className="rounded-2xl border border-white/50 bg-background/80 px-3 py-2 shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_var(--shadow-light)] dark:border-white/5">
               <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 <UserCog className="h-3 w-3 text-primary" />

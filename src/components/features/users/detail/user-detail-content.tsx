@@ -335,6 +335,11 @@ export function UserDetailContent({ userId }: UserDetailContentProps) {
         onClose={() => setDeleteModalState((prev) => ({ ...prev, open: false }))}
         user={user ?? null}
         mode={deleteModalState.mode}
+        onSuccess={(completedMode) => {
+          if (completedMode === "delete") {
+            router.replace("/users");
+          }
+        }}
       />
     </div>
   );

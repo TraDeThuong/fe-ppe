@@ -9,8 +9,8 @@ export function ForbiddenView() {
   const { t } = useLocale();
 
   return (
-    <div className="flex h-full items-center justify-center p-6">
-      <div className="max-w-md rounded-2xl bg-card p-8 text-center shadow-nm">
+    <div className="flex h-full items-center justify-center p-4 sm:p-6">
+      <div className="w-full max-w-md rounded-2xl bg-card p-5 sm:p-8 text-center shadow-nm">
         <ShieldX className="mx-auto h-10 w-10 text-primary" />
         <h1 className="mt-4 text-lg font-semibold text-foreground">
           {t("guard.forbiddenTitle")}

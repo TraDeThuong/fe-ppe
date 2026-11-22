@@ -109,7 +109,7 @@ export function ChangePasswordForm() {
   // router.replace chạy cùng lúc với effect redirect /login?next=... của
   // (auth) layout khi status chuyển sang unauthenticated — guard thắng race.
   const logoutThenForgot = useLogout({
-    onSuccess: () => window.location.assign("/forgot-password"),
+    onSettled: () => window.location.assign("/forgot-password"),
   });
 
   const newPassword = form.watch("newPassword") ?? "";

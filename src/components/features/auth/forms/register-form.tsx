@@ -74,6 +74,9 @@ export function RegisterForm() {
       setRegisteredEmail(normalizeEmail(form.getValues("email")));
     },
     onError: (error) => {
+      // Token Turnstile chỉ dùng 1 lần — đã gửi lên server là phải reset để lần thử sau không dính CAPTCHA_INVALID
+      resetTurnstileToken();
+
       // 422: lỗi theo field → gắn thẳng dưới đúng ô input
       if (error instanceof ApiError && error.status === 422 && error.errors?.length) {
         for (const fieldError of error.errors) {
@@ -98,7 +101,6 @@ export function RegisterForm() {
           error.code === ErrorCode.CAPTCHA_INVALID)
       ) {
         setFailure({ kind: "captcha", message: t("register.captchaRequired") });
-        resetTurnstileToken();
         return;
       }
 

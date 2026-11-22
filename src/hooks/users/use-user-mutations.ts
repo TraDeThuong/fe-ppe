@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { handleMutationError, type MutationHookOptions } from "@/hooks/auth/auth-hook-utils";
 import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
+import { rbacKeys } from "@/hooks/rbac/rbac.query-keys";
 import { userService } from "@/services/user.service";
 import { userKeys } from "./user.query-keys";
 import type {
@@ -28,7 +29,10 @@ export function useCreateUser(
     mutationFn: (payload: CreateUserPayload) => userService.createUser(payload),
     onSuccess: async (...args) => {
       const [user] = args;
-      await queryClient.invalidateQueries({ queryKey: userKeys.all });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: userKeys.all }),
+        queryClient.invalidateQueries({ queryKey: rbacKeys.roles() }),
+      ]);
       if (!options?.suppressToast) {
         const displayName = user.fullName || user.email;
         toast.success(
@@ -107,6 +111,7 @@ export function useDeleteUser(
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: userKeys.all }),
         queryClient.invalidateQueries({ queryKey: userKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: rbacKeys.roles() }),
       ]);
       if (!options?.suppressToast) {
         toast.success(
@@ -143,6 +148,7 @@ export function useRestoreUser(
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: userKeys.all }),
         queryClient.invalidateQueries({ queryKey: userKeys.detail(id) }),
+        queryClient.invalidateQueries({ queryKey: rbacKeys.roles() }),
       ]);
       if (!options?.suppressToast) {
         toast.success(
@@ -225,7 +231,11 @@ export function useAdminResetPassword(
       userService.adminResetPassword(id, payload),
     onSuccess: async (...args) => {
       const [, variables] = args;
-      await queryClient.invalidateQueries({ queryKey: userKeys.detail(variables.id) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: userKeys.detail(variables.id) }),
+        queryClient.invalidateQueries({ queryKey: userKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: userKeys.summary() }),
+      ]);
       if (!options?.suppressToast) {
         toast.success(
           pickLocaleText(

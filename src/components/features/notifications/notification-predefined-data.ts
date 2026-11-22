@@ -79,7 +79,7 @@ export const PREDEFINED_SYSTEM_TEMPLATES: PredefinedTemplateItem[] = [
     descriptionEn: "Triggered instantly when AI camera detects safety equipment non-compliance.",
   },
   {
-    code: "PPE_INCIDENT_ASSIGNED",
+    code: "INCIDENT_ASSIGNED",
     name: "Phân công xử lý sự cố an toàn",
     nameEn: "Safety Incident Assigned",
     category: "PPE",
@@ -101,7 +101,7 @@ export const PREDEFINED_SYSTEM_TEMPLATES: PredefinedTemplateItem[] = [
     descriptionEn: "Dispatched to safety officers when a new incident ticket is assigned.",
   },
   {
-    code: "PPE_INCIDENT_RESOLVED",
+    code: "INCIDENT_RESOLVED",
     name: "Sự cố an toàn đã được giải quyết",
     nameEn: "Safety Incident Resolved",
     category: "PPE",

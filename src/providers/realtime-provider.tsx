@@ -7,7 +7,10 @@ import { RealtimeContext, type PpeAlertEvent } from "@/contexts/RealtimeContext"
 import { env } from "@/config/env";
 import { apiClient } from "@/lib/axios";
 import { stripEmojis } from "@/lib/strip-emojis";
+import { authKeys } from "@/hooks/auth/auth.query-keys";
+import { maintenanceQueryKeys } from "@/hooks/maintenance/maintenance.query-keys";
 import { notificationKeys } from "@/hooks/notifications/notification.query-keys";
+import { systemQueryKeys } from "@/hooks/system/system.query-keys";
 
 // Event type từ notification-service (notification.service.ts)
 const ALERT_EVENTS = [
@@ -99,13 +102,14 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
                 }
               }
               setLastAlert({ type: eventName, data: parsed, id: eventId });
-              void queryClient.invalidateQueries({ queryKey: notificationKeys.lists() }, { cancelRefetch: false });
+              void queryClient.invalidateQueries({ queryKey: notificationKeys.all }, { cancelRefetch: false });
             } catch {
               setLastAlert({
                 type: eventName,
                 data: typeof raw === "string" ? stripEmojis(raw) : raw,
                 id: eventId,
               });
+              void queryClient.invalidateQueries({ queryKey: notificationKeys.all }, { cancelRefetch: false });
             }
           });
         }
@@ -115,12 +119,25 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
           });
         }
+
+        source.addEventListener("system:maintenance", () => {
+          void queryClient.invalidateQueries({ queryKey: maintenanceQueryKeys.all });
+        });
+
+        source.addEventListener("system:feature_toggle", () => {
+          void queryClient.invalidateQueries({ queryKey: systemQueryKeys.all });
+          void queryClient.invalidateQueries({ queryKey: authKeys.config() });
+        });
       } catch (err: unknown) {
         setIsConnected(false);
         const statusCode =
           err && typeof err === "object" && "status" in err
             ? Number((err as { status?: unknown }).status)
             : 0;
+        // User không có quyền SSE (403) -> dừng retry vô hạn
+        if (statusCode === 403) {
+          return;
+        }
         // Nếu bị rate-limit (429), chờ tối thiểu 60s trước khi xin ticket lại
         scheduleReconnect(statusCode === 429 ? 60_000 : 10_000);
       }

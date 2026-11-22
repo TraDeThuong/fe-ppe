@@ -368,7 +368,7 @@ export function DashboardSystemStatusCard({
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 pl-10">
+        <div className="flex flex-wrap items-center gap-2 pl-0 sm:pl-10">
           <button
             type="button"
             onClick={() => setSelectedCode(primaryIssue.serviceCode)}
@@ -647,7 +647,7 @@ export function DashboardSystemStatusCard({
           </div>
 
           {/* 3 Ô thông số kỹ thuật nổi lên trên ngăn kéo */}
-          <div className="grid grid-cols-3 gap-2 text-[11px]">
+          <div className="grid grid-cols-1 min-[400px]:grid-cols-3 gap-2 text-[11px]">
             <div className={`rounded-xl bg-background p-2.5 ${NM.extruded}`}>
               <span className="block text-[10px] font-semibold text-muted-foreground">
                 {selectedService.status === "DOWN"

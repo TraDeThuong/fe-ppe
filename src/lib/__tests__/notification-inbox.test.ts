@@ -17,17 +17,68 @@ describe("frontend-only broadcast inbox", () => {
     assert.equal(notificationInboxPage(snapshot, { isRead: false }).meta.total, 0);
     assert.equal(notificationInboxPage(snapshot, { isRead: true, limit: 1 }).meta.total, 1);
   });
-  it("does not merge repeated sends, two owned rows, different incidents/channels or payloads", () => {
+  it("does not merge repeated sends, two same-channel owned rows, different incidents or payloads", () => {
     const raw = [row("global-2", BROADCAST_USER_ID), row("owned-2", "u2"), row("direct-2", "u2"),
       row("later-global-2", BROADCAST_USER_ID, { createdAt: "2026-11-18T09:01:00Z" }),
       row("later-owned-2", "u2", { createdAt: "2026-11-18T09:01:00Z" }),
-      row("email-2", "u2", { channel: "EMAIL" }), row("incident-2", "u2", { incidentId: "incident" }),
+      row("email-2", "u2", { channel: "EMAIL", createdAt: "2026-11-18T09:02:00Z" }),
+      row("incident-2", "u2", { incidentId: "incident" }),
       row("different-2", BROADCAST_USER_ID, { content: "Khác nội dung" })];
     const snapshot = normalizeNotificationInbox(raw, "u2");
     assert.equal(snapshot.items.length, 6);
     assert.ok(snapshot.items.some((item) => item.id === "direct-2"));
     assert.equal(notificationInboxPage(snapshot, { channel: "EMAIL" }).meta.total, 1);
     assert.equal(notificationInboxPage(snapshot, { search: "Khác nội dung" }).meta.total, 1);
+  });
+  it("merges simultaneous IN_APP and EMAIL deliveries of the same PPE incident into one item and syncs read/delete across all merged IDs", async () => {
+    const raw = [
+      row("inc-email", "u-mc", {
+        incidentId: "inc-99",
+        channel: "EMAIL",
+        severity: "HIGH",
+        title: "Cảnh báo vi phạm PPE [HIGH]: NO_HELMET tại Công trường",
+        content: "Không đội mũ bảo hộ lao động",
+        createdAt: "2026-11-22T10:50:00.120Z",
+      }),
+      row("inc-inapp", "u-mc", {
+        incidentId: "inc-99",
+        channel: "IN_APP",
+        severity: "HIGH",
+        title: "Cảnh báo vi phạm PPE [HIGH]: NO_HELMET tại Công trường",
+        content: "Không đội mũ bảo hộ lao động",
+        createdAt: "2026-11-22T10:50:00.125Z",
+      }),
+    ];
+    const snapshot = normalizeNotificationInbox(raw, "u-mc");
+    assert.equal(snapshot.items.length, 1);
+    const merged = snapshot.items[0];
+    assert.equal(merged.id, "inc-inapp");
+    assert.equal(merged.channel, "IN_APP");
+    assert.deepEqual(merged.deliveredChannels, ["IN_APP", "EMAIL"]);
+    assert.deepEqual(merged.mergedIds, ["inc-inapp", "inc-email"]);
+    assert.deepEqual(merged.unreadIds, ["inc-inapp", "inc-email"]);
+
+    // Bộ lọc theo kênh vẫn khớp cả IN_APP lẫn EMAIL
+    assert.equal(notificationInboxPage(snapshot, { channel: "IN_APP" }).meta.total, 1);
+    assert.equal(notificationInboxPage(snapshot, { channel: "EMAIL" }).meta.total, 1);
+
+    // Đánh dấu đã đọc phải gọi markAsRead cho CẢ 2 bản ghi IN_APP và EMAIL
+    const readIds: string[] = [];
+    const afterRead = await applyNotificationInboxAction(
+      { snapshot, userId: "u-mc", action: "read", id: merged.id },
+      { ...service, markAsRead: async (id) => { readIds.push(id); } },
+    );
+    assert.deepEqual(readIds.sort(), ["inc-email", "inc-inapp"]);
+    assert.equal(isNotificationRead(afterRead.items[0]), true);
+
+    // Xóa phải gọi deleteNotification cho CẢ 2 bản ghi IN_APP và EMAIL
+    const deletedIds: string[] = [];
+    const afterDelete = await applyNotificationInboxAction(
+      { snapshot: afterRead, userId: "u-mc", action: "delete", id: merged.id },
+      { ...service, deleteNotification: async (id) => { deletedIds.push(id); } },
+    );
+    assert.deepEqual(deletedIds.sort(), ["inc-email", "inc-inapp"]);
+    assert.equal(afterDelete.items.length, 0);
   });
   it("keeps orphan global notifications and scopes receipts to the account", () => {
     const global = row("global-3", BROADCAST_USER_ID);

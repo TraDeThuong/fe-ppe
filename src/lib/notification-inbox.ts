@@ -1,6 +1,25 @@
-import type { ListNotificationsQuery, NotificationItemDto, NotificationListResponse } from "@/types";
+import type { ListNotificationsQuery, NotificationChannel, NotificationItemDto, NotificationListResponse } from "@/types";
 
 export const BROADCAST_USER_ID = "00000000-0000-0000-0000-000000000000";
+const MULTI_CHANNEL_MERGE_WINDOW_MS = 10_000;
+const CHANNEL_PRIORITY: Record<string, number> = {
+  IN_APP: 0,
+  WEB: 1,
+  EMAIL: 2,
+  ZALO_ZNS: 3,
+  WEBHOOK: 4,
+};
+
+function channelRank(channel: string): number {
+  return CHANNEL_PRIORITY[channel] ?? 99;
+}
+
+export function getNotificationChannels(item: NotificationItemDto): NotificationChannel[] {
+  if (item.deliveredChannels && item.deliveredChannels.length > 0) {
+    return item.deliveredChannels;
+  }
+  return [item.channel];
+}
 export interface NotificationInboxSnapshot { items: NotificationItemDto[]; rawTotal: number }
 interface InboxReceipts { aliases: Record<string, string>; read: string[]; dismissed: string[] }
 const memory = new Map<string, InboxReceipts>();
@@ -39,7 +58,121 @@ function broadcastFingerprint(item: NotificationItemDto): string | null {
   return JSON.stringify([created, item.title, item.content, item.severity, item.actionUrl ?? "", item.metadata ?? null]);
 }
 
-/** Prefer owned deliveries; match global/owned pairs one-to-one, never two owned records. */
+function multiChannelKey(item: NotificationItemDto): string {
+  return JSON.stringify([
+    item.userId,
+    item.incidentId ?? "",
+    item.templateId ?? "",
+    item.title,
+    item.content,
+    item.severity,
+    item.actionUrl ?? "",
+  ]);
+}
+
+/**
+ * Gộp các bản ghi phát đa kênh (VD: IN_APP + EMAIL) thuộc cùng một sự kiện phát thông báo
+ * (cùng user, cùng incident/nội dung, khác kênh, tạo trong cùng đợt <= 10s) thành 1 mục duy nhất
+ * để hộp thư, chuông thông báo và bộ đếm chưa đọc không bị nhân đôi.
+ */
+function mergeMultiChannelDeliveries(
+  items: NotificationItemDto[],
+  userId: string,
+  broadcastOwnedIds: Set<string>,
+): NotificationItemDto[] {
+  interface MergeGroup {
+    members: NotificationItemDto[];
+    channels: Set<string>;
+    anchorTime: number;
+  }
+
+  const output: NotificationItemDto[] = [];
+  const groupsByKey = new Map<string, MergeGroup[]>();
+  const allGroups: MergeGroup[] = [];
+
+  for (const item of items) {
+    // Chỉ gộp bản ghi thuộc sở hữu người dùng hiện tại, bỏ qua bản ghi broadcast dùng chung
+    if (item.userId !== userId || broadcastOwnedIds.has(item.id)) {
+      output.push(item);
+      continue;
+    }
+
+    const ts = new Date(item.createdAt).getTime();
+    if (!Number.isFinite(ts)) {
+      output.push(item);
+      continue;
+    }
+
+    const key = multiChannelKey(item);
+    const candidates = groupsByKey.get(key) ?? [];
+    const match = candidates.find(
+      (group) =>
+        !group.channels.has(item.channel) &&
+        Math.abs(group.anchorTime - ts) <= MULTI_CHANNEL_MERGE_WINDOW_MS,
+    );
+
+    if (match) {
+      match.members.push(item);
+      match.channels.add(item.channel);
+    } else {
+      const nextGroup: MergeGroup = {
+        members: [item],
+        channels: new Set([item.channel]),
+        anchorTime: ts,
+      };
+      candidates.push(nextGroup);
+      groupsByKey.set(key, candidates);
+      allGroups.push(nextGroup);
+    }
+  }
+
+  for (const group of allGroups) {
+    if (group.members.length === 1) {
+      output.push(group.members[0]);
+      continue;
+    }
+
+    const sorted = [...group.members].sort(
+      (a, b) =>
+        channelRank(a.channel) - channelRank(b.channel) ||
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() ||
+        b.id.localeCompare(a.id),
+    );
+    const primary = sorted[0];
+    const deliveredChannels = Array.from(
+      new Set(sorted.map((member) => member.channel)),
+    ) as NotificationChannel[];
+    const mergedIds = sorted.map((member) => member.id);
+    const unreadMembers = sorted.filter((member) => !isNotificationRead(member));
+    const unreadIds = unreadMembers.map((member) => member.id);
+    const allRead = unreadIds.length === 0;
+    const representativeUnread = unreadMembers[0];
+
+    output.push({
+      ...primary,
+      status: allRead ? ("READ" as const) : representativeUnread.status,
+      isRead: allRead,
+      readAt: allRead
+        ? (primary.readAt ?? sorted.find((member) => member.readAt)?.readAt ?? null)
+        : null,
+      evidenceUrl:
+        primary.evidenceUrl ??
+        sorted.find((member) => member.evidenceUrl)?.evidenceUrl ??
+        null,
+      actionUrl:
+        primary.actionUrl ??
+        sorted.find((member) => member.actionUrl)?.actionUrl ??
+        null,
+      deliveredChannels,
+      mergedIds,
+      unreadIds,
+    });
+  }
+
+  return output;
+}
+
+/** Prefer owned deliveries; match global/owned pairs one-to-one, and collapse multi-channel duplicates of the same dispatch. */
 export function normalizeNotificationInbox(raw: NotificationItemDto[], userId: string): NotificationInboxSnapshot {
   const saved = receipts(userId);
   const owned = new Map<string, NotificationItemDto[]>();
@@ -60,8 +193,11 @@ export function normalizeNotificationInbox(raw: NotificationItemDto[], userId: s
   saveReceipts(userId, saved);
   const dismissed = new Set(saved.dismissed);
   const read = new Set(saved.read);
-  const items = raw.filter((item) => item.userId !== BROADCAST_USER_ID || (!saved.aliases[item.id] && !dismissed.has(item.id)))
-    .map((item) => item.userId === BROADCAST_USER_ID && read.has(item.id) ? { ...item, status: "READ" as const, isRead: true } : item)
+  const afterBroadcast = raw
+    .filter((item) => item.userId !== BROADCAST_USER_ID || (!saved.aliases[item.id] && !dismissed.has(item.id)))
+    .map((item) => item.userId === BROADCAST_USER_ID && read.has(item.id) ? { ...item, status: "READ" as const, isRead: true } : item);
+
+  const items = mergeMultiChannelDeliveries(afterBroadcast, userId, usedOwned)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || b.id.localeCompare(a.id));
   return { items, rawTotal: raw.length };
 }
@@ -86,7 +222,7 @@ export function notificationInboxPage(snapshot: NotificationInboxSnapshot, param
   const items = snapshot.items.filter((item) => {
     if (params.isRead !== undefined && isNotificationRead(item) !== params.isRead) return false;
     if (params.status && item.status !== params.status) return false;
-    if (params.channel && item.channel !== params.channel) return false;
+    if (params.channel && !getNotificationChannels(item).includes(params.channel)) return false;
     if (params.severity && item.severity !== params.severity) return false;
     if (params.incidentId && item.incidentId !== params.incidentId) return false;
     if (search && !`${item.title}\n${item.content}`.toLocaleLowerCase().includes(search)) return false;

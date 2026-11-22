@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { AUTH_SESSION_EXPIRED_EVENT } from "@/lib/axios";
@@ -9,6 +9,29 @@ import { ensureSessionCookieSynced } from "@/lib/session-manager";
 
 /** Ngưỡng phát hiện proxy bounce loop (/login -> / -> /dashboard -> /login) */
 const BOUNCE_WINDOW_MS = 2500;
+const BOUNCE_STORAGE_KEY = "ppe_public_guard_redirect_at";
+
+function readLastRedirectAt(): number {
+  try {
+    const raw = window.sessionStorage.getItem(BOUNCE_STORAGE_KEY);
+    const parsed = raw ? Number(raw) : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeLastRedirectAt(ts: number): void {
+  try {
+    if (ts > 0) {
+      window.sessionStorage.setItem(BOUNCE_STORAGE_KEY, String(ts));
+    } else {
+      window.sessionStorage.removeItem(BOUNCE_STORAGE_KEY);
+    }
+  } catch {
+    // Bỏ qua nếu sessionStorage không khả dụng
+  }
+}
 
 /**
  * Route guard nhóm công khai: đã đăng nhập → redirect "/".
@@ -24,7 +47,6 @@ export function PublicGuard({ children }: { children: React.ReactNode }) {
   const { status } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const lastRedirectAtRef = useRef<number>(0);
 
   useEffect(() => {
     if (
@@ -33,15 +55,16 @@ export function PublicGuard({ children }: { children: React.ReactNode }) {
       !pathname.startsWith("/auth/callback")
     ) {
       const now = Date.now();
+      const lastRedirectAt = readLastRedirectAt();
       // Circuit-breaker: nếu vừa redirect khỏi /login mà lại bị proxy.ts trả ngược về /login
       // trong vòng 2.5s (do mất cookie httpOnly accessToken/refreshToken ở server),
       // hủy phiên client ngay thay vì lặp vô hạn /login -> / -> /dashboard -> /login.
-      if (now - lastRedirectAtRef.current < BOUNCE_WINDOW_MS) {
-        lastRedirectAtRef.current = 0;
+      if (lastRedirectAt > 0 && now - lastRedirectAt < BOUNCE_WINDOW_MS) {
+        writeLastRedirectAt(0);
         eventBus.emit(AUTH_SESSION_EXPIRED_EVENT);
         return;
       }
-      lastRedirectAtRef.current = now;
+      writeLastRedirectAt(now);
       ensureSessionCookieSynced();
       router.replace("/");
     }

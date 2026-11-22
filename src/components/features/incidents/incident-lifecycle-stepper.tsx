@@ -59,10 +59,10 @@ export function IncidentLifecycleStepper({
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-surface p-4 shadow-[5px_5px_12px_rgba(0,0,0,0.07),-5px_-5px_12px_rgba(255,255,255,0.65)] dark:shadow-[5px_5px_12px_rgba(0,0,0,0.22),-4px_-4px_10px_rgba(255,255,255,0.025)]">
       {/* Inner recessed track */}
-      <div className="relative rounded-xl bg-surface/50 px-2 py-3 shadow-[inset_3px_3px_7px_rgba(0,0,0,0.07),inset_-3px_-3px_7px_rgba(255,255,255,0.6)] dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.2),inset_-2px_-2px_6px_rgba(255,255,255,0.025)]">
+      <div className="relative rounded-xl bg-surface/50 px-1 sm:px-2 py-3 shadow-[inset_3px_3px_7px_rgba(0,0,0,0.07),inset_-3px_-3px_7px_rgba(255,255,255,0.6)] dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.2),inset_-2px_-2px_6px_rgba(255,255,255,0.025)]">
         <div className="relative flex items-start justify-between">
           {/* Recessed connecting rail */}
-          <div className="absolute left-[10%] right-[10%] top-[18px] h-[5px] -translate-y-1/2 overflow-hidden rounded-full bg-border/40 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.14),inset_-1px_-1px_2px_rgba(255,255,255,0.5)]">
+          <div className="absolute left-[10%] right-[10%] top-[14px] sm:top-[18px] h-[4px] sm:h-[5px] -translate-y-1/2 overflow-hidden rounded-full bg-border/40 shadow-[inset_1px_1px_3px_rgba(0,0,0,0.14),inset_-1px_-1px_2px_rgba(255,255,255,0.5)]">
             {/* Progress fill */}
             {!isDismissed && (
               <div
@@ -101,8 +101,8 @@ export function IncidentLifecycleStepper({
                 {/* 3D Step Indicator */}
                 <div
                   className={`
-                    relative flex h-9 w-9 shrink-0 items-center justify-center
-                    rounded-full text-xs font-bold
+                    relative flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center
+                    rounded-full text-[11px] sm:text-xs font-bold
                     transition-all duration-300
                     ${
                       state === "completed"
@@ -171,9 +171,9 @@ export function IncidentLifecycleStepper({
                   <div className="flex flex-col items-center gap-1">
                     <div className="h-[3px] w-5 rounded-full bg-primary shadow-[0_1px_3px_rgba(0,0,0,0.16)]" />
                     {isClickable && (
-                      <span className="inline-flex items-center gap-0.5 rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.2 font-mono text-[8px] font-bold text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                        <MousePointerClick className="h-2 w-2" />
-                        <span>{isVietnamese ? "Bấm xử lý" : "Process"}</span>
+                      <span className="inline-flex items-center gap-0.5 whitespace-nowrap rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[8px] sm:text-[9px] font-bold text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                        <MousePointerClick className="h-2 w-2 shrink-0" />
+                        <span>{isVietnamese ? "Xử lý" : "Act"}</span>
                       </span>
                     )}
                   </div>

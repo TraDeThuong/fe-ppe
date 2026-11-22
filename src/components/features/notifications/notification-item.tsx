@@ -13,7 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
-import { isNotificationRead } from "@/lib/notification-inbox";
+import { getNotificationChannels, isNotificationRead } from "@/lib/notification-inbox";
 import {
   formatExactNotificationTime,
   formatRelativeNotificationTime,
@@ -59,7 +59,7 @@ export function NotificationItem({
   const parsed = parseNotificationDisplay(notification, isVietnamese);
   const kindConfig = KIND_META[parsed.kind];
   const KindIcon = kindConfig.icon;
-  const channelInfo = getChannelDisplay(notification.channel);
+  const channels = getNotificationChannels(notification);
 
   const timestamp = notification.sentAt || notification.createdAt;
   const timeString = formatRelativeNotificationTime(timestamp, isVietnamese);
@@ -141,10 +141,18 @@ export function NotificationItem({
               <span>{t(sevConfig.labelKey)}</span>
             </span>
 
-            {/* Channel Tag */}
-            <span className="rounded-md border border-border/40 bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-              {channelInfo.label}
-            </span>
+            {/* Channel Tags (hiển thị gộp tất cả kênh đã phát của thông báo) */}
+            {channels.map((channel) => {
+              const info = getChannelDisplay(channel);
+              return (
+                <span
+                  key={channel}
+                  className="rounded-md border border-border/40 bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
+                >
+                  {info.label}
+                </span>
+              );
+            })}
           </div>
 
           {/* Timestamp */}

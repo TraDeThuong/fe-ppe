@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { useCan } from "@/hooks/use-can";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useIncidentDetail } from "@/hooks/incidents/use-incident-detail";
-import { isNotificationRead } from "@/lib/notification-inbox";
+import { getNotificationChannels, isNotificationRead } from "@/lib/notification-inbox";
 import {
   formatExactNotificationTime,
   formatRelativeNotificationTime,
@@ -201,8 +201,13 @@ export function NotificationDetailPanel({
   const SeverityIcon = sevConfig.icon;
   const kindConfig = KIND_META[parsed.kind];
   const KindIcon = kindConfig.icon;
-  const channelInfo = getChannelDisplay(notification.channel);
+  const channels = getNotificationChannels(notification);
+  const channelInfo = getChannelDisplay(channels[0]);
   const ChannelIcon = channelInfo.icon;
+  const channelsLabel = channels.map((ch) => getChannelDisplay(ch).label).join(" · ");
+  const channelsFullLabel = channels
+    .map((ch) => t(`notifications.channel.${ch}`) || getChannelDisplay(ch).label)
+    .join(" · ");
 
   const timestamp = notification.sentAt || notification.createdAt;
   const exactTime = formatExactNotificationTime(timestamp, locale);
@@ -312,7 +317,7 @@ export function NotificationDetailPanel({
 
                 <span className="inline-flex items-center gap-1 font-mono text-[11px]">
                   <ChannelIcon className="size-3 text-primary/80" />
-                  <span>{channelInfo.label}</span>
+                  <span>{channelsLabel}</span>
                 </span>
               </div>
             </div>
@@ -534,7 +539,7 @@ export function NotificationDetailPanel({
                 <span>{isVietnamese ? "Kênh phát hành" : "Delivery Channel"}</span>
               </div>
               <p className="mt-1 text-xs font-bold text-foreground">
-                {t(`notifications.channel.${notification.channel}`) || channelInfo.label}
+                {channelsFullLabel}
               </p>
             </div>
 

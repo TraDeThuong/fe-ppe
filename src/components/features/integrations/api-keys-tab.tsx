@@ -42,10 +42,14 @@ export function ApiKeysTab({
 }: ApiKeysTabProps) {
   const { locale } = useLocale();
   const isVi = locale === "vi-VN";
-  const canManage = useCan()("API_KEY_MANAGE");
-  const { data: permissions = [] } = usePermissions();
+  const can = useCan();
+  const canManage = can("API_KEY_MANAGE");
+  const canReadPermissions = can("PERMISSION_READ");
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const { data: permissions = [] } = usePermissions(undefined, {
+    enabled: isCreateOpen && canReadPermissions,
+  });
   const [name, setName] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
@@ -88,6 +92,7 @@ export function ApiKeysTab({
       setName("");
       setExpiresAt("");
       setSelectedPerms([]);
+      setPermSearch("");
       toast.success(
         isVi ? "Đã tạo API Key thành công" : "API Key created successfully",
       );
@@ -226,24 +231,40 @@ export function ApiKeysTab({
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {apiKeys.map((item) => (
+          {apiKeys.map((item) => {
+            const isExpired = Boolean(
+              item.expiresAt && new Date(item.expiresAt).getTime() <= Date.now(),
+            );
+            return (
             <div
               key={item.id}
               className="flex flex-col justify-between gap-3 rounded-2xl border border-border/30 bg-surface p-4 shadow-nm-sm"
             >
               <div className="space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-foreground">{item.name}</span>
-                      <Badge variant={item.isActive ? "success" : "default"}>
-                        {item.isActive
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="break-words font-bold text-foreground">{item.name}</span>
+                      <Badge
+                        variant={
+                          isExpired
+                            ? "danger"
+                            : item.isActive
+                              ? "success"
+                              : "default"
+                        }
+                      >
+                        {isExpired
                           ? isVi
-                            ? "Đang bật"
-                            : "Active"
-                          : isVi
-                            ? "Đã tắt"
-                            : "Disabled"}
+                            ? "Hết hạn"
+                            : "Expired"
+                          : item.isActive
+                            ? isVi
+                              ? "Đang bật"
+                              : "Active"
+                            : isVi
+                              ? "Đã tắt"
+                              : "Disabled"}
                       </Badge>
                     </div>
                     <p className="mt-1 font-mono text-xs text-muted-foreground">
@@ -319,13 +340,22 @@ export function ApiKeysTab({
                 </span>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       <Dialog
         open={isCreateOpen}
-        onOpenChange={setIsCreateOpen}
+        onOpenChange={(nextOpen) => {
+          setIsCreateOpen(nextOpen);
+          if (!nextOpen) {
+            setName("");
+            setExpiresAt("");
+            setSelectedPerms([]);
+            setPermSearch("");
+          }
+        }}
         title={isVi ? "Tạo API Key mới" : "Create New API Key"}
         description={
           isVi
@@ -361,7 +391,7 @@ export function ApiKeysTab({
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <label className="text-xs font-bold text-foreground">
                 {isVi
                   ? `Phạm vi quyền (${selectedPerms.length} đã chọn)`
@@ -372,7 +402,7 @@ export function ApiKeysTab({
                 value={permSearch}
                 onChange={(e) => setPermSearch(e.target.value)}
                 placeholder={isVi ? "Tìm quyền..." : "Filter permissions..."}
-                className="max-w-[200px]"
+                className="w-full sm:max-w-[200px]"
               />
             </div>
             <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto rounded-2xl p-3 shadow-nm-inset sm:grid-cols-2">
@@ -400,7 +430,7 @@ export function ApiKeysTab({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
             <Button
               type="button"
               variant="ghost"

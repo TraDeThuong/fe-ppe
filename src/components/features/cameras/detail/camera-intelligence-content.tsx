@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Camera } from "lucide-react";
-import toast from "react-hot-toast";
+import { toast } from "@/lib/toast";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { normalizeLiveEvidences } from "@/components/features/ai-test/ai-test-utils";
 import { EvidenceGalleryPanel } from "@/components/features/ai-test/evidence-gallery-panel";
@@ -384,6 +384,7 @@ export function CameraIntelligenceContent({
     [
       aiFps,
       camera,
+      cameraConfig?.roiPolygon,
       confirmHelmetSec,
       confirmVestSec,
       effectiveSource,
@@ -391,6 +392,7 @@ export function CameraIntelligenceContent({
       enableNoVest,
       enableRestrictedArea,
       enableSceneCut,
+      isVietnamese,
       liveCameraId,
       productionMode,
       refreshAiEngine,
@@ -399,9 +401,9 @@ export function CameraIntelligenceContent({
     ],
   );
 
-  // Auto-Start AI Live once on entering /cameras/[id] if DB camera source is directly runnable
+  // Auto-Start AI Live once on entering /cameras/[id] if user has PPE_CAMERA_MANAGE and DB source is runnable
   useEffect(() => {
-    if (!camera || !engineOnline) return;
+    if (!canManage || !camera || !engineOnline) return;
     if (autoSyncEnabled && camera.status === "ONLINE") return;
     if (statsCheckedFor !== liveCameraId) return;
     if (autoStartedForRef.current === camera.id) return;
@@ -419,6 +421,7 @@ export function CameraIntelligenceContent({
     }
   }, [
     autoSyncEnabled,
+    canManage,
     camera,
     dbRunnableSource,
     engineOnline,
@@ -547,7 +550,7 @@ export function CameraIntelligenceContent({
     await updateConfigMutation.mutateAsync({
       cameraId: camera.id,
       payload: {
-        captureFps: Math.min(60, Math.max(1, Math.round(targetFps))),
+        captureFps: Math.min(30, Math.max(1, Math.round(targetFps))),
         processingEnabled:
           enableNoHelmet || enableNoVest || enableRestrictedArea,
       },

@@ -206,13 +206,13 @@ export function AuditKpiSummary({
               </div>
 
               {/* Zone Footer Control */}
-              <div className="mt-4 flex items-center justify-between pt-3 border-t border-[var(--shadow-dark)]/15 w-full">
-                <span className="text-[11px] font-medium text-muted-foreground">
+              <div className="mt-4 flex items-center justify-between gap-2 pt-3 border-t border-[var(--shadow-dark)]/15 w-full">
+                <span className="min-w-0 text-[11px] font-medium text-muted-foreground">
                   {isVietnamese ? "Phân tích hành động & nhân sự" : "Action & actor analytics"}
                 </span>
 
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-extrabold transition-all ${activeStat === "totalLogs"
+                  className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-extrabold transition-all ${activeStat === "totalLogs"
                       ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.35)]"
                       : "bg-background text-primary shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] group-hover:bg-primary/10"
                     }`}
@@ -288,13 +288,13 @@ export function AuditKpiSummary({
               </div>
 
               {/* Zone Footer Control */}
-              <div className="mt-4 flex items-center justify-between pt-3 border-t border-[var(--shadow-dark)]/15 w-full">
-                <span className="text-[11px] font-medium text-muted-foreground">
+              <div className="mt-4 flex items-center justify-between gap-2 pt-3 border-t border-[var(--shadow-dark)]/15 w-full">
+                <span className="min-w-0 text-[11px] font-medium text-muted-foreground">
                   {isVietnamese ? "Đối chiếu biến động Before / After" : "Before / After JSON Diff trail"}
                 </span>
 
                 <span
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-extrabold transition-all ${activeStat === "configChanges"
+                  className={`inline-flex shrink-0 whitespace-nowrap items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-extrabold transition-all ${activeStat === "configChanges"
                       ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-[0_2px_8px_hsl(var(--primary)/0.35)]"
                       : "bg-background text-primary shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] group-hover:bg-primary/10"
                     }`}

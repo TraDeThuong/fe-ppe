@@ -151,7 +151,7 @@ export function TableToolbar({
       </div>
 
       {/* Action Buttons & Column Visibility */}
-      <div className="flex shrink-0 items-center justify-between sm:justify-end gap-2 pt-1 sm:pt-0">
+      <div className="flex flex-wrap shrink-0 items-center justify-between sm:justify-end gap-2 pt-1 sm:pt-0">
         {showColumnVisibility && (
           <TableColumnVisibility label={effectiveColumnsLabel} title={effectiveToggleColumnsLabel} resetLabel={effectiveResetLabel} />
         )}

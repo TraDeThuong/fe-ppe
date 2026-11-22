@@ -154,4 +154,44 @@ describe("ai-metrics cards", () => {
     }
     assert.equal(kpiHtml.match(/aria-label="Giải thích"/g)?.length, 4);
   });
+
+  it("ActiveModelBanner renders Not Deployed state when activeVersion is null", () => {
+    const html = renderWithProviders(
+      React.createElement(ActiveModelBanner, { activeVersion: null }),
+    );
+    assert.ok(html.includes("Chưa triển khai"));
+    assert.ok(html.includes("bg-amber-500"));
+  });
+
+  it("ModelGovernanceTable hides Deploy button for INACTIVE models or DEPRECATED versions", () => {
+    const html = renderWithProviders(
+      React.createElement(ModelGovernanceTable, {
+        canDeploy: true,
+        onDeploy: () => {},
+        models: [
+          {
+            id: "m-inactive",
+            name: "Old YOLO",
+            code: "OLD_YOLO",
+            modelType: "OBJECT_DETECTION",
+            status: "INACTIVE",
+            createdAt: "2026-11-01T00:00:00.000Z",
+            updatedAt: "2026-11-01T00:00:00.000Z",
+            versions: [
+              {
+                id: "v-old",
+                modelId: "m-inactive",
+                version: "1.0.0",
+                framework: "PyTorch",
+                inputSize: "640x640",
+                status: "STAGING",
+                createdAt: "2026-11-01T00:00:00.000Z",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    assert.ok(html.includes("Ngưng sử dụng"));
+  });
 });

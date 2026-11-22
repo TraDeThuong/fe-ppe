@@ -559,7 +559,7 @@ export function IncidentEvidenceViewer({
     <div className="space-y-4">
       {/* ── THANH ĐIỀU HƯỚNG TABS NHANH GIỮA CÁC ẢNH BẰNG CHỨNG ── */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 pb-3">
-        <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+        <div className="flex max-w-full items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
           {galleryPhotos.map((photo, idx) => {
             const isSelected = idx === selectedIndex && viewMode === "single";
             return (
@@ -567,7 +567,7 @@ export function IncidentEvidenceViewer({
                 key={photo.id}
                 type="button"
                 onClick={() => handleSelectPhoto(idx)}
-                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
                   isSelected
                     ? photo.category === "annotated"
                       ? "bg-rose-500 text-white shadow-[0_2px_10px_rgba(244,63,94,0.35)]"
@@ -593,7 +593,7 @@ export function IncidentEvidenceViewer({
         </div>
 
         {/* Nút thao tác: So Sánh 2 Cột, Bật/tắt khung AI tô đỏ & Phóng to */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {canCompare && (
             <Button
               variant="outline"
@@ -678,8 +678,8 @@ export function IncidentEvidenceViewer({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* CỘT 1: ẢNH ĐỐI CHỨNG BAN ĐẦU (BEFORE / COMPLIANT / T=0s) */}
             <div className="overflow-hidden rounded-2xl border-2 border-emerald-500/40 bg-neutral-950 flex flex-col shadow-md">
-              <div className="flex items-center justify-between border-b border-emerald-500/30 bg-emerald-950/40 px-3.5 py-2">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-emerald-500/30 bg-emerald-950/40 px-3 sm:px-3.5 py-2">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                   <span className="flex items-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-600 px-2.5 py-0.5 font-mono text-[11px] font-bold text-white shadow-sm">
                     <ShieldCheck className="size-3.5" />
                     <span>{isVietnamese ? "1. ẢNH ĐỐI CHỨNG" : "1. REFERENCE"}</span>
@@ -728,8 +728,8 @@ export function IncidentEvidenceViewer({
 
             {/* CỘT 2: ẢNH VI PHẠM (AFTER / CONFIRMED VIOLATION) */}
             <div className="overflow-hidden rounded-2xl border-2 border-rose-500/50 bg-neutral-950 flex flex-col shadow-md">
-              <div className="flex items-center justify-between border-b border-rose-500/30 bg-rose-950/40 px-3.5 py-2">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-rose-500/30 bg-rose-950/40 px-3 sm:px-3.5 py-2">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                   <span className="flex items-center gap-1.5 rounded-lg border border-rose-400/50 bg-rose-600 px-2.5 py-0.5 font-mono text-[11px] font-bold text-white shadow-sm">
                     <ShieldAlert className="size-3.5" />
                     <span>{isVietnamese ? "2. ẢNH VI PHẠM" : "2. VIOLATION"}</span>
@@ -982,9 +982,9 @@ export function IncidentEvidenceViewer({
             className="relative max-w-5xl w-full max-h-[92vh] overflow-hidden rounded-2xl bg-surface border border-white/20 shadow-2xl p-4 flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-3 border-b border-border/30">
-              <div>
-                <h4 className="font-bold text-base text-foreground flex items-center gap-2">
+            <div className="flex flex-wrap items-start justify-between gap-2 pb-3 border-b border-border/30">
+              <div className="min-w-0 flex-1">
+                <h4 className="font-bold text-sm sm:text-base text-foreground flex flex-wrap items-center gap-1.5 sm:gap-2">
                   {activePhoto.category === "reference" ? (
                     <ShieldCheck className="size-4 text-emerald-500" />
                   ) : activePhoto.category === "raw" ? (
@@ -1029,7 +1029,7 @@ export function IncidentEvidenceViewer({
               </div>
             </div>
 
-            <div className="relative flex-1 mt-3 overflow-hidden rounded-xl bg-black flex items-center justify-center min-h-[380px]">
+            <div className="relative flex-1 mt-3 overflow-hidden rounded-xl bg-black flex items-center justify-center min-h-[240px] sm:min-h-[380px]">
               <div
                 className="absolute inset-0 bg-cover bg-center blur-2xl opacity-20 scale-110 pointer-events-none"
                 style={{ backgroundImage: `url(${activePhoto.url})` }}

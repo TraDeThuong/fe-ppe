@@ -20,6 +20,7 @@ import type { SidebarBadgesMap } from "@/lib/sidebar-badges";
 import {
   NAV_GROUPS,
   getVisibleNavItems,
+  isNavItemActive,
 } from "@/config/navigation";
 import { Typography } from "@ui/typography";
 import { SidebarBadge } from "./sidebar-badge";
@@ -102,18 +103,6 @@ export function MobileSidebar({
   const groups = NAV_GROUPS.filter((group) =>
     items.some((item) => item.group === group.key),
   );
-
-  const isActive = (route: string) => {
-    if (!pathname) return false;
-    if (pathname === route) return true;
-    if (!pathname.startsWith(`${route}/`)) return false;
-    return !items.some(
-      (other) =>
-        other.route !== route &&
-        other.route.length > route.length &&
-        (pathname === other.route || pathname.startsWith(`${other.route}/`)),
-    );
-  };
 
   return createPortal(
     <>
@@ -330,7 +319,7 @@ export function MobileSidebar({
 
                     <ul className="space-y-3">
                       {groupItems.map((item) => {
-                        const active = isActive(item.route);
+                        const active = isNavItemActive(pathname, item, items);
                         const Icon = item.icon;
                         const badge = badges[item.key];
 

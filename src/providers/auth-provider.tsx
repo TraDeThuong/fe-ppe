@@ -39,6 +39,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     tokenStore.clear();
     queryClient.clear();
     clearLoginPersistence();
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem("ppe_site");
+      } catch {
+        // Bỏ qua nếu storage không khả dụng
+      }
+    }
     setUser(null);
     setStatus("unauthenticated");
   }, []);
@@ -134,14 +141,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (error) {
         // 401 + refresh fail: interceptor đã clear token + phát auth:session-expired.
-        // Lỗi mạng cũng rơi vào đây — trạng thái an toàn là unauthenticated.
+        // Lỗi mạng/5xx cũng rơi vào đây — chỉ xóa persistence & cookie khi phiên bị BE từ chối (401/403).
         if (!cancelled) {
           tokenStore.clear();
           setUser(null);
-          clearLoginPersistence();
-          // Purge session cookies nếu lỗi là 401/403 (phiên không còn hợp lệ trên server)
-          // TRƯỚC KHI setStatus("unauthenticated") để proxy.ts không bị bounce loop /login -> / -> /login
           if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+            clearLoginPersistence();
             await purgeSessionCookies();
           }
           if (!cancelled) {
@@ -172,12 +177,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const tokenSiteIds = getAccessTokenSiteIds();
         const meSiteIds = me.siteIds ?? [];
         const userSiteIds = user?.siteIds ?? [];
+        const siteScopeChanged =
+          !haveSameSiteIds(tokenSiteIds, meSiteIds) ||
+          !haveSameSiteIds(userSiteIds, meSiteIds);
+        const permissionsChanged =
+          user?.role !== me.role ||
+          !haveSameSiteIds(user?.permissions ?? [], me.permissions ?? []);
 
-        if (!haveSameSiteIds(tokenSiteIds, meSiteIds) || !haveSameSiteIds(userSiteIds, meSiteIds)) {
+        if (siteScopeChanged) {
           const refreshed = await ensureFreshAccessToken();
           if (!refreshed && !tokenStore.getAccessToken()) {
             return;
           }
+          setUser(me);
+          void queryClient.invalidateQueries();
+        } else if (permissionsChanged) {
           setUser(me);
           void queryClient.invalidateQueries();
         }
@@ -194,7 +208,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("focus", handleVisibilityOrFocus);
       document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
     };
-  }, [status, user?.siteIds]);
+  }, [status, user?.siteIds, user?.role, user?.permissions]);
 
   // Khi đang đăng nhập và không bật "Ghi nhớ đăng nhập", duy trì timestamp hoạt động
   useEffect(() => {

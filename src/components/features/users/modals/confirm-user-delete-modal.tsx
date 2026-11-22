@@ -12,6 +12,7 @@ export interface ConfirmUserDeleteModalProps {
   onClose: () => void;
   user: UserResponseDto | null;
   mode?: "delete" | "restore" | "activate" | "deactivate";
+  onSuccess?: (mode: "delete" | "restore" | "activate" | "deactivate") => void;
 }
 
 export function ConfirmUserDeleteModal({
@@ -19,6 +20,7 @@ export function ConfirmUserDeleteModal({
   onClose,
   user,
   mode = "delete",
+  onSuccess,
 }: ConfirmUserDeleteModalProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -52,6 +54,7 @@ export function ConfirmUserDeleteModal({
         await deleteMutation.mutateAsync(user.id);
       }
       onClose();
+      onSuccess?.(mode);
     } catch {
       // Handled by mutation toast
     }

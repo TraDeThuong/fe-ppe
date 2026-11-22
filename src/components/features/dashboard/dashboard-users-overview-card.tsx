@@ -3,11 +3,11 @@
 import React from "react";
 import Link from "next/link";
 import { Users, ShieldCheck, Lock, UserCheck, ArrowRight, Shield } from "lucide-react";
+import { useCan } from "@/hooks/use-can";
 import { useUserSummary } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
 import { AnimatedNumber, useAnimatedProgress } from "@/components/ui/animated-number";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader } from "@/components/ui/loader";
 
 export interface DashboardUsersOverviewCardProps {
   className?: string;
@@ -16,7 +16,11 @@ export interface DashboardUsersOverviewCardProps {
 export function DashboardUsersOverviewCard({ className = "" }: DashboardUsersOverviewCardProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
-  const { data: summary, isLoading, isError, refetch } = useUserSummary();
+  const can = useCan();
+  const canReadUsers = can("USER_READ");
+  const { data: summary, isLoading, isError, refetch } = useUserSummary({
+    enabled: canReadUsers,
+  });
 
   const total = summary?.total ?? 0;
   const active = summary?.active ?? 0;

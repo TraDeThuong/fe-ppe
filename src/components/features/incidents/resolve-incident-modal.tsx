@@ -69,11 +69,11 @@ export function ResolveIncidentModal({
     if (!incident || loading) return;
     setError(null);
 
-    if (!resolutionNote.trim()) {
+    if (resolutionNote.trim().length < 3) {
       setError(
         isVietnamese
-          ? "Vui lòng nhập ghi chú biện pháp xử lý sự cố."
-          : "Please enter incident resolution notes.",
+          ? "Vui lòng nhập ghi chú biện pháp xử lý sự cố (tối thiểu 3 ký tự)."
+          : "Please enter incident resolution notes (at least 3 characters).",
       );
       return;
     }

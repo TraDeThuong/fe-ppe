@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { aiMetricsService } from "@/services/ai-metrics.service";
+import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
 import { aiMetricsKeys } from "./ai-metrics.query-keys";
 
 import type {
@@ -20,6 +21,7 @@ export function useDeployModelVersion() {
       aiMetricsService.deployModelVersion(modelId, versionId),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: aiMetricsKeys.all });
+      queryClient.invalidateQueries({ queryKey: reportingKeys.dashboardKpi() });
       toast.success(
         pickLocaleText(
           `Đã kích hoạt chuyển đổi nóng phiên bản ${data.version} vào môi trường giám sát thành công!`,

@@ -3,7 +3,12 @@
 import { Suspense, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasRouteAccess, isFullMaintenanceMode } from "@/config/navigation";
+import {
+  hasRouteAccess,
+  isAdminRole,
+  isFullMaintenanceMode,
+  isMaintenanceBypassed,
+} from "@/config/navigation";
 import { MaintenanceAdminBanner } from "@/components/features/maintenance";
 import { useMaintenanceStatus } from "@/hooks/maintenance";
 import { SidebarBadgesProvider } from "@/hooks/app-shell";
@@ -18,19 +23,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { data: maintenanceStatus } = useMaintenanceStatus();
 
-  const isBypassed = Boolean(
-    user?.role === "ADMIN" ||
-      user?.permissions?.includes("MAINTENANCE_MANAGE") ||
-      user?.permissions?.includes("MAINTENANCE_BYPASS"),
-  );
+  const isBypassed = isMaintenanceBypassed(user);
   const isMaintenanceActive = Boolean(maintenanceStatus?.enabled);
   const isFullMaintenance = isFullMaintenanceMode(maintenanceStatus);
-  const canManageMaintenance = hasRouteAccess(
-    "/maintenance",
-    user?.permissions ?? [],
-    user?.role,
+  const canManageMaintenance = Boolean(
+    isAdminRole(user?.role) || user?.permissions?.includes("MAINTENANCE_MANAGE"),
   );
   const maintenanceLocked = isFullMaintenance && canManageMaintenance;
+  const isReadOnlyMode = isMaintenanceActive && maintenanceStatus?.status === "READ_ONLY";
   const isMaintenanceRoute =
     pathname === "/maintenance" || pathname.startsWith("/maintenance/");
 
@@ -75,7 +75,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Main content */}
         <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-          {isMaintenanceActive && isBypassed && <MaintenanceAdminBanner />}
+          {((isMaintenanceActive && isBypassed) || isReadOnlyMode) && (
+            <MaintenanceAdminBanner />
+          )}
           <AppHeader maintenanceLocked={maintenanceLocked} />
 
           <main

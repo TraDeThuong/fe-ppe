@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import toast from "react-hot-toast";
+import { toast } from "@/lib/toast";
 import {
   Activity,
   AlertTriangle,
@@ -105,23 +105,23 @@ export function LiveStreamPanel({
         aiTestService.listLiveSessions(),
       ]);
       setLiveVideos(videos);
-      if (videos.length > 0 && !source) {
-        setSource(videos[0].filename);
+      if (videos.length > 0) {
+        setSource((prev) => prev || videos[0].filename);
       }
       setSessions(sessList);
       if (!activeCameraId && sessList.length > 0) {
         const running = sessList.find((s) => s.status === "running") ?? sessList[0];
         onActiveCameraChange(running.camera_id);
         setCameraId(running.camera_id);
-        if (!source && running.source) {
-          setSource(running.source);
+        if (running.source) {
+          setSource((prev) => prev || running.source || "");
         }
         setStreamNonce(Date.now());
       }
     } catch {
       // Backend offline status handled by header
     }
-  }, [activeCameraId, onActiveCameraChange, source]);
+  }, [activeCameraId, onActiveCameraChange]);
 
   useEffect(() => {
     void loadVideosAndSessions();
@@ -272,7 +272,11 @@ export function LiveStreamPanel({
     try {
       const uploaded = await aiTestService.uploadVideo(file);
       const uploadedSource =
-        uploaded.path || uploaded.video_name || uploaded.filename || file.name;
+        uploaded.job_id ||
+        uploaded.path ||
+        uploaded.video_name ||
+        uploaded.filename ||
+        file.name;
       setSource(uploadedSource);
       await handleStartStream(uploadedSource);
     } catch (error) {
@@ -290,7 +294,10 @@ export function LiveStreamPanel({
     }
   };
 
-  const isRunning = stats?.status === "running";
+  const isRunning =
+    stats?.status === "running" ||
+    stats?.status === "initializing" ||
+    stats?.status === "reconnecting";
   const metrics = stats?.metrics;
   const recentViolations = stats?.recent_violations ?? [];
   const liveEvidences = useMemo(

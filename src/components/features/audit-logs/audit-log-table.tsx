@@ -27,9 +27,47 @@ export function AuditLogTable({
   onSelectRecord,
   loading = false,
   tableState,
+  page,
+  totalPages,
+  total,
+  limit,
+  onPageChange,
+  onLimitChange,
 }: AuditLogTableProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+
+  const hasLegacyPagination =
+    !tableState?.pagination &&
+    (page !== undefined || limit !== undefined || onPageChange !== undefined);
+  const currentPageIndex = Math.max(0, (page ?? 1) - 1);
+  const currentPageSize = limit ?? 20;
+  const legacyPaginationProps: Partial<TableProps<AuditLogItem>> =
+    hasLegacyPagination
+      ? {
+          pagination: {
+            pageIndex: currentPageIndex,
+            pageSize: currentPageSize,
+          },
+          rowCount: total ?? items.length,
+          pageCount: totalPages ?? 1,
+          onPaginationChange: (updater) => {
+            const next =
+              typeof updater === "function"
+                ? updater({
+                    pageIndex: currentPageIndex,
+                    pageSize: currentPageSize,
+                  })
+                : updater;
+            if (next.pageSize !== currentPageSize && onLimitChange) {
+              onLimitChange(next.pageSize);
+            }
+            if (next.pageIndex !== currentPageIndex && onPageChange) {
+              onPageChange(next.pageIndex + 1);
+            }
+          },
+        }
+      : {};
 
   const formatDate = (isoStr: string) => {
     try {
@@ -189,6 +227,7 @@ export function AuditLogTable({
       manualPagination
       emptyMessage={t("audit.table.empty")}
       onRowClick={(row) => onSelectRecord(row.original)}
+      {...legacyPaginationProps}
       {...tableState}
     >
       {!tableState?.toolbar && <TableToolbar showSearch={false} actions={<TableRefresh />} />}

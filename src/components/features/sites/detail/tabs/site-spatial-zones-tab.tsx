@@ -147,7 +147,7 @@ export function SiteSpatialZonesTab({
         payload: {
           name: zoneName.trim(),
           code: resolvedCode,
-          description: zoneDescription.trim() || null,
+          description: zoneDescription.trim() || undefined,
           status: zoneStatus,
         },
       });

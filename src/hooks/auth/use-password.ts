@@ -5,6 +5,7 @@ import { useContext } from "react";
 import { AuthContext } from "@/contexts/AuthContext";
 import { eventBus } from "@/lib/event-bus";
 import { pickLocaleText } from "@/lib/i18n-runtime";
+import { clearLoginPersistence } from "@/lib/session-manager";
 import { toast } from "@/lib/toast";
 import { tokenStore } from "@/lib/token";
 import { authService } from "@/services/auth.service";
@@ -69,6 +70,7 @@ export function useResetPassword(
       const [data] = args;
       tokenStore.clear();
       queryClient.clear();
+      clearLoginPersistence();
       auth?.setUser(null);
       toast.success(
         data.message ||
@@ -108,6 +110,7 @@ export function useChangePassword(
       const [data] = args;
       tokenStore.clear();
       queryClient.clear();
+      clearLoginPersistence();
       auth?.setUser(null);
       eventBus.emit("auth:session-expired");
       toast.success(

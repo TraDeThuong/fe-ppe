@@ -226,7 +226,6 @@ export function IncidentFilterToolbar({
               value={siteFilter}
               onChange={(e) => {
                 onSiteFilterChange(e.target.value);
-                if (onCameraIdFilterChange) onCameraIdFilterChange("");
               }}
               className="w-full rounded-xl border border-border/40 bg-surface px-2.5 py-1.5 sm:py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)] transition-colors"
             >

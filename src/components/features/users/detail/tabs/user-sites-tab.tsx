@@ -52,18 +52,13 @@ export function UserSitesTab({
     );
   }, [userSites, search]);
 
-  const handleRemoveSite = async (siteId: string, siteName: string) => {
+  const handleRemoveSite = async (siteId: string, _siteName: string) => {
     const newSiteIds = (user.siteIds || []).filter((id) => id !== siteId);
     try {
       await assignSitesMutation.mutateAsync({
         id: user.id,
         siteIds: newSiteIds,
       });
-      toast.success(
-        isVietnamese
-          ? `Đã rút quyền quản lý tại công trường "${siteName}"`
-          : `Removed management assignment for "${siteName}"`,
-      );
     } catch {
       // Handled by toast
     }

@@ -13,6 +13,7 @@ export const siteKeys = {
   safetyConfigs: () => [...siteKeys.all, "safety-config"] as const,
   safetyConfig: (id: string) => [...siteKeys.safetyConfigs(), id] as const,
   systemDefaultSafetyConfig: () => [...siteKeys.all, "system-default-safety-config"] as const,
+  effectiveSafetyConfigs: () => [...siteKeys.all, "effective-safety-config"] as const,
   effectiveSafetyConfig: (params: { siteId?: string; cameraId?: string }) =>
     [...siteKeys.all, "effective-safety-config", params] as const,
   cameraSafetyConfig: (cameraId: string) =>

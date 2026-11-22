@@ -24,6 +24,8 @@ export type NavGroupKey = "monitoring" | "analytics" | "admin" | "personal";
 export interface NavItem {
   key: string;
   route: string;
+  /** Tiền tố dùng để highlight trạng thái active khi route mặc định là sub-route (vd: /settings/profile -> /settings) */
+  activePrefix?: string;
   icon: LucideIcon;
   i18nKey: string;
   /** Quyền bắt buộc — user.permissions phải chứa giá trị này mới hiển thị */
@@ -153,7 +155,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     route: "/maintenance",
     icon: Wrench,
     i18nKey: "nav.maintenance",
-    permission: "MAINTENANCE_MANAGE",
+    anyPermissions: ["MAINTENANCE_READ", "MAINTENANCE_MANAGE"],
     group: "admin",
   },
   {
@@ -185,6 +187,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     key: "settings",
     route: "/settings/profile",
+    activePrefix: "/settings",
     icon: KeyRound,
     i18nKey: "nav.settings",
     group: "personal",
@@ -197,11 +200,46 @@ export interface VisibleNavOptions {
   role?: string;
 }
 
+export function isAdminRole(role?: string | null): boolean {
+  return role === "ADMIN" || role === "SUPER_ADMIN";
+}
+
+export function isMaintenanceBypassed(
+  user?: { role?: string | null; permissions?: readonly string[] } | null,
+): boolean {
+  if (!user) return false;
+  return Boolean(
+    isAdminRole(user.role) ||
+      user.permissions?.includes("MAINTENANCE_MANAGE") ||
+      user.permissions?.includes("MAINTENANCE_BYPASS"),
+  );
+}
+
 /** Chỉ trả về true khi hệ thống đang bật bảo trì toàn diện (không áp dụng cho READ_ONLY) */
 export function isFullMaintenanceMode(
   status?: { enabled?: boolean; status?: string } | null,
 ): boolean {
   return Boolean(status?.enabled) && status?.status === "MAINTENANCE";
+}
+
+/** Kiểm tra một mục sidebar có đang active theo pathname hiện tại hay không */
+export function isNavItemActive(
+  pathname: string | null | undefined,
+  item: Pick<NavItem, "route" | "activePrefix">,
+  allItems: readonly Pick<NavItem, "route" | "activePrefix">[],
+): boolean {
+  if (!pathname) return false;
+  const targetPrefix = item.activePrefix ?? item.route;
+  if (pathname === targetPrefix || pathname === item.route) return true;
+  if (!pathname.startsWith(`${targetPrefix}/`)) return false;
+  return !allItems.some((other) => {
+    const otherPrefix = other.activePrefix ?? other.route;
+    return (
+      otherPrefix !== targetPrefix &&
+      otherPrefix.length > targetPrefix.length &&
+      (pathname === otherPrefix || pathname.startsWith(`${otherPrefix}/`))
+    );
+  });
 }
 
 /** Lọc menu theo permissions của user hiện tại */
@@ -215,14 +253,14 @@ export function getVisibleNavItems(
     );
     if (!maintenanceItem) return [];
     const canManage =
-      options.role === "ADMIN" ||
-      options.role === "SUPER_ADMIN" ||
+      isAdminRole(options.role) ||
       permissions.includes("MAINTENANCE_MANAGE");
     return canManage ? [maintenanceItem] : [];
   }
 
   return NAV_ITEMS.filter((item) => {
     if (item.hidden) return false;
+    if (isAdminRole(options?.role)) return true;
     if (item.anyPermissions && item.anyPermissions.length > 0) {
       return item.anyPermissions.some((p) => permissions.includes(p));
     }
@@ -243,13 +281,13 @@ export const ROUTE_PERMISSIONS: Record<string, string> = {
   "/roles": "ROLE_READ",
   "/audit-logs": "AUDIT_LOG_READ",
   "/system": "SYSTEM_CONFIG_READ",
-  "/maintenance": "MAINTENANCE_MANAGE",
   "/scheduled-tasks": "CRON_JOB_READ",
 };
 
 /** Guard 403 cho các route chỉ cần ít nhất 1 quyền trong danh sách */
 export const ROUTE_ANY_PERMISSIONS: Record<string, readonly string[]> = {
   "/integrations": ["API_KEY_READ", "WEBHOOK_READ"],
+  "/maintenance": ["MAINTENANCE_READ", "MAINTENANCE_MANAGE"],
 };
 
 /** Tìm quyền bắt buộc của route hiện tại — khớp route cha dài nhất (hỗ trợ /incidents/:id) */

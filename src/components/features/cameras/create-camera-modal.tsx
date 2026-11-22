@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Camera, Loader2, Plus } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { useSites, useSiteZones } from "@/hooks/sites";
+import { useCan } from "@/hooks/use-can";
+import { useSitesCatalog, useSiteZones } from "@/hooks/sites";
 import { useLocale } from "@/providers/locale-provider";
 import type { CameraSourceType, CreateCameraPayload } from "@/types";
 
@@ -27,10 +28,15 @@ export function CreateCameraModal({
 }: CreateCameraModalProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canReadSites = can("PPE_SITE_READ");
+  const canReadZones = can("PPE_ZONE_READ");
 
-  // Load sites for siteId linking
-  const { data: sitesData } = useSites();
-  const sites = sitesData?.items || [];
+  // Chỉ tải danh sách site khi modal mở và có quyền PPE_SITE_READ
+  const { data: sitesData } = useSitesCatalog({
+    enabled: open && canReadSites,
+  });
+  const sites = sitesData ?? [];
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -42,20 +48,22 @@ export function CreateCameraModal({
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const { data: zones = [] } = useSiteZones(siteId, Boolean(siteId));
+  const { data: zones = [] } = useSiteZones(
+    siteId,
+    open && Boolean(siteId) && canReadZones,
+  );
 
+  // Chỉ khởi tạo giá trị mặc định khi mở modal (không đặt siteId trong deps để tránh tự snap back)
   useEffect(() => {
-    if (open) {
-      if (defaultSiteId) {
-        setSiteId(defaultSiteId);
-        if (defaultZoneId) {
-          setZoneId(defaultZoneId);
-        }
-      } else if (sites.length > 0 && !siteId) {
-        setSiteId(sites[0].id);
-      }
+    if (!open) return;
+    setError(null);
+    if (defaultSiteId) {
+      setSiteId(defaultSiteId);
+      setZoneId(defaultZoneId || "");
+    } else if (sites.length > 0) {
+      setSiteId((prev) => prev || sites[0].id);
     }
-  }, [open, defaultSiteId, defaultZoneId, sites, siteId]);
+  }, [open, defaultSiteId, defaultZoneId, sites]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -234,7 +242,8 @@ export function CreateCameraModal({
             >
               <option value="RTSP">RTSP (Real-Time Streaming)</option>
               <option value="HLS">HLS (HTTP Live Streaming)</option>
-              <option value="WEBRTC">WEBRTC (Low Latency Stream)</option>
+              <option value="HTTP">HTTP (MJPEG / Web Stream)</option>
+              <option value="FILE">FILE (Video Archive / MP4)</option>
             </select>
           </div>
 
@@ -256,7 +265,7 @@ export function CreateCameraModal({
 
         {/* Stream URL */}
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-1">
             <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               {isVietnamese ? "Địa chỉ URL Luồng Stream" : "Stream URL Endpoint"} <span className="text-danger">*</span>
             </label>
@@ -333,7 +342,7 @@ export function CreateCameraModal({
           />
         </div>
 
-        <div className="flex items-center justify-end gap-3 pt-4">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 sm:gap-3 pt-4">
           <Button
             type="button"
             variant="ghost"

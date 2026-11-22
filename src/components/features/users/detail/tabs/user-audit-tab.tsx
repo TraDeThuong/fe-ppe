@@ -114,7 +114,14 @@ export function UserAuditTab({ user }: UserAuditTabProps) {
                       </div>
 
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {log.errorMessage || (isVietnamese ? "Thao tác thực thi thành công" : "Action executed successfully")}
+                        {log.errorMessage ||
+                          (isSuccess
+                            ? isVietnamese
+                              ? "Thao tác thực thi thành công"
+                              : "Action executed successfully"
+                            : isVietnamese
+                              ? "Thao tác thực thi thất bại"
+                              : "Action failed")}
                       </p>
 
                       <div className="flex items-center gap-3 text-[10px] text-muted-foreground font-mono mt-1">

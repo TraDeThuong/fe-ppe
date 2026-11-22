@@ -9,18 +9,19 @@ import {
   CheckCheck,
   Volume2,
   VolumeX,
-  ShieldAlert,
-  AlertTriangle,
-  Info,
-  CheckCircle2,
-  Radio,
   ExternalLink,
 } from "lucide-react";
-import { toast } from "react-hot-toast";
+import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
+import { useCan } from "@/hooks/use-can";
+import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { classifyIncidentAlert } from "@/lib/incident-workflow";
+import {
+  buildIncidentToastPayload,
+  type IncidentAlertPayload,
+} from "@/lib/incident-toast-payload";
 import { stripEmojis } from "@/lib/strip-emojis";
 import {
   useUnreadCount,
@@ -30,10 +31,6 @@ import {
   useNotificationSound,
 } from "@/hooks/notifications";
 import type { NotificationItemDto, NotificationSeverity } from "@/types";
-import {
-  IncidentAlertToast,
-  type IncidentAlertPayload,
-} from "./incident-alert-toast";
 
 function formatRelativeTimeShort(
   dateString: string | Date | null | undefined,
@@ -76,6 +73,8 @@ export function NotificationBell() {
   const isVietnamese = locale === "vi-VN";
   const router = useRouter();
   const { user } = useAuth();
+  const can = useCan();
+  const canReadNotifications = can("NOTIFICATION_READ");
 
   const [open, setOpen] = useState(false);
   const [isRinging, setIsRinging] = useState(false);
@@ -83,11 +82,20 @@ export function NotificationBell() {
 
   const { lastAlert } = useRealtime();
   const { enabled: soundEnabled, toggleSound, playAlert } = useNotificationSound();
+  const { getCameraCode, getSiteName } = useEntityLookup({
+    enabled: canReadNotifications,
+  });
 
-  const { data: unreadCount = 0 } = useUnreadCount();
+  // Lưu tham chiếu mới nhất cho lookup & locale để effect SSE không đổ chuông lặp khi catalog refresh
+  const lookupRef = useRef({ getCameraCode, getSiteName, isVietnamese });
+  lookupRef.current = { getCameraCode, getSiteName, isVietnamese };
+
+  const { data: unreadCount = 0 } = useUnreadCount({
+    enabled: canReadNotifications,
+  });
   const { data: notificationData, isLoading } = useNotifications(
     { limit: 5 },
-    { enabled: open },
+    { enabled: open && canReadNotifications },
   );
 
   const markAllMutation = useMarkAllAsRead();
@@ -115,43 +123,34 @@ export function NotificationBell() {
     setIsRinging(true);
     const timer = setTimeout(() => setIsRinging(false), 1600);
 
-    // Tự động bật Toast cảnh báo nổi (10 giây tự đóng, click chuyển tới sự cố)
+    // Hiển thị toast thông báo chung của toàn hệ thống (WoodenToast biến thể sự cố phân màu vi phạm)
     const alertData =
       typeof lastAlert.data === "object" && lastAlert.data !== null
         ? (lastAlert.data as IncidentAlertPayload)
         : null;
 
     if (alertData && (lastAlert.type === "notification:ppe_violation" || alertData.incidentId)) {
-      const toastKey = `ppe-incident-${classified.kind}-${alertData.incidentId || Date.now()}`;
-      toast.custom(
-        (t) => (
-          <IncidentAlertToast
-            visible={t.visible}
-            data={{
-              ...alertData,
-              severity: classified.toastSeverity,
-            }}
-            onClose={() => toast.dismiss(t.id)}
-            onOpenIncident={(incidentId) => {
-              toast.dismiss(t.id);
-              if (incidentId) {
-                router.push(notificationIncidentTarget({ incidentId, content: alertData.content }).href!);
-              }
-            }}
-            onOpenCompare={(incidentId) => {
-              toast.dismiss(t.id);
-              if (incidentId) {
-                router.push(notificationIncidentTarget({ incidentId, content: alertData.content }, true).href!);
-              }
-            }}
-          />
-        ),
-        {
-          id: toastKey,
-          duration: 10000, // Đúng 10s tự động đóng theo yêu cầu
-          position: "top-right",
-        }
-      );
+      const {
+        getCameraCode: resolveCam,
+        getSiteName: resolveSite,
+        isVietnamese: vi,
+      } = lookupRef.current;
+
+      const built = buildIncidentToastPayload({
+        alertData,
+        kind: classified.kind,
+        severity: classified.toastSeverity,
+        isVietnamese: vi,
+        resolveCameraCode: resolveCam,
+        resolveSiteName: resolveSite,
+        onOpenHref: (href) => router.push(href),
+        onCompareHref: (href) => router.push(href),
+      });
+
+      toast.incident(built.input, {
+        id: built.toastKey,
+        burstKey: built.burstKey,
+      });
     }
 
     return () => clearTimeout(timer);
@@ -164,9 +163,20 @@ export function NotificationBell() {
         setOpen(false);
       }
     };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
+
+  if (!canReadNotifications) {
+    return null;
+  }
 
   const handleItemClick = (item: NotificationItemDto) => {
     if (!item.isRead) {
@@ -191,11 +201,11 @@ export function NotificationBell() {
         onClick={() => setOpen((v) => !v)}
         aria-label={t("header.notifications.title")}
         aria-expanded={open}
-        className={`relative flex size-10 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_2px_2px_4px_var(--shadow-dark)] ${
+        className={`relative flex size-9 sm:size-10 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_2px_2px_4px_var(--shadow-dark)] ${
           isRinging ? "animate-bounce text-primary ring-2 ring-primary/40" : ""
         }`}
       >
-        <Bell className={`size-4.5 ${isRinging ? "animate-[wiggle_0.4s_ease-in-out_infinite]" : ""}`} />
+        <Bell className={`size-4 sm:size-4.5 ${isRinging ? "animate-[wiggle_0.4s_ease-in-out_infinite]" : ""}`} />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 flex h-4.5 min-w-[18px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white shadow-[0_0_8px_rgba(244,63,94,0.7)] animate-pulse">
             {unreadCount > 99 ? "99+" : unreadCount}
@@ -204,7 +214,7 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="fixed right-3 top-[66px] z-50 flex max-h-[min(30rem,calc(100dvh-5.5rem))] w-[min(384px,calc(100vw-24px))] flex-col rounded-2xl border border-border/50 bg-background p-3 shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)] animate-in fade-in slide-in-from-top-2 sm:absolute sm:right-0 sm:top-full sm:mt-2.5 sm:max-h-none sm:w-96">
+        <div className="fixed left-3 right-3 top-[64px] z-50 flex max-h-[min(30rem,calc(100dvh-5.5rem))] flex-col rounded-2xl border border-border/50 bg-background p-3 shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)] animate-in fade-in slide-in-from-top-2 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2.5 sm:max-h-none sm:w-96">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border/30 pb-2.5 px-1">
             <div className="flex items-center gap-2">

@@ -6,6 +6,7 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { PhoneReveal } from "@/components/ui/phone-reveal";
 import { useLocale } from "@/providers/locale-provider";
+import { useCan } from "@/hooks/use-can";
 import { useUsers } from "@/hooks/users";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import type { CreateAssignmentPayload, IncidentItem, UserResponseDto } from "@/types";
@@ -27,14 +28,19 @@ export function AssignIncidentModal({
 }: AssignIncidentModalProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
-  const { getSite } = useEntityLookup();
+  const can = useCan();
+  const canReadUsers = can("USER_READ");
+  const { getSite } = useEntityLookup({ enabled: open });
 
   const currentSite = useMemo(
     () => (incident?.siteId ? getSite(incident.siteId) : undefined),
     [incident?.siteId, getSite]
   );
 
-  const { data: usersData, isLoading: usersLoading } = useUsers({ limit: 100 });
+  const { data: usersData, isLoading: usersLoading } = useUsers(
+    { limit: 100 },
+    { enabled: open && canReadUsers },
+  );
   const allUsers: UserResponseDto[] = useMemo(() => usersData?.data ?? [], [usersData]);
 
   // Group users into site-specific officers, safety personnel, and general personnel
@@ -94,18 +100,21 @@ export function AssignIncidentModal({
     [allUsers, assignedToUserId]
   );
 
-  // Set default selection when users are loaded
+  // Reset lựa chọn mỗi khi mở modal cho một sự cố khác
   useEffect(() => {
-    if (!assignedToUserId) {
-      if (siteOfficers.length > 0) {
-        setAssignedToUserId(siteOfficers[0].id);
-      } else if (safetyOfficers.length > 0) {
-        setAssignedToUserId(safetyOfficers[0].id);
-      } else if (allUsers.length > 0) {
-        setAssignedToUserId(allUsers[0].id);
-      }
+    if (!open) return;
+    setNote("");
+    setError(null);
+    if (siteOfficers.length > 0) {
+      setAssignedToUserId(siteOfficers[0].id);
+    } else if (safetyOfficers.length > 0) {
+      setAssignedToUserId(safetyOfficers[0].id);
+    } else if (allUsers.length > 0) {
+      setAssignedToUserId(allUsers[0].id);
+    } else {
+      setAssignedToUserId("");
     }
-  }, [siteOfficers, safetyOfficers, allUsers, assignedToUserId]);
+  }, [open, incident?.id, siteOfficers, safetyOfficers, allUsers]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,17 +226,11 @@ export function AssignIncidentModal({
               </option>
             )}
             {!usersLoading && allUsers.length === 0 && (
-              <>
-                <option value="00000000-0000-0000-0000-000000000002">
-                  Nguyễn Văn An ({isVietnamese ? "Trưởng ca Giám sát An toàn" : "Lead Safety Supervisor"})
-                </option>
-                <option value="00000000-0000-0000-0000-000000000003">
-                  Trần Đình Bình ({isVietnamese ? "Kỹ thuật viên Hiện trường" : "Field Operations Officer"})
-                </option>
-                <option value="00000000-0000-0000-0000-000000000004">
-                  Lê Thị Cẩm ({isVietnamese ? "Cán bộ Kiểm tra Môi trường & PPE" : "HSE & PPE Compliance Officer"})
-                </option>
-              </>
+              <option value="">
+                {isVietnamese
+                  ? "-- Chưa có danh sách nhân sự khả dụng --"
+                  : "-- No personnel directory available --"}
+              </option>
             )}
             {siteOfficers.length > 0 && (
               <optgroup

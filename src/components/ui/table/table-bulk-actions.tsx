@@ -69,7 +69,7 @@ export function TableBulkActions({
           <CheckSquare size={16} />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span
             aria-live="polite"
             className="text-xs sm:text-sm font-bold text-foreground"

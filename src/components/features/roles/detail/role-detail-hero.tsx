@@ -183,7 +183,7 @@ export function RoleDetailHero({
         {/* Action Controls */}
         <div
           className="
-            flex items-center gap-1 sm:gap-1.5 rounded-2xl p-1 sm:p-1.5
+            flex flex-wrap items-center gap-1 sm:gap-1.5 rounded-2xl p-1 sm:p-1.5
             border border-white/60 bg-surface/90
             shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_rgba(255,255,255,0.75)]
             dark:border-white/5 dark:bg-card/80
@@ -358,9 +358,10 @@ export function RoleDetailHero({
 
                 <div className="border-t border-border/30 pt-2.5 text-xs leading-relaxed text-muted-foreground space-y-1.5">
                   <p className="text-foreground/90 font-medium">
-                    {t(`roles.desc.${role.name}`) !== `roles.desc.${role.name}`
-                      ? t(`roles.desc.${role.name}`)
-                      : role.description || t("roles.detail.noDescription")}
+                    {role.description?.trim() ||
+                      (t(`roles.desc.${role.name}`) !== `roles.desc.${role.name}`
+                        ? t(`roles.desc.${role.name}`)
+                        : t("roles.detail.noDescription"))}
                   </p>
                   <p className="text-[11px] text-muted-foreground">{profile.mission}</p>
                 </div>

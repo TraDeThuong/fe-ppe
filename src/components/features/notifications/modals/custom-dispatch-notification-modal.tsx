@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Send,
   Volume2,
   X,
-  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import { useNotificationSound } from "@/hooks/notifications/use-notification-sound";
 import {
@@ -16,8 +15,9 @@ import {
   useSendNotification,
 } from "@/hooks/notifications/use-notification-mutations";
 import { useUsers } from "@/hooks/users";
+import { toast } from "@/lib/toast";
 import { PREDEFINED_SYSTEM_TEMPLATES } from "../notification-predefined-data";
-import { SOUND_PRESET_NAMES, type SoundPreset } from "@/services/sound.service";
+import type { SoundPreset } from "@/services/sound.service";
 import type { NotificationSeverity, NotificationChannel } from "@/types";
 
 export interface CustomDispatchNotificationModalProps {
@@ -31,8 +31,10 @@ export function CustomDispatchNotificationModal({
   onOpenChange,
   onSuccess,
 }: CustomDispatchNotificationModalProps) {
-  const { t, locale } = useLocale();
+  const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canReadUsers = can("USER_READ");
   const { playPreset } = useNotificationSound();
 
   const [selectedTemplateCode, setSelectedTemplateCode] = useState<string>("CUSTOM");
@@ -47,9 +49,28 @@ export function CustomDispatchNotificationModal({
 
   const { data: usersData } = useUsers(
     { limit: 100, isActive: true },
-    { enabled: open && targetScope !== "BROADCAST" },
+    { enabled: open && targetScope !== "BROADCAST" && canReadUsers },
   );
   const availableUsers = usersData?.data ?? [];
+
+  const scopedRecipients = useMemo(() => {
+    if (targetScope === "SPECIFIC_USERS") {
+      return availableUsers.filter((u) => selectedUserIds.includes(u.id));
+    }
+    if (targetScope === "SAFETY_OFFICERS") {
+      return availableUsers.filter(
+        (u) => (u.role?.name || "").toUpperCase() === "SAFETY_OFFICER",
+      );
+    }
+    if (targetScope === "MANAGERS") {
+      return availableUsers.filter((u) =>
+        ["SAFETY_MANAGER", "MANAGER", "ADMIN"].includes(
+          (u.role?.name || "").toUpperCase(),
+        ),
+      );
+    }
+    return [];
+  }, [availableUsers, selectedUserIds, targetScope]);
 
   const broadcastMutation = useBroadcastNotification({
     onSuccess: () => {
@@ -101,26 +122,24 @@ export function CustomDispatchNotificationModal({
     if (!title.trim() || !content.trim()) return;
 
     if (targetScope !== "BROADCAST") {
-      const scopedUsers =
-        targetScope === "SPECIFIC_USERS"
-          ? availableUsers.filter((u) => selectedUserIds.includes(u.id))
-          : targetScope === "SAFETY_OFFICERS"
-            ? availableUsers.filter((u) => (u.role?.name || "").toUpperCase() === "SAFETY_OFFICER")
-            : availableUsers.filter((u) =>
-                ["SAFETY_MANAGER", "MANAGER", "ADMIN"].includes((u.role?.name || "").toUpperCase()),
-              );
-
       const userIds =
         targetScope === "SPECIFIC_USERS"
           ? selectedUserIds
-          : scopedUsers.map((u) => u.id);
+          : scopedRecipients.map((u) => u.id);
 
-      if (userIds.length === 0) return;
+      if (userIds.length === 0) {
+        toast.error(
+          isVietnamese
+            ? "Không tìm thấy người nhận phù hợp cho phạm vi đã chọn."
+            : "No matching recipients found for the selected scope.",
+        );
+        return;
+      }
 
       const selectedChannels: NotificationChannel[] = channels.length > 0 ? channels : ["IN_APP"];
       const recipientEmails = selectedChannels.includes("EMAIL")
         ? Object.fromEntries(
-            scopedUsers
+            scopedRecipients
               .filter((u) => Boolean(u.email))
               .map((u) => [u.id, u.email as string]),
           )
@@ -404,10 +423,10 @@ export function CustomDispatchNotificationModal({
               {isVietnamese ? "Đường dẫn đính kèm (Action URL - Tùy chọn)" : "Action URL (Optional)"}
             </label>
             <input
-              type="text"
+              type="url"
               value={actionUrl}
               onChange={(e) => setActionUrl(e.target.value)}
-              placeholder={isVietnamese ? "VD: /incidents hoặc /reports" : "e.g., /incidents or /reports"}
+              placeholder={isVietnamese ? "VD: https://app.example.com/incidents" : "e.g., https://app.example.com/incidents"}
               className="w-full rounded-xl border border-border/40 bg-background px-3 py-2 text-xs text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark)] outline-none focus:border-primary/60"
             />
           </div>
@@ -429,7 +448,9 @@ export function CustomDispatchNotificationModal({
               disabled={
                 broadcastMutation.isPending ||
                 sendMutation.isPending ||
-                (targetScope === "SPECIFIC_USERS" && selectedUserIds.length === 0)
+                (targetScope === "SPECIFIC_USERS"
+                  ? selectedUserIds.length === 0
+                  : targetScope !== "BROADCAST" && scopedRecipients.length === 0)
               }
               className="flex items-center gap-1.5 font-bold shadow-[2px_2px_6px_var(--shadow-dark)]"
             >

@@ -182,14 +182,14 @@ export function DashboardSeveritySlaChart({
       bodyClassName="flex flex-col justify-between gap-4"
     >
       {/* Top 3-KPI Summary Strip */}
-      <div className="grid grid-cols-3 gap-2.5">
-        <div className="rounded-2xl border border-border/35 bg-background/60 p-3 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] dark:border-white/[0.06] dark:bg-background/40 dark:shadow-none">
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2.5">
+        <div className="min-w-0 rounded-2xl border border-border/35 bg-background/60 p-3 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] dark:border-white/[0.06] dark:bg-background/40 dark:shadow-none">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-            <Hourglass className="size-3 text-warning" />
+            <Hourglass className="size-3 shrink-0 text-warning" />
             <span className="truncate">{t("dashboard.charts.backlog")}</span>
           </div>
           <p
-            className={`mt-1 text-xl font-black tracking-tight tabular-nums ${
+            className={`mt-1 text-lg sm:text-xl font-black tracking-tight tabular-nums ${
               backlogCount > 0 ? "text-warning" : "text-foreground"
             }`}
           >
@@ -200,12 +200,12 @@ export function DashboardSeveritySlaChart({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-border/35 bg-background/60 p-3 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] dark:border-white/[0.06] dark:bg-background/40 dark:shadow-none">
+        <div className="min-w-0 rounded-2xl border border-border/35 bg-background/60 p-3 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] dark:border-white/[0.06] dark:bg-background/40 dark:shadow-none">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-            <CheckCircle2 className="size-3 text-primary" />
+            <CheckCircle2 className="size-3 shrink-0 text-primary" />
             <span className="truncate">{t("dashboard.status.resolved")}</span>
           </div>
-          <p className="mt-1 text-xl font-black tracking-tight tabular-nums text-primary">
+          <p className="mt-1 text-lg sm:text-xl font-black tracking-tight tabular-nums text-primary">
             <AnimatedNumber value={resolvedCount} format={(v) => number.format(v)} />
           </p>
           <p className="mt-0.5 truncate text-[10px] text-muted-foreground tabular-nums">
@@ -213,12 +213,12 @@ export function DashboardSeveritySlaChart({
           </p>
         </div>
 
-        <div className="rounded-2xl border border-primary/25 bg-primary/[0.06] p-3 dark:border-primary/25 dark:bg-primary/10">
+        <div className="min-w-0 rounded-2xl border border-primary/25 bg-primary/[0.06] p-3 dark:border-primary/25 dark:bg-primary/10">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-            <Clock className="size-3 text-primary" />
+            <Clock className="size-3 shrink-0 text-primary" />
             <span className="truncate">MTTR</span>
           </div>
-          <p className="mt-1 text-xl font-black tracking-tight tabular-nums text-foreground">
+          <p className="mt-1 text-lg sm:text-xl font-black tracking-tight tabular-nums text-foreground">
             <AnimatedMetricValue value={formatMttr(analytics.mttrMinutes)} />
           </p>
           <p className="mt-0.5 truncate text-[10px] text-muted-foreground tabular-nums">

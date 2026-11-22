@@ -95,6 +95,12 @@ export interface NotificationItemDto {
   type?: string;
   actionUrl?: string | null;
   evidenceUrl?: string | null;
+  /** Danh sách đầy đủ các kênh đã phát cho cùng một thông báo sau khi gộp bản ghi đa kênh */
+  deliveredChannels?: NotificationChannel[];
+  /** Danh sách ID các bản ghi cùng sở hữu đã được gộp (để đồng bộ đánh dấu đã đọc / xóa) */
+  mergedIds?: string[];
+  /** Danh sách ID chưa đọc trong nhóm đã gộp */
+  unreadIds?: string[];
   metadata?: {
     cameraCode?: string;
     cameraId?: string;

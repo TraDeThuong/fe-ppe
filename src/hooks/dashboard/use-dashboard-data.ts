@@ -98,7 +98,7 @@ export function useDashboardData(access: DashboardAccess) {
   } as const;
   const periodQuery = useQuery({
     queryKey: [...incidentKeys.lists(), "dashboard-period", scope, period],
-    enabled: ready && access.analytics && access.incidents && !!period,
+    enabled: ready && access.incidents && !!period,
     queryFn: ({ signal }) =>
       collectDashboardPages(
         (page, limit) =>
@@ -190,9 +190,8 @@ export function useDashboardData(access: DashboardAccess) {
   });
   const dashboardKpiQuery = useQuery({
     queryKey: [...reportingKeys.dashboardKpi(siteId), "dashboard", userId],
-    enabled:
-      ready &&
-      (access.analytics || access.incidents || access.cameras || access.model),
+    // BE GET /statistics/dashboard-kpi yêu cầu chặt quyền PPE_REPORTING_READ (access.analytics)
+    enabled: ready && access.analytics,
     queryFn: () => reportingService.getDashboardKpi(siteId || undefined),
     ...polling,
   });
@@ -278,7 +277,7 @@ export function useDashboardData(access: DashboardAccess) {
   });
   const visiblePeriod = visibleQuery(
     periodQuery,
-    ready && access.analytics && access.incidents && !!period,
+    ready && access.incidents && !!period,
   );
   const visibleCameraCounts = visibleQuery(
     cameraCountsQuery,
@@ -304,8 +303,7 @@ export function useDashboardData(access: DashboardAccess) {
     onlineQuery,
     dashboardKpiQuery: visibleQuery(
       dashboardKpiQuery,
-      ready &&
-        (access.analytics || access.incidents || access.cameras || access.model),
+      ready && access.analytics,
     ),
     modelQuery: visibleQuery(modelQuery, ready && access.model),
     modelsQuery: visibleQuery(modelsQuery, ready && access.model),

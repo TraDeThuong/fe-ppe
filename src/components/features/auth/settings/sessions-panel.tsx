@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Laptop,
   Loader2,
@@ -71,6 +71,17 @@ export function SessionsPanel() {
     }
   }
 
+  const totalSessions = sessions.data?.length ?? 0;
+  const pageCount = Math.max(1, Math.ceil(totalSessions / SESSIONS_PER_PAGE));
+  const currentPage = Math.min(page, pageCount);
+
+  // Đồng bộ lại page an toàn qua effect khi thu hồi phiên làm giảm tổng số trang
+  useEffect(() => {
+    if (page !== currentPage) {
+      setPage(currentPage);
+    }
+  }, [page, currentPage]);
+
   if (sessions.isLoading) {
     return (
       <div
@@ -109,18 +120,11 @@ export function SessionsPanel() {
 
   const otherSessions = sessions.data.filter((session) => !session.isCurrent);
   const currentSession = sessions.data.find((session) => session.isCurrent);
-  const pageCount = Math.ceil(sessions.data.length / SESSIONS_PER_PAGE);
-  const currentPage = Math.min(page, pageCount);
   const startIndex = (currentPage - 1) * SESSIONS_PER_PAGE;
   const visibleSessions = sessions.data.slice(
     startIndex,
     startIndex + SESSIONS_PER_PAGE,
   );
-
-  // Keep the selected page valid when revoking sessions removes the last page.
-  if (page !== currentPage) {
-    setPage(currentPage);
-  }
 
   return (
     <div data-testid="sessions-panel" className="flex w-full flex-col gap-5">

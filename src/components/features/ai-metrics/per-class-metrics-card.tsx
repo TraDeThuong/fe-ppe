@@ -389,7 +389,7 @@ export function PerClassMetricsCard({
   if (loading) {
     return (
       <section
-        className={`relative flex flex-col justify-between overflow-hidden rounded-[26px] border border-border/40 bg-surface p-4 sm:p-5 h-[590px] ${shellShadow} ${className}`}
+        className={`relative flex flex-col justify-between overflow-hidden rounded-[26px] border border-border/40 bg-surface p-4 sm:p-5 min-h-[480px] max-h-[680px] sm:h-[590px] sm:max-h-none ${shellShadow} ${className}`}
         aria-busy="true"
         aria-label="Loading per class metrics"
       >
@@ -425,7 +425,7 @@ export function PerClassMetricsCard({
   // ============================================================================
   return (
     <section
-      className={`relative isolate flex flex-col justify-between overflow-hidden rounded-[26px] border border-border/40 bg-surface p-4 sm:p-5 h-[590px] ${shellShadow} ${className}`}
+      className={`relative isolate flex flex-col justify-between overflow-hidden rounded-[26px] border border-border/40 bg-surface p-4 sm:p-5 min-h-[480px] max-h-[680px] sm:h-[590px] sm:max-h-none ${shellShadow} ${className}`}
     >
       {/* Phản xạ ánh sáng trên mép khối Neumorphic */}
       <div
@@ -545,7 +545,7 @@ export function PerClassMetricsCard({
         {rawList.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
             {/* Filter Tabs */}
-            <div className="flex items-center gap-1 rounded-xl border border-border/35 bg-surface/80 p-0.5 shadow-[inset_1px_1px_3px_var(--shadow-dark)]">
+            <div className="flex flex-wrap items-center gap-1 rounded-xl border border-border/35 bg-surface/80 p-0.5 shadow-[inset_1px_1px_3px_var(--shadow-dark)]">
               {(
                 [
                   { key: "all", label: isVi ? "Tất cả" : "All" },
@@ -569,7 +569,7 @@ export function PerClassMetricsCard({
             </div>
 
             {/* Search Input & Sort dropdown */}
-            <div className="flex items-center gap-1.5 flex-1 max-w-[210px] sm:max-w-[240px]">
+            <div className="flex w-full sm:w-auto items-center gap-1.5 flex-1 sm:max-w-[240px]">
               <div className="relative flex-1">
                 <label htmlFor={searchInputId} className="sr-only">
                   {isVi ? "Tìm kiếm phân lớp đối tượng" : "Search classes"}

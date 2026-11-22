@@ -30,9 +30,9 @@ export function SiteToolbar({
   return (
     <div className="flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center sm:justify-between">
       {/* Row 1 on Mobile: Search + Status Filter */}
-      <div className="flex flex-1 items-center gap-2">
+      <div className="flex flex-1 flex-wrap sm:flex-nowrap items-center gap-2">
         {/* Search Input */}
-        <div className="relative flex-1">
+        <div className="relative min-w-[160px] flex-1">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             type="text"
@@ -47,7 +47,7 @@ export function SiteToolbar({
         <select
           value={statusFilter}
           onChange={(e) => onStatusFilterChange(e.target.value)}
-          className="rounded-xl border border-border/40 bg-surface px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)] shrink-0"
+          className="w-full sm:w-auto rounded-xl border border-border/40 bg-surface px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs sm:text-sm text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)] shrink-0"
         >
           <option value="">{t("sites.toolbar.allStatuses")}</option>
           <option value="ACTIVE">{t("sites.status.active")}</option>

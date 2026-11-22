@@ -109,6 +109,7 @@ export default function IncidentAssignmentsContent() {
     siteId: siteFilter || undefined,
     sortBy: "detectedAt",
     sortOrder: "desc",
+    includeAssignments: true,
   });
 
   const rawIncidents = useMemo(
@@ -714,13 +715,22 @@ export default function IncidentAssignmentsContent() {
           const targetId = payload.assignedTo || payload.assignedToUserId || "";
           setSingleActionPending(true);
           try {
-            await dispatchIncidentsWithSignal({
+            const res = await dispatchIncidentsWithSignal({
               incidents: [selectedIncident],
               assignedTo: targetId,
               note: payload.note,
               managerName: user?.fullName || user?.email || undefined,
             });
             invalidateAll([selectedIncident.id]);
+            if (res.failedCount > 0 || res.assignedCount === 0) {
+              const reason =
+                res.failedItems[0]?.message ||
+                (isVietnamese
+                  ? "Không thể phân công sự cố cho cán bộ đã chọn."
+                  : "Unable to dispatch incident to the selected officer.");
+              toast.error(reason);
+              throw new Error(reason);
+            }
           } finally {
             setSingleActionPending(false);
           }

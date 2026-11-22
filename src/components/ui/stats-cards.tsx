@@ -571,7 +571,7 @@ export function DeepElevationStatsCard({
     <div
       onClick={onClick}
       className={cn(
-        "group relative overflow-hidden rounded-[26px] border border-white/80 bg-background p-6",
+        "group relative overflow-hidden rounded-[20px] sm:rounded-[26px] border border-white/80 bg-background p-4 sm:p-6",
         animate && "animate-stat-enter",
         "shadow-[10px_10px_22px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),inset_1px_1px_2px_rgba(255,255,255,0.9),inset_-1px_-1px_2px_var(--shadow-dark)]",
         "transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[14px_16px_30px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light)]",
@@ -617,7 +617,7 @@ export function DeepElevationStatsCard({
           <Typography
             variant="embossed"
             as="div"
-            className="text-4xl sm:text-5xl font-black tracking-tight !text-foreground font-mono tabular-nums"
+            className="text-3xl sm:text-5xl font-black tracking-tight !text-foreground font-mono tabular-nums"
           >
             {animate ? <AnimatedMetricValue value={value} /> : value}
           </Typography>

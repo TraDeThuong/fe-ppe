@@ -100,9 +100,10 @@ export function RoleCardGrid({
               </div>
 
               <p className="text-[11px] sm:text-xs text-foreground/80 line-clamp-2 min-h-0 sm:min-h-[32px]">
-                {t(`roles.desc.${role.name}`) !== `roles.desc.${role.name}`
-                  ? t(`roles.desc.${role.name}`)
-                  : role.description || t("roles.detail.noDescription")}
+                {role.description?.trim() ||
+                  (t(`roles.desc.${role.name}`) !== `roles.desc.${role.name}`
+                    ? t(`roles.desc.${role.name}`)
+                    : t("roles.detail.noDescription"))}
               </p>
 
               {/* Stats Bar */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertOctagon, Footprints, HardHat, Shield, Shirt } from "lucide-react";
+import { AlertOctagon, HardHat, Shirt } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 import type { SiteSafetyConfigItem } from "@/types";
 

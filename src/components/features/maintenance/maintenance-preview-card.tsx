@@ -67,30 +67,30 @@ export function MaintenancePreviewCard({
       </div>
 
       {/* Simulator Container */}
-      <div className="relative flex-1 rounded-xl border border-border/30 bg-surface/50 p-3 sm:p-6 overflow-hidden flex items-center justify-center min-h-[460px] shadow-[inset_2px_2px_6px_var(--shadow-dark),inset_-2px_-2px_6px_var(--shadow-light)]">
+      <div className="relative flex-1 rounded-xl border border-border/30 bg-surface/50 p-2.5 sm:p-6 overflow-hidden flex items-center justify-center min-h-[380px] sm:min-h-[460px] shadow-[inset_2px_2px_6px_var(--shadow-dark),inset_-2px_-2px_6px_var(--shadow-light)]">
         {device === "desktop" ? (
           /* Desktop Simulator Window */
-          <div className="w-full max-w-3xl rounded-2xl border border-border/50 bg-background overflow-hidden shadow-[6px_6px_18px_var(--shadow-dark),-6px_-6px_18px_var(--shadow-light)]">
+          <div className="w-full min-w-0 max-w-3xl rounded-2xl border border-border/50 bg-background overflow-hidden shadow-[6px_6px_18px_var(--shadow-dark),-6px_-6px_18px_var(--shadow-light)]">
             {/* Fake browser bar */}
-            <div className="flex items-center gap-2 border-b border-border/30 bg-surface px-4 py-2">
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2 border-b border-border/30 bg-surface px-3 sm:px-4 py-2">
+              <div className="flex shrink-0 items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-rose-500/80" />
                 <span className="h-2.5 w-2.5 rounded-full bg-amber-500/80" />
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80" />
               </div>
-              <div className="mx-auto text-[11px] font-mono text-muted-foreground bg-background px-3 py-0.5 rounded-md border border-border/30 w-48 text-center truncate">
+              <div className="mx-auto min-w-0 flex-1 max-w-48 text-[11px] font-mono text-muted-foreground bg-background px-2.5 sm:px-3 py-0.5 rounded-md border border-border/30 text-center truncate">
                 https://smartppe.vn
               </div>
             </div>
 
             {/* Screen Content */}
-            <div className="p-4 sm:p-6">
+            <div className="p-2.5 sm:p-6">
               <MaintenanceScreen config={config} isPreview />
             </div>
           </div>
         ) : (
           /* Mobile Smartphone Simulator Frame (iPhone aspect ratio) */
-          <div className="relative w-full max-w-[300px] h-[520px] rounded-[42px] border-[8px] border-zinc-800 dark:border-zinc-700 bg-background overflow-hidden shadow-[0_20px_45px_rgba(0,0,0,0.35)] flex flex-col shrink-0 select-none">
+          <div className="relative w-full max-w-[290px] sm:max-w-[300px] h-[500px] sm:h-[520px] rounded-[42px] border-[8px] border-zinc-800 dark:border-zinc-700 bg-background overflow-hidden shadow-[0_20px_45px_rgba(0,0,0,0.35)] flex flex-col shrink-0 select-none">
             {/* Phone Status Bar */}
             <div className="relative z-20 flex items-center justify-between px-6 pt-3 pb-1 text-[10px] font-semibold text-foreground/80 shrink-0">
               <span>09:41</span>

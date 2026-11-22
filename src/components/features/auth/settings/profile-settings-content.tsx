@@ -311,7 +311,7 @@ export function ProfileSettingsContent() {
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 <Typography
-                  as="h1"
+                  as="h2"
                   variant="embossed"
                   className="text-xl font-bold tracking-tight text-foreground sm:text-2xl"
                 >
@@ -636,13 +636,9 @@ export function ProfileSettingsContent() {
           className="
             mt-auto flex flex-col-reverse gap-3
             border-t border-border/30 pt-5
-            sm:flex-row sm:items-center sm:justify-between
+            sm:flex-row sm:items-center sm:justify-end
           "
         >
-          <p className="hidden text-[11px] text-muted-foreground sm:block">
-            {isDirty ? (t("profile.personalInfo.reset")) : ""}
-          </p>
-
           <div className="flex items-center justify-end gap-3">
             <Button
               type="button"
@@ -956,7 +952,7 @@ export function ProfileSettingsContent() {
 
                 {/* Quản lý phiên */}
                 <Link
-                  href="/settings/security"
+                  href="/settings/security?tab=sessions"
                   className="group flex items-center justify-between rounded-xl border border-border/30 bg-background p-2.5 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] transition-all hover:-translate-y-0.5"
                 >
                   <div className="flex items-center gap-2.5">

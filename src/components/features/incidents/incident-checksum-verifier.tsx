@@ -13,11 +13,12 @@ export interface IncidentChecksumVerifierProps {
 
 export function IncidentChecksumVerifier({
   evidenceId,
-  expectedChecksum = "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
+  expectedChecksum,
 }: IncidentChecksumVerifierProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const verifyMutation = useVerifyEvidenceMutation();
+  const normalizedChecksum = expectedChecksum?.trim() || null;
 
   const handleVerify = () => {
     if (!evidenceId) return;
@@ -38,7 +39,7 @@ export function IncidentChecksumVerifier({
           </h4>
         </div>
 
-        {evidenceId && (
+        {evidenceId && normalizedChecksum && (
           <Button
             size="sm"
             variant="outline"
@@ -60,9 +61,17 @@ export function IncidentChecksumVerifier({
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           {isVietnamese ? "Mã băm SHA-256 đối chiếu:" : "Reference SHA-256 Checksum:"}
         </span>
-        <div className="rounded-xl border border-border/40 bg-slate-950 p-2.5 font-mono text-[11px] text-emerald-400 break-all select-all">
-          {expectedChecksum || "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069"}
-        </div>
+        {normalizedChecksum ? (
+          <div className="rounded-xl border border-border/40 bg-slate-950 p-2.5 font-mono text-[11px] text-emerald-400 break-all select-all">
+            {normalizedChecksum}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+            {isVietnamese
+              ? "Chưa ghi nhận mã băm SHA-256 cho tệp bằng chứng này."
+              : "No SHA-256 checksum recorded for this evidence file."}
+          </div>
+        )}
       </div>
 
       {result ? (

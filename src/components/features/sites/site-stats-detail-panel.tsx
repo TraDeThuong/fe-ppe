@@ -51,7 +51,6 @@ export function SiteStatsDetailPanel({
 
   // Selected filters
   const [selectedSiteFilter, setSelectedSiteFilter] = useState<string>("ALL");
-  const [selectedSeverity, setSelectedSeverity] = useState<string>("ALL");
 
   // Lazy queries when opening panel
   const isZonesActive = activeStat === "totalZones";
@@ -74,7 +73,8 @@ export function SiteStatsDetailPanel({
   const totalSites = sites.length;
   const activeSites = sites.filter((s) => s.status === "ACTIVE").length;
   const inactiveSites = sites.filter((s) => s.status === "INACTIVE").length;
-  const suspendedSites = sites.filter((s) => s.status === "SUSPENDED").length;
+  const completedSites = sites.filter((s) => s.status === "COMPLETED").length;
+  const archivedSites = sites.filter((s) => s.status === "ARCHIVED").length;
 
   const totalZones = sites.reduce(
     (acc, s) =>
@@ -164,15 +164,9 @@ export function SiteStatsDetailPanel({
   }, [sites, fetchedRestricted, sitesMap, t]);
 
   const filteredRestricted = useMemo(() => {
-    let result = allRestricted;
-    if (selectedSiteFilter !== "ALL") {
-      result = result.filter((a) => a.siteId === selectedSiteFilter);
-    }
-    if (selectedSeverity !== "ALL") {
-      result = result.filter((a) => a.severity === selectedSeverity);
-    }
-    return result;
-  }, [allRestricted, selectedSiteFilter, selectedSeverity]);
+    if (selectedSiteFilter === "ALL") return allRestricted;
+    return allRestricted.filter((a) => a.siteId === selectedSiteFilter);
+  }, [allRestricted, selectedSiteFilter]);
 
   const computedTotalZones = Math.max(totalZones, allZones.length, fetchedZones.length);
   const computedTotalRestricted = Math.max(
@@ -327,11 +321,9 @@ export function SiteStatsDetailPanel({
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/50 bg-background/75 px-3.5 py-2 text-[11px] shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] dark:border-white/5">
               <span className="inline-flex items-center gap-2 font-semibold text-foreground/85">
                 <span className="h-2 w-2 rounded-full bg-gradient-to-r from-primary to-accent" />
-                {t("sites.detail.statusBreakdown", {
-                  active: activeSites,
-                  inactive: inactiveSites,
-                  suspended: suspendedSites,
-                })}
+                {isVietnamese
+                  ? `Hoạt động: ${activeSites} · Tạm dừng: ${inactiveSites} · Hoàn thành: ${completedSites} · Lưu trữ: ${archivedSites}`
+                  : `Active: ${activeSites} · Inactive: ${inactiveSites} · Completed: ${completedSites} · Archived: ${archivedSites}`}
               </span>
               <span className="text-[10px] font-medium italic text-muted-foreground">
                 {t("sites.detail.totalSitesDesc")}
@@ -590,23 +582,15 @@ export function SiteStatsDetailPanel({
         {/* ── 3. NỘI DUNG: VÙNG CẤM NGUY HIỂM (RESTRICTED) ─────────────────────────── */}
         {activeStat === "restrictedAreas" && (
           <div className="relative space-y-3">
-            {/* Severity & Site Filter */}
+            {/* Site Filter */}
             <div className="flex flex-wrap items-center justify-between gap-2 px-0.5">
-              <div className="flex items-center gap-1.5 rounded-full border border-white/40 bg-background/75 p-1 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] dark:border-white/5">
-                {["ALL", "CRITICAL", "HIGH", "MEDIUM"].map((sev) => (
-                  <button
-                    key={sev}
-                    type="button"
-                    onClick={() => setSelectedSeverity(sev)}
-                    className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${selectedSeverity === sev
-                        ? "bg-accent text-white shadow-[0_2px_8px_hsl(var(--accent)/0.4)]"
-                        : "text-muted-foreground hover:text-foreground"
-                      }`}
-                  >
-                    {sev === "ALL" ? t("sites.detail.severityFilterAll") : sev}
-                  </button>
-                ))}
-              </div>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-background px-3 py-1 text-[11px] font-bold text-muted-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+                <AlertOctagon className="h-3.5 w-3.5 text-accent" />
+                <span>
+                  <strong className="font-mono text-foreground">{filteredRestricted.length}</strong>{" "}
+                  {isVietnamese ? "vùng cấm" : "restricted areas"}
+                </span>
+              </span>
 
               <select
                 value={selectedSiteFilter}

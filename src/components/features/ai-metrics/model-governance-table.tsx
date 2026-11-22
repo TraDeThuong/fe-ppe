@@ -31,7 +31,8 @@ export function ModelGovernanceTable({
     (m.versions || []).map((v) => ({
       ...v,
       modelName: m.name,
-      modelCode: m.code
+      modelCode: m.code,
+      modelStatus: m.status,
     }))
   );
 
@@ -175,8 +176,17 @@ export function ModelGovernanceTable({
             cell: ({ row }) => {
               const v = row.original;
               const isActive = v.status === "DEPLOYED" || v.status === "ACTIVE";
+              const isModelInactive =
+                v.modelStatus === "INACTIVE" || v.modelStatus === "DEPRECATED";
+              const isVersionRetired =
+                v.status === "DEPRECATED" ||
+                v.status === "ARCHIVED" ||
+                v.status === "RETIRED";
+              const canDeployRow =
+                !isActive && !isModelInactive && !isVersionRetired && canDeploy && Boolean(onDeploy);
+
               return <div className={"text-right"}>
-                {!isActive && canDeploy && onDeploy ? (
+                {canDeployRow && onDeploy ? (
                   <Button
                     size="sm"
                     variant="primary"
@@ -192,9 +202,13 @@ export function ModelGovernanceTable({
                       ? locale === "vi-VN"
                         ? "Đang chạy"
                         : "Active"
-                      : locale === "vi-VN"
-                        ? "Sẵn sàng"
-                        : "Ready"}
+                      : isModelInactive || isVersionRetired
+                        ? locale === "vi-VN"
+                          ? "Ngưng sử dụng"
+                          : "Retired"
+                        : locale === "vi-VN"
+                          ? "Sẵn sàng"
+                          : "Ready"}
                   </span>
                 )}
               </div>;

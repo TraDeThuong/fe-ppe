@@ -204,15 +204,15 @@ export function ReportsHeader({
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => onTabChange(tab.value)}
-                className={`group relative flex cursor-pointer items-center justify-between gap-3 rounded-2xl px-4 py-3.5 text-left transition-all duration-300 ${
+                className={`group relative flex cursor-pointer items-center justify-between gap-2.5 sm:gap-3 rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3.5 text-left transition-all duration-300 ${
                   isActive
                     ? `${NM.extruded} scale-[1.005]`
                     : "text-muted-foreground hover:bg-primary/[0.03]"
                 }`}
               >
-                <div className="flex min-w-0 items-center gap-3.5">
+                <div className="flex min-w-0 items-center gap-2.5 sm:gap-3.5">
                   <div
-                    className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300 ${
+                    className={`relative flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300 ${
                       isActive
                         ? tab.useAccent
                           ? "bg-accent text-accent-foreground shadow-sm"
@@ -223,7 +223,7 @@ export function ReportsHeader({
                     {tab.icon}
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
                       <span
                         className={`font-mono text-[10px] font-bold ${
                           isActive ? "text-primary" : "text-muted-foreground/60"
@@ -232,7 +232,7 @@ export function ReportsHeader({
                         {tab.index}
                       </span>
                       <span
-                        className={`truncate text-sm font-bold ${
+                        className={`truncate text-xs sm:text-sm font-bold ${
                           isActive
                             ? "text-foreground"
                             : "text-muted-foreground group-hover:text-foreground"
@@ -241,7 +241,7 @@ export function ReportsHeader({
                         {tab.label}
                       </span>
                     </div>
-                    <p className="mt-0.5 truncate text-[11px] font-medium text-muted-foreground">
+                    <p className="mt-0.5 truncate text-[10px] sm:text-[11px] font-medium text-muted-foreground">
                       {tab.caption}
                     </p>
                   </div>
@@ -249,7 +249,7 @@ export function ReportsHeader({
 
                 {tab.badge && (
                   <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider ${
+                    className={`shrink-0 rounded-full px-2 sm:px-2.5 py-0.5 sm:py-1 text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider ${
                       tab.useAccent
                         ? "bg-accent/15 text-accent"
                         : "bg-primary/15 text-primary"

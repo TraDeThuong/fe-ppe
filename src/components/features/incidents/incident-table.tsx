@@ -966,7 +966,11 @@ export function IncidentTable({
                       onClick: (incident) =>
                         router.push(
                           "/cameras?search=" +
-                            encodeURIComponent(incident.cameraCode || incident.cameraId) +
+                            encodeURIComponent(
+                              incident.cameraCode ||
+                                getCameraCode(incident.cameraId) ||
+                                incident.cameraId,
+                            ) +
                             "&view=wall",
                         ),
                     },

@@ -506,13 +506,14 @@ export const systemService = {
     );
 
     const healthyCount = services.filter((s) => s.status === "HEALTHY").length;
+    const downCount = services.filter((s) => s.status === "DOWN").length;
     const totalLatency = services.reduce((acc, s) => acc + s.latencyMs, 0);
     const averageLatencyMs = Math.round(totalLatency / (services.length || 1));
 
     let overallStatus: "HEALTHY" | "DEGRADED" | "DOWN" = "HEALTHY";
-    if (healthyCount < services.length / 2) {
+    if (downCount > 0 && healthyCount < services.length / 2) {
       overallStatus = "DOWN";
-    } else if (healthyCount < services.length) {
+    } else if (downCount > 0 || healthyCount < services.length) {
       overallStatus = "DEGRADED";
     }
 

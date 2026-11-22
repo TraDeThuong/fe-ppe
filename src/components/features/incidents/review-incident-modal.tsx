@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, CheckSquare, Loader2, XCircle } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,16 @@ export function ReviewIncidentModal({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // Reset form mỗi khi mở modal hoặc chuyển sang sự cố khác để tránh rò rỉ dữ liệu cũ
+  useEffect(() => {
+    if (open) {
+      setDecision("CONFIRMED");
+      setReason("");
+      setNotes("");
+      setError(null);
+    }
+  }, [open, incident?.id]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!incident) return;
@@ -44,11 +54,21 @@ export function ReviewIncidentModal({
       return;
     }
 
+    // BE reviewIncidentSchema chỉ nhận { decision, reason } (strip trường notes),
+    // nên gộp notes vào reason để ghi chú thẩm duyệt của Manager không bị mất.
+    const trimmedReason = reason.trim();
+    const trimmedNotes = notes.trim();
+    const combinedReason =
+      decision === "DISMISSED"
+        ? trimmedNotes
+          ? `${trimmedReason} — ${trimmedNotes}`
+          : trimmedReason
+        : trimmedNotes || undefined;
+
     try {
       await onSubmit(incident.id, {
         decision,
-        reason: reason.trim() || undefined,
-        notes: notes.trim() || undefined,
+        reason: combinedReason,
       });
 
       onOpenChange(false);
@@ -72,7 +92,7 @@ export function ReviewIncidentModal({
       icon={<CheckSquare className="h-5 w-5 text-primary" />}
       size="md"
       footer={
-        <div className="flex w-full items-center justify-end gap-3">
+        <div className="flex w-full flex-wrap items-center justify-end gap-2.5 sm:gap-3">
           <Button
             type="button"
             variant="ghost"
@@ -115,7 +135,7 @@ export function ReviewIncidentModal({
         )}
 
         {/* Incident Summary */}
-        <div className="rounded-xl border border-border/40 bg-surface/60 p-3 flex items-center justify-between text-xs">
+        <div className="rounded-xl border border-border/40 bg-surface/60 p-3 flex flex-wrap items-center justify-between gap-1.5 text-xs">
           <div>
             <span className="font-mono font-bold text-primary">
               #{incident?.id.slice(0, 8)}
@@ -131,7 +151,7 @@ export function ReviewIncidentModal({
         </div>
 
         {/* Decision Toggle */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3">
           <button
             type="button"
             onClick={() => setDecision("CONFIRMED")}

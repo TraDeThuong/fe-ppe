@@ -200,11 +200,12 @@ export function NotificationFilterToolbar({
                 val === "all" ? undefined : (val as NotificationSeverity),
             });
           }}
-          className="rounded-lg border border-border/40 bg-background px-2.5 py-1.5 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
+          className="flex-1 sm:flex-initial max-w-full rounded-lg border border-border/40 bg-background px-2.5 py-1.5 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
         >
           <option value="all">{t("notifications.filter.allSeverity")}</option>
           <option value="CRITICAL">{t("notifications.severity.CRITICAL")}</option>
           <option value="HIGH">{t("notifications.severity.HIGH")}</option>
+          <option value="MEDIUM">{t("notifications.severity.MEDIUM") || "Medium"}</option>
           <option value="NORMAL">{t("notifications.severity.NORMAL")}</option>
           <option value="LOW">{t("notifications.severity.LOW")}</option>
         </select>
@@ -221,7 +222,7 @@ export function NotificationFilterToolbar({
                 val === "all" ? undefined : (val as NotificationChannel),
             });
           }}
-          className="rounded-lg border border-border/40 bg-background px-2.5 py-1.5 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
+          className="flex-1 sm:flex-initial max-w-full rounded-lg border border-border/40 bg-background px-2.5 py-1.5 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
         >
           <option value="all">{t("notifications.filter.allChannels")}</option>
           <option value="IN_APP">Web (In-App)</option>

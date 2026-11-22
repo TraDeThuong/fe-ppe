@@ -27,9 +27,13 @@ export function DeleteRoleDialog({
   const userCount = role?.userCount || 0;
 
   const handleConfirm = async () => {
-    if (!role || isSystem) return;
-    await onConfirm(role.id, role.name);
-    onOpenChange(false);
+    if (!role || isSystem || userCount > 0) return;
+    try {
+      await onConfirm(role.id, role.name);
+      onOpenChange(false);
+    } catch {
+      // Lỗi đã được hiển thị qua mutation toast
+    }
   };
 
   return (
@@ -68,7 +72,7 @@ export function DeleteRoleDialog({
               type="button"
               variant="danger"
               onClick={handleConfirm}
-              disabled={loading}
+              disabled={loading || userCount > 0}
               className="w-full sm:w-auto flex items-center justify-center gap-2"
             >
               {loading ? (

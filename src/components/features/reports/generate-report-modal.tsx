@@ -87,8 +87,8 @@ export function GenerateReportModal({
       }
       if (defaultSiteId) {
         setSiteId(defaultSiteId);
-      } else if (!siteId && sites[0]?.id) {
-        setSiteId(sites[0].id);
+      } else if (sites[0]?.id) {
+        setSiteId((prev) => prev || sites[0].id);
       }
       if (defaultStartDate) {
         setStartDate(defaultStartDate);
@@ -97,7 +97,7 @@ export function GenerateReportModal({
         setEndDate(defaultEndDate);
       }
     }
-  }, [open, selectedTemplate, activeTemplates, defaultSiteId, sites, siteId, defaultStartDate, defaultEndDate]);
+  }, [open, selectedTemplate, activeTemplates, defaultSiteId, sites, defaultStartDate, defaultEndDate]);
 
   const handleTemplateChange = (id: string) => {
     setTemplateId(id);

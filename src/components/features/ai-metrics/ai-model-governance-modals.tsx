@@ -124,7 +124,7 @@ export function CreateAiModelModal({
           />
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             {isVi ? "Hủy" : "Cancel"}
           </Button>
@@ -171,23 +171,34 @@ export function CreateModelVersionModal({
     [models],
   );
 
+  const parseOptionalMetric = (raw: string): number | undefined => {
+    const trimmed = raw.trim();
+    if (!trimmed) return undefined;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const targetId = modelId || models[0]?.id;
     if (!targetId) return;
-    await onSubmit(targetId, {
-      version: version.trim(),
-      modelPath: modelPath.trim() || undefined,
-      framework: framework.trim() || "PyTorch",
-      inputSize: inputSize.trim() || "640x640",
-      metrics: {
-        mAP50: Number(mAP50) || undefined,
-        precision: Number(precision) || undefined,
-        recall: Number(recall) || undefined,
-        latencyMs: Number(latencyMs) || undefined,
-      },
-    });
-    onOpenChange(false);
+    try {
+      await onSubmit(targetId, {
+        version: version.trim(),
+        modelPath: modelPath.trim() || undefined,
+        framework: framework.trim() || "PyTorch",
+        inputSize: inputSize.trim() || "640x640",
+        metrics: {
+          mAP50: parseOptionalMetric(mAP50),
+          precision: parseOptionalMetric(precision),
+          recall: parseOptionalMetric(recall),
+          latencyMs: parseOptionalMetric(latencyMs),
+        },
+      });
+      onOpenChange(false);
+    } catch {
+      // Lỗi đã được hiển thị qua mutation toast
+    }
   };
 
   return (
@@ -215,7 +226,7 @@ export function CreateModelVersionModal({
             </label>
             <Input
               required
-              pattern="^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$"
+              pattern="^v?\d+\.\d+\.\d+$"
               value={version}
               onChange={(e) => setVersion(e.target.value)}
               placeholder="1.2.0"
@@ -299,7 +310,7 @@ export function CreateModelVersionModal({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             {isVi ? "Hủy" : "Cancel"}
           </Button>
@@ -329,8 +340,16 @@ export function RecordAiBenchmarkModal({
 }: RecordAiBenchmarkModalProps) {
   const { locale } = useLocale();
   const isVi = locale === "vi-VN";
-  const { data: camerasData } = useCameras({ limit: 100 });
+  const { data: camerasData } = useCameras({ limit: 100 }, { enabled: open });
   const cameras = camerasData?.items ?? [];
+
+  const activeDeployedVersion = useMemo(() => {
+    for (const m of models) {
+      const deployed = (m.versions || []).find((v) => v.status === "DEPLOYED");
+      if (deployed) return deployed;
+    }
+    return null;
+  }, [models]);
 
   const [cameraId, setCameraId] = useState("");
   const [modelVersionId, setModelVersionId] = useState("");
@@ -345,7 +364,16 @@ export function RecordAiBenchmarkModal({
 
   const versionOptions: SelectOption[] = useMemo(
     () => [
-      { value: "", label: isVi ? "Phiên bản đang Active" : "Active Version" },
+      {
+        value: "",
+        label: activeDeployedVersion
+          ? isVi
+            ? `Phiên bản đang Active (v${activeDeployedVersion.version})`
+            : `Active Version (v${activeDeployedVersion.version})`
+          : isVi
+            ? "Phiên bản đang Active"
+            : "Active Version",
+      },
       ...models.flatMap((m) =>
         (m.versions || []).map((v) => ({
           value: v.id,
@@ -353,21 +381,29 @@ export function RecordAiBenchmarkModal({
         })),
       ),
     ],
-    [models, isVi],
+    [models, isVi, activeDeployedVersion],
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const targetCam = cameraId || cameras[0]?.id;
     if (!targetCam) return;
-    await onSubmit({
-      cameraId: targetCam,
-      modelVersionId: modelVersionId || undefined,
-      fps: Number(fps),
-      latencyMs: Number(latencyMs),
-      frameCount: Number(frameCount) || 1,
-    });
-    onOpenChange(false);
+    // Giải quyết modelVersionId thực tế của phiên bản đang DEPLOYED nếu chọn "Active Version",
+    // tránh gửi undefined -> BE lưu null khiến telemetry bị loại khỏi biểu đồ theo model.
+    const resolvedVersionId =
+      modelVersionId || activeDeployedVersion?.id || undefined;
+    try {
+      await onSubmit({
+        cameraId: targetCam,
+        modelVersionId: resolvedVersionId,
+        fps: Number(fps),
+        latencyMs: Number(latencyMs),
+        frameCount: Number(frameCount) || 1,
+      });
+      onOpenChange(false);
+    } catch {
+      // Lỗi đã được hiển thị qua mutation toast
+    }
   };
 
   return (
@@ -401,7 +437,7 @@ export function RecordAiBenchmarkModal({
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1">
             <label className="text-xs font-bold text-foreground">FPS (1–240)</label>
             <Input
@@ -439,7 +475,7 @@ export function RecordAiBenchmarkModal({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 pt-2">
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             {isVi ? "Hủy" : "Cancel"}
           </Button>

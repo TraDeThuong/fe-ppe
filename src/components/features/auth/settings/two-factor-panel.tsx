@@ -175,6 +175,10 @@ export function TwoFactorPanel() {
         }
         return;
       }
+      if (error instanceof ApiError && error.code === ErrorCode.VALIDATION_ERROR) {
+        setRegenerateError({ kind: "password", message: error.message });
+        return;
+      }
       if (!shouldToastError(error)) return;
       if (error instanceof ApiError && error.code === ErrorCode.TWO_FACTOR_INVALID_CODE) {
         setRegenerateError({ kind: "code", message: error.message });
@@ -228,6 +232,10 @@ export function TwoFactorPanel() {
             disableForm.setError(fieldError.field, { message: fieldError.message });
           }
         }
+        return;
+      }
+      if (error instanceof ApiError && error.code === ErrorCode.VALIDATION_ERROR) {
+        setDisableError({ kind: "password", message: error.message });
         return;
       }
       if (!shouldToastError(error)) return;

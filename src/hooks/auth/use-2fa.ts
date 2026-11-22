@@ -64,7 +64,10 @@ export function useEnable2FA(
     ...restOptions,
     mutationFn: (payload: Enable2FAPayload) => authService.enable2FA(payload),
     onSuccess: async (...args) => {
-      await queryClient.invalidateQueries({ queryKey: authKeys.me() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: authKeys.me() }),
+        queryClient.invalidateQueries({ queryKey: authKeys.sessions() }),
+      ]);
 
       if (auth?.user) {
         auth.setUser({
@@ -176,7 +179,10 @@ export function useDisable2FA(
     mutationFn: (payload: Disable2FAPayload) => authService.disable2FA(payload),
     onSuccess: async (...args) => {
       const [data] = args;
-      await queryClient.invalidateQueries({ queryKey: authKeys.me() });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: authKeys.me() }),
+        queryClient.invalidateQueries({ queryKey: authKeys.sessions() }),
+      ]);
 
       if (auth?.user) {
         auth.setUser({

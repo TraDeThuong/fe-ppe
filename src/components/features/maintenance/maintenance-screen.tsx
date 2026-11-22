@@ -96,7 +96,7 @@ export function MaintenanceScreen({
 
   return (
     <div
-      className={`flex items-center justify-center bg-background ${
+      className={`relative overflow-hidden flex items-center justify-center bg-background ${
         isMobilePreview
           ? "w-full p-1"
           : isPreview
@@ -108,7 +108,7 @@ export function MaintenanceScreen({
       {!isMobilePreview && (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 h-96 w-96 rounded-full bg-primary/[0.08] blur-3xl"
+          className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 h-56 w-56 sm:h-96 sm:w-96 rounded-full bg-primary/[0.08] blur-3xl"
         />
       )}
 
@@ -118,7 +118,7 @@ export function MaintenanceScreen({
           className={`relative text-center transition-all ${
             isMobilePreview
               ? "p-2 bg-transparent border-0 shadow-none"
-              : "rounded-[28px] border border-white/50 bg-background p-6 shadow-[10px_10px_30px_var(--shadow-dark),-10px_-10px_30px_var(--shadow-light)] dark:border-white/10 sm:p-10"
+              : "rounded-[24px] sm:rounded-[28px] border border-white/50 bg-background p-4 shadow-[10px_10px_30px_var(--shadow-dark),-10px_-10px_30px_var(--shadow-light)] dark:border-white/10 sm:p-10"
           }`}
         >
           {/* Top 3D Neumorphic Icon with gentle pulse */}
@@ -307,9 +307,9 @@ export function MaintenanceScreen({
               isMobilePreview ? "mt-3 pt-2" : "mt-6 pt-4"
             }`}
           >
-            <p className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+            <p className="flex flex-wrap items-center justify-center gap-x-1 gap-y-0.5 text-[10px] text-muted-foreground">
               <Mail className="h-3 w-3 text-primary shrink-0" />
-              <span className="truncate">{t("maintenance.screen.support")}</span>
+              <span className="max-w-full truncate">{t("maintenance.screen.support")}</span>
               <a
                 href="mailto:support@smartppe.vn"
                 className="font-semibold text-primary hover:underline shrink-0"

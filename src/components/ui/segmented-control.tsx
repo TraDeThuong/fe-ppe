@@ -259,7 +259,7 @@ export function SegmentedControl<T extends string = string>({
               "disabled:pointer-events-none disabled:cursor-not-allowed",
               styles.item,
               styles.icon,
-              fullWidth ? "min-w-0 flex-1" : "",
+              fullWidth ? "sm:min-w-0 sm:flex-1" : "",
               isSelected
                 ? [
                     "text-[var(--primary)]",

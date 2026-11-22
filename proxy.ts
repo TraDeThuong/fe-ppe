@@ -30,7 +30,7 @@ export function proxy(request: NextRequest) {
   );
 
   if (matchesRoutePrefix(pathname, PROTECTED_AUTH_PREFIXES) && !hasSessionCookie) {
-    const next = encodeURIComponent(pathname);
+    const next = encodeURIComponent(`${pathname}${request.nextUrl.search}`);
     return NextResponse.redirect(new URL(`/login?next=${next}`, request.url));
   }
 

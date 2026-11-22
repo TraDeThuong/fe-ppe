@@ -13,7 +13,6 @@ import {
   Lock,
   Unlock,
   ShieldCheck,
-  ShieldAlert,
   Copy,
   Check,
   Mail,
@@ -22,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PhoneReveal } from "@/components/ui/phone-reveal";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/lib/toast";
@@ -50,6 +50,12 @@ export function UserDetailHero({
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const { user: currentAdmin } = useAuth();
+  const can = useCan();
+  const canUpdate = can("USER_UPDATE");
+  const canAssignRole = can("USER_ROLE_ASSIGN");
+  const canAssignSites = can("USER_ROLE_ASSIGN") || can("ROLE_PERMISSION_ASSIGN");
+  const canDelete = can("USER_DELETE");
+  const canRestore = can("USER_RESTORE") || canDelete;
 
   const [copiedId, setCopiedId] = useState(false);
 
@@ -81,7 +87,7 @@ export function UserDetailHero({
         >
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="flex items-start sm:items-center gap-4 sm:gap-5 min-w-0">
-              <Skeleton className="size-20 sm:size-24 rounded-2xl shrink-0" />
+              <Skeleton className="size-14 sm:size-20 md:size-24 rounded-2xl shrink-0" />
               <div className="min-w-0 space-y-2.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <Skeleton className="h-7 w-48 rounded-lg" />
@@ -160,7 +166,7 @@ export function UserDetailHero({
           {/* Left: Avatar + Identity */}
           <div className="flex items-start sm:items-center gap-4 sm:gap-5 min-w-0">
             {/* Avatar */}
-            <div className="relative flex size-20 sm:size-24 shrink-0 items-center justify-center rounded-2xl border-2 border-border/40 bg-background font-mono text-2xl font-bold text-primary shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)]">
+            <div className="relative flex size-14 sm:size-20 md:size-24 shrink-0 items-center justify-center rounded-2xl border-2 border-border/40 bg-background font-mono text-xl sm:text-2xl font-bold text-primary shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)]">
               {user.avatarUrl ? (
                 <img
                   src={user.avatarUrl}
@@ -221,10 +227,10 @@ export function UserDetailHero({
               </div>
 
               {/* Contact info + UUID */}
-              <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1.5 font-mono">
-                  <Mail size={13} className="text-primary" />
-                  {user.email || "-"}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+                <span className="flex min-w-0 items-center gap-1.5 font-mono break-all">
+                  <Mail size={13} className="shrink-0 text-primary" />
+                  <span className="break-all">{user.email || "-"}</span>
                 </span>
 
                 {user.phoneNumber && (
@@ -260,58 +266,68 @@ export function UserDetailHero({
 
           {/* Right: Action Buttons Group */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onEditClick}
-              className="gap-1.5 text-xs h-9 shadow-[2px_2px_4px_var(--shadow-dark)]"
-            >
-              <Pencil size={13} />
-              <span>{isVietnamese ? "Sửa hồ sơ" : "Edit Profile"}</span>
-            </Button>
+            {canUpdate && !isDeleted && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onEditClick}
+                className="gap-1.5 text-xs h-9 shadow-[2px_2px_4px_var(--shadow-dark)]"
+              >
+                <Pencil size={13} />
+                <span>{isVietnamese ? "Sửa hồ sơ" : "Edit Profile"}</span>
+              </Button>
+            )}
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onAssignSitesClick}
-              className="gap-1.5 text-xs h-9 shadow-[2px_2px_4px_var(--shadow-dark)]"
-            >
-              <Building2 size={13} className="text-primary" />
-              <span>{isVietnamese ? "Gán công trường" : "Assign Sites"}</span>
-            </Button>
+            {canAssignSites && !isDeleted && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onAssignSitesClick}
+                className="gap-1.5 text-xs h-9 shadow-[2px_2px_4px_var(--shadow-dark)]"
+              >
+                <Building2 size={13} className="text-primary" />
+                <span>{isVietnamese ? "Gán công trường" : "Assign Sites"}</span>
+              </Button>
+            )}
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onAssignRoleClick}
-              disabled={isSelf}
-              className="gap-1.5 text-xs h-9 shadow-[2px_2px_4px_var(--shadow-dark)]"
-            >
-              <Shield size={13} />
-              <span>{isVietnamese ? "Đổi vai trò" : "Role"}</span>
-            </Button>
+            {canAssignRole && !isDeleted && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onAssignRoleClick}
+                disabled={isSelf}
+                className="gap-1.5 text-xs h-9 shadow-[2px_2px_4px_var(--shadow-dark)]"
+              >
+                <Shield size={13} />
+                <span>{isVietnamese ? "Đổi vai trò" : "Role"}</span>
+              </Button>
+            )}
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onResetPasswordClick}
-              className="gap-1.5 text-xs h-9 shadow-[2px_2px_4px_var(--shadow-dark)]"
-            >
-              <KeyRound size={13} />
-              <span>{isVietnamese ? "Cấp lại MK" : "Password"}</span>
-            </Button>
+            {canUpdate && !isDeleted && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onResetPasswordClick}
+                className="gap-1.5 text-xs h-9 shadow-[2px_2px_4px_var(--shadow-dark)]"
+              >
+                <KeyRound size={13} />
+                <span>{isVietnamese ? "Cấp lại MK" : "Password"}</span>
+              </Button>
+            )}
 
             {isDeleted ? (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => onDeleteClick("restore")}
-                className="gap-1.5 text-xs h-9"
-              >
-                <RotateCcw size={13} />
-                <span>{isVietnamese ? "Khôi phục" : "Restore"}</span>
-              </Button>
-            ) : (
+              canRestore ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => onDeleteClick("restore")}
+                  className="gap-1.5 text-xs h-9"
+                >
+                  <RotateCcw size={13} />
+                  <span>{isVietnamese ? "Khôi phục" : "Restore"}</span>
+                </Button>
+              ) : null
+            ) : canUpdate ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -332,9 +348,9 @@ export function UserDetailHero({
                       : "Activate"}
                 </span>
               </Button>
-            )}
+            ) : null}
 
-            {!isDeleted && !isSelf && (
+            {!isDeleted && !isSelf && canDelete && (
               <Button
                 variant="danger"
                 size="sm"

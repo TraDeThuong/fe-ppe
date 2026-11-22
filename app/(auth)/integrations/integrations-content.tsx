@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { KeyRound, RefreshCw, Terminal, Webhook } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import {
@@ -26,6 +26,15 @@ export default function IntegrationsContent() {
 
   const defaultTab: IntegrationTab = canReadApiKeys ? "api-keys" : "webhooks";
   const [activeTab, setActiveTab] = useState<IntegrationTab>(defaultTab);
+
+  // Đồng bộ lại tab hợp lệ sau khi AuthContext hydrate permissions
+  useEffect(() => {
+    if (activeTab === "api-keys" && !canReadApiKeys && canReadWebhooks) {
+      setActiveTab("webhooks");
+    } else if (activeTab === "webhooks" && !canReadWebhooks && canReadApiKeys) {
+      setActiveTab("api-keys");
+    }
+  }, [activeTab, canReadApiKeys, canReadWebhooks]);
 
   const apiKeysQuery = useApiKeys(canReadApiKeys);
   const webhooksQuery = useWebhooks(canReadWebhooks);

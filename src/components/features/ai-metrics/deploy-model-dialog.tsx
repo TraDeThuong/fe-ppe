@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Check, Loader2, Rocket, Sparkles, Zap } from "lucide-react";
+import { Loader2, Rocket, Sparkles, Zap } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";

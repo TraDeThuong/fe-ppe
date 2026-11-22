@@ -46,13 +46,13 @@ export function ReportFilterToolbar({
         {/* Left: Site + Period Quick Pills + Optional Custom Date */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Site Filter */}
-          <div className="relative flex items-center">
+          <div className="relative flex w-full sm:w-auto items-center">
             <Building2 className="pointer-events-none absolute left-3 h-3.5 w-3.5 text-muted-foreground" />
             <select
               value={selectedSiteId}
               onChange={(e) => onSiteChange(e.target.value)}
               aria-label={t("reports.toolbar.allSites")}
-              className="rounded-xl border border-border/40 bg-background py-2 pl-8 pr-3 text-xs font-semibold text-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] focus:border-primary focus:outline-none"
+              className="w-full sm:w-auto max-w-full rounded-xl border border-border/40 bg-background py-2 pl-8 pr-3 text-xs font-semibold text-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] focus:border-primary focus:outline-none"
             >
               <option value="">{t("reports.toolbar.allSites")}</option>
               {sites.map((s) => (

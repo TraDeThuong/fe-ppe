@@ -69,6 +69,19 @@ export function useEvidenceDetail(evidenceId: string | null, enabled = true) {
   });
 }
 
+async function computeFileSha256Hex(file: File): Promise<string | undefined> {
+  if (typeof crypto === "undefined" || !crypto.subtle) return undefined;
+  try {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+    return Array.from(new Uint8Array(hashBuffer))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  } catch {
+    return undefined;
+  }
+}
+
 export function useEvidenceMutations() {
   const queryClient = useQueryClient();
 
@@ -109,15 +122,18 @@ export function useEvidenceMutations() {
       evidenceType: EvidenceType | string;
       file: File;
     }) => {
-      const init = await incidentService.requestEvidenceUploadUrl({
-        incidentId: data.incidentId,
-        cameraId: data.cameraId,
-        siteId: data.siteId,
-        evidenceType: data.evidenceType,
-        fileName: data.file.name,
-        mimeType: data.file.type || "application/octet-stream",
-        fileSize: data.file.size,
-      });
+      const [init, checksum] = await Promise.all([
+        incidentService.requestEvidenceUploadUrl({
+          incidentId: data.incidentId,
+          cameraId: data.cameraId,
+          siteId: data.siteId,
+          evidenceType: data.evidenceType,
+          fileName: data.file.name,
+          mimeType: data.file.type || "application/octet-stream",
+          fileSize: data.file.size,
+        }),
+        computeFileSha256Hex(data.file),
+      ]);
       await incidentService.uploadEvidenceToPresignedUrl(init.uploadUrl, data.file);
       return incidentService.addEvidence(data.incidentId, {
         cameraId: data.cameraId,
@@ -127,6 +143,7 @@ export function useEvidenceMutations() {
         mimeType: data.file.type || "application/octet-stream",
         fileSize: data.file.size,
         capturedAt: new Date().toISOString(),
+        metadata: checksum ? { checksum } : undefined,
       });
     },
     onSuccess: (_res, vars) => {
@@ -240,6 +257,7 @@ export function useBatchDeleteEvidences() {
       setIsRunning(false);
       void queryClient.invalidateQueries({ queryKey: incidentKeys.evidences() });
       void queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
+      void queryClient.invalidateQueries({ queryKey: incidentKeys.details() });
 
       if (!abortRef.current) {
         const sizeLabel =

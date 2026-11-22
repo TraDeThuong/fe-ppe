@@ -169,15 +169,15 @@ export function DashboardNavTabs({
             tabIndex={isActive ? 0 : -1}
             onClick={() => onChangeTab(tab.value)}
             onKeyDown={(event) => handleKeyDown(event, idx)}
-            className={`group relative flex cursor-pointer items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
+            className={`group relative flex cursor-pointer items-center justify-between gap-2 sm:gap-3 rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 text-left transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 ${
               isActive
                 ? `${NM.extruded} scale-[1.005]`
                 : "text-muted-foreground hover:bg-primary/[0.03]"
             }`}
           >
-            <div className="flex min-w-0 items-center gap-3">
+            <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
               <div
-                className={`relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300 ${
+                className={`relative flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300 ${
                   isActive
                     ? tab.useAccent
                       ? "bg-accent text-accent-foreground shadow-sm"
@@ -201,7 +201,7 @@ export function DashboardNavTabs({
                     {tab.index}
                   </span>
                   <span
-                    className={`truncate text-sm font-bold ${
+                    className={`truncate text-[13px] sm:text-sm font-bold ${
                       isActive
                         ? "text-foreground"
                         : "text-muted-foreground group-hover:text-foreground"

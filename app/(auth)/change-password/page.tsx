@@ -18,8 +18,8 @@ export default function ChangePasswordPage() {
   const forced = Boolean(user?.mustChangePassword);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="w-full max-w-md rounded-[1.75rem] border border-border/40 bg-card p-8 shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]">
+    <main className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-6">
+      <div className="w-full max-w-md rounded-2xl sm:rounded-[1.75rem] border border-border/40 bg-card p-5 sm:p-8 shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]">
         <div className="mb-6 flex flex-col items-center gap-3 text-center">
           <span className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             <KeyRound className="size-6" aria-hidden="true" />

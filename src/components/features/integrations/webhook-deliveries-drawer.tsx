@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RefreshCw, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/form/selection-controls/select";
 import { useWebhookDeliveries } from "@/hooks/integration";
 import { useCan } from "@/hooks/use-can";
+import { useDebounce } from "@/hooks/use-debounce";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
 import type { WebhookDeliveryStatus, WebhookEndpointDto } from "@/types";
@@ -36,10 +37,18 @@ export function WebhookDeliveriesDrawer({
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<WebhookDeliveryStatus | "">("");
   const [eventFilter, setEventFilter] = useState("");
+  const debouncedEventFilter = useDebounce(eventFilter, 300);
+
+  // Reset pagination & bộ lọc khi mở sang webhook khác
+  useEffect(() => {
+    setPage(1);
+    setStatus("");
+    setEventFilter("");
+  }, [webhook?.id]);
 
   const { data, isLoading, refetch, isFetching } = useWebhookDeliveries(
     webhook?.id ?? null,
-    { page, limit: 15, status, event: eventFilter },
+    { page, limit: 15, status, event: debouncedEventFilter },
     Boolean(webhook),
   );
 
@@ -86,7 +95,7 @@ export function WebhookDeliveriesDrawer({
     >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="w-44">
+          <div className="w-full sm:w-44">
             <Select
               size="sm"
               options={statusOptions}
@@ -105,7 +114,7 @@ export function WebhookDeliveriesDrawer({
               setPage(1);
             }}
             placeholder={isVi ? "Lọc theo tên sự kiện..." : "Filter by event name..."}
-            className="max-w-xs"
+            className="w-full sm:max-w-xs"
           />
           <Button
             size="sm"
@@ -188,7 +197,7 @@ export function WebhookDeliveriesDrawer({
         )}
 
         {meta && meta.totalPages > 1 && (
-          <div className="flex items-center justify-between pt-2 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-xs text-muted-foreground">
             <span>
               {isVi
                 ? `Trang ${meta.page}/${meta.totalPages} (${meta.total} bản ghi)`

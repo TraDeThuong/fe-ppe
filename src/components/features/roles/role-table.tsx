@@ -59,9 +59,10 @@ export function RoleTable({
       cell: ({ row }) => {
         const role = row.original;
         return <div className={"text-xs text-foreground/80 max-w-xs truncate"}>
-          {t(`roles.desc.${role.name}`) !== `roles.desc.${role.name}`
-            ? t(`roles.desc.${role.name}`)
-            : role.description || "—"}
+          {role.description?.trim() ||
+            (t(`roles.desc.${role.name}`) !== `roles.desc.${role.name}`
+              ? t(`roles.desc.${role.name}`)
+              : "—")}
         </div>;
       }
     },

@@ -102,5 +102,17 @@ describe("proxy route guard (Layer 1)", () => {
       assert.equal(exceptionRes.status, 200);
     }
   });
+
+  it("preserves query string parameters in ?next= when redirecting unauthenticated users", () => {
+    const req = new NextRequest(
+      "http://localhost:3000/incidents?status=CONFIRMED&severity=CRITICAL",
+    );
+    const res = proxy(req);
+    assert.equal(res.status, 307);
+    assert.equal(
+      res.headers.get("location"),
+      `http://localhost:3000/login?next=${encodeURIComponent("/incidents?status=CONFIRMED&severity=CRITICAL")}`,
+    );
+  });
 });
 

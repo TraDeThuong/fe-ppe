@@ -1,13 +1,10 @@
 import { apiClient } from "@/lib/axios";
 import type {
   AuditLogDetail,
-  AuditLogDetailResponse,
   AuditLogItem,
   AuditLogQueryParams,
   AuditLogStatus,
-  AuditLogsListResponse,
   AuditSummaryDto,
-  AuditSummaryResponse,
   ExportAuditParams,
   PaginationMeta,
 } from "@/types";
@@ -146,12 +143,7 @@ function normalizeAuditSummary(raw: any): AuditSummaryDto {
   }
   const categoryCounts = raw.categoryCounts || {};
   const totalLogs = raw.totalLogs ?? 0;
-  const successRate =
-    raw.successRate !== undefined
-      ? raw.successRate
-      : totalLogs === 0
-        ? null
-        : null;
+  const successRate = raw.successRate !== undefined ? raw.successRate : null;
 
   return {
     ...raw,
@@ -196,7 +188,15 @@ function unwrapPaginated<T>(res: any, normalizer?: (item: any) => T): { items: T
   if (!res) return { items: [], meta: defaultMeta };
   if (Array.isArray(res)) {
     const items = normalizer ? res.map(normalizer) : res;
-    return { items, meta: defaultMeta };
+    return {
+      items,
+      meta: {
+        page: 1,
+        limit: items.length || 20,
+        total: items.length,
+        totalPages: items.length > 0 ? 1 : 0,
+      },
+    };
   }
   const rawItems = Array.isArray(res.data)
     ? res.data
@@ -242,32 +242,6 @@ export const auditService = {
     });
     const data = unwrapData<any>(res);
     return normalizeAuditSummary(data);
-  },
-
-  /**
-   * GET /api/v1/audit-logs/config-changes
-   * Lọc nhanh danh sách thay đổi cấu hình hệ thống.
-   */
-  async getConfigChanges(
-    params?: { page?: number; limit?: number; fromDate?: string; toDate?: string; startDate?: string; endDate?: string },
-  ): Promise<{ items: AuditLogItem[]; meta: PaginationMeta }> {
-    const res = await apiClient.get<any>("/audit-logs/config-changes", {
-      params: mapAuditQueryParams(params),
-    });
-    return unwrapPaginated<AuditLogItem>(res, normalizeAuditItem);
-  },
-
-  /**
-   * GET /api/v1/audit-logs/incident-reviews
-   * Lọc nhanh danh sách thẩm duyệt và xử lý sự cố PPE.
-   */
-  async getIncidentReviews(
-    params?: { page?: number; limit?: number; fromDate?: string; toDate?: string; startDate?: string; endDate?: string },
-  ): Promise<{ items: AuditLogItem[]; meta: PaginationMeta }> {
-    const res = await apiClient.get<any>("/audit-logs/incident-reviews", {
-      params: mapAuditQueryParams(params),
-    });
-    return unwrapPaginated<AuditLogItem>(res, normalizeAuditItem);
   },
 
   /**

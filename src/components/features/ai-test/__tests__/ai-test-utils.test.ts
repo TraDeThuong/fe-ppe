@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildFrameLookupMap,
   computePersonTracks,
+  extractAssociationPpeStatus,
   extractJobViolationsSummary,
   filterEvidenceItems,
   findFrameEntryForTime,
@@ -230,4 +231,51 @@ test("queryEvidenceItems, sortEvidenceItems, and groupEvidenceByTrack filter, so
   assert.equal(groups[0].source, "job");
   assert.equal(groups[0].pairCount, 1);
 });
+
+test("parseNdjsonLog normalizes real BE server.py frame/t/associations/violations/evidence schema and null PPE", () => {
+  const raw = JSON.stringify({
+    frame: 42,
+    t: 1.68,
+    associations: [
+      {
+        person: { track_id: 9, bbox: [10, 20, 100, 200], confidence: 0.91 },
+        helmet: null,
+        vest: { class: "vest", confidence: 0.85 },
+      },
+    ],
+    violations: [
+      {
+        event_id: "evt-42",
+        person: 9,
+        violation_type: "NO_HELMET",
+        duration_s: 3.4,
+      },
+    ],
+    evidence: {
+      event_id: "evt-42",
+      before_path: "/tmp/jobs/j1/evidence/before_42.jpg",
+      after_path: "/tmp/jobs/j1/evidence/after_42.jpg",
+    },
+  });
+
+  const entries = parseNdjsonLog(raw);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].frame_idx, 42);
+  assert.equal(entries[0].time_sec, 1.68);
+  assert.equal(entries[0].persons?.length, 1);
+  assert.equal(entries[0].persons?.[0].track_id, 9);
+  assert.equal(entries[0].violations?.[0].track_id, 9);
+  assert.equal(entries[0].violations?.[0].type, "NO_HELMET");
+  assert.equal(entries[0].violations?.[0].sustained_sec, 3.4);
+  assert.equal(entries[0].evidences?.[0].before_filename, "before_42.jpg");
+  assert.equal(entries[0].evidences?.[0].after_filename, "after_42.jpg");
+  assert.equal(entries[0].evidences?.[0].track_id, 9);
+  assert.equal(entries[0].evidences?.[0].type, "NO_HELMET");
+
+  assert.ok(entries[0].associations?.[0]);
+  const ppe = extractAssociationPpeStatus(entries[0].associations![0]);
+  assert.equal(ppe.helmetOk, false);
+  assert.equal(ppe.vestOk, true);
+});
+
 

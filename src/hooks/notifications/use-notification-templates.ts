@@ -218,6 +218,7 @@ export interface TestSendTemplateVariables {
 export function useTestSendNotificationTemplate(
   options?: MutationHookOptions<{ message: string }, TestSendTemplateVariables>,
 ) {
+  const queryClient = useQueryClient();
   const { onSuccess, onError, ...restOptions } = options ?? {};
 
   return useMutation({
@@ -225,6 +226,10 @@ export function useTestSendNotificationTemplate(
     mutationFn: ({ code, payload }: TestSendTemplateVariables) =>
       notificationService.testSendTemplate(code, payload),
     onSuccess: async (...args) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: notificationKeys.all }),
+        queryClient.invalidateQueries({ queryKey: notificationKeys.emailLogs() }),
+      ]);
       toast.success(
         pickLocaleText(
           "Đã gửi thử nghiệm mẫu thông báo thành công.",

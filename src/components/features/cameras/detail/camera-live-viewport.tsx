@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { Camera, Maximize2, Play, Radio, RefreshCw, Wrench } from "lucide-react";
-import toast from "react-hot-toast";
+import { toast } from "@/lib/toast";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { Loader } from "@/components/ui/loader";
 import { useLocale } from "@/providers/locale-provider";

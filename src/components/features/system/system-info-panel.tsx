@@ -16,12 +16,15 @@ export function SystemInfoPanel({ healthReport }: SystemInfoPanelProps) {
   const healthy = healthReport?.healthyCount ?? 0;
   const total = healthReport?.totalServices ?? 0;
   const latency = healthReport?.averageLatencyMs ?? 0;
-  const readinessService = healthReport?.services?.find(
-    (s) => s.name.toLowerCase().includes("identity") || s.endpoint.includes("health"),
+  const identityService = healthReport?.services?.find(
+    (s) => s.serviceCode === "identity-service",
   );
+  const databaseService =
+    healthReport?.services?.find((s) => s.serviceCode === "postgres-db") ??
+    identityService;
   const readinessVersion =
-    typeof readinessService?.details?.version === "string"
-      ? readinessService.details.version
+    typeof identityService?.details?.version === "string"
+      ? identityService.details.version
       : undefined;
   const gatewayRoot = env.apiBaseUrl.replace(/\/api\/v1\/?$/, "");
   const docsUrl = `${gatewayRoot}/api/docs`;
@@ -55,11 +58,11 @@ export function SystemInfoPanel({ healthReport }: SystemInfoPanelProps) {
     {
       label: t("system.platform.database"),
       value:
-        readinessService?.status === "HEALTHY"
+        databaseService?.status === "HEALTHY"
           ? isVietnamese
-            ? `PostgreSQL Sẵn sàng (${readinessService.latencyMs ?? "--"}ms)`
-            : `PostgreSQL Healthy (${readinessService.latencyMs ?? "--"}ms)`
-          : readinessService?.status ?? "CHECKING",
+            ? `PostgreSQL Sẵn sàng (${databaseService.latencyMs ?? "--"}ms)`
+            : `PostgreSQL Healthy (${databaseService.latencyMs ?? "--"}ms)`
+          : databaseService?.status ?? "CHECKING",
       icon: Database,
     },
     {

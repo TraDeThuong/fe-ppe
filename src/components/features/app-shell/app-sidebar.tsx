@@ -19,6 +19,7 @@ import type { SidebarBadgesMap } from "@/lib/sidebar-badges";
 import {
   NAV_GROUPS,
   getVisibleNavItems,
+  isNavItemActive,
 } from "@/config/navigation";
 import { Button } from "@ui/button";
 import { Typography } from "@ui/typography";
@@ -78,18 +79,6 @@ export function AppSidebar({
   const groups = NAV_GROUPS.filter((group) =>
     items.some((item) => item.group === group.key),
   );
-
-  const isActive = (route: string) => {
-    if (!pathname) return false;
-    if (pathname === route) return true;
-    if (!pathname.startsWith(`${route}/`)) return false;
-    return !items.some(
-      (other) =>
-        other.route !== route &&
-        other.route.length > route.length &&
-        (pathname === other.route || pathname.startsWith(`${other.route}/`)),
-    );
-  };
 
   // Chỉ thu gọn trên desktop. Mobile ẩn toàn bộ sidebar bằng CSS.
   const iconOnly = collapsed;
@@ -192,7 +181,7 @@ export function AppSidebar({
                   className="truncate text-[9px] font-semibold uppercase
                     tracking-[0.19em] text-muted-foreground"
                 >
-                  Safety monitoring
+                  {isVietnamese ? "Giám sát an toàn" : "Safety monitoring"}
                 </span>
               </span>
             </span>
@@ -247,7 +236,7 @@ export function AppSidebar({
 
               <ul className="space-y-2">
                 {groupItems.map((item) => {
-                  const isCurrent = isActive(item.route);
+                  const isCurrent = isNavItemActive(pathname, item, items);
                   const isPending = pendingRoute === item.route && !isCurrent;
                   const active = isCurrent || isPending;
                   const Icon = item.icon;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { ColumnDef, PaginationState, RowSelectionState, SortingState } from "@tanstack/react-table";
 import { Shield, ShieldCheck, ShieldAlert, Pencil, Trash2, Eye, RotateCcw, RefreshCw, UserPlus, Lock, Unlock, Building2, ExternalLink } from "lucide-react";
@@ -44,6 +44,7 @@ export function UserTable({
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user: currentAdmin } = useAuth();
   const { data: roles = [] } = useRoles();
   const queryClient = useQueryClient();
@@ -55,11 +56,13 @@ export function UserTable({
   const [bulkPending, setBulkPending] = useState(false);
   const [bulkMode, setBulkMode] = useState<boolean | null>(null);
 
-  // Query States
-  const [search, setSearch] = useState("");
+  // Query States (hỗ trợ deep-link ?search=...&role=...)
+  const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const debouncedSearch = useDebounce(search, 350);
 
-  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [roleFilter, setRoleFilter] = useState<string>(
+    () => searchParams.get("role") || "all",
+  );
   const [internalStatusFilter, setInternalStatusFilter] = useState<string>("all");
   const statusFilter = propStatusFilter !== undefined ? propStatusFilter : internalStatusFilter;
   const setStatusFilter = (val: string) => {
@@ -574,14 +577,14 @@ export function UserTable({
           showSearch={true}
           showColumnVisibility={true}
           actions={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* Filter Panel Toggle */}
               {/* Refresh Button */}
               <button
                 type="button"
                 onClick={() => refetch()}
                 disabled={isFetching}
-                className="flex size-9 items-center justify-center rounded-xl border border-border/60 bg-background text-muted-foreground shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] transition-all hover:text-foreground hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-40"
+                className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-background text-muted-foreground shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] transition-all hover:text-foreground hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-40"
                 title={isVietnamese ? "Làm mới dữ liệu" : "Refresh data"}
               >
                 <RefreshCw size={14} className={isFetching ? "animate-spin text-primary" : ""} />
@@ -589,11 +592,11 @@ export function UserTable({
               {/* Add User Button */}
               {canCreate ? <Button
                 variant="primary"
-                size="md"
-                className="gap-2 shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)]"
+                size="sm"
+                className="h-9 gap-1.5 whitespace-nowrap px-3 text-xs sm:text-sm shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)]"
                 onClick={() => setIsCreateOpen(true)}
               >
-                <UserPlus size={15} />
+                <UserPlus size={15} className="shrink-0" />
                 <span>{t("users.create")}</span>
               </Button> : null}
             </div>
@@ -641,6 +644,7 @@ export function UserTable({
                 >
                   <option value="all">{t("users.filter.allStatus")}</option>
                   <option value="active">{isVietnamese ? "Đã kích hoạt" : "Enabled accounts"}</option>
+                  <option value="twoFactor">{isVietnamese ? "Đã bật 2FA" : "2FA Enabled"}</option>
                   <option value="inactive">{t("users.filter.inactive")}</option>
                   <option value="deleted">{t("users.filter.deleted")}</option>
                 </select>

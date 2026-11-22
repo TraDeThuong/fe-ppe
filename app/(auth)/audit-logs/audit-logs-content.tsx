@@ -87,6 +87,8 @@ export default function AuditLogsContent() {
     const params = new URLSearchParams(searchParams.toString());
     if (tab !== "all") {
       params.set("tab", tab);
+      // Xóa actionFilter cũ khi chuyển sang tab nhóm CONFIG để tránh kết hợp bộ lọc mâu thuẫn -> 0 kết quả
+      setActionFilter("");
     } else {
       params.delete("tab");
     }
@@ -98,7 +100,7 @@ export default function AuditLogsContent() {
   // Filtering & Pagination state
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const [actionFilter, setActionFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<AuditLogStatus | "">("");
   const [startDate, setStartDate] = useState("");
@@ -184,12 +186,13 @@ export default function AuditLogsContent() {
     try {
       await exportLogs(params);
       toast.success(t("audit.export.success"));
-    } catch {
+    } catch (err) {
       toast.error(
         isVietnamese
           ? "Không thể xuất file lúc này. Vui lòng thử lại sau."
           : "Unable to export logs at this time. Please try again later.",
       );
+      throw err;
     }
   };
 

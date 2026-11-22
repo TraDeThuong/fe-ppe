@@ -161,6 +161,7 @@ describe("Notifications UI & Logic", () => {
       ...SAMPLE_ITEMS[0],
       title: "Cảnh báo vi phạm PPE [CRITICAL]: NO_HELMET tại Landmark",
       content: "Phát hiện vi phạm NO_HELMET tại vị trí camera CAM-01. Mức độ: CRITICAL.",
+      deliveredChannels: ["IN_APP", "EMAIL"],
     };
 
     const listHtml = renderNotifications(
@@ -179,6 +180,8 @@ describe("Notifications UI & Logic", () => {
     assert.ok(listText.includes("Không đội mũ bảo hộ"));
     assert.ok(listText.includes("Landmark"));
     assert.ok(listText.includes("CAM-01"));
+    assert.ok(listText.includes("In-App"));
+    assert.ok(listText.includes("Email"));
     assert.equal(listText.includes("[CRITICAL]"), false);
 
     const detailHtml = renderNotifications(
@@ -189,6 +192,7 @@ describe("Notifications UI & Logic", () => {
     assert.ok(detailText.includes("Không đội mũ bảo hộ"));
     assert.ok(detailText.includes("Landmark"));
     assert.ok(detailText.includes("CAM-01"));
+    assert.ok(detailText.includes("In-App · Email"));
     assert.ok(detailHtml.includes('href="/incidents/inc-1"'));
   });
 

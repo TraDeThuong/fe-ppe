@@ -147,7 +147,7 @@ export function ManagerDispatchWorkspace({
             value={siteFilter}
             onChange={(e) => onSiteChange(e.target.value)}
             aria-label={isVietnamese ? "Lọc theo công trường" : "Filter by site"}
-            className="rounded-xl border border-border/50 bg-background px-3 py-1.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
+            className="w-full sm:w-auto max-w-full rounded-xl border border-border/50 bg-background px-3 py-1.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
           >
             <option value="">
               {isVietnamese ? "Tất cả công trường" : "All Sites"}

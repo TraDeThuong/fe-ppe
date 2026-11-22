@@ -19,7 +19,10 @@ export function IntegrationKpiSummary({
   const { locale } = useLocale();
   const isVi = locale === "vi-VN";
 
-  const activeKeys = apiKeys.filter((k) => k.isActive).length;
+  const nowMs = Date.now();
+  const activeKeys = apiKeys.filter(
+    (k) => k.isActive && (!k.expiresAt || new Date(k.expiresAt).getTime() > nowMs),
+  ).length;
   const activeWebhooks = webhooks.filter((w) => w.isActive).length;
   const recentUsedKeys = apiKeys.filter((k) => Boolean(k.lastUsedAt)).length;
 

@@ -165,15 +165,17 @@ export default function AiMetricsContent() {
 
   const isRefetching = isPerfRefetching;
 
-  const activeModel =
-    models.find((m) => m.id === activeVersion?.modelId) ?? models[0];
-  const activeModelName =
-    activeModel?.name ||
-    (typeof activeVersion?.metrics?.modelName === "string"
-      ? activeVersion.metrics.modelName
-      : undefined) ||
-    performance?.modelName ||
-    undefined;
+  const activeModel = activeVersion
+    ? models.find((m) => m.id === activeVersion.modelId)
+    : undefined;
+  const activeModelName = activeVersion
+    ? activeModel?.name ||
+      (typeof activeVersion.metrics?.modelName === "string"
+        ? activeVersion.metrics.modelName
+        : undefined) ||
+      performance?.modelName ||
+      undefined
+    : undefined;
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -271,7 +273,10 @@ export default function AiMetricsContent() {
       <AiMetricsToolbar
         models={models}
         selectedModelId={selectedModelId}
-        onModelChange={setSelectedModelId}
+        onModelChange={(nextModelId) => {
+          setSelectedModelId(nextModelId);
+          setSelectedClass(null);
+        }}
         cameras={cameras}
         selectedCameraId={selectedCameraId}
         onCameraChange={setSelectedCameraId}

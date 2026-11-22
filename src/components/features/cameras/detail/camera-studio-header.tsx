@@ -154,7 +154,7 @@ export function CameraStudioHeader({
                 <span className="rounded-lg bg-primary/15 px-2.5 py-0.5 font-mono text-xs font-extrabold text-primary">
                   {camera.code}
                 </span>
-                <h1 className="truncate text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
+                <h1 className="line-clamp-2 sm:truncate text-lg sm:text-2xl font-extrabold tracking-tight text-foreground">
                   {camera.name}
                 </h1>
               </div>

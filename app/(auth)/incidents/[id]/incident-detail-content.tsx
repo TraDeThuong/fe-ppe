@@ -179,8 +179,6 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
   const addCommentMutation = useAddIncidentComment();
   const updateMutation = useUpdateIncident();
   const reviewMutation = useReviewIncident();
-  const assignMutation = useAssignOfficer();
-  const resolveMutation = useResolveIncident();
   const closeMutation = useCloseIncident();
   const evidenceMutations = useEvidenceMutations();
 
@@ -326,7 +324,11 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         severity: (incident.severity || "HIGH") as NotificationSeverity,
         channels: ["IN_APP", "EMAIL"],
         evidenceUrl:
-          incident.evidences?.[0]?.url || incident.snapshotUrl || undefined,
+          resolveEvidenceUrl(
+            incident.evidences?.[0]?.url ||
+              incident.evidences?.[0]?.storageKey ||
+              incident.snapshotUrl,
+          ) || undefined,
       });
       toast.success(
         isVietnamese
@@ -780,7 +782,11 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
           <IncidentAssignmentCard
             assignments={incident.assignments}
             onAssign={canAssign ? () => setIsAssignOpen(true) : undefined}
-            canManage={canAssign && incident.status !== "CLOSED"}
+            canManage={
+              canAssign &&
+              incident.status !== "CLOSED" &&
+              incident.status !== "DISMISSED"
+            }
             isNextAction={incident.status === "CONFIRMED" && !hasAssignments}
           />
 
@@ -811,7 +817,7 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         open={isAssignOpen}
         onOpenChange={setIsAssignOpen}
         incident={incident}
-        loading={assignMutation.isPending || isActionPending}
+        loading={isActionPending}
         onSubmit={handleAssign}
       />
 
@@ -823,7 +829,7 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
           setIsResolveOpen(open);
         }}
         incident={incident}
-        loading={resolveMutation.isPending || isActionPending || !!groupWorkspace?.busy}
+        loading={isActionPending || !!groupWorkspace?.busy}
         canClose={!groupWorkspace && canClose}
         groupMode={!!groupWorkspace}
         onDirtyChange={markSingleDirty}
@@ -859,10 +865,16 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
           evidenceMutations.uploadDirect.isPending ||
           evidenceMutations.uploadViaPresigned.isPending
         }
-        onUploadDirect={(args) => evidenceMutations.uploadDirect.mutateAsync(args)}
-        onUploadPresigned={(args) =>
-          evidenceMutations.uploadViaPresigned.mutateAsync(args)
-        }
+        onUploadDirect={async (args) => {
+          const res = await evidenceMutations.uploadDirect.mutateAsync(args);
+          void groupWorkspace?.refresh();
+          return res;
+        }}
+        onUploadPresigned={async (args) => {
+          const res = await evidenceMutations.uploadViaPresigned.mutateAsync(args);
+          void groupWorkspace?.refresh();
+          return res;
+        }}
       />
 
       <ConfirmDialog
@@ -875,6 +887,7 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
             incidentId: incident.id,
           });
           setDeleteEvidenceTarget(null);
+          void groupWorkspace?.refresh();
         }}
         variant="danger"
         loading={evidenceMutations.deleteEvidence.isPending}

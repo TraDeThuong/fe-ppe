@@ -227,8 +227,8 @@ export default function DashboardContent() {
     analytics,
   } = data;
 
-  // Real microservices health and user summaries
-  const { data: userSummary } = useUserSummary();
+  // Real microservices health and user summaries (chỉ gọi khi user có quyền tương ứng để tránh 403)
+  const { data: userSummary } = useUserSummary({ enabled: canViewUsers });
   const { data: systemHealth } = useSystemHealth(30000);
 
   const { data: sitesData } = useSites(

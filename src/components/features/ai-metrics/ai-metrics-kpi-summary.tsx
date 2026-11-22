@@ -84,8 +84,8 @@ export function AiMetricsKpiSummary({
             activeStat === "map50" ? sunkenClass : "hover:border-primary/30"
           }`}
           footer={
-            <div className="flex items-center justify-between gap-2 w-full">
-              <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 w-full">
+              <span className="flex shrink-0 whitespace-nowrap items-center text-[10px] font-semibold transition-colors gap-0.5">
                 {activeStat === "map50" ? (
                   <span className="flex items-center text-primary font-bold gap-0.5">
                     {t("aiMetrics.stats.collapse")} <ChevronUp className="h-3 w-3" />
@@ -117,8 +117,8 @@ export function AiMetricsKpiSummary({
             activeStat === "latency" ? sunkenClass : "hover:border-primary/30"
           }`}
           footer={
-            <div className="flex items-center justify-between gap-2 w-full">
-              <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 w-full">
+              <span className="flex shrink-0 whitespace-nowrap items-center text-[10px] font-semibold transition-colors gap-0.5">
                 {activeStat === "latency" ? (
                   <span className="flex items-center text-primary font-bold gap-0.5">
                     {t("aiMetrics.stats.collapse")} <ChevronUp className="h-3 w-3" />
@@ -150,8 +150,8 @@ export function AiMetricsKpiSummary({
             activeStat === "fps" ? sunkenClass : "hover:border-primary/30"
           }`}
           footer={
-            <div className="flex items-center justify-between gap-2 w-full">
-              <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 w-full">
+              <span className="flex shrink-0 whitespace-nowrap items-center text-[10px] font-semibold transition-colors gap-0.5">
                 {activeStat === "fps" ? (
                   <span className="flex items-center text-primary font-bold gap-0.5">
                     {t("aiMetrics.stats.collapse")} <ChevronUp className="h-3 w-3" />
@@ -183,8 +183,8 @@ export function AiMetricsKpiSummary({
             activeStat === "samples" ? sunkenClass : "hover:border-primary/30"
           }`}
           footer={
-            <div className="flex items-center justify-between gap-2 w-full">
-              <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 w-full">
+              <span className="flex shrink-0 whitespace-nowrap items-center text-[10px] font-semibold transition-colors gap-0.5">
                 {activeStat === "samples" ? (
                   <span className="flex items-center text-primary font-bold gap-0.5">
                     {t("aiMetrics.stats.collapse")} <ChevronUp className="h-3 w-3" />

@@ -65,7 +65,7 @@ export function SiteDetailKpiBar({
         ),
         badgeRender: (
           <span
-            className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+            className={`inline-flex shrink-0 whitespace-nowrap items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
               isComplianceWarning
                 ? "bg-danger/15 text-danger border border-danger/25"
                 : "bg-primary/10 text-primary border border-primary/20"
@@ -102,7 +102,7 @@ export function SiteDetailKpiBar({
           </div>
         ),
         badgeRender: (
-          <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary border border-primary/20">
+          <span className="inline-flex shrink-0 whitespace-nowrap items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary border border-primary/20">
             {totalCameras > 0
               ? `${Math.round((onlineCameraCount / totalCameras) * 100)}%`
               : "0%"}
@@ -132,7 +132,7 @@ export function SiteDetailKpiBar({
         ),
         badgeRender: (
           <span
-            className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+            className={`inline-flex shrink-0 whitespace-nowrap items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
               pendingIncidentsCount > 0
                 ? "bg-danger/15 text-danger border border-danger/25"
                 : "bg-primary/10 text-primary border border-primary/20"
@@ -225,23 +225,29 @@ export function SiteDetailKpiBar({
             <div className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/10" />
 
             {/* Card Header: Icon + Title + Optional Badge */}
-            <div className="flex items-center justify-between gap-1.5">
-              <div className="flex min-w-0 items-center gap-2">
-                <span
-                  className={`
-                    flex size-7 shrink-0 items-center justify-center rounded-lg
-                    border border-black/[0.04] shadow-sm dark:border-white/[0.05]
-                    ${card.toneIcon}
-                  `}
-                >
-                  <Icon className="size-3.5 sm:size-4 stroke-[2]" />
-                </span>
-                <span className="truncate text-[11px] sm:text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
-                  {card.title}
-                </span>
+            <div className="space-y-1.5 sm:space-y-0">
+              <div className="flex items-center justify-between gap-1.5">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span
+                    className={`
+                      flex size-7 shrink-0 items-center justify-center rounded-lg
+                      border border-black/[0.04] shadow-sm dark:border-white/[0.05]
+                      ${card.toneIcon}
+                    `}
+                  >
+                    <Icon className="size-3.5 sm:size-4 stroke-[2]" />
+                  </span>
+                  <span className="hidden sm:inline truncate text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
+                    {card.title}
+                  </span>
+                </div>
+
+                {card.badgeRender}
               </div>
 
-              {card.badgeRender}
+              <span className="block sm:hidden text-[11px] font-semibold leading-snug text-muted-foreground group-hover:text-foreground transition-colors">
+                {card.title}
+              </span>
             </div>
 
             {/* Card Body: Metric Value */}

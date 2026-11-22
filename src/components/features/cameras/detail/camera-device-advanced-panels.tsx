@@ -250,7 +250,7 @@ export function CameraDeviceAdvancedPanels({
           </div>
 
           <form onSubmit={handleSaveDbConfig} className="space-y-3 text-xs">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="flex items-center justify-between rounded-xl px-3 py-2 shadow-nm-inset">
                 <span className="font-semibold text-foreground">
                   {isVi ? "Bật Camera" : "Enabled"}
@@ -273,7 +273,7 @@ export function CameraDeviceAdvancedPanels({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-muted-foreground">
                   Capture FPS (1–30)
@@ -461,7 +461,7 @@ export function CameraDeviceAdvancedPanels({
                   {effectiveSafety.source}
                 </Badge>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2 text-center text-xs">
                 <div className={`rounded-xl p-2 ${NM.recessed}`}>
                   <span className="text-[10px] text-muted-foreground">Confidence</span>
                   <p className="font-mono font-bold text-foreground">
@@ -496,7 +496,7 @@ export function CameraDeviceAdvancedPanels({
           )}
 
           <ResourceAuditTrailCard
-            targetType="CAMERA"
+            targetType="PPE_CAMERA"
             targetId={camera.id}
             title={isVi ? "Nhật ký Tác động Camera" : "Camera Audit Trail"}
           />
@@ -519,7 +519,7 @@ export function CameraDeviceAdvancedPanels({
         size="md"
       >
         <form onSubmit={handleSaveStream} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-bold text-foreground">Protocol</label>
               <Select
@@ -550,7 +550,7 @@ export function CameraDeviceAdvancedPanels({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-bold text-foreground">Resolution</label>
               <Input

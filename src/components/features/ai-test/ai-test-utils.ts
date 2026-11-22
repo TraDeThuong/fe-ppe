@@ -25,8 +25,17 @@ export function normalizeViolationType(type: string | undefined): string {
   return upper || "UNKNOWN";
 }
 
+function extractBasename(p?: string | null): string {
+  if (!p) return "";
+  const cleaned = p.replace(/\\/g, "/");
+  const idx = cleaned.lastIndexOf("/");
+  return idx >= 0 ? cleaned.slice(idx + 1) : cleaned;
+}
+
 /**
  * Parse NDJSON log returned by GET /api/jobs/{jobId}/log into frame entries sorted by frame_idx.
+ * Hỗ trợ cả định dạng chuẩn hóa (frame_idx/time_sec/evidences) lẫn định dạng thực tế
+ * từ `smart-ppe-ai-service/test-ui/server.py` (frame/t/evidence/person/violation_type/duration_s).
  */
 export function parseNdjsonLog(rawText: string): FrameLogEntry[] {
   if (!rawText || !rawText.trim()) return [];
@@ -37,10 +46,138 @@ export function parseNdjsonLog(rawText: string): FrameLogEntry[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
-      const parsed = JSON.parse(trimmed) as FrameLogEntry;
-      if (parsed && typeof parsed.frame_idx === "number") {
-        entries.push(parsed);
-      }
+      const raw = JSON.parse(trimmed) as Record<string, unknown>;
+      if (!raw || typeof raw !== "object") continue;
+
+      const frameIdx =
+        typeof raw.frame_idx === "number"
+          ? raw.frame_idx
+          : typeof raw.frame === "number"
+            ? raw.frame
+            : null;
+      if (frameIdx === null) continue;
+
+      const timeSec =
+        typeof raw.time_sec === "number"
+          ? raw.time_sec
+          : typeof raw.t === "number"
+            ? raw.t
+            : undefined;
+
+      // Chuẩn hóa violations từ BE (person, violation_type, duration_s) sang schema FE
+      const rawViolations = Array.isArray(raw.violations)
+        ? (raw.violations as Array<Record<string, unknown>>)
+        : undefined;
+      const violationsByEventId = new Map<string, Record<string, unknown>>();
+      const normalizedViolations = rawViolations?.map((v) => {
+        if (typeof v.event_id === "string") {
+          violationsByEventId.set(v.event_id, v);
+        }
+        return {
+          ...v,
+          track_id: (v.track_id ?? v.canonical_person ?? v.person) as string | number | undefined,
+          type: (v.type ?? v.violation_type) as string | undefined,
+          duration_sec:
+            typeof v.duration_sec === "number"
+              ? v.duration_sec
+              : typeof v.duration_s === "number"
+                ? v.duration_s
+                : undefined,
+          sustained_sec:
+            typeof v.sustained_sec === "number"
+              ? v.sustained_sec
+              : typeof v.duration_s === "number"
+                ? v.duration_s
+                : undefined,
+        };
+      });
+
+      // Chuẩn hóa associations từ BE (person, helmet, vest, status)
+      const rawAssociations = Array.isArray(raw.associations)
+        ? (raw.associations as Array<Record<string, unknown>>)
+        : undefined;
+      const normalizedAssociations = rawAssociations?.map((a) => {
+        const personObj =
+          a.person && typeof a.person === "object"
+            ? (a.person as Record<string, unknown>)
+            : null;
+        const resolvedPersonId =
+          a.person_track_id ??
+          a.track_id ??
+          (personObj ? (personObj.track_id ?? personObj.id) : a.person);
+        return {
+          ...a,
+          person_track_id: resolvedPersonId as string | number | undefined,
+        };
+      });
+
+      const normalizedPersons = Array.isArray(raw.persons)
+        ? (raw.persons as FrameLogEntry["persons"])
+        : normalizedAssociations && normalizedAssociations.length > 0
+          ? normalizedAssociations
+              .filter(
+                (a): a is typeof a & { person_track_id: string | number } =>
+                  a.person_track_id !== undefined && a.person_track_id !== null,
+              )
+              .map((a) => ({
+                track_id: a.person_track_id,
+              }))
+          : undefined;
+
+      // Chuẩn hóa evidence (singular array/object từ BE) -> evidences (plural) và trích basename file ảnh
+      const rawEvidenceList = Array.isArray(raw.evidences)
+        ? (raw.evidences as Array<Record<string, unknown>>)
+        : Array.isArray(raw.evidence)
+          ? (raw.evidence as Array<Record<string, unknown>>)
+          : raw.evidence && typeof raw.evidence === "object"
+            ? [raw.evidence as Record<string, unknown>]
+            : undefined;
+      const normalizedEvidences = rawEvidenceList?.map((ev) => {
+        const linked =
+          typeof ev.event_id === "string"
+            ? violationsByEventId.get(ev.event_id)
+            : undefined;
+        const afterFile =
+          (typeof ev.after_filename === "string" && ev.after_filename) ||
+          (typeof ev.filename === "string" && ev.filename) ||
+          (typeof ev.after_path === "string" ? extractBasename(ev.after_path) : undefined) ||
+          (typeof ev.path === "string" ? extractBasename(ev.path) : undefined);
+        const beforeFile =
+          (typeof ev.before_filename === "string" && ev.before_filename) ||
+          (typeof ev.before_path === "string" ? extractBasename(ev.before_path) : undefined) ||
+          (typeof ev.reference_path === "string"
+            ? extractBasename(ev.reference_path)
+            : undefined);
+        const resolvedTrackId = (ev.track_id ??
+          ev.person_id ??
+          linked?.canonical_person ??
+          linked?.person) as string | number | undefined;
+        const resolvedType = (ev.violation_type ??
+          ev.type ??
+          linked?.violation_type) as string | undefined;
+        return {
+          ...ev,
+          evidence_id: (ev.evidence_id ?? ev.event_id ?? ev.id) as string | undefined,
+          track_id: resolvedTrackId,
+          person_id: resolvedTrackId,
+          type: resolvedType,
+          violation_type: resolvedType,
+          after_filename: afterFile,
+          before_filename: beforeFile,
+          frame_idx: frameIdx,
+          time_sec: timeSec,
+        };
+      });
+
+      entries.push({
+        ...(raw as unknown as FrameLogEntry),
+        frame_idx: frameIdx,
+        time_sec: timeSec,
+        persons: normalizedPersons,
+        violations: normalizedViolations as FrameLogEntry["violations"],
+        associations: normalizedAssociations as FrameLogEntry["associations"],
+        evidences: normalizedEvidences as FrameLogEntry["evidences"],
+      });
     } catch {
       // Skip partial/trailing lines while log is still flushing
     }
@@ -603,26 +740,53 @@ export function extractAssociationPpeStatus(assoc: PpeAssociationItem): {
   vestConf?: number;
   missing: string[];
 } {
-  const trackId = String(assoc.person_track_id ?? assoc.track_id ?? "-");
+  const rawAssoc = assoc as PpeAssociationItem & { person?: number | string };
+  const trackId = String(
+    rawAssoc.person_track_id ?? rawAssoc.track_id ?? rawAssoc.person ?? "-",
+  );
   const missing = Array.isArray(assoc.missing) ? assoc.missing : [];
 
-  const helmetVal = assoc.helmet;
+  const helmetVal = assoc.helmet as unknown;
   const helmetOk =
     typeof helmetVal === "boolean"
       ? helmetVal
-      : helmetVal
-        ? Boolean(helmetVal.matched ?? helmetVal.present ?? true)
-        : !missing.includes("no_helmet") && !missing.includes("helmet");
-  const helmetConf = typeof helmetVal === "object" && helmetVal ? helmetVal.conf : undefined;
+      : typeof helmetVal === "number"
+        ? true
+        : helmetVal === null
+          ? false
+          : helmetVal && typeof helmetVal === "object"
+            ? Boolean(
+                (helmetVal as { matched?: boolean; present?: boolean }).matched ??
+                  (helmetVal as { matched?: boolean; present?: boolean }).present ??
+                  true,
+              )
+            : !missing.includes("no_helmet") && !missing.includes("helmet");
+  const helmetConf =
+    typeof helmetVal === "object" && helmetVal
+      ? (helmetVal as { conf?: number }).conf
+      : undefined;
 
-  const vestVal = assoc.safety_vest ?? assoc.vest;
+  const vestVal = (assoc.safety_vest ?? assoc.vest) as unknown;
   const vestOk =
     typeof vestVal === "boolean"
       ? vestVal
-      : vestVal
-        ? Boolean(vestVal.matched ?? vestVal.present ?? true)
-        : !missing.includes("no_safety_vest") && !missing.includes("safety_vest") && !missing.includes("vest");
-  const vestConf = typeof vestVal === "object" && vestVal ? vestVal.conf : undefined;
+      : typeof vestVal === "number"
+        ? true
+        : vestVal === null
+          ? false
+          : vestVal && typeof vestVal === "object"
+            ? Boolean(
+                (vestVal as { matched?: boolean; present?: boolean }).matched ??
+                  (vestVal as { matched?: boolean; present?: boolean }).present ??
+                  true,
+              )
+            : !missing.includes("no_safety_vest") &&
+              !missing.includes("safety_vest") &&
+              !missing.includes("vest");
+  const vestConf =
+    typeof vestVal === "object" && vestVal
+      ? (vestVal as { conf?: number }).conf
+      : undefined;
 
   return { trackId, helmetOk, helmetConf, vestOk, vestConf, missing };
 }

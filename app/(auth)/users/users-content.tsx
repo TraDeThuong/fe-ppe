@@ -7,7 +7,7 @@ import { Button } from "@ui/button";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { UserKpiCards, UserTable } from "@/components/features/users";
 import { useAuth } from "@/contexts/AuthContext";
-import { useUsers, useUserSummary } from "@/hooks/users";
+import { useUserSummary } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
 
 export default function UsersContent() {
@@ -18,12 +18,6 @@ export default function UsersContent() {
 
   // Hook lấy số lượng thống kê người dùng tổng quan toàn hệ thống
   const { data: summaryData, isLoading: isLoadingSummary } = useUserSummary();
-
-  // Fallback pagination query nếu summary chưa có
-  const { data: usersData, isLoading: isLoadingUsers } = useUsers({
-    page: 1,
-    limit: 10,
-  });
 
   const handleSelectKpiFilter = (type: "all" | "active" | "twoFactor" | "locked") => {
     if (type === "all") {
@@ -90,9 +84,8 @@ export default function UsersContent() {
       {/* 2. User KPI Stats (Dòng 4: Bố cục Bento Console Bất Đối Xứng - Kết nối bộ lọc) */}
       <UserKpiCards
         stats={summaryData}
-        users={usersData?.data ?? []}
-        totalCount={summaryData?.total ?? usersData?.meta?.total}
-        loading={isLoadingSummary || isLoadingUsers}
+        totalCount={summaryData?.total}
+        loading={isLoadingSummary}
         onSelectFilter={handleSelectKpiFilter}
         activeFilter={statusFilter === "inactive" ? "locked" : statusFilter}
       />

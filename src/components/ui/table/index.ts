@@ -58,8 +58,6 @@ export type {
   TableFilterOption,
 } from "./table-filter";
 
-export { TableEditableCell } from "./table-editable-cell";
-export type { TableEditableCellProps } from "./table-editable-cell";
 export { TableRowActions } from "./table-row-actions";
 export type {
   TableRowActionsProps,

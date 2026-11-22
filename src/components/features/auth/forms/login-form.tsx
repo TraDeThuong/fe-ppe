@@ -422,10 +422,10 @@ export function LoginForm() {
         />
       </FormField>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <label
           htmlFor="rememberMe"
-          className="inline-flex cursor-pointer select-none items-center gap-2 text-sm text-foreground hover:text-foreground/80 transition-colors"
+          className="inline-flex cursor-pointer select-none items-center gap-2 text-xs sm:text-sm whitespace-nowrap text-foreground hover:text-foreground/80 transition-colors"
         >
           <Checkbox
             id="rememberMe"
@@ -437,7 +437,7 @@ export function LoginForm() {
           <span>{t("login.rememberMe")}</span>
         </label>
 
-        <AuthFooterLink href="/forgot-password" className="text-sm font-medium">
+        <AuthFooterLink href="/forgot-password" className="text-xs sm:text-sm font-medium whitespace-nowrap">
           {t("login.forgotPassword")}
         </AuthFooterLink>
       </div>

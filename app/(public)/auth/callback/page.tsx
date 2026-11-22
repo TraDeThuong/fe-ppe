@@ -10,6 +10,7 @@ import { useGoogleLogin, useLinkSocial } from "@/hooks/auth";
 import { ApiError } from "@/lib/axios";
 import {
   TEMP_TOKEN_STORAGE_KEY,
+  clearOAuthState,
   consumeOAuthState,
   getGoogleRedirectUri,
 } from "@/lib/oauth";
@@ -93,7 +94,12 @@ export default function GoogleCallbackPage() {
 
     // User từ chối cấp quyền trên màn hình Google (error=access_denied...)
     if (params.get("error")) {
-      setStatus({ kind: "error", message: t("callback.cancelled"), isLinkMode: false });
+      clearOAuthState();
+      setStatus({
+        kind: "error",
+        message: t("callback.cancelled"),
+        isLinkMode: Boolean(state?.startsWith(LINK_STATE_PREFIX)),
+      });
       return;
     }
 
@@ -126,8 +132,8 @@ export default function GoogleCallbackPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="w-full max-w-md rounded-2xl border border-border/40 bg-card p-8 text-center shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]">
+    <main className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-6">
+      <div className="w-full max-w-md rounded-2xl border border-border/40 bg-card p-5 sm:p-8 text-center shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]">
         <div className="flex flex-col items-center gap-4">
           <TriangleAlert className="size-10 text-danger" aria-hidden="true" />
           <p role="alert" className="text-sm leading-6 text-foreground">

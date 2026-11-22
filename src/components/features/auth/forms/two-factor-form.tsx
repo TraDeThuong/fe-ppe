@@ -129,11 +129,22 @@ export function TwoFactorForm() {
           setExpired(true);
           return;
         }
+        // Tài khoản bị khóa do thử sai quá số lần → dừng luồng và hiển thị cảnh báo
+        if (error.code === ErrorCode.ACCOUNT_LOCKED) {
+          handleMutationError(error);
+          sessionStorage.removeItem(TEMP_TOKEN_STORAGE_KEY);
+          setExpired(true);
+          return;
+        }
         // Sai mã: toast message BE + xóa mã để nhập lại — tempToken vẫn còn hiệu lực
         handleMutationError(error);
         form.setValue("code", "");
         setDigits(Array(OTP_BOX_COUNT).fill(""));
-        boxRefs.current[0]?.focus();
+        if (mode === "backup") {
+          backupInputRef.current?.focus();
+        } else {
+          boxRefs.current[0]?.focus();
+        }
         return;
       }
 
@@ -293,6 +304,7 @@ export function TwoFactorForm() {
             spellCheck={false}
             placeholder={t("2fa.backupCodePlaceholder")}
             disabled={verify.isPending}
+            value={form.watch("code")}
             onChange={(e) =>
               form.setValue("code", e.target.value, { shouldValidate: true })
             }

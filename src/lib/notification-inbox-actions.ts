@@ -21,12 +21,17 @@ export async function applyNotificationInboxAction(params: {
     // A shared broadcast is not owned by this user; do not PATCH/DELETE another owner's row.
     if (action === "delete") recordLocalBroadcastState(userId, [id!], "dismissed");
     else if (canRead(item!.status)) recordLocalBroadcastState(userId, [id!], "read");
-  } else if (action === "delete") await service.deleteNotification(id!);
-  else await service.markAsRead(id!);
+  } else if (action === "delete") {
+    const targetIds = item!.mergedIds?.length ? item!.mergedIds : [id!];
+    await Promise.all(targetIds.map((targetId) => service.deleteNotification(targetId)));
+  } else {
+    const targetIds = item!.unreadIds?.length ? item!.unreadIds : [id!];
+    await Promise.all(targetIds.map((targetId) => service.markAsRead(targetId)));
+  }
   return { ...snapshot, items: snapshot.items.flatMap((row) => {
     if (action === "delete" && row.id === id) return [];
     if (action !== "delete" && (action === "read-all" || row.id === id) && canRead(row.status)) {
-      return [{ ...row, status: "READ" as const, isRead: true }];
+      return [{ ...row, status: "READ" as const, isRead: true, unreadIds: [] }];
     }
     return [row];
   }) };

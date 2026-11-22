@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useCan } from "@/hooks/use-can";
 import { useSitesCatalog } from "@/hooks/sites";
 import { useCamerasCatalog } from "@/hooks/cameras";
 import { pickLocaleText } from "@/lib/i18n-runtime";
@@ -15,8 +16,14 @@ import type { CameraItem, SiteItem, ZoneItem } from "@/types";
  * ("Công trường" vô danh hoặc UUID cắt ngắn).
  */
 export function useEntityLookup(options?: { enabled?: boolean }) {
-  const { data: sitesData, isLoading: sitesLoading } = useSitesCatalog(options);
-  const { data: camerasData, isLoading: camerasLoading } = useCamerasCatalog(options);
+  const can = useCan();
+  const baseEnabled = options?.enabled ?? true;
+  const { data: sitesData, isLoading: sitesLoading } = useSitesCatalog({
+    enabled: baseEnabled && can("PPE_SITE_READ"),
+  });
+  const { data: camerasData, isLoading: camerasLoading } = useCamerasCatalog({
+    enabled: baseEnabled && can("PPE_CAMERA_READ"),
+  });
 
   const sites = useMemo(() => sitesData ?? [], [sitesData]);
   const cameras = useMemo(() => camerasData ?? [], [camerasData]);

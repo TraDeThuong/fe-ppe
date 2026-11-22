@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Camera, Edit2, Loader2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { useSites, useSiteZones } from "@/hooks/sites";
+import { useCan } from "@/hooks/use-can";
+import { useSitesCatalog, useSiteZones } from "@/hooks/sites";
 import { useLocale } from "@/providers/locale-provider";
 import type { CameraItem, CameraSourceType, CameraStatus, UpdateCameraPayload } from "@/types";
 
@@ -25,9 +26,14 @@ export function EditCameraModal({
 }: EditCameraModalProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canReadSites = can("PPE_SITE_READ");
+  const canReadZones = can("PPE_ZONE_READ");
 
-  const { data: sitesData } = useSites();
-  const sites = sitesData?.items || [];
+  const { data: sitesData } = useSitesCatalog({
+    enabled: open && canReadSites,
+  });
+  const sites = sitesData ?? [];
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
@@ -40,22 +46,30 @@ export function EditCameraModal({
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const { data: zones = [] } = useSiteZones(siteId, Boolean(siteId));
+  const { data: zones = [] } = useSiteZones(
+    siteId,
+    open && Boolean(siteId) && canReadZones,
+  );
 
   useEffect(() => {
-    if (camera) {
+    if (open && camera) {
       setName(camera.name);
       setCode(camera.code);
       setSiteId(camera.siteId || "");
       setZoneId(camera.zoneId || "");
-      setSourceType((camera.sourceType as CameraSourceType) || "RTSP");
+      const validSources: CameraSourceType[] = ["RTSP", "HLS", "HTTP", "FILE"];
+      setSourceType(
+        validSources.includes(camera.sourceType as CameraSourceType)
+          ? (camera.sourceType as CameraSourceType)
+          : "RTSP",
+      );
       setStatus(camera.status);
       setStreamUrl(camera.streamUrl || "");
       setLocation(camera.location || "");
       setDescription(camera.description || "");
       setError(null);
     }
-  }, [camera]);
+  }, [open, camera]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,7 +213,8 @@ export function EditCameraModal({
             >
               <option value="RTSP">RTSP (Real-Time Streaming)</option>
               <option value="HLS">HLS (HTTP Live Streaming)</option>
-              <option value="WEBRTC">WEBRTC (Low Latency Stream)</option>
+              <option value="HTTP">HTTP (MJPEG / Web Stream)</option>
+              <option value="FILE">FILE (Video Archive / MP4)</option>
             </select>
           </div>
 
@@ -218,6 +233,7 @@ export function EditCameraModal({
               <option value="OFFLINE">{isVietnamese ? "OFFLINE (Ngoại tuyến)" : "OFFLINE (Disconnected)"}</option>
               <option value="CONNECTING">{isVietnamese ? "CONNECTING (Đang kết nối)" : "CONNECTING (Connecting)"}</option>
               <option value="MAINTENANCE">{isVietnamese ? "MAINTENANCE (Bảo trì)" : "MAINTENANCE (Servicing)"}</option>
+              <option value="ERROR">{isVietnamese ? "ERROR (Lỗi tín hiệu)" : "ERROR (Fault)"}</option>
             </select>
           </div>
         </div>

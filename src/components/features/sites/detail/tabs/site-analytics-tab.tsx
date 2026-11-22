@@ -780,8 +780,8 @@ function SiteAnalyticsContent({ site }: SiteAnalyticsTabProps) {
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           {hourly ? (
-            <div className="inline-flex items-center gap-2 rounded-full bg-background/60 px-3 py-1.5 text-xs shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_rgba(255,255,255,0.8)] dark:bg-black/30 dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)]">
-              <span className="h-2 w-2 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]" />
+            <div className="inline-flex max-w-full items-center gap-2 rounded-2xl bg-background/60 px-3 py-1.5 text-xs shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_rgba(255,255,255,0.8)] dark:bg-black/30 dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)]">
+              <span className="h-2 w-2 shrink-0 rounded-full bg-primary shadow-[0_0_6px_var(--primary)]" />
               <span className="font-medium text-muted-foreground">
                 {hourly.peakHour == null || hourly.peakShift == null
                   ? vi

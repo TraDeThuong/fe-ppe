@@ -17,7 +17,6 @@ export const SITE_STATUS = {
   INACTIVE: "INACTIVE",
   COMPLETED: "COMPLETED",
   ARCHIVED: "ARCHIVED",
-  SUSPENDED: "SUSPENDED",
 } as const;
 
 export type SiteStatus = (typeof SITE_STATUS)[keyof typeof SITE_STATUS];

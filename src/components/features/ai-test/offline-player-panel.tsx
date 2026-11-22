@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import toast from "react-hot-toast";
+import { toast } from "@/lib/toast";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -147,31 +147,46 @@ export function OfflinePlayerPanel({
     [onActiveJobChange, onJobEvidencesChange, t],
   );
 
-  // Poll job status every 800ms while a selected job is queued/running
+  // Poll job status every 800ms while a selected job is queued/running/processing
   useEffect(() => {
     if (!selectedJobId) {
       setRunningJobStatus(null);
       return;
     }
 
+    const isJobInProgress = (s?: string) =>
+      s === "running" || s === "queued" || s === "processing";
+
     const currentInList = jobs.find((j) => j.job_id === selectedJobId);
-    if (currentInList && currentInList.status !== "running" && currentInList.status !== "queued") {
+    if (currentInList && !isJobInProgress(currentInList.status)) {
       setRunningJobStatus(currentInList);
       return;
     }
 
     let cancelled = false;
+    let timer: number | null = null;
+    const stopTimer = () => {
+      if (timer !== null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+
     const poll = async () => {
       try {
         const statusRes = await aiTestService.getJobStatus(selectedJobId);
         if (cancelled) return;
         setRunningJobStatus(statusRes);
         if (statusRes.status === "done") {
+          stopTimer();
           await onRefreshJobs();
           await loadJobArtifacts(selectedJobId);
         } else if (statusRes.status === "error") {
+          stopTimer();
           toast.error(statusRes.error || t("aiTest.player.toasts.jobError"));
           await onRefreshJobs();
+        } else if (!isJobInProgress(statusRes.status)) {
+          stopTimer();
         }
       } catch {
         // Ignore transient status poll error
@@ -179,13 +194,13 @@ export function OfflinePlayerPanel({
     };
 
     void poll();
-    const timer = window.setInterval(() => {
+    timer = window.setInterval(() => {
       void poll();
     }, 800);
 
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      stopTimer();
     };
   }, [jobs, loadJobArtifacts, onRefreshJobs, selectedJobId, t]);
 
@@ -467,29 +482,33 @@ export function OfflinePlayerPanel({
                   )}
                 </div>
 
-                {isRunning && (
-                  <div className="mt-3 space-y-1.5 pl-2.5">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-semibold text-muted-foreground">
-                        {t("aiTest.player.creator.inferenceProgress")}
-                      </span>
-                      <span className="font-mono font-extrabold text-primary">
-                        {Math.round(runningJobStatus?.progress ?? 0)}%
-                      </span>
+                {isRunning && (() => {
+                  const rawProgress = runningJobStatus?.progress ?? 0;
+                  const progressPct =
+                    rawProgress > 0 && rawProgress <= 1
+                      ? rawProgress * 100
+                      : rawProgress;
+                  return (
+                    <div className="mt-3 space-y-1.5 pl-2.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-semibold text-muted-foreground">
+                          {t("aiTest.player.creator.inferenceProgress")}
+                        </span>
+                        <span className="font-mono font-extrabold text-primary">
+                          {Math.round(progressPct)}%
+                        </span>
+                      </div>
+                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-background p-0.5 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.15),inset_-2px_-2px_4px_rgba(255,255,255,0.7)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)]">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-300"
+                          style={{
+                            width: `${Math.min(100, Math.max(4, progressPct))}%`,
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-background p-0.5 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.15),inset_-2px_-2px_4px_rgba(255,255,255,0.7)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)]">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-primary to-accent transition-all duration-300"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.max(4, runningJobStatus?.progress ?? 0)
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             )}
 
@@ -551,7 +570,8 @@ export function OfflinePlayerPanel({
                 const isSelected = job.job_id === selectedJobId;
                 const badgeConfig = JOB_STATUS_BADGE[job.status];
                 const badgeLabel = badgeConfig ? t(badgeConfig.labelKey) : job.status;
-                const isJobRunning = job.status === "running";
+                const isJobRunning =
+                  job.status === "running" || (job.status as string) === "processing";
 
                 return (
                   <button
@@ -579,7 +599,7 @@ export function OfflinePlayerPanel({
                           className={`truncate text-xs font-extrabold transition-colors ${isSelected ? "text-primary" : "text-foreground"
                             }`}
                         >
-                          {job.video_name || job.filename || job.job_id}
+                          {(job as { source?: string }).source || job.video_name || job.filename || job.job_id}
                         </span>
 
                         <span

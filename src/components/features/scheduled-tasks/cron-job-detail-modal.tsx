@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Loader } from "@/components/ui/loader";
+import { useCan } from "@/hooks/use-can";
 import { useCronJobHistory } from "@/hooks/cron/use-cron-history";
 import {
   calculateNextRun,
@@ -62,9 +63,14 @@ export function CronJobDetailModal({
   const [activeTab, setActiveTab] = useState<"history" | "errors">("history");
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
-  // Lịch sử thực thi từ Audit Log API (GET /api/v1/audit-logs/resource/CRON_JOB/:jobName)
-  const historyQuery = useCronJobHistory(job.name);
+  // Lịch sử thực thi từ Audit Log API (chỉ gọi khi user có quyền AUDIT_LOG_READ để tránh 403)
+  const canReadAudit = useCan()("AUDIT_LOG_READ");
+  const historyQuery = useCronJobHistory(job.name, canReadAudit);
   const auditItems: AuditLogItem[] = historyQuery.data?.items ?? [];
+  const lastExecutionAudit = useMemo(
+    () => auditItems.find((item) => item.action !== "TOGGLE_CRON_JOB"),
+    [auditItems],
+  );
 
   const nextRun = useMemo(
     () => calculateNextRun(job.cron, job.isEnabled, new Date(), locale),
@@ -223,7 +229,7 @@ export function CronJobDetailModal({
             </div>
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between items-center gap-2">
-                <span className="text-muted-foreground">{t("cron.detail.title")}:</span>
+                <span className="text-muted-foreground">{t("cron.table.nextRun")}:</span>
                 <span className="font-semibold text-foreground text-right">
                   {nextRun.formatted}
                 </span>
@@ -236,13 +242,13 @@ export function CronJobDetailModal({
                   {nextRun.relativeTime}
                 </Badge>
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-2">
                 <span className="text-muted-foreground">{t("cron.table.lastRun")}:</span>
-                <span className="text-foreground">
+                <span className="text-foreground text-right">
                   {recentExecution
-                    ? `${new Date(recentExecution.timestamp).toLocaleTimeString(locale)} (${recentExecution.durationMs}ms)`
-                    : auditItems[0]
-                    ? new Date(auditItems[0].createdAt).toLocaleTimeString(locale)
+                    ? `${new Date(recentExecution.timestamp).toLocaleString(locale, { timeZone: CRON_TIMEZONE })}${recentExecution.durationMs > 0 ? ` (${recentExecution.durationMs}ms)` : ""}`
+                    : lastExecutionAudit
+                    ? new Date(lastExecutionAudit.createdAt).toLocaleString(locale, { timeZone: CRON_TIMEZONE })
                     : "—"}
                 </span>
               </div>
@@ -252,8 +258,8 @@ export function CronJobDetailModal({
 
         {/* Tab Selection: History vs Errors */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between border-b border-border/40 pb-2">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setActiveTab("history")}
@@ -324,8 +330,8 @@ export function CronJobDetailModal({
 
                 return (
                   <div key={item.id} className="pt-2.5 first:pt-0 space-y-1.5">
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs">
+                      <div className="flex flex-wrap items-center gap-2">
                         {isSuccess ? (
                           <CheckCircle2 className="size-3.5 text-emerald-500 shrink-0" />
                         ) : (
@@ -361,7 +367,7 @@ export function CronJobDetailModal({
                       </div>
                     </div>
 
-                    <div className="flex justify-between items-center text-[11px] text-muted-foreground pl-5.5">
+                    <div className="flex flex-wrap justify-between items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground pl-0 sm:pl-5.5">
                       <span>
                         {isVietnamese ? "Người thực hiện" : "Triggered by"}:{" "}
                         {item.userName || item.userEmail || (isVietnamese ? "Hệ thống" : "System")}

@@ -129,34 +129,52 @@ export function MaintenanceControlPanel({
   };
 
   const handleConfirmDisable = async () => {
-    await onDisable();
-    setConfirmDisableOpen(false);
+    try {
+      await onDisable();
+      setConfirmDisableOpen(false);
+    } catch {
+      // Lỗi đã được hiển thị qua mutation toast
+    }
   };
 
   const handleSaveConfig = async () => {
+    const trimmedTitle = title.trim();
+    const trimmedMessage = message.trim();
+    if (!trimmedTitle || !trimmedMessage) {
+      return;
+    }
+    if (startAt && estimatedEndAt && new Date(estimatedEndAt) <= new Date(startAt)) {
+      return;
+    }
     const ips = bypassIpsStr
       .split(",")
       .map((ip) => ip.trim())
       .filter(Boolean);
 
-    await onUpdate({
-      title: title.trim(),
-      message: message.trim(),
-      status,
-      startAt: startAt ? new Date(startAt).toISOString() : null,
-      estimatedEndAt: estimatedEndAt ? new Date(estimatedEndAt).toISOString() : null,
-      bypassRoles,
-      bypassIps: ips,
-    });
+    try {
+      // Khi bảo trì đang TẮT, không gửi status MAINTENANCE/READ_ONLY qua PUT /maintenance/config
+      // vì BE sẽ tự kích hoạt bảo trì ngay lập tức mà bỏ qua công tắc & hộp thoại xác nhận.
+      await onUpdate({
+        title: trimmedTitle,
+        message: trimmedMessage,
+        ...(isEnabled ? { status } : {}),
+        startAt: startAt ? new Date(startAt).toISOString() : null,
+        estimatedEndAt: estimatedEndAt ? new Date(estimatedEndAt).toISOString() : null,
+        bypassRoles,
+        bypassIps: ips,
+      });
+    } catch {
+      // Lỗi đã được hiển thị qua mutation toast
+    }
   };
 
-  // Quick preset templates
+  // Quick preset templates (dùng giờ địa phương để khớp input datetime-local, tránh lệch 7 tiếng UTC+7)
   const applyPreset = (minutes: number, customTitle: string, customMessage: string, customStatus: MaintenanceModeStatus = "MAINTENANCE") => {
     const now = new Date();
     const end = new Date(now.getTime() + minutes * 60 * 1000);
 
-    setStartAt(now.toISOString().slice(0, 16));
-    setEstimatedEndAt(end.toISOString().slice(0, 16));
+    setStartAt(toLocalDateTimeInput(now.toISOString()));
+    setEstimatedEndAt(toLocalDateTimeInput(end.toISOString()));
     setTitle(customTitle);
     setMessage(customMessage);
     setStatus(customStatus);

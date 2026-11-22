@@ -112,6 +112,19 @@ export function NotFoundView({ mode = "auto" }: NotFoundViewProps) {
     },
   ];
 
+  const visibleQuickLinks = isAuthenticated
+    ? quickLinks.filter((item) => {
+        if (!user) return false;
+        if (user.role === "ADMIN" || user.role === "SUPER_ADMIN") return true;
+        if (item.href === "/cameras") return user.permissions?.includes("PPE_CAMERA_READ");
+        if (item.href === "/incidents") return user.permissions?.includes("PPE_INCIDENT_READ");
+        if (item.href === "/sites") return user.permissions?.includes("PPE_SITE_READ");
+        return true;
+      })
+    : quickLinks;
+
+  const ContentTag = isFullscreen ? "main" : "div";
+
   return (
     <div
       className={`relative flex flex-col justify-between overflow-hidden bg-background transition-colors duration-200 ${
@@ -197,7 +210,7 @@ export function NotFoundView({ mode = "auto" }: NotFoundViewProps) {
       )}
 
       {/* Main Content Card */}
-      <main className="relative z-10 flex flex-1 items-center justify-center p-3 sm:p-6">
+      <ContentTag className="relative z-10 flex flex-1 items-center justify-center p-3 sm:p-6">
         <div className="w-full max-w-2xl text-center">
           {/* Outer Neumorphic Container */}
           <div className="rounded-[28px] border border-white/60 bg-background p-6 shadow-[10px_10px_30px_var(--shadow-dark),-10px_-10px_30px_var(--shadow-light)] dark:border-white/10 sm:p-10">
@@ -313,36 +326,38 @@ export function NotFoundView({ mode = "auto" }: NotFoundViewProps) {
               )}
             </div>
 
-            {/* Helpful Quick Links (chỉ hiển thị khi đã đăng nhập hoặc ở trang độc lập) */}
-            <div className="mt-8 border-t border-[color-mix(in_srgb,var(--shadow-dark)_15%,transparent)] pt-6 text-left">
-              <p className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                {t("guard.quickLinks")}
-              </p>
-              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                {quickLinks.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="group flex items-center gap-3 rounded-xl border border-white/40 bg-background/80 p-3 shadow-nm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-nm-sm dark:border-white/5"
-                    >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/50 bg-background shadow-nm dark:border-white/10">
-                        <Icon className={`h-4.5 w-4.5 ${item.color} transition-transform group-hover:scale-110`} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-foreground transition-colors group-hover:text-primary">
-                          {item.title}
-                        </p>
-                        <p className="truncate text-[11px] text-muted-foreground">
-                          {item.description}
-                        </p>
-                      </div>
-                    </Link>
-                  );
-                })}
+            {/* Helpful Quick Links (chỉ hiển thị khi đã đăng nhập và có quyền truy cập) */}
+            {visibleQuickLinks.length > 0 && (
+              <div className="mt-8 border-t border-[color-mix(in_srgb,var(--shadow-dark)_15%,transparent)] pt-6 text-left">
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  {t("guard.quickLinks")}
+                </p>
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  {visibleQuickLinks.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className="group flex items-center gap-3 rounded-xl border border-white/40 bg-background/80 p-3 shadow-nm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-nm-sm dark:border-white/5"
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/50 bg-background shadow-nm dark:border-white/10">
+                          <Icon className={`h-4.5 w-4.5 ${item.color} transition-transform group-hover:scale-110`} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-foreground transition-colors group-hover:text-primary">
+                            {item.title}
+                          </p>
+                          <p className="truncate text-[11px] text-muted-foreground">
+                            {item.description}
+                          </p>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Support info note */}
             <div className="mt-6 flex items-start gap-2 rounded-xl bg-card/40 p-3 text-left text-xs text-muted-foreground">
@@ -356,7 +371,7 @@ export function NotFoundView({ mode = "auto" }: NotFoundViewProps) {
             </div>
           </div>
         </div>
-      </main>
+      </ContentTag>
 
       {/* Fullscreen Footer */}
       {isFullscreen && (

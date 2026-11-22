@@ -89,10 +89,10 @@ export function ResponsibilityBadge({
   const cfg = phaseConfig[resp.phase];
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-semibold ${cfg.className}`}
+      className={`inline-flex max-w-full items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-semibold ${cfg.className}`}
     >
       <UserCheck className="h-3 w-3 shrink-0" />
-      <span className="max-w-[320px] truncate">{cfg.label}</span>
+      <span className="max-w-full sm:max-w-[320px] truncate">{cfg.label}</span>
     </span>
   );
 }

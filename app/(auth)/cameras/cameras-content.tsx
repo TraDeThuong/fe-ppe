@@ -56,6 +56,7 @@ export default function CamerasContent() {
 
   const urlSearch = searchParams.get("search") || "";
   const urlSiteId = searchParams.get("siteId") || "";
+  const urlZoneId = searchParams.get("zoneId") || "";
   const urlView = searchParams.get("view");
   const urlLayout = searchParams.get("layout");
 
@@ -64,7 +65,7 @@ export default function CamerasContent() {
   const [sourceTypeFilter, setSourceTypeFilter] = useState("");
   const [kpiFilter, setKpiFilter] = useState<CameraKpiFilterKey>("all");
   const [siteFilter, setSiteFilter] = useState(urlSiteId || globalSiteId || "");
-  const [zoneFilter, setZoneFilter] = useState("");
+  const [zoneFilter, setZoneFilter] = useState(urlZoneId);
   const [viewMode, setViewMode] = useState<CameraFleetViewMode>(
     urlView === "wall" || urlView === "table" ? urlView : "grid",
   );
@@ -78,6 +79,8 @@ export default function CamerasContent() {
     if (s !== null) setSearch(s);
     const sid = searchParams.get("siteId");
     if (sid !== null) setSiteFilter(sid);
+    const zid = searchParams.get("zoneId");
+    if (zid !== null) setZoneFilter(zid);
     const v = searchParams.get("view");
     if (v === "wall" || v === "table" || v === "grid") setViewMode(v);
     const l = searchParams.get("layout");
@@ -193,14 +196,23 @@ export default function CamerasContent() {
   const shouldLoadCatalog =
     kpiDetailOpen ||
     (sessions.length > 0 &&
-      (hasActiveQueryFilters ||
+      (Boolean(siteFilter) ||
+        hasActiveQueryFilters ||
         (totalFleetCameras !== undefined && totalFleetCameras > rawCameras.length)));
 
   const {
-    data: catalogCameras = [],
+    data: rawCatalogCameras = [],
     isLoading: catalogLoading,
     refetch: refetchCatalog,
   } = useCamerasCatalog({ enabled: shouldLoadCatalog });
+
+  const catalogCameras = useMemo(
+    () =>
+      siteFilter
+        ? rawCatalogCameras.filter((c) => c.siteId === siteFilter)
+        : rawCatalogCameras,
+    [rawCatalogCameras, siteFilter],
+  );
 
   const autoAttemptedIdsRef = useRef<Set<string>>(new Set());
   const stoppedOrphanIdsRef = useRef<Set<string>>(new Set());
@@ -233,22 +245,25 @@ export default function CamerasContent() {
     !camerasLoading &&
     !statusCountsLoading &&
     (totalFleetCameras === 0 ||
-      (!catalogLoading && catalogCameras.length > 0 && !siteFilter) ||
+      (!catalogLoading && rawCatalogCameras.length > 0) ||
       (!hasActiveQueryFilters &&
         totalFleetCameras !== undefined &&
         rawCameras.length >= totalFleetCameras));
 
   const { activeFleetSessions, orphanedSessions } = useMemo(() => {
     if (totalFleetCameras === 0) {
-      return { activeFleetSessions: [], orphanedSessions: sessions };
+      return { activeFleetSessions: [], orphanedSessions: siteFilter ? [] : sessions };
     }
     if (hasCompleteCameraCatalog) {
       const { matchedSessions, orphanedSessions: orphans } =
         filterSessionsForCameras(sessions, allKnownCameras);
-      return { activeFleetSessions: matchedSessions, orphanedSessions: orphans };
+      return {
+        activeFleetSessions: matchedSessions,
+        orphanedSessions: siteFilter ? [] : orphans,
+      };
     }
     return { activeFleetSessions: sessions, orphanedSessions: [] };
-  }, [allKnownCameras, hasCompleteCameraCatalog, sessions, totalFleetCameras]);
+  }, [allKnownCameras, hasCompleteCameraCatalog, sessions, siteFilter, totalFleetCameras]);
 
   // Automatically stop orphaned AI Live sessions whose cameras were deleted from DB
   useEffect(() => {

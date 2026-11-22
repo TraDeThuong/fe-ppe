@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Archive, Loader2 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -26,13 +26,23 @@ export function CloseIncidentDialog({
   const isVietnamese = locale === "vi-VN";
   const [closeNote, setCloseNote] = useState("");
 
+  useEffect(() => {
+    if (!open) {
+      setCloseNote("");
+    }
+  }, [open, incident?.id]);
+
   const handleConfirm = async () => {
     if (!incident) return;
-    await onConfirm(incident.id, {
-      closeNote: closeNote.trim() || undefined,
-    });
-    setCloseNote("");
-    onOpenChange(false);
+    try {
+      await onConfirm(incident.id, {
+        closeNote: closeNote.trim() || undefined,
+      });
+      setCloseNote("");
+      onOpenChange(false);
+    } catch {
+      // Lỗi đã được hiển thị qua mutation toast; giữ dialog mở để người dùng không mất ghi chú
+    }
   };
 
   return (

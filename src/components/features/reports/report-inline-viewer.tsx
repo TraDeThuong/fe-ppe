@@ -258,7 +258,7 @@ export function ReportInlineViewer({
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [report?.id, isCompleted, canAccess, format, isVietnamese]);
+  }, [report?.id, isCompleted, canAccess, format]);
 
   const handleDownload = async () => {
     if (!report) return;
@@ -428,7 +428,7 @@ export function ReportInlineViewer({
         </div>
 
         {/* Recessed 4-Pill Metadata Strip */}
-        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 lg:grid-cols-4">
           {[
             {
               icon: Building2,
@@ -493,7 +493,7 @@ export function ReportInlineViewer({
         {isCompleted && canAccess && !loading && !error && (format === "PDF" || format === "EXCEL") && (
           <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
             {format === "PDF" ? (
-              <div className={`inline-flex items-center gap-1 rounded-xl p-1 ${NM.recessed}`}>
+              <div className={`inline-flex max-w-full flex-wrap items-center gap-1 rounded-xl p-1 ${NM.recessed}`}>
                 <button
                   type="button"
                   onClick={() => setViewerMode("visual")}

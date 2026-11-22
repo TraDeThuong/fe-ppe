@@ -16,9 +16,14 @@ export function SiteSelector() {
   const ref = useRef<HTMLDivElement>(null);
 
   // Fetch sites for selector
-  const { data: sitesData } = useSites(
-    { limit: 50 },
-    { enabled: Boolean(user?.permissions.includes("PPE_SITE_READ")) }
+  const canReadSites = Boolean(
+    user?.role === "ADMIN" ||
+      user?.role === "SUPER_ADMIN" ||
+      user?.permissions.includes("PPE_SITE_READ"),
+  );
+  const { data: sitesData, isSuccess: sitesLoaded } = useSites(
+    { limit: 100 },
+    { enabled: canReadSites }
   );
 
   const sites: SiteItem[] = useMemo(() => sitesData?.items ?? [], [sitesData]);
@@ -29,17 +34,32 @@ export function SiteSelector() {
     return sites.find((s) => s.id === siteId) || null;
   }, [sites, siteId]);
 
+  // Nếu siteId đã lưu trong localStorage không còn tồn tại hoặc không thuộc quyền user hiện tại -> reset về All sites
+  useEffect(() => {
+    if (!sitesLoaded || !siteId) return;
+    if (!sites.some((s) => s.id === siteId)) {
+      setSiteId(null);
+    }
+  }, [sitesLoaded, siteId, sites, setSiteId]);
+
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
 
   // Gating: ẩn hoàn toàn nếu không có quyền xem site
-  if (!user?.permissions.includes("PPE_SITE_READ")) return null;
+  if (!canReadSites) return null;
 
   return (
     <div ref={ref} className="relative">
@@ -59,7 +79,7 @@ export function SiteSelector() {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1.5 w-[min(16rem,calc(100vw-24px))] rounded-2xl border border-border/40 bg-card p-1.5 shadow-xl dark:border-black/60 dark:bg-card">
+        <div className="fixed left-3 right-3 top-[64px] z-50 rounded-2xl border border-border/40 bg-card p-1.5 shadow-xl dark:border-black/60 dark:bg-card sm:absolute sm:left-0 sm:right-auto sm:top-full sm:mt-1.5 sm:w-64">
           <div className="max-h-72 overflow-y-auto space-y-1 p-0.5">
             {/* All sites option */}
             <button

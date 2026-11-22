@@ -621,24 +621,35 @@ export function DashboardLiveIncidents({
                   )}
 
                   {/* Khung ảnh Snapshot lõm vào bề mặt nền */}
-                  <div className="relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-background shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
-                    {inc.snapshotUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={resolveEvidenceUrl(inc.snapshotUrl)}
-                        alt="Violation Snapshot"
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                    ) : (
-                      <Camera className="size-5 text-muted-foreground/70" />
-                    )}
-                    {isHighlighted && (
-                      <span className="absolute right-1 top-1 flex size-2">
-                        <span className="absolute inline-flex size-full animate-ping rounded-full bg-danger opacity-75" />
-                        <span className="relative inline-flex size-2 rounded-full bg-danger" />
-                      </span>
-                    )}
-                  </div>
+                  {(() => {
+                    const thumbRaw =
+                      inc.snapshotUrl ||
+                      inc.evidences?.find((e) => e.evidenceType === "SNAPSHOT")?.url ||
+                      inc.evidences?.find((e) => e.evidenceType === "SNAPSHOT")?.storageKey ||
+                      inc.evidences?.[0]?.url ||
+                      inc.evidences?.[0]?.storageKey;
+                    const thumbSrc = thumbRaw ? resolveEvidenceUrl(thumbRaw) : "";
+                    return (
+                      <div className="relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-background shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+                        {thumbSrc ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={thumbSrc}
+                            alt="Violation Snapshot"
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                        ) : (
+                          <Camera className="size-5 text-muted-foreground/70" />
+                        )}
+                        {isHighlighted && (
+                          <span className="absolute right-1 top-1 flex size-2">
+                            <span className="absolute inline-flex size-full animate-ping rounded-full bg-danger opacity-75" />
+                            <span className="relative inline-flex size-2 rounded-full bg-danger" />
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Metadata */}
                   <div className="min-w-0 space-y-1">

@@ -24,6 +24,7 @@ import {
   AssignUserRoleModal,
   UserDetailModal,
 } from "@/components/features/users/modals";
+import { useAuth } from "@/contexts/AuthContext";
 import { useAssignUserRole } from "@/hooks/rbac";
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
@@ -53,6 +54,7 @@ export function RoleUsersTab({
 }: RoleUsersTabProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const { user: currentUser } = useAuth();
   const can = useCan();
   const canAssignUserRole = can("USER_ROLE_ASSIGN");
 
@@ -98,12 +100,17 @@ export function RoleUsersTab({
     });
   }, [roleUsers, search, statusFilter]);
 
-  // Users NOT in this role (candidates to assign into this role)
+  // Users NOT in this role (candidates to assign into this role; exclude current user per BE anti-self-role guard)
   const candidateUsers = useMemo(() => {
     const currentRoleUserIds = new Set(roleUsers.map((u) => u.id));
     const q = candidateSearch.trim().toLowerCase();
     return allUsers
-      .filter((u) => !currentRoleUserIds.has(u.id) && !u.deletedAt)
+      .filter(
+        (u) =>
+          !currentRoleUserIds.has(u.id) &&
+          !u.deletedAt &&
+          u.id !== currentUser?.id,
+      )
       .filter((u) => {
         if (!q) return true;
         return (
@@ -112,7 +119,7 @@ export function RoleUsersTab({
           (u.role?.name || "").toLowerCase().includes(q)
         );
       });
-  }, [allUsers, roleUsers, candidateSearch]);
+  }, [allUsers, roleUsers, candidateSearch, currentUser?.id]);
 
   const handleAssignCandidateToThisRole = async () => {
     if (!selectedCandidateId) return;
@@ -390,6 +397,7 @@ export function RoleUsersTab({
                         type="button"
                         variant="outline"
                         size="sm"
+                        disabled={Boolean(currentUser?.id && user.id === currentUser.id)}
                         onClick={() => setSelectedUserForRoleChange(user)}
                         className="h-7 px-2.5 text-xs rounded-lg gap-1"
                       >
