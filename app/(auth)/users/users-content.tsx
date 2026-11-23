@@ -90,19 +90,15 @@ export default function UsersContent() {
         activeFilter={statusFilter === "inactive" ? "locked" : statusFilter}
       />
 
-      {/* 3. Neumorphic Data Table với đầy đủ tính năng & liên kết bộ lọc */}
+      {/* 3. Neumorphic Data Table / Card Grid với bộ lọc vai trò nhanh & liên kết KPI */}
       <UserTable
-
         variant="soft"
-
         statusFilter={statusFilter}
-
         onStatusFilterChange={setStatusFilter}
-
         isCreateOpen={isCreateOpen}
-
         onOpenCreateChange={setIsCreateOpen}
-
+        summaryTotal={summaryData?.total}
+        roleCounts={summaryData?.byRole}
       />
     </div>
   );

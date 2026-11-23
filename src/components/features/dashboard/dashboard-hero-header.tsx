@@ -7,12 +7,12 @@ import {
   FileSpreadsheet,
   LayoutDashboard,
   Moon,
-  RefreshCw,
   ShieldCheck,
   Sun,
   Sunset,
 } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
+import { ConsoleRefreshButton } from "@/components/ui/refresh-action";
 import { ROLE_LABELS } from "@/config/navigation";
 import { useLocale } from "@/providers/locale-provider";
 import type { MeDto } from "@/types";
@@ -59,6 +59,10 @@ export interface DashboardHeroHeaderProps {
   onSiteChange?: (siteId: string | null) => void;
   canViewSites?: boolean;
   periodState?: DashboardPeriodState;
+  groupingMode?: import("@/lib/incident-cluster-engine").IncidentAggregationMode;
+  onChangeGroupingMode?: (
+    mode: import("@/lib/incident-cluster-engine").IncidentAggregationMode,
+  ) => void;
 }
 
 function getShiftKey(hours: number): "morning" | "afternoon" | "night" {
@@ -91,6 +95,8 @@ export function DashboardHeroHeader({
   onSiteChange,
   canViewSites = true,
   periodState,
+  groupingMode,
+  onChangeGroupingMode,
 }: DashboardHeroHeaderProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -277,24 +283,13 @@ export function DashboardHeroHeader({
             </div>
 
             {onRefresh && (
-              <button
-                type="button"
-                onClick={onRefresh}
-                disabled={isRefreshing}
-                aria-label={t("dashboard.data.refresh")}
-                className={`group inline-flex h-12 shrink-0 items-center gap-2 rounded-2xl px-3.5 text-xs font-bold text-foreground disabled:opacity-60 ${NM.tactileBtn}`}
-              >
-                <span
-                  className={`flex h-7 w-7 items-center justify-center rounded-lg ${NM.recessed}`}
-                >
-                  <RefreshCw
-                    className={`size-3.5 text-primary transition-transform duration-500 ${
-                      isRefreshing ? "animate-spin" : "group-hover:rotate-90"
-                    }`}
-                  />
-                </span>
-                <span>{t("dashboard.data.refresh")}</span>
-              </button>
+              <ConsoleRefreshButton
+                compact
+                onRefresh={onRefresh}
+                isRefreshing={isRefreshing}
+                label={t("dashboard.data.refresh")}
+                ariaLabel={t("dashboard.data.refresh")}
+              />
             )}
 
             {canExportReports && onOpenExportReport && (
@@ -339,6 +334,8 @@ export function DashboardHeroHeader({
             onSiteChange={onSiteChange}
             canViewSites={canViewSites}
             periodState={periodState}
+            groupingMode={groupingMode}
+            onChangeGroupingMode={onChangeGroupingMode}
           />
         )}
       </div>

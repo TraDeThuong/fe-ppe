@@ -11,6 +11,10 @@ import {
   useUpdateNotificationTemplate,
 } from "@/hooks/notifications/use-notification-templates";
 import { SOUND_PRESET_NAMES, type SoundPreset } from "@/services/sound.service";
+import {
+  COMMON_TEMPLATE_PLACEHOLDERS,
+  resolveTemplateSoundPreset,
+} from "../notification-template-helpers";
 import type { NotificationTemplateItemDto, NotificationChannel } from "@/types";
 
 export interface EditNotificationTemplateModalProps {
@@ -20,15 +24,7 @@ export interface EditNotificationTemplateModalProps {
   onSuccess?: () => void;
 }
 
-const COMMON_PLACEHOLDERS = [
-  "{{userName}}",
-  "{{siteName}}",
-  "{{zoneName}}",
-  "{{cameraCode}}",
-  "{{violationType}}",
-  "{{timestamp}}",
-  "{{actionUrl}}",
-];
+const COMMON_PLACEHOLDERS = COMMON_TEMPLATE_PLACEHOLDERS.map((item) => item.token);
 
 export function EditNotificationTemplateModal({
   open,
@@ -56,13 +52,7 @@ export function EditNotificationTemplateModal({
       setContentTemplate(template.contentTemplate || "");
       setDescription(template.description || "");
       setStatus(template.status || "ACTIVE");
-      setSoundPreset(
-        template.code.includes("CRITICAL") || template.code.includes("VIOLATION")
-          ? "critical"
-          : template.code.includes("WARNING") || template.code.includes("ALERT")
-            ? "warning"
-            : "info",
-      );
+      setSoundPreset(resolveTemplateSoundPreset(template.code));
     }
   }, [template]);
 

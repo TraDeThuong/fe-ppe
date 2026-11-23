@@ -9,6 +9,7 @@ export interface UserSummaryResult {
   active: number;
   twoFactor: number;
   locked: number;
+  byRole?: Record<string, number>;
 }
 
 export type UseUserSummaryOptions = Omit<

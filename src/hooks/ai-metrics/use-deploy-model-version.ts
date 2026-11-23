@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "@/lib/axios";
 import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { aiMetricsService } from "@/services/ai-metrics.service";
@@ -13,6 +14,25 @@ import type {
   RecordAiPerformanceDto,
 } from "@/types";
 
+function formatVersionLabel(version: string): string {
+  const clean = version.trim().replace(/^v/i, "");
+  return clean ? `v${clean}` : version;
+}
+
+function formatMutationError(err: unknown, fallback: string): string {
+  if (err instanceof ApiError && Array.isArray(err.errors) && err.errors.length > 0) {
+    const details = err.errors
+      .map((item) => (item.field ? `${item.field}: ${item.message}` : item.message))
+      .filter(Boolean)
+      .join(" • ");
+    if (details) return details;
+  }
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+  return fallback;
+}
+
 export function useDeployModelVersion() {
   const queryClient = useQueryClient();
 
@@ -22,21 +42,22 @@ export function useDeployModelVersion() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: aiMetricsKeys.all });
       queryClient.invalidateQueries({ queryKey: reportingKeys.dashboardKpi() });
+      const versionLabel = formatVersionLabel(data.version);
       toast.success(
         pickLocaleText(
-          `Đã kích hoạt chuyển đổi nóng phiên bản ${data.version} vào môi trường giám sát thành công!`,
-          `Hot-swapped model version ${data.version} into production monitoring!`,
+          `Đã kích hoạt chuyển đổi nóng phiên bản ${versionLabel} vào môi trường giám sát thành công!`,
+          `Hot-swapped model version ${versionLabel} into production monitoring!`,
         ),
       );
     },
     onError: (err: unknown) => {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : pickLocaleText(
-              "Triển khai phiên bản mô hình thất bại. Hệ thống đã giữ nguyên mô hình an toàn trước đó.",
-              "Model deployment failed. The previous safe model version remains active.",
-            );
+      const msg = formatMutationError(
+        err,
+        pickLocaleText(
+          "Triển khai phiên bản mô hình thất bại. Hệ thống đã giữ nguyên mô hình an toàn trước đó.",
+          "Model deployment failed. The previous safe model version remains active.",
+        ),
+      );
       toast.error(msg);
     },
   });
@@ -57,7 +78,12 @@ export function useCreateAiModel() {
       );
     },
     onError: (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : "Failed to register AI model");
+      toast.error(
+        formatMutationError(
+          err,
+          pickLocaleText("Đăng ký mô hình AI thất bại.", "Failed to register AI model"),
+        ),
+      );
     },
   });
 }
@@ -75,15 +101,21 @@ export function useCreateAiModelVersion() {
     }) => aiMetricsService.createAiModelVersion(modelId, dto),
     onSuccess: (ver) => {
       void queryClient.invalidateQueries({ queryKey: aiMetricsKeys.all });
+      const versionLabel = formatVersionLabel(ver.version);
       toast.success(
         pickLocaleText(
-          `Đã thêm phiên bản v${ver.version} thành công.`,
-          `Registered model version v${ver.version}.`,
+          `Đã thêm phiên bản ${versionLabel} thành công.`,
+          `Registered model version ${versionLabel}.`,
         ),
       );
     },
     onError: (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : "Failed to create model version");
+      toast.error(
+        formatMutationError(
+          err,
+          pickLocaleText("Thêm phiên bản mô hình thất bại.", "Failed to create model version"),
+        ),
+      );
     },
   });
 }
@@ -104,7 +136,12 @@ export function useRecordAiPerformance() {
       );
     },
     onError: (err: unknown) => {
-      toast.error(err instanceof Error ? err.message : "Failed to record AI telemetry");
+      toast.error(
+        formatMutationError(
+          err,
+          pickLocaleText("Ghi nhận telemetry hiệu năng AI thất bại.", "Failed to record AI telemetry"),
+        ),
+      );
     },
   });
 }

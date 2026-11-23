@@ -336,4 +336,210 @@ describe("AssignmentConsoleHeader & AssignmentKpiSummary (3 Roles)", () => {
     );
     assert.ok(offHtml.includes('data-testid="assignment-pagination"'));
   });
+
+  it("renders multi-dimension grouping toolbar, rich work group breakdown, and shift/hour/person/officer modes", () => {
+    const formatters = {
+      resolveSiteLabel: (_sid: string, fallback?: string) =>
+        fallback || "Công trường A",
+      resolveCameraLabel: (inc: IncidentItem) => inc.cameraCode || inc.cameraId,
+      formatViolation: (v: string) =>
+        v === "NO_HELMET"
+          ? "Không đội mũ bảo hộ"
+          : v === "NO_VEST"
+            ? "Không mặc áo phản quang"
+            : v,
+    };
+    const responsibilityContext = {
+      usersById: new Map([
+        ["off-1", { id: "off-1", name: "Nguyễn Văn An", email: "an@ppe.local" }],
+      ]),
+      resolveSiteName: formatters.resolveSiteLabel,
+      resolveCameraLabel: formatters.resolveCameraLabel,
+    };
+    const rowActions = {
+      onReview: () => {},
+      onDispatch: () => {},
+      onClose: () => {},
+      onResolve: () => {},
+    };
+
+    const assignedItems: IncidentItem[] = [
+      {
+        ...dummyIncident("a-1", "CONFIRMED"),
+        severity: "CRITICAL",
+        violationType: "NO_HELMET",
+        assignments: [
+          {
+            id: "as-1",
+            incidentId: "a-1",
+            assignedTo: "off-1",
+            assignedToName: "Nguyễn Văn An",
+            assignedAt: "2026-11-22T09:00:00Z",
+            status: "ACTIVE",
+          },
+        ],
+      },
+      {
+        ...dummyIncident("a-2", "CONFIRMED"),
+        severity: "HIGH",
+        violationType: "NO_VEST",
+        assignments: [
+          {
+            id: "as-2",
+            incidentId: "a-2",
+            assignedTo: "off-1",
+            assignedToName: "Nguyễn Văn An",
+            assignedAt: "2026-11-22T09:00:00Z",
+            status: "ACTIVE",
+          },
+        ],
+      },
+    ];
+
+    // Manager Step 1 (triage) defaults to Camera and exposes Person/Severity/Hour/Shift options
+    const mgrTriageHtml = renderWithLocale(
+      <ManagerDispatchWorkspace
+        managerTab="triage"
+        categorized={{
+          ...categorized,
+          triageItems: assignedItems,
+          pendingReview: assignedItems,
+        }}
+        siteFilter=""
+        onSiteChange={() => {}}
+        sites={[]}
+        selectedIds={new Set()}
+        onToggleSelectOne={() => {}}
+        onToggleSelectMany={() => {}}
+        batchReviewPending={false}
+        batchActionPending={false}
+        onBatchConfirmOnly={() => {}}
+        onBatchReject={() => {}}
+        onBatchDispatch={() => {}}
+        onBatchClose={() => {}}
+        currentUserId="mgr-1"
+        responsibilityContext={responsibilityContext}
+        formatters={formatters}
+        rowActions={rowActions}
+      />,
+    );
+    assert.ok(mgrTriageHtml.includes('data-testid="assignment-group-toolbar"'));
+    assert.ok(mgrTriageHtml.includes('data-testid="assignment-work-group-card"'));
+    assert.ok(mgrTriageHtml.includes('data-group-by="camera"'));
+    assert.ok(mgrTriageHtml.includes("Đối tượng &amp; Đa vi phạm"));
+    assert.ok(mgrTriageHtml.includes("Khung giờ"));
+    assert.ok(mgrTriageHtml.includes("Ca trực"));
+    assert.ok(mgrTriageHtml.includes("1 Khẩn cấp"));
+
+    // Manager Step 2 (dispatched) defaults to Officer grouping
+    const mgrDispatchedHtml = renderWithLocale(
+      <ManagerDispatchWorkspace
+        managerTab="dispatched"
+        categorized={{
+          ...categorized,
+          assignedConfirmed: assignedItems,
+        }}
+        siteFilter=""
+        onSiteChange={() => {}}
+        sites={[]}
+        selectedIds={new Set()}
+        onToggleSelectOne={() => {}}
+        onToggleSelectMany={() => {}}
+        batchReviewPending={false}
+        batchActionPending={false}
+        onBatchConfirmOnly={() => {}}
+        onBatchReject={() => {}}
+        onBatchDispatch={() => {}}
+        onBatchClose={() => {}}
+        currentUserId="mgr-1"
+        responsibilityContext={responsibilityContext}
+        formatters={formatters}
+        rowActions={rowActions}
+      />,
+    );
+    assert.ok(mgrDispatchedHtml.includes('data-group-by="officer"'));
+    assert.ok(mgrDispatchedHtml.includes("Nguyễn Văn An"));
+
+    // Admin oversight supports dynamic shift/severity/person modes with toolbar
+    const adminSeverityHtml = renderWithLocale(
+      <AdminOversightWorkspace
+        adminGroupMode="severity"
+        onAdminGroupModeChange={() => {}}
+        siteFilter=""
+        onSiteChange={() => {}}
+        sites={[]}
+        incidents={assignedItems}
+        expandedKeys={{}}
+        onToggleExpand={() => {}}
+        managerGroups={[]}
+        officerGroups={[]}
+        siteGroups={[]}
+        cameraGroups={[]}
+        currentUserId="admin-1"
+        responsibilityContext={responsibilityContext}
+        formatters={formatters}
+        rowActions={rowActions}
+        onBatchDispatch={() => {}}
+        onBatchClose={() => {}}
+      />,
+    );
+    assert.ok(adminSeverityHtml.includes('data-testid="assignment-group-toolbar"'));
+    assert.ok(adminSeverityHtml.includes('data-group-by="severity"'));
+    assert.ok(adminSeverityHtml.includes("Khẩn cấp (CRITICAL)"));
+  });
+
+  it("displays full-DB statusTotals in AssignmentKpiSummary and AssignmentConsoleHeader when provided", () => {
+    const html = renderWithLocale(
+      <>
+        <AssignmentConsoleHeader
+          roleView="SAFETY_MANAGER"
+          isAdminRole={false}
+          adminInterventionMode={false}
+          onToggleAdminIntervention={() => {}}
+          isConnected={true}
+          isRefreshing={false}
+          onRefresh={() => {}}
+          totalIncidentsCount={766}
+          categorized={categorized}
+          statusTotals={{
+            pendingReview: 526,
+            confirmed: 122,
+            resolved: 2,
+            closed: 115,
+            dismissed: 1,
+            closedOrDismissed: 116,
+            total: 766,
+          }}
+        />
+        <AssignmentKpiSummary
+          roleView="SAFETY_MANAGER"
+          isAdminRole={false}
+          adminInterventionMode={false}
+          totalIncidentsCount={766}
+          categorized={categorized}
+          statusTotals={{
+            pendingReview: 526,
+            confirmed: 122,
+            resolved: 2,
+            closed: 115,
+            dismissed: 1,
+            closedOrDismissed: 116,
+            total: 766,
+          }}
+          activeOfficersCount={4}
+          dispatchedGroupsCount={0}
+          adminGroupMode="responsibility"
+          onAdminGroupModeChange={() => {}}
+          managerTab="triage"
+          onManagerTabChange={() => {}}
+          officerTab="pending"
+          onOfficerTabChange={() => {}}
+        />
+      </>,
+    );
+
+    assert.ok(html.includes("526 chờ duyệt AI • 1 chưa giao"));
+    assert.ok(html.includes("15% hoàn tất trên 766 hồ sơ"));
+    assert.ok(html.includes("(766)"));
+  });
 });

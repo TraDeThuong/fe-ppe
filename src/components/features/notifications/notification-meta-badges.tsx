@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Info,
   Mail,
+  MessageSquare,
   Radio,
   Send,
   ShieldAlert,
@@ -25,36 +26,31 @@ export const SEVERITY_META: Record<
   }
 > = {
   CRITICAL: {
-    badgeClass:
-      "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400",
-    accentBarClass: "bg-rose-500",
+    badgeClass: "border-danger/30 bg-danger/10 text-danger",
+    accentBarClass: "bg-danger",
     icon: AlertTriangle,
     labelKey: "notifications.severity.CRITICAL",
   },
   HIGH: {
-    badgeClass:
-      "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    accentBarClass: "bg-amber-500",
+    badgeClass: "border-warning/30 bg-warning/10 text-warning",
+    accentBarClass: "bg-warning",
     icon: AlertCircle,
     labelKey: "notifications.severity.HIGH",
   },
   NORMAL: {
-    badgeClass:
-      "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400",
-    accentBarClass: "bg-sky-500",
+    badgeClass: "border-primary/25 bg-primary/10 text-primary",
+    accentBarClass: "bg-primary",
     icon: Info,
     labelKey: "notifications.severity.NORMAL",
   },
   MEDIUM: {
-    badgeClass:
-      "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400",
-    accentBarClass: "bg-sky-500",
+    badgeClass: "border-primary/25 bg-primary/10 text-primary",
+    accentBarClass: "bg-primary",
     icon: Info,
     labelKey: "notifications.severity.MEDIUM",
   },
   LOW: {
-    badgeClass:
-      "border-border/50 bg-muted/40 text-muted-foreground",
+    badgeClass: "border-border/50 bg-muted/40 text-muted-foreground",
     accentBarClass: "bg-muted-foreground/40",
     icon: Bell,
     labelKey: "notifications.severity.LOW",
@@ -82,28 +78,29 @@ export const KIND_META: Record<
     vi: "Điều phối xử lý",
     en: "Dispatch",
     icon: Send,
-    pillClass:
-      "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-    medallionClass:
-      "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    pillClass: "border-warning/30 bg-warning/10 text-warning",
+    medallionClass: "border-warning/25 bg-warning/10 text-warning",
   },
   RESOLVED: {
     vi: "Đã khắc phục",
     en: "Resolved Report",
     icon: CheckCircle2,
-    pillClass:
-      "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-    medallionClass:
-      "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    pillClass: "border-success/25 bg-success/10 text-success",
+    medallionClass: "border-success/25 bg-success/10 text-success",
+  },
+  COMMENT: {
+    vi: "Bình luận hiện trường",
+    en: "Field Comment",
+    icon: MessageSquare,
+    pillClass: "border-primary/20 bg-primary/[0.08] text-foreground",
+    medallionClass: "border-primary/20 bg-primary/10 text-primary",
   },
   BROADCAST: {
     vi: "Toàn hệ thống",
     en: "System Broadcast",
     icon: Radio,
-    pillClass:
-      "border-violet-500/25 bg-violet-500/10 text-violet-700 dark:text-violet-300",
-    medallionClass:
-      "border-violet-500/25 bg-violet-500/10 text-violet-600 dark:text-violet-400",
+    pillClass: "border-accent/40 bg-accent/15 text-foreground",
+    medallionClass: "border-primary/20 bg-primary/10 text-primary",
   },
   SYSTEM: {
     vi: "Hệ thống",

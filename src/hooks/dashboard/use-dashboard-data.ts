@@ -18,6 +18,10 @@ import {
   pageTotal,
   vietnamToday,
 } from "@/lib/dashboard-data";
+import {
+  clusterIncidentsByPerson,
+  type IncidentAggregationMode,
+} from "@/lib/incident-cluster-engine";
 import type { DashboardPeriod, DashboardPreset } from "@/types/dashboard.types";
 
 export function useDashboardPeriod(initial?: {
@@ -75,6 +79,7 @@ interface DashboardAccess {
   cameraCatalog?: boolean;
   model: boolean;
   ready: boolean;
+  groupingMode?: IncidentAggregationMode;
 }
 
 // Retain stale data for transport failures, but never after access is revoked.
@@ -290,14 +295,23 @@ export function useDashboardData(access: DashboardAccess) {
     }),
     [visibleCameraCounts],
   );
+  const groupingMode: IncidentAggregationMode =
+    access.groupingMode ?? "clustered";
   const analytics = useMemo(() => {
     if (!visiblePeriod.data?.complete) return null;
-    return aggregateDashboard(visiblePeriod.data.items);
-  }, [visiblePeriod.data]);
+    return aggregateDashboard(visiblePeriod.data.items, { mode: groupingMode });
+  }, [visiblePeriod.data, groupingMode]);
+  const visibleRecent = visibleQuery(recentQuery, ready && access.incidents);
+  const unresolvedClusters = useMemo(() => {
+    const items = visibleRecent.data?.items ?? [];
+    if (items.length === 0) return [];
+    return clusterIncidentsByPerson(items);
+  }, [visibleRecent.data?.items]);
   return {
     periodQuery: visiblePeriod,
     pendingQuery: visibleQuery(pendingQuery, ready && access.incidents),
-    recentQuery: visibleQuery(recentQuery, ready && access.incidents),
+    recentQuery: visibleRecent,
+    unresolvedClusters,
     cameraQuery: visibleQuery(cameraQuery, ready && access.cameras),
     cameraCountsQuery: visibleCameraCounts,
     onlineQuery,

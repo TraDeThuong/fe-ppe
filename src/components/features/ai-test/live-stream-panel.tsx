@@ -8,7 +8,6 @@ import {
   ChevronDown,
   Play,
   Radio,
-  RefreshCw,
   Sliders,
   Square,
   Upload,
@@ -16,6 +15,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RefreshIconButton } from "@/components/ui/refresh-action";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Switch } from "@/components/ui/form";
 import { Select, type SelectOption } from "@/components/ui/form/selection-controls/select";
@@ -49,6 +49,7 @@ export interface LiveStreamPanelProps {
   onLiveEvidencesChange: (items: EvidenceItem[]) => void;
   onInspectEvidence: (items: EvidenceItem[], index: number) => void;
   onOpenGallery: () => void;
+  refreshNonce?: number;
 }
 
 export function LiveStreamPanel({
@@ -60,6 +61,7 @@ export function LiveStreamPanel({
   onLiveEvidencesChange,
   onInspectEvidence,
   onOpenGallery,
+  refreshNonce = 0,
 }: LiveStreamPanelProps) {
   const { t, locale } = useLocale();
   const [liveVideos, setLiveVideos] = useState<LiveVideoItem[]>([]);
@@ -85,6 +87,7 @@ export function LiveStreamPanel({
   const [isUploading, setIsUploading] = useState(false);
   const [isApplyingConfig, setIsApplyingConfig] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+  const [isRefreshingSessions, setIsRefreshingSessions] = useState(false);
   const [isConfigExpanded, setIsConfigExpanded] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -99,6 +102,7 @@ export function LiveStreamPanel({
   }, [models, selectedModel]);
 
   const loadVideosAndSessions = useCallback(async () => {
+    setIsRefreshingSessions(true);
     try {
       const [videos, sessList] = await Promise.all([
         aiTestService.listLiveVideos(),
@@ -120,12 +124,14 @@ export function LiveStreamPanel({
       }
     } catch {
       // Backend offline status handled by header
+    } finally {
+      setIsRefreshingSessions(false);
     }
   }, [activeCameraId, onActiveCameraChange]);
 
   useEffect(() => {
     void loadVideosAndSessions();
-  }, [loadVideosAndSessions]);
+  }, [loadVideosAndSessions, refreshNonce]);
 
   // Poll live stats every 800ms for activeCameraId
   useEffect(() => {
@@ -773,14 +779,14 @@ export function LiveStreamPanel({
                     </span>
                   </span>
 
-                  <button
-                    type="button"
-                    onClick={() => void loadVideosAndSessions()}
+                  <RefreshIconButton
+                    onRefresh={loadVideosAndSessions}
+                    isRefreshing={isRefreshingSessions}
                     title={t("aiTest.live.refreshSessionsTitle")}
-                    className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-white/40 bg-background text-primary shadow-[3px_3px_6px_rgba(0,0,0,0.09),-3px_-3px_6px_rgba(255,255,255,0.75)] transition-all active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.14)] dark:border-white/[0.05] dark:shadow-[3px_3px_6px_rgba(0,0,0,0.45)]"
-                  >
-                    <RefreshCw className="size-3.5" />
-                  </button>
+                    ariaLabel={t("aiTest.live.refreshSessionsTitle")}
+                    className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg border border-white/40 bg-background text-primary shadow-[3px_3px_6px_rgba(0,0,0,0.09),-3px_-3px_6px_rgba(255,255,255,0.75)] active:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.14)] disabled:opacity-50 dark:border-white/[0.05] dark:shadow-[3px_3px_6px_rgba(0,0,0,0.45)]"
+                    iconClassName="size-3.5"
+                  />
                 </div>
 
                 <div className="flex flex-1 flex-wrap content-start items-center gap-2 rounded-xl bg-background/70 p-2.5 shadow-[var(--nm-inset)]">

@@ -135,6 +135,7 @@ export default function CamerasContent() {
   );
 
   const [kpiDetailOpen, setKpiDetailOpen] = useState(false);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   // Queries: Status Counts (lightweight KPI), Lazy Catalog (when KPI detail opens or sessions need reconciliation), Filtered Page (Grid/Wall/Table), Live AI Sessions
   const {
@@ -177,7 +178,6 @@ export default function CamerasContent() {
     triggerSync,
     isSyncingLive,
     startingCameraId,
-    isFetchingSessions,
     refreshAll: refreshAiEngine,
   } = useCameraLiveSessions({ enabled: true, pollIntervalMs: 2500 });
 
@@ -338,12 +338,17 @@ export default function CamerasContent() {
   const handleRefreshAll = () => {
     autoAttemptedIdsRef.current.clear();
     stoppedOrphanIdsRef.current.clear();
+    setIsManualRefreshing(true);
     void Promise.all([
       refetchCameras(),
       refetchStatusCounts(),
       shouldLoadCatalog ? refetchCatalog() : Promise.resolve(),
       refreshAiEngine(),
-    ]);
+    ]).finally(() => {
+      if (isMountedRef.current) {
+        setIsManualRefreshing(false);
+      }
+    });
   };
 
   const handleKpiSelect = (key: CameraKpiFilterKey) => {
@@ -454,7 +459,7 @@ export default function CamerasContent() {
         models={models}
         totalCameras={cameraStatusCounts?.total ?? totalCount}
         runningSessionsCount={runningSessionsCount}
-        isRefreshing={camerasFetching || isFetchingSessions}
+        isRefreshing={camerasFetching || isManualRefreshing}
         canCreateCamera={canCreate}
         onRefreshAll={handleRefreshAll}
         onCreateCamera={() => setCreateOpen(true)}
@@ -519,6 +524,7 @@ export default function CamerasContent() {
           onEdit={setEditTarget}
           onDelete={setDeleteTarget}
           loading={camerasLoading}
+          isRefreshing={camerasFetching || isManualRefreshing}
           onRefresh={handleRefreshAll}
           tableState={{
             manualPagination: true,

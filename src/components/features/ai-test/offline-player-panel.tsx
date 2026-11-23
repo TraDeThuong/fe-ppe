@@ -8,7 +8,6 @@ import {
   Film,
   Images,
   Play,
-  RefreshCw,
   ShieldCheck,
   SkipBack,
   SkipForward,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RefreshIconButton } from "@/components/ui/refresh-action";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, type SelectOption } from "@/components/ui/form/selection-controls/select";
 import { Loader } from "@/components/ui/loader";
@@ -93,6 +93,7 @@ export function OfflinePlayerPanel({
   const [isUploading, setIsUploading] = useState(false);
   const [isStartingJob, setIsStartingJob] = useState(false);
   const [isLoadingArtifacts, setIsLoadingArtifacts] = useState(false);
+  const [isRefreshingJobs, setIsRefreshingJobs] = useState(false);
 
   // Loaded player state
   const [jobMeta, setJobMeta] = useState<JobMeta | null>(null);
@@ -549,14 +550,17 @@ export function OfflinePlayerPanel({
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => void onRefreshJobs()}
+            <RefreshIconButton
+              onRefresh={() => {
+                setIsRefreshingJobs(true);
+                return onRefreshJobs().finally(() => setIsRefreshingJobs(false));
+              }}
+              isRefreshing={isRefreshingJobs}
               title={t("aiTest.player.jobs.refreshTitle")}
-              className="group inline-flex h-8 w-8 items-center justify-center rounded-xl bg-background text-primary shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.75)] dark:shadow-[4px_4px_8px_rgba(0,0,0,0.45)] active:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.14)] border border-white/50 dark:border-white/[0.05] transition-all cursor-pointer"
-            >
-              <RefreshCw className="size-3.5 transition-transform duration-500 group-hover:rotate-90" />
-            </button>
+              ariaLabel={t("aiTest.player.jobs.refreshTitle")}
+              className="group inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl bg-background text-primary shadow-[4px_4px_8px_rgba(0,0,0,0.1),-4px_-4px_8px_rgba(255,255,255,0.75)] dark:shadow-[4px_4px_8px_rgba(0,0,0,0.45)] active:shadow-[inset_3px_3px_6px_rgba(0,0,0,0.14)] border border-white/50 dark:border-white/[0.05] disabled:opacity-50"
+              iconClassName="size-3.5"
+            />
           </div>
 
           {/* Khay chứa danh sách Jobs khoét sâu */}

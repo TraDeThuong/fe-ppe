@@ -26,6 +26,8 @@ export interface NavItem {
   route: string;
   /** Tiền tố dùng để highlight trạng thái active khi route mặc định là sub-route (vd: /settings/profile -> /settings) */
   activePrefix?: string;
+  /** Các route phụ (ẩn khỏi sidebar) vẫn highlight mục này khi đang đứng trên route đó (vd: /evidences -> incidents) */
+  extraActiveRoutes?: readonly string[];
   icon: LucideIcon;
   i18nKey: string;
   /** Quyền bắt buộc — user.permissions phải chứa giá trị này mới hiển thị */
@@ -62,6 +64,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   {
     key: "incidents",
     route: "/incidents",
+    extraActiveRoutes: ["/evidences"],
     icon: ShieldAlert,
     i18nKey: "nav.incidents",
     permission: "PPE_INCIDENT_READ",
@@ -82,6 +85,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
     icon: Images,
     i18nKey: "nav.evidences",
     permission: "PPE_INCIDENT_READ",
+    hidden: true,
     group: "monitoring",
   },
   {
@@ -225,19 +229,32 @@ export function isFullMaintenanceMode(
 /** Kiểm tra một mục sidebar có đang active theo pathname hiện tại hay không */
 export function isNavItemActive(
   pathname: string | null | undefined,
-  item: Pick<NavItem, "route" | "activePrefix">,
-  allItems: readonly Pick<NavItem, "route" | "activePrefix">[],
+  item: Pick<NavItem, "route" | "activePrefix" | "extraActiveRoutes">,
+  allItems: readonly Pick<NavItem, "route" | "activePrefix" | "extraActiveRoutes">[],
 ): boolean {
   if (!pathname) return false;
-  const targetPrefix = item.activePrefix ?? item.route;
-  if (pathname === targetPrefix || pathname === item.route) return true;
-  if (!pathname.startsWith(`${targetPrefix}/`)) return false;
+  const candidatePrefixes = [
+    item.activePrefix ?? item.route,
+    ...(item.extraActiveRoutes ?? []),
+  ];
+  const matchedPrefix = candidatePrefixes.find(
+    (prefix) =>
+      pathname === prefix ||
+      pathname === item.route ||
+      pathname.startsWith(`${prefix}/`),
+  );
+  if (!matchedPrefix) return false;
+  if (pathname === matchedPrefix || pathname === item.route) return true;
   return !allItems.some((other) => {
-    const otherPrefix = other.activePrefix ?? other.route;
-    return (
-      otherPrefix !== targetPrefix &&
-      otherPrefix.length > targetPrefix.length &&
-      (pathname === otherPrefix || pathname.startsWith(`${otherPrefix}/`))
+    const otherPrefixes = [
+      other.activePrefix ?? other.route,
+      ...(other.extraActiveRoutes ?? []),
+    ];
+    return otherPrefixes.some(
+      (otherPrefix) =>
+        otherPrefix !== matchedPrefix &&
+        otherPrefix.length > matchedPrefix.length &&
+        (pathname === otherPrefix || pathname.startsWith(`${otherPrefix}/`)),
     );
   });
 }

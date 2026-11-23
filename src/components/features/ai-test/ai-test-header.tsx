@@ -6,13 +6,13 @@ import {
   Film,
   Images,
   Radio,
-  RefreshCw,
   Server,
   Terminal,
   AlertCircle,
   Layers,
 } from "lucide-react";
 import { NM } from "./nm-styles";
+import { ConsoleRefreshButton } from "@/components/ui/refresh-action";
 import { useLocale } from "@/providers/locale-provider";
 import type { AiTestViewTab, ModelInfo } from "@/types/ai-test.types";
 
@@ -180,30 +180,13 @@ export function AiTestHeader({
             )}
 
             {/* Nút Làm Mới Trạng Thái dạng Công Tắc Vật Lý */}
-            <button
-              type="button"
-              onClick={onRefreshAll}
-              disabled={isRefreshing}
-              className={`group inline-flex shrink-0 items-center gap-3 rounded-2xl px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-foreground disabled:opacity-60 cursor-pointer ${NM.tactileBtn}`}
-            >
-              <span
-                className={`flex h-9 w-9 items-center justify-center rounded-xl ${NM.recessed}`}
-              >
-                <RefreshCw
-                  className={`size-4 text-primary transition-transform duration-500 ${
-                    isRefreshing ? "animate-spin" : "group-hover:rotate-90"
-                  }`}
-                />
-              </span>
-              <div className="text-left">
-                <div className="leading-none">
-                  {isRefreshing ? t("aiTest.header.syncing") : t("aiTest.header.refresh")}
-                </div>
-                <div className="mt-1 text-[10px] font-medium normal-case tracking-normal text-muted-foreground">
-                  {t("aiTest.header.refreshSubtitle")}
-                </div>
-              </div>
-            </button>
+            <ConsoleRefreshButton
+              onRefresh={onRefreshAll}
+              isRefreshing={isRefreshing}
+              label={t("aiTest.header.refresh")}
+              syncingLabel={t("aiTest.header.syncing")}
+              subtitle={t("aiTest.header.refreshSubtitle")}
+            />
           </div>
         </div>
 

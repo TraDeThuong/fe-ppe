@@ -68,7 +68,17 @@ export default function RolesContent() {
 
   // Data fetching
   const { data: roles = [], isLoading: rolesLoading, isFetching: rolesFetching, error: rolesError, refetch: refetchRoles } = useRolesCatalog();
-  const { data: permissions = [], isLoading: permsLoading } = usePermissions();
+  const {
+    data: permissions = [],
+    isLoading: permsLoading,
+    isFetching: permsFetching,
+    refetch: refetchPermissions,
+  } = usePermissions();
+
+  const isRefreshingAll = rolesFetching || permsFetching;
+  const handleRefreshAll = () => {
+    void Promise.all([refetchRoles(), refetchPermissions()]);
+  };
 
   // Mutations
   const createRole = useCreateRole();
@@ -170,6 +180,10 @@ export default function RolesContent() {
       params.delete("stat");
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     }}
+
+    onRefresh={viewMode !== "table" ? handleRefreshAll : undefined}
+
+    isRefreshing={isRefreshingAll}
 
   />);
 
@@ -287,11 +301,9 @@ export default function RolesContent() {
                 manualFiltering: true,
                 globalFilter: search,
                 filterKey: systemFilter,
-                fetching: rolesFetching,
+                fetching: isRefreshingAll,
                 error: rolesError,
-                onRetry: () => {
-                  void refetchRoles();
-                },
+                onRetry: handleRefreshAll,
                 toolbar
               }}
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Camera } from "lucide-react";
 import { toast } from "@/lib/toast";
 import { NM } from "@/components/features/ai-test/nm-styles";
@@ -18,6 +18,7 @@ import {
   RestrictedAreaDrawer,
 } from "@/components/features/sites/restricted-area-drawer";
 import {
+  buildCameraHotConfigPayload,
   buildCameraStartPayload,
   canAutoStartCameraSource,
   deriveLiveDefaultsFromConfig,
@@ -28,6 +29,7 @@ import {
   toSafeLiveCameraId,
 } from "@/components/features/cameras/camera-live-helpers";
 import {
+  cameraKeys,
   useCameraConfig,
   useCameraDetail,
   useCameraLiveSessions,
@@ -46,6 +48,7 @@ import {
   aiTestService,
   isAiEndpointNotFoundError,
 } from "@/services/ai-test.service";
+import { cameraService } from "@/services/camera.service";
 import { incidentService } from "@/services/incident.service";
 import { Loader } from "@/components/ui/loader";
 import { CameraIncidentsDeviceTab } from "./camera-incidents-device-tab";
@@ -111,25 +114,32 @@ export function CameraIntelligenceContent({
 }: CameraIntelligenceContentProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const queryClient = useQueryClient();
   const canManage = useCan()("PPE_CAMERA_MANAGE");
   const { getSiteName } = useEntityLookup();
 
   const {
     data: camera,
     isLoading: cameraLoading,
+    isFetching: cameraFetching,
     refetch: refetchCamera,
   } = useCameraDetail(cameraId);
 
-  const { data: cameraConfig, refetch: refetchConfig } = useCameraConfig(
-    cameraId,
-    Boolean(cameraId),
-  );
+  const {
+    data: cameraConfig,
+    isFetching: configFetching,
+    refetch: refetchConfig,
+  } = useCameraConfig(cameraId, Boolean(cameraId));
 
   const updateCameraMutation = useUpdateCamera();
   const updateConfigMutation = useUpdateCameraConfig();
 
   // Effective safety rules: Camera Override -> Site Level -> System Default
-  const { data: effectiveSafety } = useEffectiveSafetyConfig(
+  const {
+    data: effectiveSafety,
+    isFetching: safetyFetching,
+    refetch: refetchSafety,
+  } = useEffectiveSafetyConfig(
     { siteId: camera?.siteId ?? "", cameraId: camera?.id },
     Boolean(camera?.siteId && camera?.id),
   );
@@ -150,6 +160,7 @@ export function CameraIntelligenceContent({
   const {
     data: incidentsData,
     isLoading: incidentsLoading,
+    isFetching: incidentsFetching,
     refetch: refetchIncidents,
   } = useQuery({
     queryKey: ["camera-detail-incidents", cameraId],
@@ -170,6 +181,8 @@ export function CameraIntelligenceContent({
   const [aiFps, setAiFps] = useState<number>(15);
   const [confirmHelmetSec, setConfirmHelmetSec] = useState<number>(2.0);
   const [confirmVestSec, setConfirmVestSec] = useState<number>(4.0);
+  const [confidenceThreshold, setConfidenceThreshold] = useState<number>(0.8);
+  const [cooldownSec, setCooldownSec] = useState<number>(30);
 
   const [enableNoHelmet, setEnableNoHelmet] = useState<boolean>(true);
   const [enableNoVest, setEnableNoVest] = useState<boolean>(true);
@@ -183,6 +196,7 @@ export function CameraIntelligenceContent({
   const [isStarting, setIsStarting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   const [pingOpen, setPingOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -217,6 +231,14 @@ export function CameraIntelligenceContent({
     const defaults = deriveLiveDefaultsFromConfig(cameraConfig, effectiveSafety);
     setTargetFps(defaults.targetFps);
     setAiFps(defaults.aiFps);
+    setConfirmHelmetSec(defaults.confirmHelmetSec);
+    setConfirmVestSec(defaults.confirmVestSec);
+    if (defaults.confidenceThreshold !== undefined) {
+      setConfidenceThreshold(defaults.confidenceThreshold);
+    }
+    if (defaults.cooldownSec !== undefined) {
+      setCooldownSec(defaults.cooldownSec);
+    }
     setEnableNoHelmet(defaults.enableNoHelmet);
     setEnableNoVest(defaults.enableNoVest);
     setEnableRestrictedArea(defaults.enableRestrictedArea);
@@ -233,8 +255,24 @@ export function CameraIntelligenceContent({
     setEnableRestrictedArea(defaults.enableRestrictedArea);
     setConfirmHelmetSec(defaults.confirmHelmetSec);
     setConfirmVestSec(defaults.confirmVestSec);
+    if (defaults.confidenceThreshold !== undefined) {
+      setConfidenceThreshold(defaults.confidenceThreshold);
+    }
+    if (defaults.cooldownSec !== undefined) {
+      setCooldownSec(defaults.cooldownSec);
+    }
+    const configuredModelPath = effectiveSafety.modelVersion?.modelPath;
+    if (typeof configuredModelPath === "string" && configuredModelPath.trim() && models.length > 0) {
+      const targetName = configuredModelPath.trim().split("/").pop();
+      const matched = models.find(
+        (m) => m.path === configuredModelPath.trim() || m.path.endsWith(`/${targetName}`),
+      );
+      if (matched) {
+        setSelectedModel(matched.path);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveSafety]);
+  }, [effectiveSafety, models]);
 
   const runningSession = useMemo(
     () => (camera ? getSessionForCamera(camera) : undefined),
@@ -337,6 +375,30 @@ export function CameraIntelligenceContent({
       userStoppedRef.current = false;
       setIsStarting(true);
       try {
+        if (
+          camera.id &&
+          canManage &&
+          (autoSyncEnabled || cameraConfig?.processingEnabled !== true)
+        ) {
+          const enableProcessing = cameraService.updateCameraConfig(camera.id, {
+            processingEnabled: true,
+          });
+          if (autoSyncEnabled) {
+            await enableProcessing;
+          } else {
+            await enableProcessing.catch(() => undefined);
+          }
+          void queryClient.invalidateQueries({
+            queryKey: cameraKeys.config(camera.id),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: cameraKeys.detail(camera.id),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: cameraKeys.lists(),
+          });
+        }
+
         const payload = buildCameraStartPayload(
           camera,
           {
@@ -347,6 +409,8 @@ export function CameraIntelligenceContent({
             aiFps,
             confirmHelmetSec,
             confirmVestSec,
+            confidenceThreshold,
+            cooldownSec,
             enableNoHelmet,
             enableNoVest,
             enableRestrictedArea,
@@ -383,10 +447,15 @@ export function CameraIntelligenceContent({
     },
     [
       aiFps,
+      autoSyncEnabled,
       camera,
+      cameraConfig?.processingEnabled,
       cameraConfig?.roiPolygon,
+      canManage,
       confirmHelmetSec,
       confirmVestSec,
+      confidenceThreshold,
+      cooldownSec,
       effectiveSource,
       enableNoHelmet,
       enableNoVest,
@@ -395,6 +464,7 @@ export function CameraIntelligenceContent({
       isVietnamese,
       liveCameraId,
       productionMode,
+      queryClient,
       refreshAiEngine,
       selectedModel,
       targetFps,
@@ -405,6 +475,12 @@ export function CameraIntelligenceContent({
   useEffect(() => {
     if (!canManage || !camera || !engineOnline) return;
     if (autoSyncEnabled && camera.status === "ONLINE") return;
+    if (
+      camera.config?.processingEnabled === false ||
+      cameraConfig?.processingEnabled === false
+    ) {
+      return;
+    }
     if (statsCheckedFor !== liveCameraId) return;
     if (autoStartedForRef.current === camera.id) return;
 
@@ -423,6 +499,7 @@ export function CameraIntelligenceContent({
     autoSyncEnabled,
     canManage,
     camera,
+    cameraConfig?.processingEnabled,
     dbRunnableSource,
     engineOnline,
     handleStartStream,
@@ -524,7 +601,34 @@ export function CameraIntelligenceContent({
     userStoppedRef.current = true;
     setIsStopping(true);
     try {
-      await aiTestService.stopLiveStream(liveCameraId);
+      // Persist processingEnabled=false BEFORE stopping RAM session so 24/7 CameraSyncManager does not auto-restart it
+      if (camera?.id && canManage) {
+        const disableProcessing = cameraService.updateCameraConfig(camera.id, {
+          processingEnabled: false,
+        });
+        if (autoSyncEnabled) {
+          await disableProcessing;
+        } else {
+          await disableProcessing.catch(() => undefined);
+        }
+        void queryClient.invalidateQueries({
+          queryKey: cameraKeys.config(camera.id),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: cameraKeys.detail(camera.id),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: cameraKeys.lists(),
+        });
+      }
+
+      try {
+        await aiTestService.stopLiveStream(liveCameraId);
+      } catch (stopErr) {
+        if (!(camera?.id && isAiEndpointNotFoundError(stopErr))) {
+          throw stopErr;
+        }
+      }
       setStats((prev) => (prev ? { ...prev, status: "stopped" } : prev));
       void refreshAiEngine();
       toast.success(
@@ -543,7 +647,15 @@ export function CameraIntelligenceContent({
     } finally {
       setIsStopping(false);
     }
-  }, [liveCameraId, refreshAiEngine]);
+  }, [
+    autoSyncEnabled,
+    camera?.id,
+    canManage,
+    isVietnamese,
+    liveCameraId,
+    queryClient,
+    refreshAiEngine,
+  ]);
 
   const handleSaveToDb = useCallback(async () => {
     if (!camera) return;
@@ -559,19 +671,49 @@ export function CameraIntelligenceContent({
       await updateCameraSafetyMutation.mutateAsync({
         cameraId: camera.id,
         payload: {
+          confidenceThreshold,
           confirmationDuration: confirmHelmetSec,
+          cooldownDuration: cooldownSec,
           enableNoHelmet,
           enableNoVest,
           enableRestrictedArea,
         },
       });
     }
+    if (stats?.status === "running") {
+      await aiTestService
+        .updateLiveConfig(
+          liveCameraId,
+          buildCameraHotConfigPayload({
+            targetFps,
+            aiFps,
+            confirmHelmetSec,
+            confirmVestSec,
+            confidenceThreshold,
+            cooldownSec,
+            enableNoHelmet,
+            enableNoVest,
+            enableRestrictedArea,
+            enableSceneCut,
+            roiPolygon: cameraConfig?.roiPolygon,
+          }),
+        )
+        .catch(() => undefined);
+    }
   }, [
+    aiFps,
     camera,
+    cameraConfig?.roiPolygon,
+    confidenceThreshold,
     confirmHelmetSec,
+    confirmVestSec,
+    cooldownSec,
     enableNoHelmet,
     enableNoVest,
     enableRestrictedArea,
+    enableSceneCut,
+    liveCameraId,
+    stats?.status,
     targetFps,
     updateCameraSafetyMutation,
     updateConfigMutation,
@@ -752,15 +894,28 @@ export function CameraIntelligenceContent({
         activeModelName={activeModelName}
         galleryCount={combinedEvidences.length}
         incidentsCount={incidents.length}
-        isRefreshing={incidentsLoading}
+        isRefreshing={
+          isManualRefreshing ||
+          cameraFetching ||
+          configFetching ||
+          safetyFetching ||
+          incidentsFetching
+        }
         canManage={canManage}
         onRefreshAll={() => {
+          setIsManualRefreshing(true);
           void Promise.all([
             refetchCamera(),
             refetchConfig(),
+            camera?.siteId && camera?.id ? refetchSafety() : Promise.resolve(),
             refetchIncidents(),
+            queryClient.invalidateQueries({
+              queryKey: cameraKeys.healthLogs(cameraId),
+            }),
             refreshAiEngine(),
-          ]);
+          ]).finally(() => {
+            setIsManualRefreshing(false);
+          });
         }}
         onOpenPing={() => setPingOpen(true)}
         onOpenEdit={() => setEditOpen(true)}
@@ -787,6 +942,11 @@ export function CameraIntelligenceContent({
           onConfirmHelmetSecChange={setConfirmHelmetSec}
           confirmVestSec={confirmVestSec}
           onConfirmVestSecChange={setConfirmVestSec}
+          confidenceThreshold={confidenceThreshold}
+          onConfidenceThresholdChange={setConfidenceThreshold}
+          cooldownSec={cooldownSec}
+          onCooldownSecChange={setCooldownSec}
+          activeAiConfig={stats?.active_config}
           enableNoHelmet={enableNoHelmet}
           onEnableNoHelmetChange={setEnableNoHelmet}
           enableNoVest={enableNoVest}
@@ -855,6 +1015,7 @@ export function CameraIntelligenceContent({
           config={cameraConfig}
           incidents={incidents}
           incidentsLoading={incidentsLoading}
+          incidentsFetching={incidentsFetching}
           onRefreshIncidents={handleRefreshIncidents}
           liveVideos={liveVideos}
           overrideSource={overrideSource}

@@ -67,6 +67,14 @@ export interface DashboardCameraPartition {
 }
 export interface DashboardAnalytics {
   total: number;
+  /** Tổng số bản ghi lỗi gốc trong DB trước khi gom cụm đa sự cố */
+  rawTotal: number;
+  /** Số cụm đa vi phạm (>= 2 loại lỗi PPE trên cùng 1 người) */
+  multiViolationClusters: number;
+  /** Chế độ tổng hợp đang dùng */
+  aggregationMode: "clustered" | "raw";
+  /** Phân rã tổng số lần xuất hiện của từng lỗi thành phần (kể cả trong cụm đa vi phạm) */
+  componentViolationBreakdown: DashboardGroup[];
   dismissed: number;
   reviewed: number;
   dismissedRate: number | null;

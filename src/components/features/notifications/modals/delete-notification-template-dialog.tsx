@@ -66,7 +66,7 @@ export function DeleteNotificationTemplateDialog({
       }
       icon={
         isSystemTemplate ? (
-          <ShieldAlert className="h-5 w-5 text-amber-500" />
+          <ShieldAlert className="h-5 w-5 text-warning" />
         ) : (
           <AlertTriangle className="h-5 w-5 text-danger" />
         )
@@ -136,8 +136,8 @@ export function DeleteNotificationTemplateDialog({
         </div>
 
         {isSystemTemplate ? (
-          <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs leading-relaxed text-amber-700 dark:text-amber-400">
-            <ShieldAlert className="mt-0.5 size-4 shrink-0" />
+          <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs leading-relaxed text-foreground">
+            <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning" />
             <p className="min-w-0 flex-1 break-words">
               {isVietnamese
                 ? "Đây là mẫu cốt lõi của nền tảng Smart PPE Monitoring. Bạn chỉ có thể sửa nội dung câu chữ hoặc tắt kích hoạt (INACTIVE), không thể xóa bỏ hoàn toàn."

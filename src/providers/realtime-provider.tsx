@@ -15,6 +15,7 @@ import { systemQueryKeys } from "@/hooks/system/system.query-keys";
 // Event type từ notification-service (notification.service.ts)
 const ALERT_EVENTS = [
   "notification:ppe_violation",
+  "notification:incident_comment",
   "notification:new",
   "notification:broadcast",
 ] as const;
@@ -49,7 +50,26 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     let source: EventSource | null = null;
     let disposed = false;
     let reconnectTimer: NodeJS.Timeout | null = null;
+    let inboxInvalidateTimer: NodeJS.Timeout | null = null;
     let retryAttempt = 0;
+
+    // Gom các đợt SSE bắn dồn dập trong 1.5s thành 1 lần tải lại hộp thư, tránh spam hàng chục request phân trang
+    const scheduleInboxInvalidate = () => {
+      if (disposed || inboxInvalidateTimer) return;
+      inboxInvalidateTimer = setTimeout(() => {
+        inboxInvalidateTimer = null;
+        if (!disposed) {
+          void queryClient.invalidateQueries(
+            { queryKey: notificationKeys.lists() },
+            { cancelRefetch: false },
+          );
+          void queryClient.invalidateQueries(
+            { queryKey: notificationKeys.unreadCount() },
+            { cancelRefetch: false },
+          );
+        }
+      }, 1500);
+    };
 
     const scheduleReconnect = (minDelayMs: number) => {
       if (disposed || reconnectTimer) return;
@@ -102,14 +122,14 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
                 }
               }
               setLastAlert({ type: eventName, data: parsed, id: eventId });
-              void queryClient.invalidateQueries({ queryKey: notificationKeys.all }, { cancelRefetch: false });
+              scheduleInboxInvalidate();
             } catch {
               setLastAlert({
                 type: eventName,
                 data: typeof raw === "string" ? stripEmojis(raw) : raw,
                 id: eventId,
               });
-              void queryClient.invalidateQueries({ queryKey: notificationKeys.all }, { cancelRefetch: false });
+              scheduleInboxInvalidate();
             }
           });
         }
@@ -149,6 +169,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       disposed = true;
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
+      }
+      if (inboxInvalidateTimer) {
+        clearTimeout(inboxInvalidateTimer);
       }
       source?.close();
       setIsConnected(false);

@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { RefreshCw, ScrollText, Settings2, ShieldAlert, Wrench } from "lucide-react";
+import { ScrollText, Settings2, ShieldAlert, Wrench } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-action";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import {
   CreateConfigModal,
@@ -142,6 +143,7 @@ export default function SystemContent() {
   const {
     data: featureFlags = [],
     isLoading: isLoadingFlags,
+    isFetching: isFetchingFlags,
     error: flagsError,
     refetch: refetchFlags,
     toggleFlag,
@@ -248,6 +250,12 @@ export default function SystemContent() {
     [t, isVietnamese],
   );
 
+  const isRefreshingAll = isRefreshingHealth || isFetchingFlags || configsFetching;
+
+  const handleRefreshAll = () => {
+    void Promise.all([refetchHealth(), refetchFlags(), refetchConfigs()]);
+  };
+
   const headerActions = (
     <div className="flex items-center gap-2 flex-wrap">
       <Link href="/maintenance">
@@ -272,22 +280,14 @@ export default function SystemContent() {
         </Button>
       </Link>
 
-      <Button
-
+      <RefreshButton
         variant="outline"
-
         size="sm"
-
-        onClick={() => refetchHealth()}
-
-        disabled={isRefreshingHealth}
-
-        className="flex items-center gap-1.5 rounded-xl text-xs h-8"
-
-      >
-        <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingHealth ? "animate-spin" : ""}`} />
-        <span>{t("system.refresh")}</span>
-      </Button>
+        onRefresh={handleRefreshAll}
+        isRefreshing={isRefreshingAll}
+        label={t("system.refresh")}
+        className="rounded-xl text-xs h-8"
+      />
     </div>
   );
 

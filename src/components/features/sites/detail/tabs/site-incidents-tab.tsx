@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RefreshIconButton } from "@/components/ui/refresh-action";
 import { Modal } from "@/components/ui/modal";
 import {
   SegmentedControl,
@@ -38,7 +39,6 @@ import {
   TableBulkActions,
   TableContent,
   TablePagination,
-  TableRefresh,
   TableRowActions,
   TableSelectionHeader,
   TableSelectionRow,
@@ -887,18 +887,14 @@ export function SiteIncidentsTab({
               <ExternalLink className="h-3 w-3 shrink-0" />
             </Link>
 
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              disabled={isFetching}
-              className="flex h-8.5 w-8.5 items-center justify-center rounded-xl border border-border/40 text-muted-foreground hover:text-primary transition dark:border-black/40"
+            <RefreshIconButton
+              onRefresh={() => refetch()}
+              isRefreshing={isFetching}
+              className="flex h-8.5 w-8.5 cursor-pointer items-center justify-center rounded-xl border border-border/40 text-muted-foreground hover:text-primary dark:border-black/40"
               title={isVietnamese ? "Làm mới sự cố" : "Refresh incidents"}
-              aria-label={isVietnamese ? "Làm mới sự cố" : "Refresh incidents"}
-            >
-              <RefreshCw
-                className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-primary" : ""}`}
-              />
-            </button>
+              ariaLabel={isVietnamese ? "Làm mới sự cố" : "Refresh incidents"}
+              iconClassName="h-3.5 w-3.5"
+            />
           </div>
         </div>
 
@@ -1204,7 +1200,6 @@ export function SiteIncidentsTab({
           <TableToolbar
             showSearch={false}
             showColumnVisibility={true}
-            actions={<TableRefresh />}
           />
           {canReview && <TableBulkActions actions={bulkActions} />}
           <TableContent />

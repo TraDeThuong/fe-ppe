@@ -27,6 +27,7 @@ export default function AiModelTestContent() {
   const [backendOnline, setBackendOnline] = useState<boolean>(true);
   const [backendError, setBackendError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [liveRefreshNonce, setLiveRefreshNonce] = useState<number>(0);
   const [offlineJobsSupported, setOfflineJobsSupported] = useState<boolean>(true);
   const [maxSessions, setMaxSessions] = useState<number | null>(null);
 
@@ -138,7 +139,10 @@ export default function AiModelTestContent() {
         activeJobId={activeJobId}
         galleryCount={combinedEvidences.length}
         isRefreshing={isRefreshing}
-        onRefreshAll={() => void refreshMetadata()}
+        onRefreshAll={() => {
+          setLiveRefreshNonce((prev) => prev + 1);
+          void refreshMetadata();
+        }}
       />
 
       <section className={activeTab === "live" ? "block" : "hidden"}>
@@ -147,6 +151,7 @@ export default function AiModelTestContent() {
           maxSessions={maxSessions}
           offlineUploadSupported={offlineJobsSupported}
           activeCameraId={activeLiveCameraId}
+          refreshNonce={liveRefreshNonce}
           onActiveCameraChange={setActiveLiveCameraId}
           onLiveEvidencesChange={setLiveEvidences}
           onInspectEvidence={handleOpenLightbox}

@@ -11,6 +11,12 @@ import type {
   DashboardPreset,
   DashboardSeverity,
 } from "@/types/dashboard.types";
+import {
+  clusterIncidentsByPerson,
+  extractComponentViolationCodes,
+  projectClusterToRepresentativeIncident,
+  type IncidentAggregationMode,
+} from "@/lib/incident-cluster-engine";
 
 export const DASHBOARD_TIME_ZONE = "Asia/Ho_Chi_Minh";
 export const DASHBOARD_MAX_RECORDS = 5000;
@@ -177,12 +183,33 @@ export function incidentInPeriod(
 
 export function aggregateDashboard(
   incidents: readonly IncidentItem[],
+  options: { mode?: IncidentAggregationMode } = {},
 ): DashboardAnalytics {
+  const mode: IncidentAggregationMode = options.mode ?? "clustered";
+  const clusters =
+    mode === "clustered" ? clusterIncidentsByPerson(incidents) : null;
+  const effectiveItems = clusters
+    ? clusters.map(projectClusterToRepresentativeIncident)
+    : incidents;
+
   const distribution = new Map<string, number>(
     ["NO_HELMET", "NO_VEST", "RESTRICTED_AREA", "MULTI_VIOLATION", "OTHER"].map(
       (key) => [key, 0],
     ),
   );
+  const componentBreakdown = new Map<string, number>(
+    ["NO_HELMET", "NO_VEST", "RESTRICTED_AREA", "OTHER"].map((key) => [key, 0]),
+  );
+
+  for (const raw of incidents) {
+    const codes = extractComponentViolationCodes(raw);
+    for (const code of codes) {
+      if (code === "MULTI_VIOLATION") continue;
+      const key = componentBreakdown.has(code) ? code : "OTHER";
+      componentBreakdown.set(key, componentBreakdown.get(key)! + 1);
+    }
+  }
+
   const hours = Array<number>(24).fill(0);
   const severities = new Map<string, DashboardSeverity>(
     ["CRITICAL", "HIGH", "MEDIUM", "LOW", "OTHER"].map((key) => [
@@ -204,7 +231,7 @@ export function aggregateDashboard(
   const durations = new Map<string, number>();
   let reviewed = 0;
   let dismissed = 0;
-  for (const item of incidents) {
+  for (const item of effectiveItems) {
     const type = distribution.has(item.violationType)
       ? item.violationType
       : "OTHER";
@@ -268,8 +295,19 @@ export function aggregateDashboard(
     (sum, value) => sum + value,
     0,
   );
+  const multiViolationClusters = clusters
+    ? clusters.filter((c) => c.isMultiViolation).length
+    : effectiveItems.filter((item) => item.violationType === "MULTI_VIOLATION")
+        .length;
+
   return {
-    total: incidents.length,
+    total: effectiveItems.length,
+    rawTotal: incidents.length,
+    multiViolationClusters,
+    aggregationMode: mode,
+    componentViolationBreakdown: [...componentBreakdown]
+      .map(([key, count]) => ({ key, count }))
+      .filter((item) => item.count > 0),
     dismissed,
     reviewed,
     dismissedRate: reviewed ? (dismissed / reviewed) * 100 : null,

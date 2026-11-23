@@ -13,7 +13,6 @@ import {
   Lock,
   Plus,
   Radio,
-  RefreshCw,
   Server,
   Settings2,
   ShieldAlert,
@@ -22,6 +21,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { RefreshButton } from "@/components/ui/refresh-action";
 import { isFeatureFlagEnabled } from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 import type { ServiceHealthItem, SystemConfigItem, SystemHealthReport } from "@/types";
@@ -194,17 +194,15 @@ export function SystemStatsDetailPanel({
       )}
 
       {activeStat === "health" && (
-        <button
-          type="button"
-          onClick={onRefreshHealth}
-          disabled={isRefreshingHealth}
-          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-foreground shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:text-primary active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] disabled:opacity-50 dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
-        >
-          <RefreshCw
-            className={`h-3.5 w-3.5 ${isRefreshingHealth ? "animate-spin text-primary" : ""}`}
-          />
-          <span className="hidden sm:inline">{t("system.detail.refreshHealth")}</span>
-        </button>
+        <RefreshButton
+          variant="ghost"
+          size="sm"
+          onRefresh={onRefreshHealth}
+          isRefreshing={isRefreshingHealth}
+          label={t("system.detail.refreshHealth")}
+          hideLabelOnMobile
+          className="h-9 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-foreground shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] hover:text-primary active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
+        />
       )}
 
       <button

@@ -55,6 +55,10 @@ export interface AssignmentModalsProps {
   ) => Promise<void>;
 
   batchDispatchItems: IncidentItem[] | null;
+  officerWorkloadById?: ReadonlyMap<
+    string,
+    { activeCount: number; resolvedCount: number }
+  >;
   onClearBatchDispatch: () => void;
   batchActionPending: boolean;
   onConfirmBatchDispatch: (payload: {
@@ -104,6 +108,7 @@ export function AssignmentModals({
   closeLoading,
   onConfirmClose,
   batchDispatchItems,
+  officerWorkloadById,
   onClearBatchDispatch,
   batchActionPending,
   onConfirmBatchDispatch,
@@ -167,6 +172,7 @@ export function AssignmentModals({
           if (!open) onClearBatchDispatch();
         }}
         incidents={batchDispatchItems || []}
+        officerWorkloadById={officerWorkloadById}
         loading={batchActionPending}
         onSubmit={onConfirmBatchDispatch}
       />

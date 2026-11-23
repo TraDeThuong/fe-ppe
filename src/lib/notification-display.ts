@@ -1,12 +1,17 @@
 import { BROADCAST_USER_ID } from "@/lib/notification-inbox";
 import { notificationIncidentTarget } from "@/lib/incident-group";
-import { DISPATCH_SIGNAL_PREFIX, RESOLVED_REPORT_PREFIX } from "@/lib/incident-workflow";
+import {
+  COMMENT_SIGNAL_PREFIX,
+  DISPATCH_SIGNAL_PREFIX,
+  RESOLVED_REPORT_PREFIX,
+} from "@/lib/incident-workflow";
 import { stripEmojis } from "@/lib/strip-emojis";
 import type { NotificationItemDto } from "@/types";
 
 export type NotificationDisplayKind =
   | "DISPATCH"
   | "RESOLVED"
+  | "COMMENT"
   | "PPE_ALERT"
   | "BROADCAST"
   | "SYSTEM";
@@ -105,6 +110,8 @@ export interface ParsedNotificationDisplay {
   cleanBody: string;
   directiveNote?: string;
   resolutionNote?: string;
+  commentAuthor?: string;
+  commentText?: string;
   violationCode?: string;
   violationLabel?: string;
   siteName?: string;
@@ -160,6 +167,11 @@ export function parseNotificationDisplay(
     kind = "DISPATCH";
   } else if (rawBody.startsWith(RESOLVED_REPORT_PREFIX)) {
     kind = "RESOLVED";
+  } else if (
+    rawBody.startsWith(COMMENT_SIGNAL_PREFIX) ||
+    notification.type === "INCIDENT_COMMENT"
+  ) {
+    kind = "COMMENT";
   } else if (
     notification.type === "PPE_VIOLATION" ||
     Boolean(targetIncidentId) ||
@@ -227,10 +239,12 @@ export function parseNotificationDisplay(
     .trim();
   const cleanTitle = replaceViolationCodesInText(titleWithoutBrackets, isVietnamese) || rawTitle;
 
-  // Làm sạch nội dung & tách ghi chú chỉ đạo / nghiệm thu
+  // Làm sạch nội dung & tách ghi chú chỉ đạo / nghiệm thu / bình luận
   let cleanBody = rawBody;
   let directiveNote: string | undefined;
   let resolutionNote: string | undefined;
+  let commentAuthor: string | undefined;
+  let commentText: string | undefined;
 
   if (kind === "DISPATCH") {
     cleanBody = cleanBody.slice(DISPATCH_SIGNAL_PREFIX.length).trim();
@@ -246,6 +260,24 @@ export function parseNotificationDisplay(
       resolutionNote = cleanBody.slice(colonIdx + 1).trim();
       cleanBody = cleanBody.slice(0, colonIdx).trim();
     }
+  } else if (kind === "COMMENT") {
+    const withoutPrefix = cleanBody.startsWith(COMMENT_SIGNAL_PREFIX)
+      ? cleanBody.slice(COMMENT_SIGNAL_PREFIX.length).trim()
+      : cleanBody;
+    const metaAuthor =
+      typeof meta.authorName === "string" && meta.authorName.trim()
+        ? meta.authorName.trim()
+        : undefined;
+    const colonIdx = withoutPrefix.indexOf(":");
+    if (colonIdx > 0 && colonIdx < withoutPrefix.length - 1) {
+      commentAuthor = metaAuthor || withoutPrefix.slice(0, colonIdx).trim();
+      commentText = withoutPrefix.slice(colonIdx + 1).trim();
+      cleanBody = commentText;
+    } else {
+      commentAuthor = metaAuthor;
+      commentText = withoutPrefix;
+      cleanBody = withoutPrefix;
+    }
   } else {
     // Bỏ câu "Mức độ: CRITICAL." dư thừa nếu đã có badge mức độ
     cleanBody = cleanBody
@@ -257,6 +289,10 @@ export function parseNotificationDisplay(
   cleanBody = replaceViolationCodesInText(cleanBody, isVietnamese);
 
   const groupCount = incidentTarget.group?.incidentIds.length ?? 0;
+  const incidentHref =
+    kind === "COMMENT" && targetIncidentId && !incidentTarget.group
+      ? `/incidents/${encodeURIComponent(targetIncidentId)}?focus=comments`
+      : incidentTarget.href;
 
   return {
     kind,
@@ -264,13 +300,15 @@ export function parseNotificationDisplay(
     cleanBody,
     directiveNote,
     resolutionNote,
+    commentAuthor,
+    commentText,
     violationCode,
     violationLabel,
     siteName,
     cameraCode,
     zoneName,
     incidentId: targetIncidentId,
-    incidentHref: incidentTarget.href,
+    incidentHref,
     isGroupLink: Boolean(incidentTarget.group),
     groupCount,
     isLegacyDispatch: incidentTarget.legacy,

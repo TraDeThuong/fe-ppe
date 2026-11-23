@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { RefreshCw, Wrench } from "lucide-react";
+import { Wrench } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-action";
 import {
   MaintenanceControlPanel,
   MaintenancePreviewCard,
@@ -82,18 +82,15 @@ export default function MaintenanceContent() {
           </Badge>
         }
         actions={
-          <Button
+          <RefreshButton
             variant="outline"
             size="sm"
-            onClick={() => void refetch()}
-            disabled={isFetching}
+            onRefresh={() => refetch()}
+            isRefreshing={isFetching}
+            hideLabelOnMobile
+            iconClassName="h-4 w-4"
             className="gap-2"
-          >
-            <RefreshCw
-              className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
-            />
-            <span className="hidden sm:inline">{t("common.refresh")}</span>
-          </Button>
+          />
         }
       />
 

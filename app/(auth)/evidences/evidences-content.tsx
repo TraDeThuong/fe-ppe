@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Images, RefreshCw, Sparkles } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Images, Sparkles } from "lucide-react";
+import { RefreshButton } from "@/components/ui/refresh-action";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import {
   EvidenceAuditTable,
@@ -23,12 +25,12 @@ import { useSite } from "@/contexts/SiteContext";
 import { useDebounce } from "@/hooks/use-debounce";
 import {
   incidentKeys,
+  useAssignmentIncidents,
   useBatchDeleteEvidences,
   useBatchVerifyEvidences,
   useEvidenceMutations,
   useEvidenceVaultCounts,
   useEvidences,
-  useIncidents,
   useVerifyEvidenceMutation,
 } from "@/hooks/incidents";
 import { useCan } from "@/hooks/use-can";
@@ -200,26 +202,40 @@ export default function EvidencesContent() {
     sortOrder,
   });
 
-  const { data: vaultCounts, isLoading: countsLoading } = useEvidenceVaultCounts({
+  const {
+    data: vaultCounts,
+    isLoading: countsLoading,
+    isFetching: countsFetching,
+    refetch: refetchVaultCounts,
+  } = useEvidenceVaultCounts({
     cameraId: cameraId || undefined,
   });
 
-  // Hydrate incident context (violationType, severity, status, siteId) with 1 lightweight call
-  const { data: incidentsData } = useIncidents({
-    page: 1,
-    limit: 100,
+  // Hydrate incident context theo từng trạng thái vòng đời (PENDING_REVIEW, CONFIRMED, RESOLVED, CLOSED, DISMISSED)
+  // để bằng chứng của sự cố đã duyệt/đã đóng không bị thiếu context khi có >100 cảnh báo PENDING_REVIEW mới
+  const {
+    items: contextIncidents,
+    isRefetching: contextIncidentsRefetching,
+    refetch: refetchContextIncidents,
+  } = useAssignmentIncidents({
     siteId: siteId || undefined,
     cameraId: cameraId || undefined,
     violationType: violationType || undefined,
+    includeAssignments: false,
+    maxConfirmedPages: 2,
+    closedLimit: 100,
+    dismissedLimit: 100,
+    staleTime: 60 * 1000,
+    refetchInterval: false,
   });
 
   const incidentsMap = useMemo(() => {
     const map = new Map<string, IncidentItem>();
-    for (const inc of incidentsData?.items ?? []) {
+    for (const inc of contextIncidents) {
       map.set(inc.id, inc);
     }
     return map;
-  }, [incidentsData]);
+  }, [contextIncidents]);
 
   // Realtime invalidation on new PPE violations
   useEffect(() => {
@@ -317,7 +333,7 @@ export default function EvidencesContent() {
 
   const breadcrumbs = useMemo(
     () => [
-      { label: t("common.breadcrumb.home"), href: "/dashboard" },
+      { label: t("nav.incidents"), href: "/incidents" },
       { label: t("nav.evidences") },
     ],
     [t],
@@ -546,6 +562,15 @@ export default function EvidencesContent() {
         breadcrumbs={breadcrumbs}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/incidents"
+              className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-border/70 bg-background px-3 text-sm font-medium text-foreground shadow-[6px_6px_12px_var(--shadow-dark),-6px_-6px_12px_var(--shadow-light)] transition-[box-shadow,transform,color] duration-200 hover:text-primary active:translate-y-px active:shadow-[inset_4px_4px_8px_var(--shadow-dark),inset_-4px_-4px_8px_var(--shadow-light)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+              title={isVi ? "Quay lại danh sách sự cố" : "Back to Incidents"}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>{isVi ? "Quay lại Sự cố" : "Back to Incidents"}</span>
+            </Link>
+
             <Button
               variant="outline"
               size="sm"
@@ -576,16 +601,19 @@ export default function EvidencesContent() {
               <span className="hidden sm:inline">AI HUD</span>
             </Button>
 
-            <Button
+            <RefreshButton
               variant="ghost"
               size="sm"
-              disabled={isFetching}
-              onClick={() => void refetch()}
-              className="gap-1.5"
-            >
-              <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-              <span>{t("common.refresh")}</span>
-            </Button>
+              isRefreshing={isFetching || countsFetching || contextIncidentsRefetching}
+              onRefresh={() =>
+                Promise.all([
+                  refetch(),
+                  refetchVaultCounts(),
+                  refetchContextIncidents(),
+                ])
+              }
+              iconClassName="h-4 w-4"
+            />
           </div>
         }
       />

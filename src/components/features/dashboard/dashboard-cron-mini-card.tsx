@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowRight,
   CalendarClock,
+  Check,
   CheckCircle2,
   ChevronRight,
   Clock,
@@ -26,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AuthContext } from "@/contexts/AuthContext";
 import { useCronJobs, useCronMutations } from "@/hooks/cron/use-cron";
 import { useCronRecentExecutions } from "@/hooks/cron/use-cron-history";
+import { useRefreshFeedback } from "@/hooks/use-refresh-feedback";
 import { ApiError } from "@/lib/axios";
 import {
   assessCronJobGuidance,
@@ -221,6 +223,17 @@ export function DashboardCronMiniCard({
       setTriggerError(null);
     }
   };
+
+  const {
+    isSpinning: isRefreshingCron,
+    isSuccess: isCronRefreshed,
+    lastSyncedLabel: cronSyncedLabel,
+    trigger: triggerCronRefresh,
+  } = useRefreshFeedback({
+    onRefresh: handleRefresh,
+    isRefreshing: isFetching,
+    hasError: isError,
+  });
 
   const openTriggerDialog = (job: CronJobItem) => {
     if (
@@ -421,16 +434,35 @@ export function DashboardCronMiniCard({
             {canRead && (
               <button
                 type="button"
-                onClick={() => void handleRefresh()}
-                disabled={isFetching || jobsOverride !== undefined}
+                onClick={triggerCronRefresh}
+                disabled={isRefreshingCron || jobsOverride !== undefined}
                 aria-label={t("dashboard.cronCard.refresh")}
-                className={`inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full bg-background px-3.5 text-xs font-bold text-foreground transition-all disabled:opacity-50 ${NM.tactileBtn}`}
+                title={
+                  cronSyncedLabel
+                    ? `${t("dashboard.cronCard.refresh")} · ${cronSyncedLabel}`
+                    : t("dashboard.cronCard.refresh")
+                }
+                className={`inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full bg-background px-3.5 text-xs font-bold transition-all disabled:opacity-50 ${NM.tactileBtn} ${
+                  isCronRefreshed
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-foreground"
+                }`}
               >
-                <RefreshCw
-                  className={`size-3.5 text-primary ${isFetching ? "animate-spin" : ""}`}
-                  strokeWidth={2.4}
-                />
-                <span>{t("dashboard.cronCard.refresh")}</span>
+                {isCronRefreshed ? (
+                  <Check className="size-3.5 stroke-[2.75] text-emerald-500" />
+                ) : (
+                  <RefreshCw
+                    className={`size-3.5 text-primary ${isRefreshingCron ? "animate-spin" : ""}`}
+                    strokeWidth={2.4}
+                  />
+                )}
+                <span>
+                  {isCronRefreshed
+                    ? isVi
+                      ? "Đã cập nhật"
+                      : "Updated"
+                    : t("dashboard.cronCard.refresh")}
+                </span>
               </button>
             )}
           </div>

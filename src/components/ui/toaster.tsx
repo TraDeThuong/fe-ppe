@@ -12,6 +12,7 @@ import {
   Layers,
   Loader2,
   MapPin,
+  MessageSquare,
   Send,
   ShieldAlert,
   ShieldBan,
@@ -105,6 +106,8 @@ function renderViolationIcon(iconKey: ViolationToastIconKey): ReactNode {
       return <Send className={cls} />;
     case "check-circle":
       return <CheckCircle2 className={cls} />;
+    case "message-square":
+      return <MessageSquare className={cls} />;
     case "shield-alert":
     default:
       return <ShieldAlert className={cls} />;
@@ -445,9 +448,13 @@ export function WoodenIncidentToast({
       : groupCount && groupCount > 1
         ? `Nhóm (${groupCount})`
         : "Mở nhóm"
-    : isEn
-      ? "View incident"
-      : "Xem sự cố";
+    : kind === "INCIDENT_COMMENT"
+      ? isEn
+        ? "View thread"
+        : "Xem trao đổi"
+      : isEn
+        ? "View incident"
+        : "Xem sự cố";
 
   return (
     <WoodenToastShell
@@ -514,7 +521,7 @@ export function WoodenIncidentToast({
               {categoryLabel}
             </span>
 
-            {kind !== "OFFICER_RESOLVED_REPORT" && (
+            {kind !== "OFFICER_RESOLVED_REPORT" && kind !== "INCIDENT_COMMENT" && (
               <span
                 className="shrink-0 rounded-[5px] px-1.5 py-[1px] font-mono text-[9px] font-bold uppercase tracking-wider"
                 style={{

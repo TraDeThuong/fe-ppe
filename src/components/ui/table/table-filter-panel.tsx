@@ -1,6 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { Filter, RefreshCw, RotateCcw } from "lucide-react";
+import { AlertCircle, Check, Filter, RefreshCw, RotateCcw } from "lucide-react";
+import { useRefreshFeedback } from "@/hooks/use-refresh-feedback";
 import { useLocale } from "@/providers/locale-provider";
 import { useTableContext } from "./table-context";
 
@@ -23,15 +24,39 @@ export function TableFilterPanel({ children, active = false, onReset, defaultOpe
   </section>;
 }
 export function TableRefresh() {
-  const { fetching, loading, onRetry } = useTableContext();
-  const { t } = useLocale();
+  const { fetching, loading, error, onRetry } = useTableContext();
+  const { t, locale } = useLocale();
+  const isVi = locale === "vi-VN";
+  const { isSpinning, isSuccess, isError, lastSyncedLabel, trigger } =
+    useRefreshFeedback({
+      onRefresh: onRetry,
+      isRefreshing: fetching,
+      hasError: Boolean(error),
+    });
+
   if (!onRetry) return null;
+
+  const baseLabel = t("common.refresh");
+  const title = isSuccess
+    ? isVi
+      ? `Đã cập nhật (${lastSyncedLabel ?? ""})`
+      : `Updated (${lastSyncedLabel ?? ""})`
+    : lastSyncedLabel
+      ? `${baseLabel} · ${lastSyncedLabel}`
+      : baseLabel;
+
+  const stateClass = isSuccess
+    ? "border-emerald-500/50 text-emerald-600 dark:text-emerald-400"
+    : isError
+      ? "border-danger/50 text-danger"
+      : "border-border/50 text-muted-foreground hover:text-primary";
+
   return <button
     type="button"
-    onClick={onRetry}
-    disabled={loading || fetching}
-    aria-label={t("common.refresh")}
-    title={t("common.refresh")}
-    className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/50 text-muted-foreground hover:text-primary disabled:opacity-40"
-  ><RefreshCw size={14} className={fetching ? "animate-spin" : ""} /></button>;
+    onClick={trigger}
+    disabled={loading || isSpinning}
+    aria-label={baseLabel}
+    title={title}
+    className={`inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border transition-all duration-200 active:scale-95 disabled:opacity-40 ${stateClass}`}
+  >{isSuccess ? <Check size={14} className="stroke-[2.75]" /> : isError ? <AlertCircle size={14} /> : <RefreshCw size={14} className={isSpinning ? "animate-spin text-primary" : ""} />}</button>;
 }

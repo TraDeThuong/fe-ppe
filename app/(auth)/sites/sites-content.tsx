@@ -97,7 +97,17 @@ export default function SitesContent() {
 
   });
   const sites = data?.items || [];
-  const { data: sitesCatalog = [], isLoading: catalogLoading } = useSitesCatalog();
+  const {
+    data: sitesCatalog = [],
+    isLoading: catalogLoading,
+    isFetching: catalogFetching,
+    refetch: refetchCatalog,
+  } = useSitesCatalog();
+
+  const isRefreshingAll = isFetching || catalogFetching;
+  const handleRefreshAll = () => {
+    void Promise.all([refetch(), refetchCatalog()]);
+  };
 
   // Mutations
   const createSite = useCreateSite();
@@ -185,6 +195,10 @@ export default function SitesContent() {
     onViewModeChange={setViewMode}
 
     onCreateSite={handleOpenCreate}
+
+    onRefresh={viewMode !== "table" ? handleRefreshAll : undefined}
+
+    isRefreshing={isRefreshingAll}
 
   />);
 
@@ -298,11 +312,9 @@ export default function SitesContent() {
             manualFiltering: true,
             rowCount: data?.meta?.total ?? sites.length,
             pageCount: data?.meta?.totalPages ?? 1,
-            fetching: isFetching,
+            fetching: isRefreshingAll,
             error,
-            onRetry: () => {
-              void refetch();
-            },
+            onRetry: handleRefreshAll,
             toolbar
           }}
 

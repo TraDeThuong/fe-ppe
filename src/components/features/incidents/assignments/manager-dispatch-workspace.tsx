@@ -1,8 +1,8 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import {
   Archive,
-  Camera,
   CheckCircle2,
   CheckSquare,
   Clock,
@@ -13,24 +13,77 @@ import {
 import { Button } from "@/components/ui/button";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
-import { groupIncidentsByCamera } from "@/lib/incident-workflow";
+import {
+  filterAssignmentIncidents,
+  groupIncidentsForAssignment,
+  type AssignmentGroupBy,
+} from "@/lib/incident-assignment-groups";
+import type { ResponsiblePersonRef } from "@/lib/incident-workflow";
 import type { IncidentItem, SiteItem } from "@/types";
 import {
+  AssignmentGroupToolbar,
+  type GroupModeOption,
+} from "./assignment-group-toolbar";
+import {
   AssignmentPagination,
-  PaginatedIncidentRows,
   useClientPagination,
 } from "./assignment-pagination";
+import { AssignmentWorkGroupCard } from "./assignment-work-group-card";
+import { DispatchedGroupCard } from "./dispatched-group-card";
 import type {
+  AssignmentFilterState,
   AssignmentFormatters,
   AssignmentResponsibilityContext,
   AssignmentRowActions,
   CategorizedAssignments,
+  DispatchedGroupView,
+  ManagerGroupMode,
   ManagerTabKey,
 } from "./types";
+
+const STORAGE_KEY = "ppe.assignments.manager-group-modes.v1";
+
+const DEFAULT_TAB_MODES: Record<ManagerTabKey, ManagerGroupMode> = {
+  triage: "camera",
+  dispatched: "officer",
+  acceptance: "officer",
+};
+
+const TAB_MODE_OPTIONS: Record<
+  ManagerTabKey,
+  ReadonlyArray<GroupModeOption<ManagerGroupMode>>
+> = {
+  triage: [
+    { key: "camera", vi: "Camera", en: "Camera" },
+    { key: "person", vi: "Đối tượng & Đa vi phạm", en: "Person & Multi-PPE" },
+    { key: "severity", vi: "Mức độ khẩn cấp", en: "Severity" },
+    { key: "violation", vi: "Loại vi phạm", en: "Violation" },
+    { key: "hour", vi: "Khung giờ", en: "By Hour" },
+    { key: "shift", vi: "Ca trực", en: "By Shift" },
+  ],
+  dispatched: [
+    { key: "officer", vi: "Cán bộ phụ trách", en: "Assigned Officer" },
+    { key: "batches", vi: "Đợt giao việc", en: "Dispatch Batches" },
+    { key: "camera", vi: "Camera", en: "Camera" },
+    { key: "severity", vi: "Mức độ khẩn cấp", en: "Severity" },
+    { key: "violation", vi: "Loại vi phạm", en: "Violation" },
+    { key: "hour", vi: "Khung giờ", en: "By Hour" },
+    { key: "shift", vi: "Ca trực", en: "By Shift" },
+  ],
+  acceptance: [
+    { key: "officer", vi: "Cán bộ đã báo cáo", en: "Reporting Officer" },
+    { key: "camera", vi: "Camera", en: "Camera" },
+    { key: "violation", vi: "Loại vi phạm", en: "Violation" },
+    { key: "hour", vi: "Khung giờ", en: "By Hour" },
+    { key: "shift", vi: "Ca trực", en: "By Shift" },
+  ],
+};
 
 export interface ManagerDispatchWorkspaceProps {
   managerTab: ManagerTabKey;
   categorized: CategorizedAssignments;
+  dispatchedGroups?: DispatchedGroupView[];
+  usersById?: ReadonlyMap<string, ResponsiblePersonRef>;
   siteFilter: string;
   onSiteChange: (siteId: string) => void;
   sites: SiteItem[];
@@ -47,11 +100,15 @@ export interface ManagerDispatchWorkspaceProps {
   responsibilityContext: AssignmentResponsibilityContext;
   formatters: AssignmentFormatters;
   rowActions: AssignmentRowActions;
+  /** Override chế độ gom ban đầu (hữu ích cho test hoặc deep link) */
+  initialGroupMode?: ManagerGroupMode;
 }
 
 export function ManagerDispatchWorkspace({
   managerTab,
   categorized,
+  dispatchedGroups = [],
+  usersById = new Map(),
   siteFilter,
   onSiteChange,
   sites,
@@ -68,102 +125,285 @@ export function ManagerDispatchWorkspace({
   responsibilityContext,
   formatters,
   rowActions,
+  initialGroupMode,
 }: ManagerDispatchWorkspaceProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  const activeItems =
+  const [tabModes, setTabModes] = useState<Record<ManagerTabKey, ManagerGroupMode>>(
+    () => ({
+      ...DEFAULT_TAB_MODES,
+      ...(initialGroupMode ? { [managerTab]: initialGroupMode } : {}),
+    }),
+  );
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [filter, setFilter] = useState<AssignmentFilterState>({
+    violationType: "",
+    severity: "",
+    search: "",
+  });
+
+  useEffect(() => {
+    if (initialGroupMode) {
+      setPrefsLoaded(true);
+      return;
+    }
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") as Partial<
+        Record<ManagerTabKey, ManagerGroupMode>
+      > | null;
+      if (saved && typeof saved === "object") {
+        setTabModes((prev) => ({
+          triage: TAB_MODE_OPTIONS.triage.some((o) => o.key === saved.triage)
+            ? (saved.triage as ManagerGroupMode)
+            : prev.triage,
+          dispatched: TAB_MODE_OPTIONS.dispatched.some(
+            (o) => o.key === saved.dispatched,
+          )
+            ? (saved.dispatched as ManagerGroupMode)
+            : prev.dispatched,
+          acceptance: TAB_MODE_OPTIONS.acceptance.some(
+            (o) => o.key === saved.acceptance,
+          )
+            ? (saved.acceptance as ManagerGroupMode)
+            : prev.acceptance,
+        }));
+      }
+    } catch {
+      // Ignore storage errors
+    } finally {
+      setPrefsLoaded(true);
+    }
+  }, [initialGroupMode]);
+
+  useEffect(() => {
+    if (!prefsLoaded || initialGroupMode) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tabModes));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [prefsLoaded, initialGroupMode, tabModes]);
+
+  const currentMode = tabModes[managerTab] ?? DEFAULT_TAB_MODES[managerTab];
+
+  const rawTabItems =
     managerTab === "triage"
       ? categorized.triageItems
       : managerTab === "dispatched"
         ? categorized.assignedConfirmed
         : categorized.awaitingAcceptance;
 
+  const activeItems = useMemo(
+    () =>
+      filterAssignmentIncidents(rawTabItems, filter, {
+        resolveSiteLabel: formatters.resolveSiteLabel,
+        resolveCameraLabel: formatters.resolveCameraLabel,
+        formatViolation: formatters.formatViolation,
+        responsibilityContext,
+      }),
+    [rawTabItems, filter, formatters, responsibilityContext],
+  );
+
   const activeIds = activeItems.map((i) => i.id);
   const selectedInTab = activeItems.filter((i) => selectedIds.has(i.id));
   const pendingInSelected = selectedInTab
     .filter((i) => i.status === "PENDING_REVIEW")
     .map((i) => i.id);
+  const pendingInActive = activeItems.filter((i) => i.status === "PENDING_REVIEW");
   const allTabSelected =
     activeIds.length > 0 && activeIds.every((id) => selectedIds.has(id));
 
-  const tabCameraGroups = groupIncidentsByCamera(
-    activeItems,
-    formatters.resolveCameraLabel,
-  );
+  const workGroups = useMemo(() => {
+    if (currentMode === "batches") return [];
+    return groupIncidentsForAssignment(
+      activeItems,
+      currentMode as AssignmentGroupBy,
+      {
+        isVietnamese,
+        resolveSiteLabel: formatters.resolveSiteLabel,
+        resolveCameraLabel: formatters.resolveCameraLabel,
+        formatViolation: formatters.formatViolation,
+        responsibilityContext,
+      },
+    );
+  }, [activeItems, currentMode, isVietnamese, formatters, responsibilityContext]);
 
-  const cameraGroupsPage = useClientPagination(tabCameraGroups, {
+  const filteredBatches = useMemo(() => {
+    if (currentMode !== "batches") return [];
+    const q = filter.search.trim().toLocaleLowerCase();
+    return dispatchedGroups.filter((dg) => {
+      if (
+        filter.violationType &&
+        !dg.memberIncidents.some(
+          (i) => (i.violationType || "").toUpperCase() === filter.violationType,
+        )
+      ) {
+        return false;
+      }
+      if (
+        filter.severity &&
+        !dg.memberIncidents.some(
+          (i) => (i.severity || "").toUpperCase() === filter.severity,
+        )
+      ) {
+        return false;
+      }
+      if (q) {
+        const officerName = usersById.get(dg.group.assignedTo)?.name || "";
+        const hay = `${dg.group.groupId} ${dg.message} ${officerName}`.toLocaleLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [currentMode, dispatchedGroups, filter, usersById]);
+
+  const resetKey = `${managerTab}:${currentMode}:${siteFilter}:${filter.violationType}:${filter.severity}:${filter.search}`;
+  const groupsPage = useClientPagination(workGroups, {
     defaultPageSize: 5,
-    resetKey: `${managerTab}:${siteFilter}`,
+    resetKey,
+  });
+  const batchesPage = useClientPagination(filteredBatches, {
+    defaultPageSize: 6,
+    resetKey: `batches:${resetKey}`,
   });
 
-  return (
-    <div className="space-y-5">
-      {/* Thanh Thao tác Hàng loạt Luôn Hiển thị (Neumorphic Bulk Action Bar) */}
-      <div
-        className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/25 p-3.5 ${NM.extruded}`}
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant={allTabSelected ? "primary" : "outline"}
-            disabled={activeIds.length === 0}
-            onClick={() => onToggleSelectMany(activeIds)}
-            className="gap-1.5 text-xs"
-          >
-            <CheckSquare className="h-3.5 w-3.5" />
-            <span>
-              {allTabSelected
-                ? isVietnamese
-                  ? `Bỏ chọn tất cả (${activeIds.length})`
-                  : `Deselect all (${activeIds.length})`
-                : isVietnamese
-                  ? `Chọn tất cả trong bước này (${activeIds.length})`
-                  : `Select all in this step (${activeIds.length})`}
-            </span>
-          </Button>
+  const modeOptions = useMemo(
+    () =>
+      TAB_MODE_OPTIONS[managerTab].map((opt) =>
+        opt.key === "batches"
+          ? { ...opt, count: dispatchedGroups.length }
+          : opt,
+      ),
+    [managerTab, dispatchedGroups.length],
+  );
 
-          {managerTab === "triage" && categorized.pendingReview.length > 0 && (
+  return (
+    <div className="space-y-4">
+      {/* 1. Thanh Tùy chọn Phân nhóm & Bộ lọc Nhanh */}
+      <AssignmentGroupToolbar
+        groupMode={currentMode}
+        onGroupModeChange={(nextMode) =>
+          setTabModes((prev) => ({ ...prev, [managerTab]: nextMode }))
+        }
+        options={modeOptions}
+        filter={filter}
+        onFilterChange={setFilter}
+        siteFilter={siteFilter}
+        onSiteChange={onSiteChange}
+        sites={sites}
+        summaryText={
+          currentMode === "batches"
+            ? isVietnamese
+              ? `${filteredBatches.length} đợt điều phối`
+              : `${filteredBatches.length} dispatch batches`
+            : isVietnamese
+              ? `${workGroups.length} nhóm • ${activeItems.length}/${rawTabItems.length} sự cố`
+              : `${workGroups.length} groups • ${activeItems.length}/${rawTabItems.length} incidents`
+        }
+      />
+
+      {/* 2. Thanh Thao tác Hàng loạt (Bulk Action Bar) */}
+      {currentMode !== "batches" && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/25 p-3.5 ${NM.extruded}`}
+        >
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              onClick={() =>
-                onToggleSelectMany(categorized.pendingReview.map((i) => i.id))
-              }
-              className="gap-1.5 text-xs text-warning"
+              variant={allTabSelected ? "primary" : "outline"}
+              disabled={activeIds.length === 0}
+              onClick={() => onToggleSelectMany(activeIds)}
+              className="gap-1.5 text-xs"
             >
-              <Clock className="h-3.5 w-3.5" />
+              <CheckSquare className="h-3.5 w-3.5" />
               <span>
-                {isVietnamese
-                  ? `Chọn riêng Chờ duyệt AI (${categorized.pendingReview.length})`
-                  : `Select Pending Review (${categorized.pendingReview.length})`}
+                {allTabSelected
+                  ? isVietnamese
+                    ? `Bỏ chọn tất cả (${activeIds.length})`
+                    : `Deselect all (${activeIds.length})`
+                  : isVietnamese
+                    ? `Chọn tất cả trong bước này (${activeIds.length})`
+                    : `Select all in this step (${activeIds.length})`}
               </span>
             </Button>
-          )}
 
-          <select
-            value={siteFilter}
-            onChange={(e) => onSiteChange(e.target.value)}
-            aria-label={isVietnamese ? "Lọc theo công trường" : "Filter by site"}
-            className="w-full sm:w-auto max-w-full rounded-xl border border-border/50 bg-background px-3 py-1.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
-          >
-            <option value="">
-              {isVietnamese ? "Tất cả công trường" : "All Sites"}
-            </option>
-            {sites.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
+            {managerTab === "triage" && pendingInActive.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  onToggleSelectMany(pendingInActive.map((i) => i.id))
+                }
+                className="gap-1.5 text-xs text-warning"
+              >
+                <Clock className="h-3.5 w-3.5" />
+                <span>
+                  {isVietnamese
+                    ? `Chọn riêng Chờ duyệt AI (${pendingInActive.length})`
+                    : `Select Pending Review (${pendingInActive.length})`}
+                </span>
+              </Button>
+            )}
+          </div>
 
-        {/* Cụm nút hành động hàng loạt theo từng Bước */}
-        <div className="flex flex-wrap items-center gap-2">
-          {managerTab === "triage" && (
-            <>
+          {/* Cụm nút hành động hàng loạt theo từng Bước */}
+          <div className="flex flex-wrap items-center gap-2">
+            {managerTab === "triage" && (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  disabled={selectedInTab.length === 0 || batchActionPending}
+                  onClick={() => onBatchDispatch(selectedInTab)}
+                  className="gap-1.5 text-xs font-bold"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  <span>
+                    {isVietnamese
+                      ? `Duyệt & Giao Officer (${selectedInTab.length})`
+                      : `Confirm & Dispatch (${selectedInTab.length})`}
+                  </span>
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pendingInSelected.length === 0 || batchReviewPending}
+                  onClick={() => onBatchConfirmOnly(pendingInSelected)}
+                  className="gap-1.5 text-xs"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>
+                    {isVietnamese
+                      ? `Chỉ Xác nhận (${pendingInSelected.length})`
+                      : `Confirm Only (${pendingInSelected.length})`}
+                  </span>
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={pendingInSelected.length === 0 || batchReviewPending}
+                  onClick={() => onBatchReject(pendingInSelected)}
+                  className="gap-1.5 text-xs text-danger hover:text-danger"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  <span>
+                    {isVietnamese
+                      ? `Báo nhầm (${pendingInSelected.length})`
+                      : `Dismiss (${pendingInSelected.length})`}
+                  </span>
+                </Button>
+              </>
+            )}
+
+            {managerTab === "dispatched" && (
               <Button
                 type="button"
                 size="sm"
@@ -172,88 +412,79 @@ export function ManagerDispatchWorkspace({
                 onClick={() => onBatchDispatch(selectedInTab)}
                 className="gap-1.5 text-xs font-bold"
               >
-                <Send className="h-3.5 w-3.5" />
+                <UserCheck className="h-3.5 w-3.5" />
                 <span>
                   {isVietnamese
-                    ? `Duyệt & Giao Officer (${selectedInTab.length})`
-                    : `Confirm & Dispatch (${selectedInTab.length})`}
+                    ? `Đổi Officer phụ trách (${selectedInTab.length})`
+                    : `Reassign Officer (${selectedInTab.length})`}
                 </span>
               </Button>
+            )}
 
+            {managerTab === "acceptance" && (
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
-                disabled={pendingInSelected.length === 0 || batchReviewPending}
-                onClick={() => onBatchConfirmOnly(pendingInSelected)}
-                className="gap-1.5 text-xs"
+                variant="primary"
+                disabled={selectedInTab.length === 0 || batchActionPending}
+                onClick={() => onBatchClose(selectedInTab)}
+                className="gap-1.5 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
               >
-                <CheckCircle2 className="h-3.5 w-3.5" />
+                <Archive className="h-3.5 w-3.5" />
                 <span>
                   {isVietnamese
-                    ? `Chỉ Xác nhận (${pendingInSelected.length})`
-                    : `Confirm Only (${pendingInSelected.length})`}
+                    ? `Nghiệm thu & Đóng hàng loạt (${selectedInTab.length})`
+                    : `Accept & Close Selected (${selectedInTab.length})`}
                 </span>
               </Button>
-
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={pendingInSelected.length === 0 || batchReviewPending}
-                onClick={() => onBatchReject(pendingInSelected)}
-                className="gap-1.5 text-xs text-danger hover:text-danger"
-              >
-                <XCircle className="h-3.5 w-3.5" />
-                <span>
-                  {isVietnamese
-                    ? `Báo nhầm (${pendingInSelected.length})`
-                    : `Dismiss (${pendingInSelected.length})`}
-                </span>
-              </Button>
-            </>
-          )}
-
-          {managerTab === "dispatched" && (
-            <Button
-              type="button"
-              size="sm"
-              variant="primary"
-              disabled={selectedInTab.length === 0 || batchActionPending}
-              onClick={() => onBatchDispatch(selectedInTab)}
-              className="gap-1.5 text-xs font-bold"
-            >
-              <UserCheck className="h-3.5 w-3.5" />
-              <span>
-                {isVietnamese
-                  ? `Đổi Officer phụ trách (${selectedInTab.length})`
-                  : `Reassign Officer (${selectedInTab.length})`}
-              </span>
-            </Button>
-          )}
-
-          {managerTab === "acceptance" && (
-            <Button
-              type="button"
-              size="sm"
-              variant="primary"
-              disabled={selectedInTab.length === 0 || batchActionPending}
-              onClick={() => onBatchClose(selectedInTab)}
-              className="gap-1.5 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
-            >
-              <Archive className="h-3.5 w-3.5" />
-              <span>
-                {isVietnamese
-                  ? `Nghiệm thu & Đóng hàng loạt (${selectedInTab.length})`
-                  : `Accept & Close Selected (${selectedInTab.length})`}
-              </span>
-            </Button>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Danh sách sự cố gom theo Cụm Camera */}
-      {activeItems.length === 0 ? (
+      {/* 3. Nội dung nhóm theo chế độ đã chọn */}
+      {currentMode === "batches" ? (
+        filteredBatches.length === 0 ? (
+          <div
+            className={`space-y-2 rounded-2xl p-10 text-center ${NM.recessed}`}
+          >
+            <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
+            <p className="text-sm font-bold text-foreground">
+              {isVietnamese
+                ? "Chưa có đợt điều phối nhóm nào khớp bộ lọc"
+                : "No dispatched batch groups match your filters"}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
+              {batchesPage.items.map((entry) => (
+                <DispatchedGroupCard
+                  key={entry.group.groupId}
+                  entry={entry}
+                  usersById={usersById}
+                  formatters={formatters}
+                  showAssignee
+                />
+              ))}
+            </div>
+            <AssignmentPagination
+              page={batchesPage.page}
+              pageCount={batchesPage.pageCount}
+              pageSize={batchesPage.pageSize}
+              totalItems={batchesPage.totalItems}
+              startIndex={batchesPage.startIndex}
+              endIndex={batchesPage.endIndex}
+              onPageChange={batchesPage.setPage}
+              onPageSizeChange={batchesPage.setPageSize}
+              pageSizeOptions={[4, 6, 12]}
+              variant="standalone"
+              itemLabel={{ vi: "đợt điều phối", en: "dispatch batches" }}
+              hideIfSinglePageAndSmall
+            />
+          </div>
+        )
+      ) : activeItems.length === 0 ? (
         <div
           className={`space-y-2 rounded-2xl p-10 text-center ${NM.recessed}`}
         >
@@ -265,139 +496,47 @@ export function ManagerDispatchWorkspace({
           </p>
           <p className="text-xs text-muted-foreground">
             {isVietnamese
-              ? "Bạn có thể chuyển sang bước tiếp theo trên thanh điều khiển hoặc mở Danh sách Sự cố để tra cứu lịch sử."
-              : "Switch to another step tab above or open the Incident List to browse history."}
+              ? "Bạn có thể đổi bộ lọc, chuyển sang bước tiếp theo hoặc mở Danh sách Sự cố để tra cứu lịch sử."
+              : "Adjust your filters, switch steps above, or open the Incident List."}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {cameraGroupsPage.items.map((grp) => {
-            const allCamIds = grp.items.map((i) => i.id);
-            const selectedInCam = allCamIds.filter((id) =>
-              selectedIds.has(id),
-            ).length;
-            const isAllCamSelected =
-              allCamIds.length > 0 && selectedInCam === allCamIds.length;
-            const siteName = formatters.resolveSiteLabel(
-              grp.items[0]?.siteId,
-              grp.items[0]?.siteName,
-            );
-
-            return (
-              <div
-                key={grp.cameraKey}
-                className={`overflow-hidden rounded-2xl ${NM.extruded}`}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 bg-muted/20 px-4 py-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={isAllCamSelected}
-                      onChange={() => onToggleSelectMany(allCamIds)}
-                      className="h-4 w-4 cursor-pointer rounded accent-primary"
-                      aria-label={`Select camera group ${grp.cameraLabel}`}
-                    />
-                    <Camera className="h-4 w-4 shrink-0 text-primary" />
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-bold text-foreground">
-                        {grp.cameraLabel}
-                      </div>
-                      <div className="truncate text-[11px] text-muted-foreground">
-                        {siteName} • {grp.items.length}{" "}
-                        {isVietnamese ? "sự cố" : "incidents"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {managerTab === "triage" && (
-                      <>
-                        {grp.pendingIds.length > 0 && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={batchReviewPending}
-                            onClick={() => onBatchConfirmOnly(grp.pendingIds)}
-                            className="h-7 gap-1 px-2.5 text-[11px]"
-                          >
-                            <CheckCircle2 className="h-3 w-3" />
-                            <span>
-                              {isVietnamese
-                                ? `Xác nhận cụm (${grp.pendingIds.length})`
-                                : `Confirm (${grp.pendingIds.length})`}
-                            </span>
-                          </Button>
-                        )}
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="primary"
-                          disabled={batchActionPending}
-                          onClick={() => onBatchDispatch(grp.items)}
-                          className="h-7 gap-1 px-2.5 text-[11px]"
-                        >
-                          <Send className="h-3 w-3" />
-                          <span>
-                            {isVietnamese
-                              ? `Duyệt & Giao cả cụm (${grp.items.length})`
-                              : `Dispatch Cluster (${grp.items.length})`}
-                          </span>
-                        </Button>
-                      </>
-                    )}
-
-                    {managerTab === "acceptance" && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="primary"
-                        disabled={batchActionPending}
-                        onClick={() => onBatchClose(grp.items)}
-                        className="h-7 gap-1 bg-emerald-600 px-2.5 text-[11px] text-white hover:bg-emerald-700"
-                      >
-                        <Archive className="h-3 w-3" />
-                        <span>
-                          {isVietnamese
-                            ? `Nghiệm thu & Đóng cụm (${grp.items.length})`
-                            : `Close Cluster (${grp.items.length})`}
-                        </span>
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <PaginatedIncidentRows
-                  incidents={grp.items}
-                  defaultPageSize={5}
-                  pageSizeOptions={[5, 10, 20, 50]}
-                  resetKey={`${managerTab}:${siteFilter}:${grp.cameraKey}`}
-                  currentUserId={currentUserId}
-                  selectedIds={selectedIds}
-                  selectable
-                  showResponsibility
-                  allowManagerActions
-                  onToggleSelect={onToggleSelectOne}
-                  responsibilityContext={responsibilityContext}
-                  formatters={formatters}
-                  actions={rowActions}
-                />
-              </div>
-            );
-          })}
+          {groupsPage.items.map((grp) => (
+            <AssignmentWorkGroupCard
+              key={grp.key}
+              group={grp}
+              resetKey={resetKey}
+              currentUserId={currentUserId}
+              selectedIds={selectedIds}
+              selectable
+              allowManagerActions
+              actionMode={managerTab}
+              batchReviewPending={batchReviewPending}
+              batchActionPending={batchActionPending}
+              onToggleSelectOne={onToggleSelectOne}
+              onToggleSelectMany={onToggleSelectMany}
+              onBatchConfirmOnly={onBatchConfirmOnly}
+              onBatchDispatch={onBatchDispatch}
+              onBatchClose={onBatchClose}
+              responsibilityContext={responsibilityContext}
+              formatters={formatters}
+              rowActions={rowActions}
+            />
+          ))}
 
           <AssignmentPagination
-            page={cameraGroupsPage.page}
-            pageCount={cameraGroupsPage.pageCount}
-            pageSize={cameraGroupsPage.pageSize}
-            totalItems={cameraGroupsPage.totalItems}
-            startIndex={cameraGroupsPage.startIndex}
-            endIndex={cameraGroupsPage.endIndex}
-            onPageChange={cameraGroupsPage.setPage}
-            onPageSizeChange={cameraGroupsPage.setPageSize}
+            page={groupsPage.page}
+            pageCount={groupsPage.pageCount}
+            pageSize={groupsPage.pageSize}
+            totalItems={groupsPage.totalItems}
+            startIndex={groupsPage.startIndex}
+            endIndex={groupsPage.endIndex}
+            onPageChange={groupsPage.setPage}
+            onPageSizeChange={groupsPage.setPageSize}
             pageSizeOptions={[3, 5, 10, 20]}
             variant="standalone"
-            itemLabel={{ vi: "cụm camera", en: "camera clusters" }}
+            itemLabel={{ vi: "nhóm công việc", en: "work groups" }}
             hideIfSinglePageAndSmall
           />
         </div>

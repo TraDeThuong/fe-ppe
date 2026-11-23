@@ -6,10 +6,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useSite } from "@/contexts/SiteContext";
 import {
+  useAssignmentIncidents,
   useBatchReviewIncidents,
   useCloseIncident,
   useHydratedIncidents,
-  useIncidents,
   useReviewIncident,
 } from "@/hooks/incidents";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
@@ -97,25 +97,18 @@ export default function IncidentAssignmentsContent() {
   const { sites, getSiteName, getCameraCode, getCameraName } =
     useEntityLookup();
 
-  // Lấy tối đa 100 sự cố mới nhất theo công trường (chia sẻ React Query cache với /incidents)
+  // Tải sự cố tách riêng theo từng trạng thái (PENDING_REVIEW, CONFIRMED, RESOLVED, CLOSED, DISMISSED)
+  // để cảnh báo AI mới (>100 bản ghi) không đẩy trôi hồ sơ Đang giao / Chờ Nghiệm thu / Đã Khép Hồ Sơ
   const {
-    data: incidentsData,
+    items: rawIncidents,
+    totals: assignmentTotals,
     isLoading,
     isRefetching,
-    refetch,
-  } = useIncidents({
-    page: 1,
-    limit: 100,
+  } = useAssignmentIncidents({
     siteId: siteFilter || undefined,
-    sortBy: "detectedAt",
-    sortOrder: "desc",
     includeAssignments: true,
+    includeClosedAssignments: isOfficerRole,
   });
-
-  const rawIncidents = useMemo(
-    () => incidentsData?.items ?? [],
-    [incidentsData?.items],
-  );
 
   const {
     incidents,
@@ -153,7 +146,7 @@ export default function IncidentAssignmentsContent() {
     }
   }, [lastAlert, queryClient, refetchNotifications, canReadNotifications]);
 
-  // Chỉ invalidate danh sách, bộ đếm & đúng các incidentId vừa thay đổi thay vì xóa sạch cache assignments của toàn bộ 100 sự cố
+  // Chỉ invalidate danh sách, bộ đếm & đúng các incidentId vừa thay đổi; khi người dùng bấm Làm mới toàn trang (không truyền affectedIds) thì làm mới thêm cache phân công
   const invalidateAll = (affectedIds?: readonly string[]) => {
     void queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
     void queryClient.invalidateQueries({
@@ -169,6 +162,10 @@ export default function IncidentAssignmentsContent() {
           queryKey: incidentKeys.detail(id),
         });
       }
+    } else {
+      void queryClient.invalidateQueries({
+        queryKey: [...incidentKeys.all, "assignments"],
+      });
     }
     if (canReadNotifications) {
       void refetchNotifications();
@@ -334,6 +331,17 @@ export default function IncidentAssignmentsContent() {
       ).length,
     [responsibilityGroups.officerGroups],
   );
+
+  const officerWorkloadById = useMemo(() => {
+    const map = new Map<string, { activeCount: number; resolvedCount: number }>();
+    for (const grp of responsibilityGroups.officerGroups) {
+      map.set(grp.officerId, {
+        activeCount: grp.activeConfirmedItems.length,
+        resolvedCount: grp.resolvedItems.length,
+      });
+    }
+    return map;
+  }, [responsibilityGroups.officerGroups]);
 
   // Mutations & Modals State
   const reviewMutation = useReviewIncident();
@@ -598,10 +606,11 @@ export default function IncidentAssignmentsContent() {
         }}
         isConnected={isConnected}
         isRefreshing={isRefetching || isHydratingAssignments}
-        onRefresh={invalidateAll}
-        totalIncidentsCount={incidents.length}
+        onRefresh={() => invalidateAll()}
+        totalIncidentsCount={assignmentTotals.total || incidents.length}
         selectedSiteName={selectedSiteName}
         categorized={categorized}
+        statusTotals={assignmentTotals}
       />
 
       {/* 2. Stats KPI đồng bộ 4 cột soft-extruded (giống /incidents, /cameras, /sites) */}
@@ -610,8 +619,9 @@ export default function IncidentAssignmentsContent() {
         isAdminRole={isAdminRole}
         adminInterventionMode={adminInterventionMode}
         loading={isLoading || (isOfficerRole && isHydratingAssignments)}
-        totalIncidentsCount={incidents.length}
+        totalIncidentsCount={assignmentTotals.total || incidents.length}
         categorized={categorized}
+        statusTotals={assignmentTotals}
         activeOfficersCount={activeOfficersCount}
         dispatchedGroupsCount={dispatchedGroups.length}
         adminGroupMode={adminGroupMode}
@@ -632,9 +642,13 @@ export default function IncidentAssignmentsContent() {
       {isAdminRole && !adminInterventionMode ? (
         <AdminOversightWorkspace
           adminGroupMode={adminGroupMode}
+          onAdminGroupModeChange={setAdminGroupMode}
           siteFilter={siteFilter}
           onSiteChange={handleSiteChange}
           sites={sites}
+          incidents={incidents}
+          dispatchedGroups={dispatchedGroups}
+          usersById={usersById}
           expandedKeys={expandedKeys}
           onToggleExpand={toggleExpand}
           managerGroups={responsibilityGroups.managerGroups}
@@ -671,6 +685,8 @@ export default function IncidentAssignmentsContent() {
         <ManagerDispatchWorkspace
           managerTab={managerTab}
           categorized={categorized}
+          dispatchedGroups={dispatchedGroups}
+          usersById={usersById}
           siteFilter={siteFilter}
           onSiteChange={handleSiteChange}
           sites={sites}
@@ -769,6 +785,7 @@ export default function IncidentAssignmentsContent() {
           invalidateAll([id]);
         }}
         batchDispatchItems={batchDispatchItems}
+        officerWorkloadById={officerWorkloadById}
         onClearBatchDispatch={() => setBatchDispatchItems(null)}
         batchActionPending={batchActionPending}
         onConfirmBatchDispatch={handleConfirmBatchDispatch}

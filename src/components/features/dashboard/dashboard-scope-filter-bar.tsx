@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { Building2, CalendarRange, RotateCcw } from "lucide-react";
+import { Building2, CalendarRange, Layers, RotateCcw } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { Input } from "@/components/ui/form/foundation/input";
 import {
@@ -9,6 +9,7 @@ import {
   type SelectOption,
 } from "@/components/ui/form/selection-controls/select";
 import { useLocale } from "@/providers/locale-provider";
+import type { IncidentAggregationMode } from "@/lib/incident-cluster-engine";
 import type { DashboardPeriod, DashboardPreset } from "@/types/dashboard.types";
 
 export interface DashboardPeriodState {
@@ -34,6 +35,8 @@ export interface DashboardScopeFilterBarProps {
   onSiteChange?: (siteId: string | null) => void;
   canViewSites?: boolean;
   periodState: DashboardPeriodState;
+  groupingMode?: IncidentAggregationMode;
+  onChangeGroupingMode?: (mode: IncidentAggregationMode) => void;
   className?: string;
 }
 
@@ -46,9 +49,12 @@ export function DashboardScopeFilterBar({
   onSiteChange,
   canViewSites = true,
   periodState,
+  groupingMode = "clustered",
+  onChangeGroupingMode,
   className = "",
 }: DashboardScopeFilterBarProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
   const { period } = periodState;
 
   const siteOptions = useMemo<SelectOption[]>(
@@ -172,6 +178,43 @@ export function DashboardScopeFilterBar({
                 />
               </div>
             </>
+          )}
+
+          {onChangeGroupingMode && (
+            <div className="w-full space-y-1.5 sm:w-auto">
+              <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+                <Layers className="size-3 text-primary" />
+                {isVietnamese ? "Chế độ thống kê" : "Aggregation"}
+              </span>
+              <div
+                role="group"
+                aria-label={isVietnamese ? "Chế độ thống kê sự cố" : "Incident aggregation mode"}
+                className="inline-flex h-9 items-center gap-1 rounded-xl bg-background/85 p-1 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]"
+              >
+                <button
+                  type="button"
+                  onClick={() => onChangeGroupingMode("clustered")}
+                  className={`h-7 cursor-pointer rounded-lg px-2.5 text-[11px] font-bold transition-all ${
+                    groupingMode === "clustered"
+                      ? "bg-surface text-primary shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)]"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {isVietnamese ? "Gom đa sự cố" : "Clustered"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChangeGroupingMode("raw")}
+                  className={`h-7 cursor-pointer rounded-lg px-2.5 text-[11px] font-bold transition-all ${
+                    groupingMode === "raw"
+                      ? "bg-surface text-primary shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)]"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {isVietnamese ? "Bản ghi gốc" : "Raw records"}
+                </button>
+              </div>
+            </div>
           )}
 
           {hasCustomFilter && (

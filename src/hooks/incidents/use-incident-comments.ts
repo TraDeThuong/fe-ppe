@@ -22,7 +22,18 @@ export function useAddIncidentComment() {
   return useMutation({
     mutationFn: ({ incidentId, comment }: { incidentId: string; comment: string }) =>
       incidentService.addComment(incidentId, comment),
-    onSuccess: (_, { incidentId }) => {
+    onSuccess: (createdComment, { incidentId }) => {
+      if (createdComment?.id) {
+        queryClient.setQueryData<IncidentCommentItem[]>(
+          incidentKeys.comments(incidentId),
+          (previous = []) => {
+            if (previous.some((item) => item.id === createdComment.id)) {
+              return previous;
+            }
+            return [...previous, createdComment];
+          },
+        );
+      }
       queryClient.invalidateQueries({ queryKey: incidentKeys.comments(incidentId) });
       queryClient.invalidateQueries({ queryKey: incidentKeys.detail(incidentId) });
       toast.success(

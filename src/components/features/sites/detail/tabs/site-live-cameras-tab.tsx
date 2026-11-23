@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshIconButton } from "@/components/ui/refresh-action";
 import {
   CameraHealthDialog,
   CameraVideoPlayer,
@@ -241,15 +242,13 @@ export function SiteLiveCamerasTab({
           </span>
         </Link>
 
-        <button
-          type="button"
-          onClick={() => void handleRefresh()}
-          disabled={isFetching}
+        <RefreshIconButton
+          onRefresh={handleRefresh}
+          isRefreshing={isFetching}
           title={isVietnamese ? "Làm mới luồng" : "Refresh feeds"}
-          className="flex h-9 w-9 items-center justify-center rounded-[13px] border border-white/70 bg-surface text-muted-foreground shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:text-primary active:shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_rgba(255,255,255,0.85)] disabled:opacity-50 dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45),-2px_-2px_6px_rgba(255,255,255,0.03)] dark:active:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.65)]"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-primary" : ""}`} />
-        </button>
+          className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-[13px] border border-white/70 bg-surface text-muted-foreground shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] hover:text-primary active:shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_rgba(255,255,255,0.85)] disabled:opacity-50 dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45),-2px_-2px_6px_rgba(255,255,255,0.03)] dark:active:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.65)]"
+          iconClassName="h-3.5 w-3.5"
+        />
       </div>
     </div>
 

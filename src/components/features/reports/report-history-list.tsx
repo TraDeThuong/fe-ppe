@@ -13,10 +13,10 @@ import {
   FileSpreadsheet,
   FileText,
   Loader2,
-  RefreshCw,
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshIconButton } from "@/components/ui/refresh-action";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
@@ -153,15 +153,13 @@ export function ReportHistoryList({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={fetching}
+          <RefreshIconButton
+            onRefresh={onRefresh}
+            isRefreshing={fetching}
             title={t("common.refresh")}
-            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/50 dark:border-white/10 text-foreground/80 transition-all duration-200 cursor-pointer disabled:opacity-50 ${NM.extruded} hover:text-primary active:scale-90`}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${fetching ? "animate-spin text-primary" : ""}`} />
-          </button>
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/50 dark:border-white/10 text-foreground/80 cursor-pointer disabled:opacity-50 ${NM.extruded} hover:text-primary active:scale-90`}
+            iconClassName="h-3.5 w-3.5"
+          />
         </div>
 
         {/* Recessed Filter Controls */}

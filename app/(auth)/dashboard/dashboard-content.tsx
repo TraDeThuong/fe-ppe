@@ -21,7 +21,9 @@ import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { cameraKeys } from "@/hooks/cameras/camera.query-keys";
 import { aiMetricsKeys } from "@/hooks/ai-metrics/ai-metrics.query-keys";
 import { auditQueryKeys } from "@/hooks/audit/audit.query-keys";
-import { useSites } from "@/hooks/sites";
+import { cronQueryKeys } from "@/hooks/cron/cron.query-keys";
+import { maintenanceQueryKeys } from "@/hooks/maintenance/maintenance.query-keys";
+import { siteKeys, useSites } from "@/hooks/sites";
 import { useUserSummary } from "@/hooks/users";
 import { useSystemHealth } from "@/hooks/system/use-system-health";
 import {
@@ -264,6 +266,9 @@ export default function DashboardContent() {
       queryClient.invalidateQueries({ queryKey: ["users", "summary"] }),
       queryClient.invalidateQueries({ queryKey: ["system", "health"] }),
       queryClient.invalidateQueries({ queryKey: auditQueryKeys.all }),
+      queryClient.invalidateQueries({ queryKey: siteKeys.all }),
+      queryClient.invalidateQueries({ queryKey: cronQueryKeys.all }),
+      queryClient.invalidateQueries({ queryKey: maintenanceQueryKeys.all }),
     ]);
   }, [queryClient]);
 

@@ -1,32 +1,50 @@
 "use client";
 
-import Link from "next/link";
-import {
-  ArrowRight,
-  CheckCircle2,
-  CheckSquare,
-  ListChecks,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, CheckSquare, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
-import { incidentGroupHref } from "@/lib/incident-group";
+import {
+  filterAssignmentIncidents,
+  groupIncidentsForAssignment,
+  type AssignmentGroupBy,
+} from "@/lib/incident-assignment-groups";
 import type { ResponsiblePersonRef } from "@/lib/incident-workflow";
 import type { IncidentItem } from "@/types";
+import {
+  AssignmentGroupToolbar,
+  type GroupModeOption,
+} from "./assignment-group-toolbar";
 import { AssignmentIncidentRow } from "./assignment-incident-row";
 import {
   AssignmentPagination,
   useClientPagination,
 } from "./assignment-pagination";
+import { AssignmentWorkGroupCard } from "./assignment-work-group-card";
+import { DispatchedGroupCard } from "./dispatched-group-card";
 import type {
+  AssignmentFilterState,
   AssignmentFormatters,
   AssignmentResponsibilityContext,
   AssignmentRowActions,
   CategorizedAssignments,
   DispatchedGroupView,
+  OfficerGroupMode,
   OfficerTabKey,
 } from "./types";
+
+const OFFICER_MODE_STORAGE_KEY = "ppe.assignments.officer-group-mode.v1";
+
+const OFFICER_MODE_OPTIONS: ReadonlyArray<GroupModeOption<OfficerGroupMode>> = [
+  { key: "flat", vi: "Từng dòng", en: "Flat list" },
+  { key: "camera", vi: "Camera / Vị trí đi tuần", en: "Camera / Patrol Zone" },
+  { key: "severity", vi: "Mức độ ưu tiên", en: "Priority" },
+  { key: "person", vi: "Đối tượng & Đa vi phạm", en: "Person & Multi-PPE" },
+  { key: "violation", vi: "Loại vi phạm", en: "Violation" },
+  { key: "hour", vi: "Khung giờ", en: "By Hour" },
+  { key: "shift", vi: "Ca trực", en: "By Shift" },
+];
 
 export interface OfficerTasksWorkspaceProps {
   officerTab: OfficerTabKey;
@@ -42,6 +60,7 @@ export interface OfficerTasksWorkspaceProps {
   responsibilityContext: AssignmentResponsibilityContext;
   formatters: AssignmentFormatters;
   rowActions: AssignmentRowActions;
+  initialGroupMode?: OfficerGroupMode;
 }
 
 export function OfficerTasksWorkspace({
@@ -58,30 +77,102 @@ export function OfficerTasksWorkspace({
   responsibilityContext,
   formatters,
   rowActions,
+  initialGroupMode,
 }: OfficerTasksWorkspaceProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  const activeItems =
+  const [groupMode, setGroupMode] = useState<OfficerGroupMode>(
+    initialGroupMode ?? "flat",
+  );
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const [filter, setFilter] = useState<AssignmentFilterState>({
+    violationType: "",
+    severity: "",
+    search: "",
+  });
+
+  useEffect(() => {
+    if (initialGroupMode) {
+      setPrefsLoaded(true);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(
+        OFFICER_MODE_STORAGE_KEY,
+      ) as OfficerGroupMode | null;
+      if (saved && OFFICER_MODE_OPTIONS.some((o) => o.key === saved)) {
+        setGroupMode(saved);
+      }
+    } catch {
+      // Ignore storage errors
+    } finally {
+      setPrefsLoaded(true);
+    }
+  }, [initialGroupMode]);
+
+  useEffect(() => {
+    if (!prefsLoaded || initialGroupMode) return;
+    try {
+      localStorage.setItem(OFFICER_MODE_STORAGE_KEY, groupMode);
+    } catch {
+      // Ignore storage errors
+    }
+  }, [prefsLoaded, initialGroupMode, groupMode]);
+
+  const rawItems =
     officerTab === "pending"
       ? categorized.myActiveConfirmed
       : categorized.myCompleted;
+
+  const activeItems = useMemo(
+    () =>
+      filterAssignmentIncidents(rawItems, filter, {
+        resolveSiteLabel: formatters.resolveSiteLabel,
+        resolveCameraLabel: formatters.resolveCameraLabel,
+        formatViolation: formatters.formatViolation,
+        responsibilityContext,
+      }),
+    [rawItems, filter, formatters, responsibilityContext],
+  );
+
   const activeIds = activeItems.map((i) => i.id);
-  const selectedMyItems = categorized.myActiveConfirmed.filter((i) =>
-    selectedIds.has(i.id),
+  const selectedMyItems = activeItems.filter(
+    (i) => officerTab === "pending" && selectedIds.has(i.id),
   );
   const allMyPendingSelected =
-    categorized.myActiveConfirmed.length > 0 &&
-    categorized.myActiveConfirmed.every((i) => selectedIds.has(i.id));
+    officerTab === "pending" &&
+    activeItems.length > 0 &&
+    activeItems.every((i) => selectedIds.has(i.id));
+
+  const workGroups = useMemo(() => {
+    if (groupMode === "flat") return [];
+    return groupIncidentsForAssignment(
+      activeItems,
+      groupMode as AssignmentGroupBy,
+      {
+        isVietnamese,
+        resolveSiteLabel: formatters.resolveSiteLabel,
+        resolveCameraLabel: formatters.resolveCameraLabel,
+        formatViolation: formatters.formatViolation,
+        responsibilityContext,
+      },
+    );
+  }, [activeItems, groupMode, isVietnamese, formatters, responsibilityContext]);
 
   const groupsPage = useClientPagination(dispatchedGroups, {
     defaultPageSize: 4,
     resetKey: "officer-groups",
   });
 
+  const resetKey = `${officerTab}:${groupMode}:${filter.violationType}:${filter.severity}:${filter.search}`;
   const incidentsPage = useClientPagination(activeItems, {
     defaultPageSize: 10,
-    resetKey: officerTab,
+    resetKey,
+  });
+  const workGroupsPage = useClientPagination(workGroups, {
+    defaultPageSize: 5,
+    resetKey,
   });
 
   return (
@@ -99,103 +190,15 @@ export function OfficerTasksWorkspace({
           </h3>
 
           <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
-            {groupsPage.items.map(
-              ({
-                group,
-                message,
-                resolvedCount,
-                remainingEditableItems,
-              }) => {
-                const total = group.incidentIds.length;
-                const pct =
-                  total > 0 ? Math.round((resolvedCount / total) * 100) : 0;
-                const managerName =
-                  usersById.get(group.assignedBy)?.name ||
-                  (isVietnamese ? "Quản lý An toàn" : "Safety Manager");
-
-                return (
-                  <div
-                    key={group.groupId}
-                    className={`space-y-3 rounded-2xl border border-primary/25 p-4 ${NM.extruded}`}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="info"
-                            size="sm"
-                            className="font-mono text-[10px]"
-                          >
-                            #{group.groupId.slice(0, 8)}
-                          </Badge>
-                          <span className="text-xs font-extrabold text-foreground">
-                            {total}{" "}
-                            {isVietnamese
-                              ? "sự cố trong nhóm"
-                              : "incidents in group"}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {isVietnamese ? "Giao bởi: " : "Assigned by: "}
-                          <strong className="text-foreground">
-                            {managerName}
-                          </strong>{" "}
-                          • {new Date(group.createdAt).toLocaleString(locale)}
-                        </p>
-                      </div>
-
-                      <span className="rounded-xl bg-primary/10 px-2.5 py-1 font-mono text-xs font-extrabold text-primary">
-                        {resolvedCount}/{total} ({pct}%)
-                      </span>
-                    </div>
-
-                    <p className="line-clamp-2 text-xs text-muted-foreground">
-                      {message}
-                    </p>
-
-                    <div
-                      className={`h-2 overflow-hidden rounded-full ${NM.recessed}`}
-                    >
-                      <div
-                        className="h-full bg-emerald-500 transition-all"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
-                      {remainingEditableItems.length > 0 && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="primary"
-                          onClick={() => onBatchResolve(remainingEditableItems)}
-                          className="h-8 gap-1.5 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          <span>
-                            {isVietnamese
-                              ? `Báo cáo khắc phục cả nhóm (${remainingEditableItems.length})`
-                              : `Resolve Group (${remainingEditableItems.length})`}
-                          </span>
-                        </Button>
-                      )}
-
-                      <Link
-                        href={incidentGroupHref(group)}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3 text-xs font-bold text-primary transition hover:bg-primary hover:text-primary-foreground"
-                      >
-                        <span>
-                          {isVietnamese
-                            ? "Vào xử lý từng bước (Trước/Tiếp)"
-                            : "Step-by-Step Workspace"}
-                        </span>
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </Link>
-                    </div>
-                  </div>
-                );
-              },
-            )}
+            {groupsPage.items.map((entry) => (
+              <DispatchedGroupCard
+                key={entry.group.groupId}
+                entry={entry}
+                usersById={usersById}
+                formatters={formatters}
+                onBatchResolve={onBatchResolve}
+              />
+            ))}
           </div>
 
           <AssignmentPagination
@@ -215,57 +218,73 @@ export function OfficerTasksWorkspace({
         </section>
       )}
 
-      {/* Khối 2: Danh sách Sự cố được giao cho tôi */}
+      {/* Khối 2: Danh sách Sự cố được giao cho tôi + Tùy chọn gom nhóm */}
       <section className="space-y-3">
-        {officerTab === "pending" &&
-          categorized.myActiveConfirmed.length > 0 && (
-            <div
-              className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl p-3.5 ${NM.extruded}`}
-            >
-              <span className="text-xs font-bold text-foreground">
-                {isVietnamese
-                  ? `Thao tác nhanh trên ${categorized.myActiveConfirmed.length} sự cố cần khắc phục`
-                  : `Quick actions for ${categorized.myActiveConfirmed.length} pending incidents`}
-              </span>
+        <AssignmentGroupToolbar
+          groupMode={groupMode}
+          onGroupModeChange={setGroupMode}
+          options={OFFICER_MODE_OPTIONS}
+          filter={filter}
+          onFilterChange={setFilter}
+          summaryText={
+            groupMode === "flat"
+              ? isVietnamese
+                ? `${activeItems.length}/${rawItems.length} sự cố`
+                : `${activeItems.length}/${rawItems.length} incidents`
+              : isVietnamese
+                ? `${workGroups.length} nhóm • ${activeItems.length} sự cố`
+                : `${workGroups.length} groups • ${activeItems.length} incidents`
+          }
+        />
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onToggleSelectMany(activeIds)}
-                  className="gap-1.5 text-xs"
-                >
-                  <CheckSquare className="h-3.5 w-3.5" />
-                  <span>
-                    {allMyPendingSelected
-                      ? isVietnamese
-                        ? "Bỏ chọn tất cả"
-                        : "Deselect all"
-                      : isVietnamese
-                        ? `Chọn tất cả việc của tôi (${categorized.myActiveConfirmed.length})`
-                        : `Select all my tasks (${categorized.myActiveConfirmed.length})`}
-                  </span>
-                </Button>
+        {officerTab === "pending" && activeItems.length > 0 && (
+          <div
+            className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl p-3.5 ${NM.extruded}`}
+          >
+            <span className="text-xs font-bold text-foreground">
+              {isVietnamese
+                ? `Thao tác nhanh trên ${activeItems.length} sự cố cần khắc phục`
+                : `Quick actions for ${activeItems.length} pending incidents`}
+            </span>
 
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="primary"
-                  disabled={selectedMyItems.length === 0 || batchActionPending}
-                  onClick={() => onBatchResolve(selectedMyItems)}
-                  className="gap-1.5 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  <span>
-                    {isVietnamese
-                      ? `Báo cáo khắc phục hàng loạt (${selectedMyItems.length})`
-                      : `Batch Report Resolved (${selectedMyItems.length})`}
-                  </span>
-                </Button>
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => onToggleSelectMany(activeIds)}
+                className="gap-1.5 text-xs"
+              >
+                <CheckSquare className="h-3.5 w-3.5" />
+                <span>
+                  {allMyPendingSelected
+                    ? isVietnamese
+                      ? "Bỏ chọn tất cả"
+                      : "Deselect all"
+                    : isVietnamese
+                      ? `Chọn tất cả việc của tôi (${activeItems.length})`
+                      : `Select all my tasks (${activeItems.length})`}
+                </span>
+              </Button>
+
+              <Button
+                type="button"
+                size="sm"
+                variant="primary"
+                disabled={selectedMyItems.length === 0 || batchActionPending}
+                onClick={() => onBatchResolve(selectedMyItems)}
+                className="gap-1.5 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>
+                  {isVietnamese
+                    ? `Báo cáo khắc phục hàng loạt (${selectedMyItems.length})`
+                    : `Batch Report Resolved (${selectedMyItems.length})`}
+                </span>
+              </Button>
             </div>
-          )}
+          </div>
+        )}
 
         {activeItems.length === 0 ? (
           <div
@@ -287,7 +306,7 @@ export function OfficerTasksWorkspace({
                 : "New AI-detected incidents are reviewed by the Safety Manager before being dispatched to you."}
             </p>
           </div>
-        ) : (
+        ) : groupMode === "flat" ? (
           <div className={`overflow-hidden rounded-2xl ${NM.extruded}`}>
             <div className="divide-y divide-border/20">
               {incidentsPage.items.map((inc) => (
@@ -318,6 +337,43 @@ export function OfficerTasksWorkspace({
               onPageSizeChange={incidentsPage.setPageSize}
               pageSizeOptions={[5, 10, 20, 50]}
               variant="embedded"
+            />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {workGroupsPage.items.map((grp) => (
+              <AssignmentWorkGroupCard
+                key={grp.key}
+                group={grp}
+                resetKey={resetKey}
+                currentUserId={currentUserId}
+                selectedIds={selectedIds}
+                selectable={officerTab === "pending"}
+                allowOfficerResolve={officerTab === "pending"}
+                actionMode="officer"
+                batchActionPending={batchActionPending}
+                onToggleSelectOne={onToggleSelectOne}
+                onToggleSelectMany={onToggleSelectMany}
+                onBatchResolve={onBatchResolve}
+                responsibilityContext={responsibilityContext}
+                formatters={formatters}
+                rowActions={rowActions}
+              />
+            ))}
+
+            <AssignmentPagination
+              page={workGroupsPage.page}
+              pageCount={workGroupsPage.pageCount}
+              pageSize={workGroupsPage.pageSize}
+              totalItems={workGroupsPage.totalItems}
+              startIndex={workGroupsPage.startIndex}
+              endIndex={workGroupsPage.endIndex}
+              onPageChange={workGroupsPage.setPage}
+              onPageSizeChange={workGroupsPage.setPageSize}
+              pageSizeOptions={[3, 5, 10, 20]}
+              variant="standalone"
+              itemLabel={{ vi: "nhóm công việc", en: "task groups" }}
+              hideIfSinglePageAndSmall
             />
           </div>
         )}

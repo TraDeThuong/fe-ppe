@@ -11,6 +11,11 @@ import { ActiveModelBanner } from "../active-model-banner";
 import { ModelGovernanceTable } from "../model-governance-table";
 import { AiMetricsKpiSummary } from "../ai-metrics-kpi-summary";
 import { PerClassMetricsCard } from "../per-class-metrics-card";
+import {
+  formatVersionTag,
+  MODEL_PATH_REGEX,
+  suggestNextVersion,
+} from "../ai-model-governance-modals";
 
 function renderWithProviders(element: React.ReactElement) {
   const queryClient = new QueryClient({
@@ -193,5 +198,67 @@ describe("ai-metrics cards", () => {
       }),
     );
     assert.ok(html.includes("Ngưng sử dụng"));
+  });
+
+  it("ModelGovernanceTable displays newly registered models without versions", () => {
+    const html = renderWithProviders(
+      React.createElement(ModelGovernanceTable, {
+        canDeploy: true,
+        onAddVersion: () => {},
+        models: [
+          {
+            id: "m-empty",
+            name: "YOLOv12-PPE",
+            code: "YOLO12_PPE",
+            modelType: "OBJECT_DETECTION",
+            status: "ACTIVE",
+            createdAt: "2026-11-01T00:00:00.000Z",
+            updatedAt: "2026-11-01T00:00:00.000Z",
+            versions: [],
+          },
+        ],
+      }),
+    );
+
+    assert.ok(html.includes("YOLOv12-PPE"));
+    assert.ok(html.includes("YOLO12_PPE"));
+    assert.ok(html.includes("Thêm Version"));
+  });
+
+  it("ai-model governance helpers format version tags, suggest next SemVer, and validate modelPath", () => {
+    assert.equal(formatVersionTag("1.2.0"), "v1.2.0");
+    assert.equal(formatVersionTag("v1.2.0"), "v1.2.0");
+    assert.equal(formatVersionTag("V2.0.1"), "v2.0.1");
+
+    assert.equal(suggestNextVersion(undefined), "1.0.0");
+    assert.equal(
+      suggestNextVersion({
+        id: "m1",
+        name: "YOLO",
+        code: "YOLO",
+        modelType: "OBJECT_DETECTION",
+        status: "ACTIVE",
+        createdAt: "",
+        updatedAt: "",
+        versions: [
+          {
+            id: "v1",
+            modelId: "m1",
+            version: "1.0.0",
+            framework: "PyTorch",
+            inputSize: "640x640",
+            status: "DEPLOYED",
+            createdAt: "",
+          },
+        ],
+      }),
+      "1.0.1",
+    );
+
+    assert.equal(MODEL_PATH_REGEX.test("models/best.pt"), true);
+    assert.equal(MODEL_PATH_REGEX.test("s3://ppe-models/v2/yolo.onnx"), true);
+    assert.equal(MODEL_PATH_REGEX.test("models/../secret.pt"), false);
+    assert.equal(MODEL_PATH_REGEX.test("/etc/passwd"), false);
+    assert.equal(MODEL_PATH_REGEX.test("models/best.txt"), false);
   });
 });

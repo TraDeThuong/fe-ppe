@@ -215,11 +215,11 @@ function parseBoundaryTimestamp(raw: string, endOfDay: boolean): number {
   return Date.parse(raw);
 }
 
-export function notificationInboxPage(snapshot: NotificationInboxSnapshot, params: ListNotificationsQuery = {}): NotificationListResponse {
+export function filterNotificationInbox(snapshot: NotificationInboxSnapshot, params: ListNotificationsQuery = {}): NotificationItemDto[] {
   const search = params.search?.trim().toLocaleLowerCase();
   const fromTs = params.fromDate ? parseBoundaryTimestamp(params.fromDate, false) : undefined;
   const toTs = params.toDate ? parseBoundaryTimestamp(params.toDate, true) : undefined;
-  const items = snapshot.items.filter((item) => {
+  return snapshot.items.filter((item) => {
     if (params.isRead !== undefined && isNotificationRead(item) !== params.isRead) return false;
     if (params.status && item.status !== params.status) return false;
     if (params.channel && !getNotificationChannels(item).includes(params.channel)) return false;
@@ -233,6 +233,10 @@ export function notificationInboxPage(snapshot: NotificationInboxSnapshot, param
     return (fromTs === undefined || !Number.isFinite(fromTs) || date >= fromTs) &&
       (toTs === undefined || !Number.isFinite(toTs) || date <= toTs);
   });
+}
+
+export function notificationInboxPage(snapshot: NotificationInboxSnapshot, params: ListNotificationsQuery = {}): NotificationListResponse {
+  const items = filterNotificationInbox(snapshot, params);
   const limit = Math.max(1, params.limit ?? 20);
   const totalPages = Math.max(1, Math.ceil(items.length / limit));
   const page = Math.min(Math.max(1, params.page ?? 1), totalPages);

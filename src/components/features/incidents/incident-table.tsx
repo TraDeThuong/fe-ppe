@@ -23,6 +23,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Columns2,
   ExternalLink,
   Layers,
   List,
@@ -34,6 +35,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
+import { IncidentSplitView } from "./incident-split-view";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
@@ -45,8 +47,12 @@ import {
   isIncidentAssignedToUser,
 } from "@/lib/incident-workflow";
 
+export type IncidentViewMode = "table" | "split" | "camera";
+
 export interface IncidentTableProps {
   incidents: IncidentItem[];
+  viewMode?: IncidentViewMode;
+  onViewModeChange?: (mode: IncidentViewMode) => void;
   onReview?: (incident: IncidentItem) => void;
   onBatchReview?: (ids: string[], action: "CONFIRM" | "REJECT") => Promise<void> | void;
   onBatchDispatch?: (items: IncidentItem[]) => Promise<void> | void;
@@ -87,6 +93,8 @@ export function getIncidentEvidenceUrl(incident: IncidentItem): string {
 
 export function IncidentTable({
   incidents,
+  viewMode: controlledViewMode,
+  onViewModeChange,
   onReview,
   onBatchReview,
   onBatchDispatch,
@@ -112,8 +120,17 @@ export function IncidentTable({
   const isOfficerRole = (user?.role || "").toUpperCase() === "SAFETY_OFFICER";
   const { getSiteName, getCameraCode, getCameraName } = useEntityLookup();
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const [groupByCameraMode, setGroupByCameraMode] = useState(false);
+  const [internalViewMode, setInternalViewMode] = useState<IncidentViewMode>("table");
   const [collapsedCameras, setCollapsedCameras] = useState<Record<string, boolean>>({});
+
+  const viewMode: IncidentViewMode = controlledViewMode ?? internalViewMode;
+  const setViewMode = (mode: IncidentViewMode) => {
+    if (onViewModeChange) {
+      onViewModeChange(mode);
+    } else {
+      setInternalViewMode(mode);
+    }
+  };
 
   const canBatchReview = !isOfficerRole && Boolean(onBatchReview) && can("PPE_INCIDENT_REVIEW");
   const canBatchDispatch = !isOfficerRole && Boolean(onBatchDispatch) && can("PPE_INCIDENT_MANAGE");
@@ -337,128 +354,224 @@ export function IncidentTable({
     }
   };
 
+  const currentPage = (tableState?.pagination?.pageIndex ?? 0) + 1;
+  const currentLimit = tableState?.pagination?.pageSize ?? 10;
+  const totalCount = tableState?.rowCount ?? incidents.length;
+  const totalPages =
+    tableState?.pageCount ?? Math.max(1, Math.ceil(totalCount / Math.max(1, currentLimit)));
+
   return (
     <div className="space-y-3">
-      {/* Tùy chọn A + B: Thanh chip chọn nhanh theo Camera + Nút chuyển chế độ Gom nhóm theo Camera */}
-      {incidents.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/40 bg-surface/80 px-3.5 py-2.5 shadow-nm-sm">
-          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-            {canBatchReview && allPagePendingIds.length > 0 && (
-              <button
-                type="button"
-                onClick={() => toggleGroupSelection(allPagePendingIds)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-500/25 transition mr-1"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>
-                  {isVietnamese
-                    ? `Chọn chờ duyệt (${allPagePendingIds.length})`
-                    : `Select Pending (${allPagePendingIds.length})`}
-                </span>
-              </button>
-            )}
-
-            {isOfficerRole && canBatchResolve && allPageMyConfirmedIds.length > 0 && (
-              <button
-                type="button"
-                onClick={() => toggleGroupSelection(allPageMyConfirmedIds)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 transition mr-1"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                <span>
-                  {isVietnamese
-                    ? `Chọn việc của tôi (${allPageMyConfirmedIds.length})`
-                    : `Select My Tasks (${allPageMyConfirmedIds.length})`}
-                </span>
-              </button>
-            )}
-
-            <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground mr-1">
-              <Camera className="h-3.5 w-3.5 text-primary" />
-              <span>
-                {isVietnamese ? "Chọn nhanh theo Camera:" : "Quick select by Camera:"}
-              </span>
-            </span>
-
-            {cameraGroups.map((grp) => {
-              const targetIds = grp.items.map((i) => i.id);
-              const selectedCount = targetIds.filter((id) => selectedIdSet.has(id)).length;
-              const allSelected = selectedCount > 0 && selectedCount === targetIds.length;
-              return (
+      {/* Thanh chip chọn nhanh theo Camera + Nút chuyển chế độ hiển thị (Bảng | Chia 2 cột | Gom theo Camera) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/40 bg-surface/80 px-3.5 py-2.5 shadow-nm-sm">
+        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+          {incidents.length > 0 ? (
+            <>
+              {canBatchReview && allPagePendingIds.length > 0 && (
                 <button
-                  key={grp.cameraKey}
                   type="button"
-                  disabled={!canSelectRows}
-                  onClick={() => toggleGroupSelection(targetIds)}
-                  className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] font-semibold transition ${
-                    allSelected
-                      ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                      : selectedCount > 0
-                        ? "border-primary/50 bg-primary/15 text-primary"
-                        : "border-border/50 bg-background/70 text-foreground hover:border-primary/40 hover:text-primary"
-                  } disabled:opacity-60`}
-                  title={
-                    isVietnamese
-                      ? `Bấm để chọn/bỏ chọn ${grp.items.length} sự cố của ${grp.cameraLabel}`
-                      : `Toggle ${grp.items.length} incidents from ${grp.cameraLabel}`
-                  }
+                  onClick={() => toggleGroupSelection(allPagePendingIds)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-500/25 transition mr-1"
                 >
-                  <span className="max-w-[160px] truncate">{grp.cameraLabel}</span>
-                  <span
-                    className={`rounded-md px-1.5 py-0.2 text-[10px] font-bold ${
-                      allSelected ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {selectedCount > 0 ? `${selectedCount}/` : ""}
-                    {grp.items.length}
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>
+                    {isVietnamese
+                      ? `Chọn chờ duyệt (${allPagePendingIds.length})`
+                      : `Select Pending (${allPagePendingIds.length})`}
                   </span>
                 </button>
-              );
-            })}
+              )}
 
-            {selectedIdSet.size > 0 && (
-              <button
-                type="button"
-                onClick={() => setRowSelection({})}
-                className="inline-flex items-center gap-1 rounded-xl border border-border/50 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-danger transition"
-              >
-                <X className="h-3 w-3" />
-                <span>{isVietnamese ? `Bỏ chọn (${selectedIdSet.size})` : `Clear (${selectedIdSet.size})`}</span>
-              </button>
-            )}
-          </div>
+              {isOfficerRole && canBatchResolve && allPageMyConfirmedIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => toggleGroupSelection(allPageMyConfirmedIds)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 transition mr-1"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  <span>
+                    {isVietnamese
+                      ? `Chọn việc của tôi (${allPageMyConfirmedIds.length})`
+                      : `Select My Tasks (${allPageMyConfirmedIds.length})`}
+                  </span>
+                </button>
+              )}
 
-          {/* Toggle chế độ Bảng <-> Gom nhóm theo Camera */}
-          <div className="inline-flex items-center rounded-xl border border-border/50 bg-background/70 p-0.5 shadow-nm-inset shrink-0">
-            <button
-              type="button"
-              onClick={() => setGroupByCameraMode(false)}
-              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
-                !groupByCameraMode
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <List className="h-3.5 w-3.5" />
-              <span>{isVietnamese ? "Bảng" : "Table"}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setGroupByCameraMode(true)}
-              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
-                groupByCameraMode
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Layers className="h-3.5 w-3.5" />
-              <span>{isVietnamese ? "Gom theo Camera" : "Group by Camera"}</span>
-            </button>
-          </div>
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground mr-1">
+                <Camera className="h-3.5 w-3.5 text-primary" />
+                <span>
+                  {isVietnamese ? "Chọn nhanh theo Camera:" : "Quick select by Camera:"}
+                </span>
+              </span>
+
+              {cameraGroups.map((grp) => {
+                const targetIds = grp.items.map((i) => i.id);
+                const selectedCount = targetIds.filter((id) => selectedIdSet.has(id)).length;
+                const allSelected = selectedCount > 0 && selectedCount === targetIds.length;
+                return (
+                  <button
+                    key={grp.cameraKey}
+                    type="button"
+                    disabled={!canSelectRows}
+                    onClick={() => toggleGroupSelection(targetIds)}
+                    className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] font-semibold transition ${
+                      allSelected
+                        ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                        : selectedCount > 0
+                          ? "border-primary/50 bg-primary/15 text-primary"
+                          : "border-border/50 bg-background/70 text-foreground hover:border-primary/40 hover:text-primary"
+                    } disabled:opacity-60`}
+                    title={
+                      isVietnamese
+                        ? `Bấm để chọn/bỏ chọn ${grp.items.length} sự cố của ${grp.cameraLabel}`
+                        : `Toggle ${grp.items.length} incidents from ${grp.cameraLabel}`
+                    }
+                  >
+                    <span className="max-w-[160px] truncate">{grp.cameraLabel}</span>
+                    <span
+                      className={`rounded-md px-1.5 py-0.2 text-[10px] font-bold ${
+                        allSelected ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {selectedCount > 0 ? `${selectedCount}/` : ""}
+                      {grp.items.length}
+                    </span>
+                  </button>
+                );
+              })}
+
+              {selectedIdSet.size > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setRowSelection({})}
+                  className="inline-flex items-center gap-1 rounded-xl border border-border/50 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:text-danger transition"
+                >
+                  <X className="h-3 w-3" />
+                  <span>{isVietnamese ? `Bỏ chọn (${selectedIdSet.size})` : `Clear (${selectedIdSet.size})`}</span>
+                </button>
+              )}
+            </>
+          ) : (
+            <span className="text-[11px] font-semibold text-muted-foreground">
+              {isVietnamese ? "Chế độ hiển thị danh sách sự cố" : "Incident list view mode"}
+            </span>
+          )}
         </div>
-      )}
 
-      {groupByCameraMode ? (
+        {/* Toggle chế độ Bảng <-> Chia 2 cột <-> Gom nhóm theo Camera */}
+        <div
+          role="group"
+          aria-label={isVietnamese ? "Chọn chế độ hiển thị" : "Select display mode"}
+          className="inline-flex items-center rounded-xl border border-border/50 bg-background/70 p-0.5 shadow-nm-inset shrink-0"
+        >
+          <button
+            type="button"
+            aria-pressed={viewMode === "table"}
+            onClick={() => setViewMode("table")}
+            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
+              viewMode === "table"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <List className="h-3.5 w-3.5" />
+            <span>{isVietnamese ? "Bảng" : "Table"}</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={viewMode === "split"}
+            onClick={() => setViewMode("split")}
+            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
+              viewMode === "split"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Columns2 className="h-3.5 w-3.5" />
+            <span>{isVietnamese ? "Chia 2 cột" : "Split View"}</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={viewMode === "camera"}
+            onClick={() => setViewMode("camera")}
+            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
+              viewMode === "camera"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5" />
+            <span>{isVietnamese ? "Gom theo Camera" : "Group by Camera"}</span>
+          </button>
+        </div>
+      </div>
+
+      {viewMode === "split" ? (
+        <div className="space-y-4">
+          {tableState?.toolbar}
+
+          {/* Thanh thao tác hàng loạt khi đang ở chế độ Chia 2 cột */}
+          {selectedIdSet.size > 0 && bulkActions.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-primary/40 bg-primary/10 px-4 py-2.5 shadow-sm">
+              <span className="text-xs font-bold text-foreground">
+                {isVietnamese
+                  ? `Đang chọn ${selectedIdSet.size} sự cố`
+                  : `${selectedIdSet.size} incidents selected`}
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                {bulkActions.map((act) => (
+                  <Button
+                    key={act.id}
+                    type="button"
+                    size="sm"
+                    variant={act.variant === "primary" ? "primary" : "outline"}
+                    disabled={act.disabled}
+                    onClick={() => void act.onClick()}
+                    className="gap-1.5 text-xs"
+                  >
+                    {act.icon}
+                    <span>{act.label}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <IncidentSplitView
+            incidents={incidents}
+            highlightedId={highlightedId}
+            canSelectRows={canSelectRows}
+            selectedIdSet={selectedIdSet}
+            onToggleRowSelection={toggleSingleRow}
+            loading={loading}
+            fetching={Boolean(tableState?.fetching)}
+            error={tableState?.error}
+            onRetry={tableState?.onRetry}
+            page={currentPage}
+            limit={currentLimit}
+            total={totalCount}
+            totalPages={totalPages}
+            onPageChange={(nextPage) =>
+              tableState?.onPaginationChange?.({
+                pageIndex: Math.max(0, nextPage - 1),
+                pageSize: currentLimit,
+              })
+            }
+            onLimitChange={(nextLimit) =>
+              tableState?.onPaginationChange?.({
+                pageIndex: 0,
+                pageSize: nextLimit,
+              })
+            }
+            onReview={onReview}
+            onAssign={onAssign}
+            onResolve={onResolve}
+            onClose={onClose}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        </div>
+      ) : viewMode === "camera" ? (
         <div className="space-y-4">
           {tableState?.toolbar}
 

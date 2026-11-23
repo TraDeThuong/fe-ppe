@@ -8,6 +8,8 @@ import {
   aiTestService,
   isAiEndpointNotFoundError,
 } from "@/services/ai-test.service";
+import { cameraService } from "@/services/camera.service";
+import { cameraKeys } from "./camera.query-keys";
 import {
   buildCameraStartPayload,
   deriveLiveDefaultsFromConfig,
@@ -111,7 +113,10 @@ export function useCameraLiveSessions(options?: {
       const resolved = resolveInitialCameraSource(camera, videos, {
         productionMode,
       });
-      const defaults = deriveLiveDefaultsFromConfig(camera.config);
+      const effectiveConfig = camera.config
+        ? { ...camera.config, processingEnabled: true }
+        : camera.config;
+      const defaults = deriveLiveDefaultsFromConfig(effectiveConfig);
 
       const source = (overrides?.source ?? resolved.source).trim();
       if (!source && !productionMode) {
@@ -121,6 +126,17 @@ export function useCameraLiveSessions(options?: {
             `Camera ${camera.code} has no valid video source. Open Camera Studio to select a video or Upload & Stream.`,
           ),
         );
+      }
+
+      if (camera.id && (autoSyncEnabled || camera.config?.processingEnabled !== true)) {
+        const enableProcessing = cameraService.updateCameraConfig(camera.id, {
+          processingEnabled: true,
+        });
+        if (autoSyncEnabled) {
+          await enableProcessing;
+        } else {
+          await enableProcessing.catch(() => undefined);
+        }
       }
 
       const payload = buildCameraStartPayload(
@@ -142,6 +158,11 @@ export function useCameraLiveSessions(options?: {
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.sessions() });
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.runtimeConfig() });
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.stats(liveId) });
+      if (camera.id) {
+        void queryClient.invalidateQueries({ queryKey: cameraKeys.config(camera.id) });
+        void queryClient.invalidateQueries({ queryKey: cameraKeys.detail(camera.id) });
+        void queryClient.invalidateQueries({ queryKey: cameraKeys.lists() });
+      }
       if (!silent) {
         toast.success(
           pickLocaleText(
@@ -168,13 +189,49 @@ export function useCameraLiveSessions(options?: {
   const stopMutation = useMutation({
     mutationFn: async (cameraOrLiveId: Pick<CameraItem, "id" | "code"> | string) => {
       const liveId = toSafeLiveCameraId(cameraOrLiveId);
-      return aiTestService.stopLiveStream(liveId);
+      const dbCameraId =
+        typeof cameraOrLiveId === "object"
+          ? cameraOrLiveId.id
+          : (sessionsQuery.data?.sessions.find((s) => s.camera_id === liveId)
+              ?.camera_uuid ?? null);
+
+      // Persist processingEnabled=false BEFORE stopping RAM session so 24/7 CameraSyncManager does not auto-restart it
+      if (dbCameraId) {
+        const disableProcessing = cameraService.updateCameraConfig(dbCameraId, {
+          processingEnabled: false,
+        });
+        if (autoSyncEnabled) {
+          await disableProcessing;
+        } else {
+          await disableProcessing.catch(() => undefined);
+        }
+      }
+
+      try {
+        return await aiTestService.stopLiveStream(liveId);
+      } catch (err) {
+        if (dbCameraId && isAiEndpointNotFoundError(err)) {
+          return { status: "stopped", camera_id: liveId };
+        }
+        throw err;
+      }
     },
     onSuccess: (_res, cameraOrLiveId) => {
       const liveId = toSafeLiveCameraId(cameraOrLiveId);
+      const dbCameraId =
+        typeof cameraOrLiveId === "object"
+          ? cameraOrLiveId.id
+          : (sessionsQuery.data?.sessions.find((s) => s.camera_id === liveId)
+              ?.camera_uuid ?? null);
+
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.sessions() });
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.runtimeConfig() });
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.stats(liveId) });
+      if (dbCameraId) {
+        void queryClient.invalidateQueries({ queryKey: cameraKeys.config(dbCameraId) });
+        void queryClient.invalidateQueries({ queryKey: cameraKeys.detail(dbCameraId) });
+        void queryClient.invalidateQueries({ queryKey: cameraKeys.lists() });
+      }
       toast.success(
         pickLocaleText(
           `Đã dừng AI Live cho ${liveId}`,

@@ -1,5 +1,5 @@
 "use client";
-import { Table, TableToolbar, TableContent, TablePagination, TableRefresh } from "@/components/ui/table";
+import { Table, TableContent, TablePagination } from "@/components/ui/table";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -443,7 +443,6 @@ export function RoleStatsDetailPanel({
                 pagination: false
               }}
             >
-              <TableToolbar showSearch={false} actions={<TableRefresh />} />
               <TableContent />
               <TablePagination />
             </Table>

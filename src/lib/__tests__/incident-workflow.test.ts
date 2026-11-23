@@ -13,7 +13,7 @@ import {
   type ResponsiblePersonRef,
 } from "../incident-workflow";
 import { resolveIncidentsWithReport } from "../incident-actions";
-import { getVisibleNavItems, resolveRoutePermission } from "@/config/navigation";
+import { getVisibleNavItems, isNavItemActive, resolveRoutePermission } from "@/config/navigation";
 import { incidentService } from "@/services/incident.service";
 import type { IncidentItem } from "@/types";
 
@@ -297,20 +297,30 @@ describe("Incident Workflow & Role-Based SSE Signal Classification", () => {
     });
   });
 
-  describe("Sidebar Navigation Consolidation (/incidents/assignments merged under /incidents)", () => {
-    it("hides /incidents/assignments from visible sidebar items while keeping /incidents visible and route permission guarded", () => {
+  describe("Sidebar Navigation Consolidation (/incidents/assignments & /evidences merged under /incidents)", () => {
+    it("hides /incidents/assignments and /evidences from visible sidebar items while keeping /incidents visible, highlighted on /evidences, and route permission guarded", () => {
       const visible = getVisibleNavItems(["PPE_INCIDENT_READ"]);
-      assert.strictEqual(
-        visible.some((item) => item.route === "/incidents"),
-        true,
-      );
+      const incidentsItem = visible.find((item) => item.route === "/incidents");
+      assert.ok(incidentsItem);
       assert.strictEqual(
         visible.some((item) => item.route === "/incidents/assignments"),
         false,
       );
       assert.strictEqual(
+        visible.some((item) => item.route === "/evidences"),
+        false,
+      );
+      assert.strictEqual(
         resolveRoutePermission("/incidents/assignments"),
         "PPE_INCIDENT_READ",
+      );
+      assert.strictEqual(
+        resolveRoutePermission("/evidences"),
+        "PPE_INCIDENT_READ",
+      );
+      assert.strictEqual(
+        isNavItemActive("/evidences", incidentsItem, visible),
+        true,
       );
     });
   });

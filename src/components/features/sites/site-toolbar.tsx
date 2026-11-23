@@ -2,6 +2,7 @@
 
 import { LayoutGrid, List, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshIconButton } from "@/components/ui/refresh-action";
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 
@@ -13,6 +14,8 @@ export interface SiteToolbarProps {
   viewMode: "grid" | "table";
   onViewModeChange: (mode: "grid" | "table") => void;
   onCreateSite: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export function SiteToolbar({
@@ -23,6 +26,8 @@ export function SiteToolbar({
   viewMode,
   onViewModeChange,
   onCreateSite,
+  onRefresh,
+  isRefreshing = false,
 }: SiteToolbarProps) {
   const { t } = useLocale();
   const canCreate = useCan()("PPE_SITE_MANAGE");
@@ -86,6 +91,17 @@ export function SiteToolbar({
             <List className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           </button>
         </div>
+
+        {onRefresh ? (
+          <RefreshIconButton
+            onRefresh={onRefresh}
+            isRefreshing={isRefreshing}
+            ariaLabel={t("common.refresh")}
+            title={t("common.refresh")}
+            className="inline-flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border/50 bg-surface text-muted-foreground hover:text-primary disabled:opacity-40"
+            iconClassName="h-3.5 w-3.5"
+          />
+        ) : null}
 
         {canCreate ? <Button
           variant="primary"

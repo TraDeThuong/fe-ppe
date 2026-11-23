@@ -2,11 +2,13 @@ import type { IncidentAssignmentItem, IncidentItem, NotificationSeverity } from 
 
 export const DISPATCH_SIGNAL_PREFIX = "[ĐIỀU PHỐI]";
 export const RESOLVED_REPORT_PREFIX = "[BÁO CÁO ĐÃ KHẮC PHỤC]";
+export const COMMENT_SIGNAL_PREFIX = "[BÌNH LUẬN]";
 
 export type IncidentAlertKind =
   | "RAW_AI_ALERT"
   | "MANAGER_DISPATCH"
-  | "OFFICER_RESOLVED_REPORT";
+  | "OFFICER_RESOLVED_REPORT"
+  | "INCIDENT_COMMENT";
 
 export interface ClassifiedIncidentAlert {
   kind: IncidentAlertKind;
@@ -19,11 +21,13 @@ export interface ClassifiedIncidentAlert {
  * - Cảnh báo AI thô: chỉ SAFETY_MANAGER / ADMIN nhận còi & popup.
  * - Tín hiệu [ĐIỀU PHỐI] từ Quản lý: chỉ SAFETY_OFFICER nhận chuông & popup.
  * - Tín hiệu [BÁO CÁO ĐÃ KHẮC PHỤC] từ Officer: chỉ SAFETY_MANAGER / ADMIN nhận thông báo nghiệm thu.
+ * - Tín hiệu [BÌNH LUẬN] (notification:incident_comment): mọi vai trò liên quan đều nhận chuông & popup (trừ tác giả).
  */
 export function classifyIncidentAlert(
   data: unknown,
   eventType?: string,
   userRole?: string | null,
+  currentUserId?: string | null,
 ): ClassifiedIncidentAlert {
   const role = (userRole || "").toUpperCase();
   const isOfficer = role === "SAFETY_OFFICER";
@@ -35,6 +39,22 @@ export function classifyIncidentAlert(
     payload.content || payload.description || payload.title || "",
   ).trim();
   const rawSeverity = String(payload.severity || "").toUpperCase();
+
+  if (
+    eventType === "notification:incident_comment" ||
+    text.startsWith(COMMENT_SIGNAL_PREFIX)
+  ) {
+    const authorId =
+      typeof payload.authorId === "string" ? payload.authorId : undefined;
+    const isSelfComment = Boolean(
+      authorId && currentUserId && authorId === currentUserId,
+    );
+    return {
+      kind: "INCIDENT_COMMENT",
+      shouldTriggerBellAndToast: !isSelfComment,
+      toastSeverity: "NORMAL",
+    };
+  }
 
   if (text.startsWith(DISPATCH_SIGNAL_PREFIX)) {
     const toastSeverity: NotificationSeverity =

@@ -13,5 +13,6 @@ export * from "./maintenance";
 export * from "./app-shell";
 export * from "./use-debounce";
 export * from "./use-entity-lookup";
+export * from "./use-refresh-feedback";
 export * from "./cron";
 export * from "./integration";

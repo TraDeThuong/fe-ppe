@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-action";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/form";
 import {
@@ -116,15 +117,12 @@ export function WebhookDeliveriesDrawer({
             placeholder={isVi ? "Lọc theo tên sự kiện..." : "Filter by event name..."}
             className="w-full sm:max-w-xs"
           />
-          <Button
+          <RefreshButton
             size="sm"
             variant="outline"
-            onClick={() => void refetch()}
-            disabled={isFetching}
-          >
-            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
-            {isVi ? "Làm mới" : "Refresh"}
-          </Button>
+            onRefresh={() => refetch()}
+            isRefreshing={isFetching}
+          />
         </div>
 
         {isLoading ? (

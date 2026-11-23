@@ -18,12 +18,21 @@ import type {
   SendNotificationPayload,
 } from "@/types";
 
-function useInboxAction(action: "read" | "read-all" | "delete") {
+function useInboxAction(action: "read" | "read-many" | "read-all" | "delete") {
   const client = useQueryClient();
   const userId = useContext(AuthContext)?.user?.id || "";
-  return async (id?: string) => {
+  return async (arg?: string | string[]) => {
     const key = notificationKeys.inbox(userId);
-    const snapshot = await applyNotificationInboxAction({ snapshot: client.getQueryData<NotificationInboxSnapshot>(key), userId, action, id }, notificationService);
+    const snapshot = await applyNotificationInboxAction(
+      {
+        snapshot: client.getQueryData<NotificationInboxSnapshot>(key),
+        userId,
+        action,
+        id: typeof arg === "string" ? arg : undefined,
+        ids: Array.isArray(arg) ? arg : undefined,
+      },
+      notificationService,
+    );
     client.setQueryData(key, snapshot);
     return { message: "OK" };
   };
@@ -42,6 +51,33 @@ export function useMarkAsRead(
   return useMutation({
     ...restOptions,
     mutationFn: (id: string) => apply(id),
+    onSuccess: async (...args) => {
+      await queryClient.invalidateQueries({
+        queryKey: notificationKeys.lists(),
+      });
+      await onSuccess?.(...args);
+    },
+    onError: async (...args) => {
+      const [error] = args;
+      handleMutationError(error, options?.suppressToast);
+      await onError?.(...args);
+    },
+  });
+}
+
+/**
+ * Hook đánh dấu nhiều thông báo (cả cụm người/đa vi phạm hoặc cả khung giờ/camera) là đã đọc trong 1 thao tác.
+ */
+export function useMarkManyAsRead(
+  options?: MutationHookOptions<{ message: string }, string[]>,
+) {
+  const queryClient = useQueryClient();
+  const apply = useInboxAction("read-many");
+  const { onSuccess, onError, ...restOptions } = options ?? {};
+
+  return useMutation({
+    ...restOptions,
+    mutationFn: (ids: string[]) => apply(ids),
     onSuccess: async (...args) => {
       await queryClient.invalidateQueries({
         queryKey: notificationKeys.lists(),

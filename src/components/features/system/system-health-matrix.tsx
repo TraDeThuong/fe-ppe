@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Clock,
   Filter,
-  RefreshCw,
   Search,
   Server,
   XCircle,
@@ -19,6 +18,7 @@ import {
   type TableFeatureSet,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-action";
 import {
   explainProbeFailure,
   formatServiceLatencyLabel,
@@ -256,22 +256,14 @@ export function SystemHealthMatrix({
           </div>
         </div>
 
-        <Button
-
+        <RefreshButton
           variant="outline"
-
           size="sm"
-
-          onClick={onRefresh}
-
-          disabled={isRefreshing}
-
-          className="flex items-center gap-1.5 rounded-xl self-start sm:self-auto text-xs"
-
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`} />
-          <span>{t("system.refresh")}</span>
-        </Button>
+          onRefresh={onRefresh}
+          isRefreshing={isRefreshing}
+          label={t("system.refresh")}
+          className="rounded-xl self-start sm:self-auto text-xs"
+        />
       </div>
 
       {/* Filter and Search Bar */}

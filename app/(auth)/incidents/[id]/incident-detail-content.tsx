@@ -5,23 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  Archive,
   ArrowLeft,
-  BellRing,
-  Building2,
-  CheckCircle2,
-  CheckSquare,
   Download,
-  Edit3,
   FilePlus2,
-  Loader2,
   RefreshCw,
-  ShieldAlert,
   Trash2,
-  UserCheck,
-  Video,
 } from "lucide-react";
-import { PageHeader } from "@/components/features/app-shell/page-header";
+import { NM } from "@/components/features/ai-test/nm-styles";
 import { ResourceAuditTrailCard } from "@/components/features/audit-logs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +19,7 @@ import { ConfirmDialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/providers/locale-provider";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
+import { useUsers } from "@/hooks/users";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
@@ -54,8 +45,8 @@ import {
   type NotificationSeverity,
 } from "@/types";
 import {
+  IncidentDetailHeader,
   IncidentLifecycleStepper,
-  IncidentActionGuide,
   IncidentEvidenceViewer,
   IncidentMetaCard,
   IncidentAssignmentCard,
@@ -98,14 +89,18 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
   const { user } = useAuth();
   const can = useCan();
   const canRead = can("PPE_INCIDENT_READ");
+  const canReadUsers = can("USER_READ");
   const groupWorkspace = useIncidentGroupWorkspace();
   const markSingleDirty = useCallback((dirty: boolean) => groupWorkspace?.markDirty("single", dirty), [groupWorkspace?.markDirty]);
-  const { getCamera } = useEntityLookup();
+  const { getCamera, sites } = useEntityLookup();
+  const { data: usersData } = useUsers({ limit: 100 }, { enabled: canRead && canReadUsers });
 
   const [isHighlightCompare, setIsHighlightCompare] = useState(false);
+  const [isHighlightComments, setIsHighlightComments] = useState(false);
 
   useEffect(() => {
-    if (searchParams.get("focus") === "compare") {
+    const focus = searchParams.get("focus");
+    if (focus === "compare") {
       setIsHighlightCompare(true);
       const timer = setTimeout(() => {
         const viewerEl = document.getElementById("incident-evidence-viewer");
@@ -119,10 +114,25 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         clearTimeout(pulseTimer);
       };
     }
+
+    if (focus === "comments") {
+      setIsHighlightComments(true);
+      const timer = setTimeout(() => {
+        const commentsEl = document.getElementById("incident-comments-section");
+        if (commentsEl) {
+          commentsEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 350);
+      const pulseTimer = setTimeout(() => setIsHighlightComments(false), 4500);
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(pulseTimer);
+      };
+    }
   }, [searchParams]);
 
   // Realtime updates từ SSE
-  const { lastAlert } = useRealtime();
+  const { lastAlert, isConnected } = useRealtime();
 
   // Queries lấy dữ liệu thực tế từ Backend
   // Group mode shares the verified group snapshot with the detail view. Do not issue a
@@ -137,17 +147,79 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
   const groupRefresh = groupWorkspace?.refresh;
   const refetch = useCallback(() => groupRefresh ? groupRefresh() : detailQuery.refetch(), [groupRefresh, detailQuery.refetch]);
 
-  const { data: comments = [] } = useIncidentComments(id, canRead);
+  const commentsQuery = useIncidentComments(id, canRead);
 
   // Tự động làm mới dữ liệu khi có cảnh báo/sự kiện liên quan đến sự cố hiện tại
   useEffect(() => {
-    if (!lastAlert || !canRead || groupRefresh) return;
+    if (!lastAlert || !canRead) return;
     const alertData = lastAlert.data as Record<string, unknown> | undefined;
     const alertIncidentId = (alertData?.incidentId as string) || (alertData?.id as string);
-    if (alertIncidentId === id) {
-      refetch();
+    if (alertIncidentId !== id) return;
+
+    if (lastAlert.type === "notification:incident_comment") {
+      void queryClient.invalidateQueries({ queryKey: incidentKeys.comments(id) });
+      return;
     }
-  }, [lastAlert, id, refetch, canRead, groupRefresh]);
+
+    if (!groupRefresh) {
+      void refetch();
+      void queryClient.invalidateQueries({ queryKey: incidentKeys.comments(id) });
+    }
+  }, [lastAlert, id, refetch, canRead, groupRefresh, queryClient]);
+
+  // Map fallback tra cứu tên & vai trò người dùng cho bình luận và phân công
+  const usersById = useMemo(() => {
+    const map = new Map<string, { name: string; email?: string; role?: string }>();
+    for (const site of sites) {
+      for (const off of site.contactOfficers || []) {
+        if (off.userId && off.name) {
+          map.set(off.userId, {
+            name: off.name,
+            role: off.roleTitle || "SAFETY_OFFICER",
+          });
+        }
+      }
+    }
+    for (const u of usersData?.data ?? []) {
+      map.set(u.id, {
+        name: u.fullName || u.email || `#${u.id.slice(0, 8)}`,
+        email: u.email || undefined,
+        role: (u.role?.name || "").toUpperCase() || undefined,
+      });
+    }
+    if (user?.id) {
+      map.set(user.id, {
+        name: user.fullName || user.email || `#${user.id.slice(0, 8)}`,
+        email: user.email || undefined,
+        role: (user.role || "").toUpperCase() || undefined,
+      });
+    }
+    return map;
+  }, [sites, usersData?.data, user]);
+
+  const hydratedComments = useMemo<IncidentCommentItem[]>(() => {
+    const rawComments =
+      commentsQuery.data !== undefined ? commentsQuery.data : incident?.comments || [];
+    return rawComments.map((c) => {
+      const resolved = c.userId ? usersById.get(c.userId) : undefined;
+      return {
+        ...c,
+        userName: c.userName || resolved?.name,
+        userRole: c.userRole || resolved?.role,
+      };
+    });
+  }, [commentsQuery.data, incident?.comments, usersById]);
+
+  const hydratedAssignments = useMemo<IncidentAssignmentItem[]>(() => {
+    return (incident?.assignments || []).map((a) => {
+      const resolved = a.assignedTo ? usersById.get(a.assignedTo) : undefined;
+      return {
+        ...a,
+        assignedToName: a.assignedToName || resolved?.name,
+        assignedToEmail: a.assignedToEmail || resolved?.email,
+      };
+    });
+  }, [incident?.assignments, usersById]);
 
   const incidentCamera = incident?.cameraId ? getCamera(incident.cameraId) : undefined;
 
@@ -364,21 +436,29 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader
-          icon={ShieldAlert}
-          title={`${t("incidents.detailTitle")}: #${id.slice(0, 8)}`}
-          description={t("incidents.detailDescription")}
-          breadcrumbs={[
-            { label: t("incidents.title"), href: "/incidents" },
-            { label: `#${id.slice(0, 8)}` },
-          ]}
-          actions={
-            <div className="flex items-center gap-2">
-              <Skeleton className="h-9 w-24 rounded-xl" />
-              <Skeleton className="h-9 w-24 rounded-xl" />
+        <div
+          className={`flex flex-col gap-5 rounded-[24px] p-4 sm:rounded-[30px] sm:p-6 lg:p-7 xl:flex-row xl:items-center xl:justify-between ${NM.chassis}`}
+        >
+          <div className="flex items-start gap-4">
+            <Skeleton className="h-12 w-12 rounded-2xl shrink-0" />
+            <Skeleton className="hidden sm:block h-14 w-14 rounded-2xl shrink-0" />
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-5 w-20 rounded-lg" />
+                <Skeleton className="h-6 w-48 rounded-lg" />
+              </div>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-6 w-32 rounded-xl" />
+                <Skeleton className="h-6 w-24 rounded-xl" />
+                <Skeleton className="h-6 w-28 rounded-xl" />
+              </div>
             </div>
-          }
-        />
+          </div>
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-11 w-32 rounded-2xl" />
+            <Skeleton className="h-11 w-36 rounded-2xl" />
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* Left Column Skeleton */}
@@ -463,202 +543,39 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
     (incident.snapshotUrl && !incident.snapshotUrl.includes("hqdefault.jpg") ? incident.snapshotUrl : null) ||
     cameraDesignatedEvidence;
 
-  const hasAssignments = Boolean(incident.assignments && incident.assignments.length > 0);
+  const hasAssignments = Boolean(hydratedAssignments.length > 0);
   const activeAssignment =
-    incident.assignments?.find((a) => a.status === "ACTIVE") || incident.assignments?.[0];
+    hydratedAssignments.find((a) => a.status === "ACTIVE") || hydratedAssignments[0];
   const assignedOfficerName = activeAssignment?.assignedToName;
-
-  const handleStepperClick = (stepKey: string) => {
-    if (stepKey === "REVIEWED" && incident.status === "PENDING_REVIEW" && canReview) {
-      setIsReviewOpen(true);
-    } else if (stepKey === "RESOLVING" && incident.status === "CONFIRMED" && canAssign) {
-      setIsAssignOpen(true);
-    } else if (
-      stepKey === "RESOLVED" &&
-      incident.status === "CONFIRMED" &&
-      canSelfOrAssignedResolve
-    ) {
-      setIsResolveOpen(true);
-    } else if (stepKey === "CLOSED" && incident.status === "RESOLVED" && canClose) {
-      setIsCloseOpen(true);
-    }
-  };
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <PageHeader
-        icon={ShieldAlert}
-        title={`${t("incidents.detailTitle")}: #${incident.id.slice(0, 8)}`}
-        description={t("incidents.detailDescription")}
-        breadcrumbs={[
-          { label: t("incidents.title"), href: "/incidents" },
-          { label: `#${incident.id.slice(0, 8)}` },
-        ]}
-        badge={incident.status}
-        badgeIcon={ShieldAlert}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => refetch()}
-              disabled={isRefetching}
-              className="gap-1.5"
-            >
-              <RefreshCw className={`h-4 w-4 ${isRefetching ? "animate-spin" : ""}`} />
-              <span>{t("common.refresh")}</span>
-            </Button>
-
-            {/* Quick Action: Xem luồng Camera */}
-            <Button
-              variant="outline"
-              onClick={() =>
-                router.push(
-                  incident.cameraId
-                    ? `/cameras/${incident.cameraId}`
-                    : `/cameras?search=${incident.cameraCode}&view=wall`
-                )
-              }
-              className="gap-1.5"
-              title={isVietnamese ? "Mở Camera AI Intelligence Studio" : "Open Camera AI Intelligence Studio"}
-            >
-              <Video className="h-4 w-4 text-primary" />
-              <span className="hidden sm:inline">{isVietnamese ? "Xem Camera" : "View Camera"}</span>
-            </Button>
-
-            {/* Quick Action: Mở Command Center Site */}
-            {incident.siteId && (
-              <Button
-                variant="outline"
-                onClick={() => router.push(`/sites/${incident.siteId}?tab=live-cameras`)}
-                className="gap-1.5"
-                title={isVietnamese ? "Mở trung tâm điều hành công trường này" : "Open site operations center"}
-              >
-                <Building2 className="h-4 w-4 text-primary" />
-                <span className="hidden sm:inline">{isVietnamese ? "Mở Công trường" : "Open Site"}</span>
-              </Button>
-            )}
-
-            {canUpdate && incident.status !== "CLOSED" && (
-              <Button
-                variant="outline"
-                onClick={() => setIsEditOpen(true)}
-                className="gap-1.5"
-              >
-                <Edit3 className="h-4 w-4 text-primary" />
-                <span className="hidden sm:inline">{isVietnamese ? "Sửa" : "Edit"}</span>
-              </Button>
-            )}
-
-            {canTriggerAlert && incident.status !== "CLOSED" && (
-              <Button
-                variant="outline"
-                disabled={isNotifying}
-                onClick={handleTriggerAlert}
-                className="gap-1.5"
-                title={isVietnamese ? "Gửi lại cảnh báo sự cố qua App & Email" : "Re-notify officers"}
-              >
-                <BellRing className="h-4 w-4 text-amber-500" />
-                <span className="hidden sm:inline">{isVietnamese ? "Báo động lại" : "Re-notify"}</span>
-              </Button>
-            )}
-
-            {incident.status === "PENDING_REVIEW" && canReview && (
-              <Button
-                variant="primary"
-                onClick={() => setIsReviewOpen(true)}
-                className="animate-gentle-pulse-ring gap-1.5 font-bold shadow-md"
-              >
-                <CheckSquare className="h-4 w-4" />
-                <span>{t("incidents.actions.review")}</span>
-                <span className="hidden xl:inline-block rounded bg-primary-foreground/20 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider">
-                  {isVietnamese ? "Bước tiếp theo" : "Next"}
-                </span>
-              </Button>
-            )}
-
-            {incident.status === "CONFIRMED" && !hasAssignments && (
-              <>
-                {canAssign && (
-                  <Button
-                    variant="primary"
-                    onClick={() => setIsAssignOpen(true)}
-                    className="animate-gentle-pulse-ring gap-1.5 font-bold shadow-md"
-                  >
-                    <UserCheck className="h-4 w-4" />
-                    <span>{t("incidents.actions.assign")}</span>
-                    <span className="hidden xl:inline-block rounded bg-primary-foreground/20 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider">
-                      {isVietnamese ? "Bước tiếp theo" : "Next"}
-                    </span>
-                  </Button>
-                )}
-                {canSelfOrAssignedResolve && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsResolveOpen(true)}
-                    className="gap-1.5 text-emerald-600 hover:text-emerald-700"
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span>{t("incidents.actions.resolve")}</span>
-                  </Button>
-                )}
-              </>
-            )}
-
-            {incident.status === "CONFIRMED" && hasAssignments && (
-              <>
-                {canAssign && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsAssignOpen(true)}
-                    className="gap-1.5"
-                  >
-                    <UserCheck className="h-4 w-4 text-primary" />
-                    <span>{t("incidents.actions.assign")}</span>
-                  </Button>
-                )}
-                {canSelfOrAssignedResolve && (
-                  <Button
-                    variant="primary"
-                    onClick={() => setIsResolveOpen(true)}
-                    className="animate-gentle-pulse-ring gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md dark:bg-emerald-600 font-bold"
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span>{t("incidents.actions.resolve")}</span>
-                    <span className="hidden xl:inline-block rounded bg-white/20 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider">
-                      {isVietnamese ? "Bước tiếp theo" : "Next"}
-                    </span>
-                  </Button>
-                )}
-              </>
-            )}
-
-            {(incident.status === "RESOLVED" || incident.status === "DISMISSED") && canClose && (
-              <Button
-                variant="primary"
-                onClick={() => setIsCloseOpen(true)}
-                className="animate-gentle-pulse-ring gap-1.5 bg-slate-700 hover:bg-slate-800 text-white dark:bg-slate-800 shadow-md font-bold"
-              >
-                <Archive className="h-4 w-4" />
-                <span>{t("incidents.actions.close")}</span>
-                <span className="hidden xl:inline-block rounded bg-white/20 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider">
-                  {isVietnamese ? "Bước tiếp theo" : "Next"}
-                </span>
-              </Button>
-            )}
-          </div>
-        }
-      />
-
-      {/* Lifecycle Progress Stepper */}
-      <IncidentLifecycleStepper
-        status={incident.status}
+      {/* Console Detail Header (đồng bộ IncidentConsoleHeader ở /incidents) */}
+      <IncidentDetailHeader
+        incident={incident}
+        isConnected={isConnected}
+        isRefreshing={isRefetching || commentsQuery.isFetching}
+        isNotifying={isNotifying}
         hasAssignments={hasAssignments}
-        onStepClick={handleStepperClick}
+        canUpdate={canUpdate}
+        canTriggerAlert={canTriggerAlert}
+        canReview={canReview}
+        canAssign={canAssign}
+        canSelfOrAssignedResolve={canSelfOrAssignedResolve}
+        canClose={canClose}
+        onRefresh={() => {
+          void Promise.all([refetch(), commentsQuery.refetch()]);
+        }}
+        onEdit={() => setIsEditOpen(true)}
+        onTriggerAlert={handleTriggerAlert}
+        onReview={() => setIsReviewOpen(true)}
+        onAssign={() => setIsAssignOpen(true)}
+        onResolve={() => setIsResolveOpen(true)}
+        onClose={() => setIsCloseOpen(true)}
       />
 
-      {/* Smart Next Action Guide */}
-      <IncidentActionGuide
+      {/* Unified Lifecycle Progress Stepper & Smart Next Action Strip */}
+      <IncidentLifecycleStepper
         status={incident.status}
         hasAssignments={hasAssignments}
         assignedOfficerName={assignedOfficerName}
@@ -780,7 +697,7 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
           <IncidentMetaCard incident={incident} />
 
           <IncidentAssignmentCard
-            assignments={incident.assignments}
+            assignments={hydratedAssignments}
             onAssign={canAssign ? () => setIsAssignOpen(true) : undefined}
             canManage={
               canAssign &&
@@ -791,9 +708,16 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
           />
 
           <IncidentCommentsTimeline
-            comments={comments.length > 0 ? comments : incident.comments}
+            comments={hydratedComments}
             onSendComment={handleSendComment}
             loading={addCommentMutation.isPending}
+            currentUserId={user?.id}
+            canComment={canUpdate}
+            isClosed={incident.status === "CLOSED"}
+            isLoadingComments={commentsQuery.isLoading}
+            isErrorComments={commentsQuery.isError}
+            onRetryComments={() => void commentsQuery.refetch()}
+            highlighted={isHighlightComments}
           />
 
           <ResourceAuditTrailCard

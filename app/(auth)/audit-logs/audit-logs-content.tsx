@@ -123,7 +123,12 @@ export default function AuditLogsContent() {
   const [helpModalOpen, setHelpModalOpen] = useState(false);
 
   // Queries
-  const { data: summaryData, isLoading: isLoadingSummary } = useAuditSummary({
+  const {
+    data: summaryData,
+    isLoading: isLoadingSummary,
+    isFetching: isFetchingSummary,
+    refetch: refetchSummary,
+  } = useAuditSummary({
     startDate: startDate || undefined,
     endDate: endDate || undefined,
   });
@@ -322,10 +327,10 @@ export default function AuditLogsContent() {
             },
             rowCount: logsData?.meta?.total ?? 0,
             pageCount: logsData?.meta?.totalPages ?? 1,
-            fetching: isFetchingLogs,
+            fetching: isFetchingLogs || isFetchingSummary,
             error: logsError,
             onRetry: () => {
-              void refetchLogs();
+              void Promise.all([refetchLogs(), refetchSummary()]);
             },
             toolbar,
           }}

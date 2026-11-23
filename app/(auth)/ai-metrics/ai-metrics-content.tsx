@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Activity, Cpu, Eye, FlaskConical, Layers, Plus, RefreshCw, Zap } from "lucide-react";
+import { Activity, Cpu, Eye, Layers, Plus, Zap } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-action";
 import { useLocale } from "@/providers/locale-provider";
 import { useCan } from "@/hooks/use-can";
 import {
@@ -128,12 +128,14 @@ export default function AiMetricsContent() {
   const {
     data: activeVersion,
     isLoading: isActiveLoading,
+    isFetching: isActiveFetching,
     refetch: refetchActive,
   } = useActiveModelVersion();
 
   const {
     data: models = [],
     isLoading: isModelsLoading,
+    isFetching: isModelsFetching,
     refetch: refetchModels,
   } = useAiModels();
 
@@ -148,6 +150,7 @@ export default function AiMetricsContent() {
   const [isDeployOpen, setIsDeployOpen] = useState(false);
   const [isCreateModelOpen, setIsCreateModelOpen] = useState(false);
   const [isCreateVersionOpen, setIsCreateVersionOpen] = useState(false);
+  const [versionModalModelId, setVersionModalModelId] = useState<string | undefined>(undefined);
   const [isRecordTelemetryOpen, setIsRecordTelemetryOpen] = useState(false);
   const [detailModelId, setDetailModelId] = useState<string | null>(null);
   const [guideKey, setGuideKey] = useState<AiCardGuideKey | null>(null);
@@ -158,12 +161,10 @@ export default function AiMetricsContent() {
   };
 
   const handleRefreshAll = () => {
-    refetchPerf();
-    refetchActive();
-    refetchModels();
+    void Promise.all([refetchPerf(), refetchActive(), refetchModels()]);
   };
 
-  const isRefetching = isPerfRefetching;
+  const isRefetching = isPerfRefetching || isActiveFetching || isModelsFetching;
 
   const activeModel = activeVersion
     ? models.find((m) => m.id === activeVersion.modelId)
@@ -201,7 +202,10 @@ export default function AiMetricsContent() {
                 <Button
                   variant="outline"
                   disabled={models.length === 0}
-                  onClick={() => setIsCreateVersionOpen(true)}
+                  onClick={() => {
+                    setVersionModalModelId(selectedModelId || undefined);
+                    setIsCreateVersionOpen(true);
+                  }}
                   className="gap-1.5 text-xs sm:text-sm h-8 sm:h-9"
                 >
                   <Layers className="h-3.5 w-3.5" />
@@ -227,27 +231,14 @@ export default function AiMetricsContent() {
                 <span>{isVietnamese ? "Chi tiết Model" : "Model Info"}</span>
               </Button>
             )}
-            <Link href="/ai-metrics/test">
-              <Button
-                variant="primary"
-                className="gap-2 text-xs sm:text-sm h-8 sm:h-9 font-bold shadow-nm-sm hover:shadow-nm transition"
-              >
-                <FlaskConical className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                <span>
-                  {isVietnamese ? "Kiểm Thử Mô Hình (Test Video)" : "Test Model (Video Sandbox)"}
-                </span>
-              </Button>
-            </Link>
 
-            <Button
+            <RefreshButton
               variant="ghost"
-              onClick={handleRefreshAll}
-              disabled={isRefetching}
+              onRefresh={handleRefreshAll}
+              isRefreshing={isRefetching}
+              iconClassName="h-3.5 w-3.5 sm:h-4 sm:w-4"
               className="gap-2 text-xs sm:text-sm h-8 sm:h-9"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isRefetching ? "animate-spin" : ""}`} />
-              <span>{t("common.refresh")}</span>
-            </Button>
+            />
           </div>
         }
       />
@@ -325,10 +316,15 @@ export default function AiMetricsContent() {
         <ModelGovernanceTable
           models={models}
           onDeploy={handleOpenDeploy}
+          onAddVersion={(modelId) => {
+            setVersionModalModelId(modelId);
+            setIsCreateVersionOpen(true);
+          }}
           onRefresh={refetchModels}
           onOpenGuide={() => setGuideKey("governance")}
           canDeploy={canManageModels}
           loading={isModelsLoading}
+          fetching={isModelsFetching}
         />
       </div>
 
@@ -353,8 +349,12 @@ export default function AiMetricsContent() {
 
       <CreateModelVersionModal
         open={isCreateVersionOpen}
-        onOpenChange={setIsCreateVersionOpen}
+        onOpenChange={(open) => {
+          setIsCreateVersionOpen(open);
+          if (!open) setVersionModalModelId(undefined);
+        }}
         models={models}
+        defaultModelId={versionModalModelId}
         loading={createVersionMutation.isPending}
         onSubmit={(modelId, dto) =>
           createVersionMutation.mutateAsync({ modelId, dto })

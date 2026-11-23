@@ -33,6 +33,7 @@ import { useCameraHealthLogs, usePingCamera } from "@/hooks/cameras";
 import { useLocale } from "@/providers/locale-provider";
 import { getDbIncidentSnapshotUrl } from "../camera-live-helpers";
 import { CameraDeviceAdvancedPanels } from "./camera-device-advanced-panels";
+import { RefreshButton, RefreshIconButton } from "@/components/ui/refresh-action";
 import type { LiveVideoItem } from "@/types/ai-test.types";
 import type { CameraConfigItem, CameraItem, IncidentItem } from "@/types";
 
@@ -41,6 +42,7 @@ export interface CameraIncidentsDeviceTabProps {
   config?: CameraConfigItem | null;
   incidents: IncidentItem[];
   incidentsLoading: boolean;
+  incidentsFetching?: boolean;
   onRefreshIncidents: () => void;
   liveVideos: LiveVideoItem[];
   overrideSource: string;
@@ -60,6 +62,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
   config,
   incidents,
   incidentsLoading,
+  incidentsFetching,
   onRefreshIncidents,
   liveVideos,
   overrideSource,
@@ -135,12 +138,14 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
   const {
     data: healthLogs = [],
     isLoading: healthLogsLoading,
+    isFetching: healthLogsFetching,
     refetch: refetchHealthLogs,
   } = useCameraHealthLogs(camera.id, Boolean(camera.id), {
     limit: 20,
     status: healthStatusFilter || undefined,
     sortOrder: "desc",
   });
+  const isReloadingIncidents = incidentsFetching ?? incidentsLoading;
 
   const pingResult = pingMutation.data;
   const isDbOnline = camera.status === "ONLINE";
@@ -217,19 +222,15 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onRefreshIncidents}
-              disabled={incidentsLoading}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-foreground ${NM.tactileBtn}`}
-            >
-              <RefreshCw
-                className={`size-3.5 text-primary ${
-                  incidentsLoading ? "animate-spin" : ""
-                }`}
-              />
-              <span>{isVietnamese ? "Tải lại" : "Reload"}</span>
-            </button>
+            <RefreshButton
+              variant="ghost"
+              size="sm"
+              onRefresh={onRefreshIncidents}
+              isRefreshing={isReloadingIncidents}
+              label={isVietnamese ? "Tải lại" : "Reload"}
+              iconClassName="size-3.5"
+              className={`h-8 rounded-xl px-3 text-xs font-bold text-foreground ${NM.tactileBtn}`}
+            />
 
             <Link
               href={`/incidents?cameraId=${encodeURIComponent(camera.id)}`}
@@ -541,19 +542,14 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                 )}
                 <span>{isVietnamese ? "Gửi Ping" : "Send Ping"}</span>
               </button>
-              <button
-                type="button"
-                onClick={() => void refetchHealthLogs()}
+              <RefreshIconButton
+                onRefresh={() => refetchHealthLogs()}
+                isRefreshing={healthLogsFetching}
                 title={isVietnamese ? "Làm mới nhật ký Ping" : "Refresh ping logs"}
-                aria-label={isVietnamese ? "Làm mới nhật ký Ping" : "Refresh ping logs"}
-                className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-muted-foreground hover:text-primary ${NM.tactileBtn}`}
-              >
-                <RefreshCw
-                  className={`size-3.5 ${
-                    healthLogsLoading ? "animate-spin" : ""
-                  }`}
-                />
-              </button>
+                ariaLabel={isVietnamese ? "Làm mới nhật ký Ping" : "Refresh ping logs"}
+                className={`inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl text-muted-foreground hover:text-primary disabled:opacity-50 ${NM.tactileBtn}`}
+                iconClassName="size-3.5"
+              />
             </div>
           </div>
 

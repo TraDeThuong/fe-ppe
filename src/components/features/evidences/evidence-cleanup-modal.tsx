@@ -93,13 +93,15 @@ export function EvidenceCleanupModal({
     if (isScanningDeep) return;
     setIsScanningDeep(true);
     try {
-      const [evPage1, evPage2, evPage3, incPage1, incPage2] = await Promise.all([
-        incidentService.getAllEvidences({ page: 1, limit: 100, sortBy: "capturedAt", sortOrder: "desc" }),
-        incidentService.getAllEvidences({ page: 2, limit: 100, sortBy: "capturedAt", sortOrder: "desc" }),
-        incidentService.getAllEvidences({ page: 3, limit: 100, sortBy: "capturedAt", sortOrder: "desc" }),
-        incidentService.getIncidents({ page: 1, limit: 100 }),
-        incidentService.getIncidents({ page: 2, limit: 100 }),
-      ]);
+      const [evPage1, evPage2, evPage3, closedInc, dismissedInc, resolvedInc] =
+        await Promise.all([
+          incidentService.getAllEvidences({ page: 1, limit: 100, sortBy: "capturedAt", sortOrder: "desc" }),
+          incidentService.getAllEvidences({ page: 2, limit: 100, sortBy: "capturedAt", sortOrder: "desc" }),
+          incidentService.getAllEvidences({ page: 3, limit: 100, sortBy: "capturedAt", sortOrder: "desc" }),
+          incidentService.getIncidents({ page: 1, limit: 100, status: "CLOSED", sortBy: "detectedAt", sortOrder: "desc" }),
+          incidentService.getIncidents({ page: 1, limit: 100, status: "DISMISSED", sortBy: "detectedAt", sortOrder: "desc" }),
+          incidentService.getIncidents({ page: 1, limit: 100, status: "RESOLVED", sortBy: "detectedAt", sortOrder: "desc" }),
+        ]);
 
       const mergedEvMap = new Map<string, EvidenceItem>();
       for (const item of [
@@ -113,7 +115,11 @@ export function EvidenceCleanupModal({
       setScannedEvidences(Array.from(mergedEvMap.values()));
 
       const nextIncMap = new Map<string, IncidentItem>();
-      for (const inc of [...(incPage1.items ?? []), ...(incPage2.items ?? [])]) {
+      for (const inc of [
+        ...(closedInc.items ?? []),
+        ...(dismissedInc.items ?? []),
+        ...(resolvedInc.items ?? []),
+      ]) {
         nextIncMap.set(inc.id, inc);
       }
       setExtraIncidentsMap(nextIncMap);

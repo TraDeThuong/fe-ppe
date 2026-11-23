@@ -226,6 +226,8 @@ export interface LiveStartPayload {
   roi_polygons?: number[][][] | null;
   confirmation_duration_s: number;
   confirmation_duration_vest_s?: number | null;
+  confidence_threshold?: number | null;
+  cooldown_s?: number | null;
   enable_no_helmet: boolean;
   enable_no_vest: boolean;
   enable_restricted_area: boolean;
@@ -244,6 +246,23 @@ export interface LiveConfigPayload {
   enable_scene_cut?: boolean | null;
   confirmation_duration_s?: number | null;
   confirmation_duration_vest_s?: number | null;
+  confidence_threshold?: number | null;
+  cooldown_s?: number | null;
+}
+
+export interface LiveActiveConfig {
+  model_path?: string | null;
+  target_fps?: number;
+  ai_fps?: number;
+  confidence_threshold?: number;
+  confirmation_duration_s?: number;
+  confirmation_duration_vest_s?: number;
+  cooldown_s?: number;
+  enable_no_helmet?: boolean;
+  enable_no_vest?: boolean;
+  enable_restricted_area?: boolean;
+  enable_scene_cut?: boolean;
+  safety_source?: string;
 }
 
 export interface LiveMetrics {
@@ -306,6 +325,7 @@ export interface LiveStatsResponse {
   reconnect_count?: number;
   error?: string | null;
   metrics?: LiveMetrics;
+  active_config?: LiveActiveConfig;
   recent_violations?: LiveViolationEvent[];
   evidences?: RawEvidenceRecord[];
 }

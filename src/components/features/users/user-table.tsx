@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { ColumnDef, PaginationState, RowSelectionState, SortingState } from "@tanstack/react-table";
-import { Shield, ShieldCheck, ShieldAlert, Pencil, Trash2, Eye, RotateCcw, RefreshCw, UserPlus, Lock, Unlock, Building2, ExternalLink } from "lucide-react";
+import { Shield, ShieldCheck, ShieldAlert, Pencil, Trash2, Eye, RotateCcw, UserPlus, Lock, Unlock, Building2, ExternalLink, LayoutGrid, Table2 } from "lucide-react";
 
 import { Table, TableToolbar, TableContent, TablePagination, TableSelectionHeader, TableSelectionRow, TableRowActions, type TableFeatureSet, type TableRowAction, type TableBulkAction, TableBulkActions, TableFilterPanel } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { RefreshIconButton } from "@/components/ui/refresh-action";
 import { PhoneReveal } from "@/components/ui/phone-reveal";
+import { SegmentedControl, type SegmentedControlOption } from "@/components/ui/segmented-control";
 import { useUsers } from "@/hooks/users";
 import { useQueryClient } from "@tanstack/react-query";
 import { userService } from "@/services/user.service";
@@ -23,6 +25,13 @@ import { toast } from "@/lib/toast";
 import type { UserResponseDto } from "@/types";
 
 import { CreateUserModal, EditUserModal, AssignUserRoleModal, AdminResetPasswordModal, ConfirmUserDeleteModal, UserDetailModal } from "./modals";
+import { UserRoleFilterBar } from "./user-role-filter-bar";
+import { UserCardGrid, type UserCardSortOption } from "./user-card-grid";
+import { getRoleBadgeStyle, getUserAccountStatus, getUserInitials } from "./user-presentation";
+
+export type UserViewMode = "table" | "card";
+
+const USER_VIEW_MODE_STORAGE_KEY = "ppe.users.view-mode.v1";
 
 export interface UserTableProps {
   className?: string;
@@ -31,6 +40,9 @@ export interface UserTableProps {
   onStatusFilterChange?: (status: string) => void;
   isCreateOpen?: boolean;
   onOpenCreateChange?: (open: boolean) => void;
+  summaryTotal?: number;
+  roleCounts?: Record<string, number>;
+  defaultViewMode?: UserViewMode;
 }
 
 export function UserTable({
@@ -40,29 +52,86 @@ export function UserTable({
   onStatusFilterChange,
   isCreateOpen: propIsCreateOpen,
   onOpenCreateChange,
+  summaryTotal,
+  roleCounts,
+  defaultViewMode,
 }: UserTableProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user: currentAdmin } = useAuth();
-  const { data: roles = [] } = useRoles();
+  const { data: roles = [], isLoading: isLoadingRoles } = useRoles();
   const queryClient = useQueryClient();
   const can = (permission: string) => (currentAdmin?.role === "ADMIN" || currentAdmin?.role === "SUPER_ADMIN") || Boolean(currentAdmin?.permissions?.includes(permission));
   const canUpdate = can("USER_UPDATE");
   const canCreate = can("USER_CREATE");
+  const canAssignRole = can("USER_ROLE_ASSIGN");
   const canDelete = can("USER_DELETE");
   const canRestore = can("USER_RESTORE") || canDelete;
   const [bulkPending, setBulkPending] = useState(false);
   const [bulkMode, setBulkMode] = useState<boolean | null>(null);
+
+  const urlView = searchParams.get("view");
+  const urlRole = searchParams.get("role");
+
+  const [viewMode, setViewMode] = useState<UserViewMode>(() => {
+    if (urlView === "card" || urlView === "table") return urlView;
+    return defaultViewMode ?? "table";
+  });
+  const [viewModeHydrated, setViewModeHydrated] = useState(
+    Boolean(defaultViewMode || urlView === "card" || urlView === "table"),
+  );
+
+  // Restore saved view mode preference from localStorage (chỉ khi URL và props không chỉ định)
+  useEffect(() => {
+    if (defaultViewMode || urlView === "card" || urlView === "table") {
+      setViewModeHydrated(true);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(USER_VIEW_MODE_STORAGE_KEY);
+      if (saved === "card" || saved === "table") {
+        setViewMode(saved);
+      }
+    } catch {
+      // Ignore storage errors
+    } finally {
+      setViewModeHydrated(true);
+    }
+  }, [defaultViewMode, urlView]);
+
+  // Sync viewMode khi URL ?view= thay đổi (Back / Forward)
+  useEffect(() => {
+    if (urlView === "card" || urlView === "table") {
+      setViewMode((prev) => (prev === urlView ? prev : urlView));
+    }
+  }, [urlView]);
+
+  // Persist viewMode vào localStorage sau khi hydrate
+  useEffect(() => {
+    if (!viewModeHydrated || defaultViewMode) return;
+    try {
+      localStorage.setItem(USER_VIEW_MODE_STORAGE_KEY, viewMode);
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [viewModeHydrated, viewMode, defaultViewMode]);
 
   // Query States (hỗ trợ deep-link ?search=...&role=...)
   const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const debouncedSearch = useDebounce(search, 350);
 
   const [roleFilter, setRoleFilter] = useState<string>(
-    () => searchParams.get("role") || "all",
+    () => urlRole || "all",
   );
+
+  useEffect(() => {
+    const nextRole = urlRole || "all";
+    setRoleFilter((prev) => (prev === nextRole ? prev : nextRole));
+  }, [urlRole]);
+
   const [internalStatusFilter, setInternalStatusFilter] = useState<string>("all");
   const statusFilter = propStatusFilter !== undefined ? propStatusFilter : internalStatusFilter;
   const setStatusFilter = (val: string) => {
@@ -80,9 +149,52 @@ export function UserTable({
   ]);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
+  const updateUrlParams = useCallback(
+    (mutate: (params: URLSearchParams) => void) => {
+      if (!pathname) return;
+      const params = new URLSearchParams(searchParams.toString());
+      mutate(params);
+      const q = params.toString();
+      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const handleViewModeChange = useCallback(
+    (nextMode: UserViewMode) => {
+      setViewMode(nextMode);
+      if (nextMode === "card") {
+        setRowSelection({});
+      }
+      updateUrlParams((params) => {
+        if (nextMode === "table") {
+          params.delete("view");
+        } else {
+          params.set("view", nextMode);
+        }
+      });
+    },
+    [updateUrlParams],
+  );
+
+  const handleRoleFilterChange = useCallback(
+    (nextRole: string) => {
+      setRoleFilter(nextRole);
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+      updateUrlParams((params) => {
+        if (!nextRole || nextRole === "all") {
+          params.delete("role");
+        } else {
+          params.set("role", nextRole);
+        }
+      });
+    },
+    [updateUrlParams],
+  );
+
   const apiSorting = mapTableSort(sorting, { user: "fullName", email: "email", createdAt: "createdAt" }, { sortBy: "createdAt", order: "desc" });
 
-  // Fetch Users
+  // Fetch Users (bao gồm lọc thuần FE theo twoFactorEnabled để quét đủ mọi trang)
   const queryParams = useMemo(() => {
     return {
       page: pagination.pageIndex + 1,
@@ -96,11 +208,11 @@ export function UserTable({
             ? false
             : undefined,
       isDeleted: statusFilter === "deleted" ? true : undefined,
+      twoFactorEnabled: statusFilter === "twoFactor" ? true : undefined,
       sortBy: apiSorting.sortBy,
       order: apiSorting.order,
-
     };
-  }, [pagination.pageIndex, pagination.pageSize, debouncedSearch, roleFilter, statusFilter, sorting]);
+  }, [pagination.pageIndex, pagination.pageSize, debouncedSearch, roleFilter, statusFilter, apiSorting.sortBy, apiSorting.order]);
 
   const {
     data: usersData,
@@ -132,19 +244,53 @@ export function UserTable({
   });
   const [detailUser, setDetailUser] = useState<UserResponseDto | null>(null);
 
-  const tableData = useMemo(() => {
-    const raw = usersData?.data ?? [];
-    if (statusFilter === "twoFactor") {
-      return raw.filter((u) => Boolean(u.twoFactorEnabled));
-    }
-    return raw;
-  }, [usersData?.data, statusFilter]);
+  const tableData = usersData?.data ?? [];
+  const totalCount = usersData?.meta?.total ?? tableData.length;
+  const pageCount =
+    usersData?.meta?.totalPages ?? Math.ceil(totalCount / pagination.pageSize);
 
-  const totalCount =
-    statusFilter === "twoFactor"
-      ? tableData.length
-      : (usersData?.meta?.total ?? tableData.length);
-  const pageCount = usersData?.meta?.totalPages ?? Math.ceil(totalCount / pagination.pageSize);
+  const cardSortValue = useMemo<UserCardSortOption>(() => {
+    const active = sorting[0];
+    if (active?.id === "user") return "fullName:asc";
+    if (active?.id === "email") return "email:asc";
+    if (active?.id === "createdAt" && !active.desc) return "createdAt:asc";
+    return "createdAt:desc";
+  }, [sorting]);
+
+  const handleCardSortChange = useCallback((nextSort: UserCardSortOption) => {
+    switch (nextSort) {
+      case "createdAt:asc":
+        setSorting([{ id: "createdAt", desc: false }]);
+        break;
+      case "fullName:asc":
+        setSorting([{ id: "user", desc: false }]);
+        break;
+      case "email:asc":
+        setSorting([{ id: "email", desc: false }]);
+        break;
+      case "createdAt:desc":
+      default:
+        setSorting([{ id: "createdAt", desc: true }]);
+        break;
+    }
+    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+  }, []);
+
+  const viewModeOptions = useMemo<SegmentedControlOption<UserViewMode>[]>(
+    () => [
+      {
+        value: "table",
+        label: t("users.view.table"),
+        icon: <Table2 className="size-3.5" aria-hidden="true" />,
+      },
+      {
+        value: "card",
+        label: t("users.view.card"),
+        icon: <LayoutGrid className="size-3.5" aria-hidden="true" />,
+      },
+    ],
+    [t],
+  );
 
   const hasActiveFilters =
     roleFilter !== "all" ||
@@ -156,6 +302,10 @@ export function UserTable({
     setRoleFilter("all");
     setStatusFilter("all");
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+    updateUrlParams((params) => {
+      params.delete("role");
+      params.delete("search");
+    });
   };
 
   // Row Actions definition
@@ -265,7 +415,7 @@ export function UserTable({
         header: isVietnamese ? "Người dùng" : "User",
         cell: ({ row }) => {
           const u = row.original;
-          const initials = (u.fullName || u.email || "U").charAt(0).toUpperCase();
+          const initials = getUserInitials(u);
 
           return (
             <div className="flex items-center gap-3">
@@ -308,19 +458,7 @@ export function UserTable({
         header: isVietnamese ? "Vai trò" : "Role",
         cell: ({ row }) => {
           const rName = row.original.role?.name || "USER";
-
-          const roleColors: Record<string, string> = {
-            ADMIN: "border-primary/40 bg-primary/10 text-primary",
-            SUPER_ADMIN: "border-primary/40 bg-primary/10 text-primary",
-            SAFETY_MANAGER: "border-accent/40 bg-accent/10 text-accent",
-            SAFETY_OFFICER: "border-accent/30 bg-accent/10 text-accent",
-            MANAGER: "border-accent/30 bg-accent/10 text-accent",
-
-          };
-
-          const colorClass =
-            roleColors[rName] || "border-border/60 bg-muted/40 text-muted-foreground";
-
+          const colorClass = getRoleBadgeStyle(rName).badgeClass;
           const siteCount = Array.isArray(row.original.siteIds) ? row.original.siteIds.length : 0;
 
           return (
@@ -348,12 +486,9 @@ export function UserTable({
         accessorKey: "isActive",
         header: isVietnamese ? "Trạng thái" : "Status",
         cell: ({ row }) => {
-          const u = row.original;
-          const isLocked = Boolean(u.lockedUntil && new Date(u.lockedUntil) > new Date());
-          const isDeleted = Boolean(u.deletedAt);
-          const isActive = u.isActive && !isDeleted && !isLocked;
+          const accountStatus = getUserAccountStatus(row.original);
 
-          if (isDeleted) {
+          if (accountStatus === "deleted") {
             return (
               <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground line-through opacity-75">
                 <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
@@ -362,7 +497,7 @@ export function UserTable({
             );
           }
 
-          if (isLocked) {
+          if (accountStatus === "locked") {
             return (
               <span className="inline-flex items-center gap-1.5 text-xs font-medium text-accent">
                 <span className="h-1.5 w-1.5 rounded-full bg-accent shrink-0" />
@@ -371,7 +506,7 @@ export function UserTable({
             );
           }
 
-          if (isActive) {
+          if (accountStatus === "active") {
             return (
               <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_var(--primary)] shrink-0" />
@@ -542,12 +677,15 @@ export function UserTable({
         fetching={isFetching || bulkPending}
         error={error}
         onRetry={() => {
-          void refetch();
+          void Promise.all([
+            refetch(),
+            queryClient.invalidateQueries({ queryKey: userKeys.summary() }),
+          ]);
         }}
         globalFilter={search}
         onGlobalFilterChange={value => setSearch(String(value ?? ""))}
         filterKey={`${roleFilter}:${statusFilter}`}
-        features={{ rowSelection: canUpdate && statusFilter !== "deleted" }}
+        features={{ rowSelection: viewMode === "table" && canUpdate && statusFilter !== "deleted" }}
         emptyMessage={
           isVietnamese
             ? "Không tìm thấy người dùng nào phù hợp với điều kiện tìm kiếm."
@@ -575,20 +713,30 @@ export function UserTable({
               : "Search by name, email, phone number..."
           }
           showSearch={true}
-          showColumnVisibility={true}
+          showColumnVisibility={viewMode === "table"}
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              {/* Filter Panel Toggle */}
+              {/* View Mode Switcher (Table / Cards) */}
+              <SegmentedControl<UserViewMode>
+                options={viewModeOptions}
+                value={viewMode}
+                onValueChange={handleViewModeChange}
+                aria-label={t("users.view.switcherLabel")}
+                size="sm"
+              />
               {/* Refresh Button */}
-              <button
-                type="button"
-                onClick={() => refetch()}
-                disabled={isFetching}
-                className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-background text-muted-foreground shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] transition-all hover:text-foreground hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-40"
+              <RefreshIconButton
+                onRefresh={() =>
+                  Promise.all([
+                    refetch(),
+                    queryClient.invalidateQueries({ queryKey: userKeys.summary() }),
+                  ])
+                }
+                isRefreshing={isFetching}
+                className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border/60 bg-background text-muted-foreground shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] hover:text-foreground hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-40"
                 title={isVietnamese ? "Làm mới dữ liệu" : "Refresh data"}
-              >
-                <RefreshCw size={14} className={isFetching ? "animate-spin text-primary" : ""} />
-              </button>
+                iconClassName="size-3.5"
+              />
               {/* Add User Button */}
               {canCreate ? <Button
                 variant="primary"
@@ -603,6 +751,16 @@ export function UserTable({
           }
         />
 
+        {/* Quick Role Filter Bar (hiển thị cả ở chế độ Bảng & Card) */}
+        <UserRoleFilterBar
+          roles={roles}
+          value={roleFilter}
+          onChange={handleRoleFilterChange}
+          summaryTotal={summaryTotal}
+          roleCounts={roleCounts}
+          loading={isLoadingRoles}
+        />
+
         {/* Expandable Filter Panel */}
         <TableFilterPanel active={hasActiveFilters} onReset={handleResetFilters}>
               {/* Filter: Role */}
@@ -613,8 +771,7 @@ export function UserTable({
                 <select
                   id="users-role-filter" aria-label={isVietnamese ? "Vai trò" : "Role"} value={roleFilter}
                   onChange={(e) => {
-                    setRoleFilter(e.target.value);
-                    setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+                    handleRoleFilterChange(e.target.value);
                   }}
                   className={`w-full ${selectFilterClass}`}
                 >
@@ -652,8 +809,8 @@ export function UserTable({
 
             </TableFilterPanel>
 
-        {/* Bulk Actions Floating Bar */}
-        {selectedCount > 0 && (
+        {/* Bulk Actions Floating Bar (chỉ hiển thị ở chế độ Bảng) */}
+        {viewMode === "table" && selectedCount > 0 && (
           <div className="p-3 border-b border-border/30 bg-primary/5">
             <TableBulkActions
               actions={bulkActionsList}
@@ -667,12 +824,58 @@ export function UserTable({
           </div>
         )}
 
-        {/* Table Rows & Cells */}
-        <TableContent />
+        {/* Table Rows hoặc Responsive Card Grid */}
+        {viewMode === "card" ? (
+          <UserCardGrid
+            users={tableData}
+            loading={isLoading}
+            fetching={isFetching || bulkPending}
+            hasActiveFilters={hasActiveFilters}
+            onResetFilters={handleResetFilters}
+            totalCount={totalCount}
+            pageIndex={pagination.pageIndex}
+            pageSize={pagination.pageSize}
+            sortValue={cardSortValue}
+            onSortChange={handleCardSortChange}
+            currentAdminId={currentAdmin?.id}
+            canUpdate={canUpdate}
+            canAssignRole={canAssignRole}
+            canDelete={canDelete}
+            canRestore={canRestore}
+            onViewProfile={(u) => router.push(`/users/${u.id}`)}
+            onQuickView={(u) => setDetailUser(u)}
+            onEdit={(u) => setEditUser(u)}
+            onAssignRole={(u) => setAssignRoleUser(u)}
+            onToggleActive={(u) =>
+              setDeleteModalState({
+                user: u,
+                mode: u.isActive ? "deactivate" : "activate",
+                open: true,
+              })
+            }
+            onRestore={(u) =>
+              setDeleteModalState({
+                user: u,
+                mode: "restore",
+                open: true,
+              })
+            }
+            onDelete={(u) =>
+              setDeleteModalState({
+                user: u,
+                mode: "delete",
+                open: true,
+              })
+            }
+            onRoleBadgeClick={handleRoleFilterChange}
+          />
+        ) : (
+          <TableContent />
+        )}
 
         {/* Server Pagination */}
         <TablePagination
-          pageSizeOptions={[10, 20, 50]}
+          pageSizeOptions={[10, 12, 20, 50]}
           showPageSizeSelector={true}
           showRowCount={true}
         />

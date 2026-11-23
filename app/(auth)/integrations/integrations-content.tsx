@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { KeyRound, RefreshCw, Terminal, Webhook } from "lucide-react";
+import { KeyRound, Terminal, Webhook } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import {
   ApiKeysTab,
@@ -9,7 +9,7 @@ import {
   JobTriggerPlayground,
   WebhooksTab,
 } from "@/components/features/integrations";
-import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-action";
 import { useApiKeys, useIntegrationMutations, useWebhooks } from "@/hooks/integration";
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
@@ -77,19 +77,19 @@ export default function IntegrationsContent() {
         badge={isVi ? "Developer Gateway" : "Developer Gateway"}
         breadcrumbs={breadcrumbs}
         actions={
-          <Button
+          <RefreshButton
             variant="ghost"
             size="md"
-            disabled={isRefreshing}
-            onClick={() => {
-              if (canReadApiKeys) void apiKeysQuery.refetch();
-              if (canReadWebhooks) void webhooksQuery.refetch();
-            }}
+            isRefreshing={isRefreshing}
+            onRefresh={() =>
+              Promise.all([
+                canReadApiKeys ? apiKeysQuery.refetch() : Promise.resolve(),
+                canReadWebhooks ? webhooksQuery.refetch() : Promise.resolve(),
+              ])
+            }
+            iconClassName="h-4 w-4"
             className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            <span>{t("common.refresh")}</span>
-          </Button>
+          />
         }
       />
 

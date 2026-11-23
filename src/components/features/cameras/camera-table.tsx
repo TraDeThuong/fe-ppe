@@ -33,6 +33,7 @@ import { NM } from "@/components/features/ai-test/nm-styles";
 import { cameraService } from "@/services/camera.service";
 import { settleInBatches } from "@/lib/table-utils";
 import { toast } from "@/lib/toast";
+import { RefreshIconButton } from "@/components/ui/refresh-action";
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import type { LiveSessionInfo } from "@/types/ai-test.types";
@@ -47,6 +48,7 @@ export interface CameraTableProps {
   onEdit: (camera: CameraItem) => void;
   onDelete: (camera: CameraItem) => void;
   loading?: boolean;
+  isRefreshing?: boolean;
   tableState?: Partial<TableProps<CameraItem>>;
   onRefresh?: () => void;
   variant?: "soft" | "sculpted";
@@ -61,6 +63,7 @@ export function CameraTable({
   onEdit,
   onDelete,
   loading = false,
+  isRefreshing = false,
   tableState,
   onRefresh,
   variant = "soft",
@@ -342,15 +345,14 @@ export function CameraTable({
           showColumnVisibility={true}
           actions={
             onRefresh ? (
-              <button
-                type="button"
-                onClick={onRefresh}
+              <RefreshIconButton
+                onRefresh={onRefresh}
+                isRefreshing={isRefreshing}
                 title={isVietnamese ? "Làm mới danh sách camera" : "Refresh camera list"}
-                aria-label={isVietnamese ? "Làm mới danh sách camera" : "Refresh camera list"}
-                className={`inline-flex h-9 w-9 items-center justify-center rounded-xl text-primary ${NM.tactileBtn}`}
-              >
-                <RefreshCw className="size-3.5" />
-              </button>
+                ariaLabel={isVietnamese ? "Làm mới danh sách camera" : "Refresh camera list"}
+                className={`inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-primary disabled:opacity-50 ${NM.tactileBtn}`}
+                iconClassName="size-3.5"
+              />
             ) : undefined
           }
         />

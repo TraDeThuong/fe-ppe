@@ -13,6 +13,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
+import { ConsoleRefreshButton } from "@/components/ui/refresh-action";
 import { useLocale } from "@/providers/locale-provider";
 import type { ModelInfo } from "@/types/ai-test.types";
 
@@ -242,36 +243,11 @@ export function CameraFleetHeader({
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={onRefreshAll}
-              disabled={isRefreshing}
-              className={`group inline-flex shrink-0 items-center gap-2.5 rounded-2xl px-3.5 py-2 sm:px-4 sm:py-2.5 text-xs font-bold uppercase tracking-wider text-foreground disabled:opacity-60 ${NM.tactileBtn}`}
-            >
-              <span
-                className={`flex h-9 w-9 items-center justify-center rounded-xl ${NM.recessed}`}
-              >
-                <RefreshCw
-                  className={`size-4 text-primary transition-transform duration-500 ${
-                    isRefreshing ? "animate-spin" : "group-hover:rotate-90"
-                  }`}
-                />
-              </span>
-              <span className="text-left leading-tight">
-                <span className="block">
-                  {isRefreshing
-                    ? isVietnamese
-                      ? "Đang đồng bộ"
-                      : "Syncing"
-                    : isVietnamese
-                      ? "Làm mới"
-                      : "Refresh"}
-                </span>
-                <span className="mt-0.5 block text-[10px] font-medium normal-case tracking-normal text-muted-foreground">
-                  {isVietnamese ? "Trạng thái" : "Status"}
-                </span>
-              </span>
-            </button>
+            <ConsoleRefreshButton
+              onRefresh={onRefreshAll}
+              isRefreshing={isRefreshing}
+              subtitle={isVietnamese ? "Trạng thái" : "Status"}
+            />
 
             {canCreateCamera && (
               <button

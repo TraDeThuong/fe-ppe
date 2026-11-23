@@ -23,8 +23,33 @@ export const userService = {
   /**
    * GET /api/v1/users
    * Lấy danh sách người dùng có phân trang, tìm kiếm và lọc vai trò/trạng thái.
+   * Khi truyền `twoFactorEnabled`, tự động quét toàn bộ danh sách khớp bộ lọc (thuần FE)
+   * rồi lọc và phân trang lại chính xác để không bỏ sót user ở các trang sau.
    */
   async getUsers(params?: UserQueryParams): Promise<UserListResponse> {
+    if (params?.twoFactorEnabled !== undefined) {
+      const { twoFactorEnabled, page: rawPage, limit: rawLimit, ...baseParams } = params;
+      const page = Math.max(1, rawPage ?? 1);
+      const limit = Math.max(1, rawLimit ?? 10);
+      const all = await this.getAllUsers(baseParams);
+      const filtered = all.data.filter(
+        (u) => Boolean(u.twoFactorEnabled) === twoFactorEnabled,
+      );
+      const total = filtered.length;
+      const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+      const start = (page - 1) * limit;
+
+      return {
+        data: filtered.slice(start, start + limit),
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages,
+        },
+      };
+    }
+
     const res = await apiClient.get<unknown, UserListResponse | UserResponseDto[]>("/users", {
       params,
     });
@@ -54,19 +79,24 @@ export const userService = {
   },
 
   /**
-   * Tổng hợp số liệu người dùng (total, active, twoFactor, locked) từ GET /api/v1/users
-   * (khớp với smart-ppe-identity-service trên nhánh origin/develop).
+   * Tải toàn bộ danh sách người dùng khớp điều kiện truy vấn (quét tối đa 20 trang x 100 bản ghi).
+   * Dùng chung cho getUserSummary() và cơ chế lọc thuần FE theo twoFactorEnabled.
    */
-  async getUserSummary(): Promise<{ total: number; active: number; twoFactor: number; locked: number }> {
+  async getAllUsers(
+    params?: Omit<UserQueryParams, "page" | "limit" | "twoFactorEnabled">,
+  ): Promise<{ data: UserResponseDto[]; total: number }> {
     const limit = 100;
-    const firstPage = await this.getUsers({ page: 1, limit });
+    const safeParams: Omit<UserQueryParams, "page" | "limit" | "twoFactorEnabled"> = {
+      ...params,
+    };
+    const firstPage = await this.getUsers({ ...safeParams, page: 1, limit });
     const users = [...firstPage.data];
     const totalPages = Math.min(firstPage.meta?.totalPages ?? 1, 20);
 
     if (totalPages > 1) {
       const restPages = await Promise.all(
         Array.from({ length: totalPages - 1 }, (_, i) =>
-          this.getUsers({ page: i + 2, limit }).catch(() => null),
+          this.getUsers({ ...safeParams, page: i + 2, limit }).catch(() => null),
         ),
       );
       for (const pageRes of restPages) {
@@ -76,12 +106,37 @@ export const userService = {
       }
     }
 
+    return {
+      data: users,
+      total: firstPage.meta?.total ?? users.length,
+    };
+  },
+
+  /**
+   * Tổng hợp số liệu người dùng (total, active, twoFactor, locked, byRole) từ GET /api/v1/users
+   * (khớp với smart-ppe-identity-service trên nhánh origin/develop).
+   */
+  async getUserSummary(): Promise<{
+    total: number;
+    active: number;
+    twoFactor: number;
+    locked: number;
+    byRole: Record<string, number>;
+  }> {
+    const { data: users, total } = await this.getAllUsers();
+
     const nowMs = Date.now();
     let active = 0;
     let twoFactor = 0;
     let locked = 0;
+    const byRole: Record<string, number> = {};
 
     for (const user of users) {
+      const roleName = user.role?.name;
+      if (roleName) {
+        byRole[roleName] = (byRole[roleName] ?? 0) + 1;
+      }
+
       const lockedUntilMs = user.lockedUntil ? new Date(user.lockedUntil).getTime() : 0;
       const isLocked = !user.isActive || (Number.isFinite(lockedUntilMs) && lockedUntilMs > nowMs);
       if (isLocked) {
@@ -95,10 +150,11 @@ export const userService = {
     }
 
     return {
-      total: firstPage.meta?.total ?? users.length,
+      total,
       active,
       twoFactor,
       locked,
+      byRole,
     };
   },
 

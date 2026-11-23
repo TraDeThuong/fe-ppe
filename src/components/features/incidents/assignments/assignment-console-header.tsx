@@ -6,11 +6,12 @@ import {
   Building2,
   ClipboardCheck,
   Radio,
-  RefreshCw,
   ShieldAlert,
   UserCheck,
 } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
+import { ConsoleRefreshButton } from "@/components/ui/refresh-action";
+import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
 import { useLocale } from "@/providers/locale-provider";
 import type {
   AssignmentRoleView,
@@ -28,6 +29,7 @@ export interface AssignmentConsoleHeaderProps {
   totalIncidentsCount: number;
   selectedSiteName?: string;
   categorized: CategorizedAssignments;
+  statusTotals?: Partial<AssignmentIncidentTotals>;
 }
 
 export function AssignmentConsoleHeader({
@@ -41,6 +43,7 @@ export function AssignmentConsoleHeader({
   totalIncidentsCount,
   selectedSiteName,
   categorized,
+  statusTotals,
 }: AssignmentConsoleHeaderProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -76,9 +79,24 @@ export function AssignmentConsoleHeader({
         ? "Quản lý An toàn"
         : "Safety Manager";
 
+  const pendingReviewCount = Math.max(
+    statusTotals?.pendingReview ?? 0,
+    categorized.pendingReview.length,
+  );
+  const triageCount =
+    pendingReviewCount + categorized.unassignedConfirmed.length;
+  const awaitingAcceptanceCount = Math.max(
+    statusTotals?.resolved ?? 0,
+    categorized.awaitingAcceptance.length,
+  );
+  const effectiveTotalIncidentsCount = Math.max(
+    statusTotals?.total ?? 0,
+    totalIncidentsCount,
+  );
+
   const urgentCount = showOfficerView
     ? categorized.myActiveConfirmed.length
-    : categorized.triageItems.length + categorized.awaitingAcceptance.length;
+    : triageCount + awaitingAcceptanceCount;
 
   const urgentLabel = showOfficerView
     ? isVietnamese
@@ -166,7 +184,7 @@ export function AssignmentConsoleHeader({
                   <Building2 className="size-3 text-primary" />
                   {selectedSiteName ||
                     (isVietnamese ? "Tất cả công trường" : "All Sites")}{" "}
-                  ({totalIncidentsCount})
+                  ({effectiveTotalIncidentsCount})
                 </span>
               </div>
             </div>
@@ -216,36 +234,11 @@ export function AssignmentConsoleHeader({
               </span>
             </Link>
 
-            <button
-              type="button"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              className={`group inline-flex shrink-0 items-center gap-2.5 rounded-2xl px-3.5 py-2 sm:px-4 sm:py-2.5 text-xs font-bold uppercase tracking-wider text-foreground disabled:opacity-60 ${NM.tactileBtn}`}
-            >
-              <span
-                className={`flex h-9 w-9 items-center justify-center rounded-xl ${NM.recessed}`}
-              >
-                <RefreshCw
-                  className={`size-4 text-primary transition-transform duration-500 ${
-                    isRefreshing ? "animate-spin" : "group-hover:rotate-90"
-                  }`}
-                />
-              </span>
-              <span className="text-left leading-tight">
-                <span className="block">
-                  {isRefreshing
-                    ? isVietnamese
-                      ? "Đang đồng bộ"
-                      : "Syncing"
-                    : isVietnamese
-                      ? "Làm mới"
-                      : "Refresh"}
-                </span>
-                <span className="mt-0.5 block text-[10px] font-medium normal-case tracking-normal text-muted-foreground">
-                  {isVietnamese ? "Dữ liệu" : "Status"}
-                </span>
-              </span>
-            </button>
+            <ConsoleRefreshButton
+              onRefresh={onRefresh}
+              isRefreshing={isRefreshing}
+              subtitle={isVietnamese ? "Dữ liệu" : "Status"}
+            />
           </div>
         </div>
       </div>

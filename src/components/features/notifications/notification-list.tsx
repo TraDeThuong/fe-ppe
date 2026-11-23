@@ -3,13 +3,19 @@
 import { ChevronLeft, ChevronRight, Inbox } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 import { isNotificationRead } from "@/lib/notification-inbox";
+import type { NotificationPersonCluster } from "@/lib/notification-grouping-engine";
 import { NotificationItem } from "./notification-item";
+import { NotificationPersonClusterCard } from "./notification-person-cluster-card";
 import { NotificationSkeleton } from "./notification-skeleton";
 import { NotificationEmptyState } from "./notification-empty-state";
 import type { NotificationItemDto } from "@/types";
 
 export interface NotificationListProps {
   items: NotificationItemDto[];
+  /** Danh sách đã gom theo cá nhân / đa vi phạm (nếu ở chế độ `person`) */
+  clusters?: NotificationPersonCluster[];
+  /** Tổng số thông báo gốc trước khi gom đa vi phạm cùng người */
+  totalRawItems?: number;
   total?: number;
   page?: number;
   limit?: number;
@@ -21,8 +27,13 @@ export interface NotificationListProps {
   onPageChange?: (page: number) => void;
   onLimitChange?: (limit: number) => void;
   selectedId?: string | null;
-  onSelect?: (notification: NotificationItemDto) => void;
+  onSelect?: (
+    notification: NotificationItemDto,
+    cluster?: NotificationPersonCluster,
+  ) => void;
   onMarkAsRead?: (id: string) => void;
+  onMarkManyAsRead?: (ids: string[]) => void;
+  isMarkingManyRead?: boolean;
   markingReadId?: string | null;
   onDelete?: (id: string) => void;
   deletingId?: string | null;
@@ -33,6 +44,8 @@ export interface NotificationListProps {
 
 export function NotificationList({
   items,
+  clusters,
+  totalRawItems,
   total = 0,
   page = 1,
   limit = 20,
@@ -46,6 +59,8 @@ export function NotificationList({
   selectedId,
   onSelect,
   onMarkAsRead,
+  onMarkManyAsRead,
+  isMarkingManyRead = false,
   markingReadId,
   onDelete,
   deletingId,
@@ -55,6 +70,9 @@ export function NotificationList({
 }: NotificationListProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+
+  const hasClusters = Boolean(clusters);
+  const rowCount = hasClusters ? (clusters?.length ?? 0) : (items?.length ?? 0);
 
   const errorNotice = error ? (
     <div
@@ -79,13 +97,13 @@ export function NotificationList({
     </div>
   ) : null;
 
-  if (error && !items?.length) return errorNotice;
+  if (error && rowCount === 0) return errorNotice;
 
   if (isLoading) {
     return <NotificationSkeleton count={4} />;
   }
 
-  if (!items || items.length === 0) {
+  if (rowCount === 0) {
     return (
       <NotificationEmptyState
         onResetFilters={hasActiveFilters ? onResetFilters : undefined}
@@ -93,9 +111,12 @@ export function NotificationList({
     );
   }
 
+  const effectiveTotal = total || rowCount;
   const startIdx = Math.max(1, (page - 1) * limit + 1);
-  const endIdx = Math.min(total || items.length, page * limit);
-  const unreadInPage = items.filter((item) => !isNotificationRead(item)).length;
+  const endIdx = Math.min(effectiveTotal, page * limit);
+  const unreadInPage = hasClusters
+    ? (clusters ?? []).reduce((sum, cl) => sum + cl.unreadCount, 0)
+    : items.filter((item) => !isNotificationRead(item)).length;
   const showPagination = Boolean((totalPages > 1 && onPageChange) || onLimitChange);
 
   return (
@@ -103,37 +124,27 @@ export function NotificationList({
       {errorNotice}
 
       {/* Compact List Summary Header */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/30 bg-background/80 px-3 py-2 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Inbox className="size-3.5 text-primary" />
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border/30 bg-background/80 px-3 py-1.5 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+        <div className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+          <Inbox className="size-3.5 shrink-0 text-primary" />
           <span>
-            {isVietnamese ? (
-              <>
-                Đang xem{" "}
-                <span className="font-bold text-foreground">
-                  {startIdx}–{endIdx}
-                </span>{" "}
-                / <span className="font-bold text-foreground">{total}</span>{" "}
-                thông báo
-              </>
-            ) : (
-              <>
-                Showing{" "}
-                <span className="font-bold text-foreground">
-                  {startIdx}–{endIdx}
-                </span>{" "}
-                of <span className="font-bold text-foreground">{total}</span>
-              </>
-            )}
+            <span className="font-bold text-foreground">
+              {startIdx}–{endIdx}
+            </span>{" "}
+            / <span className="font-bold text-foreground">{effectiveTotal}</span>
+            {hasClusters && totalRawItems && totalRawItems > effectiveTotal
+              ? isVietnamese
+                ? ` (${totalRawItems} tin)`
+                : ` (${totalRawItems})`
+              : ""}
           </span>
         </div>
 
         {unreadInPage > 0 && (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold text-primary">
+          <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10.5px] font-bold text-primary">
             <span className="size-1.5 rounded-full bg-primary animate-pulse" />
             <span>
-              {unreadInPage}{" "}
-              {isVietnamese ? "chưa đọc trong trang" : "unread on page"}
+              {unreadInPage} {isVietnamese ? "chưa đọc" : "unread"}
             </span>
           </span>
         )}
@@ -141,18 +152,44 @@ export function NotificationList({
 
       {/* Notifications Cards Container */}
       <div className="flex flex-col gap-2">
-        {items.map((notification) => (
-          <NotificationItem
-            key={notification.id}
-            notification={notification}
-            selected={selectedId === notification.id}
-            onSelect={onSelect}
-            onMarkAsRead={onMarkAsRead}
-            isMarkingRead={markingReadId === notification.id}
-            onDelete={onDelete}
-            isDeleting={deletingId === notification.id}
-          />
-        ))}
+        {hasClusters
+          ? (clusters ?? []).map((cluster) =>
+              cluster.count > 1 ? (
+                <NotificationPersonClusterCard
+                  key={cluster.key}
+                  cluster={cluster}
+                  selectedId={selectedId}
+                  onSelect={(notif, cl) => onSelect?.(notif, cl)}
+                  onMarkAsRead={onMarkAsRead}
+                  onMarkManyAsRead={onMarkManyAsRead}
+                  isMarkingManyRead={isMarkingManyRead}
+                  markingReadId={markingReadId}
+                />
+              ) : (
+                <NotificationItem
+                  key={cluster.primary.id}
+                  notification={cluster.primary}
+                  selected={selectedId === cluster.primary.id}
+                  onSelect={(notif) => onSelect?.(notif, cluster)}
+                  onMarkAsRead={onMarkAsRead}
+                  isMarkingRead={markingReadId === cluster.primary.id}
+                  onDelete={onDelete}
+                  isDeleting={deletingId === cluster.primary.id}
+                />
+              ),
+            )
+          : items.map((notification) => (
+              <NotificationItem
+                key={notification.id}
+                notification={notification}
+                selected={selectedId === notification.id}
+                onSelect={(notif) => onSelect?.(notif)}
+                onMarkAsRead={onMarkAsRead}
+                isMarkingRead={markingReadId === notification.id}
+                onDelete={onDelete}
+                isDeleting={deletingId === notification.id}
+              />
+            ))}
       </div>
 
       {/* Neumorphic Pagination Footer */}

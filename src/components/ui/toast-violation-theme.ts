@@ -1,7 +1,8 @@
 export type IncidentToastKind =
   | "RAW_AI_ALERT"
   | "MANAGER_DISPATCH"
-  | "OFFICER_RESOLVED_REPORT";
+  | "OFFICER_RESOLVED_REPORT"
+  | "INCIDENT_COMMENT";
 
 export type IncidentToastSeverity =
   | "CRITICAL"
@@ -18,7 +19,8 @@ export type ViolationToastIconKey =
   | "alert-triangle"
   | "shield-alert"
   | "send"
-  | "check-circle";
+  | "check-circle"
+  | "message-square";
 
 export interface ViolationVisualToken {
   code: string;
@@ -172,6 +174,18 @@ export const INCIDENT_KIND_THEMES: Record<
     pillBgDark: "rgba(110, 231, 183, 0.15)",
     iconKey: "check-circle",
   },
+  INCIDENT_COMMENT: {
+    code: "INCIDENT_COMMENT",
+    labelVi: "Bình luận hiện trường",
+    labelEn: "Field Comment",
+    accentLight: "#4f46e5",
+    accentDark: "#818cf8",
+    shadowLight: "rgba(79, 70, 229, 0.22)",
+    shadowDark: "rgba(129, 140, 248, 0.26)",
+    pillBgLight: "rgba(79, 70, 229, 0.10)",
+    pillBgDark: "rgba(129, 140, 248, 0.16)",
+    iconKey: "message-square",
+  },
 };
 
 export function normalizeIncidentSeverity(
@@ -194,7 +208,7 @@ export function getIncidentToastDuration(
   severity: IncidentToastSeverity,
   kind: IncidentToastKind = "RAW_AI_ALERT",
 ): number {
-  if (kind === "OFFICER_RESOLVED_REPORT") return 5000;
+  if (kind === "OFFICER_RESOLVED_REPORT" || kind === "INCIDENT_COMMENT") return 5000;
   if (severity === "CRITICAL") return 8000;
   if (severity === "HIGH") return 7000;
   return 5500;
@@ -225,6 +239,16 @@ export function resolveIncidentToastVisual(params: {
   if (kind === "OFFICER_RESOLVED_REPORT") {
     return {
       primary: INCIDENT_KIND_THEMES.OFFICER_RESOLVED_REPORT,
+      violationBadge: matchedViolation,
+      severity,
+      isCritical: false,
+      durationMs: getIncidentToastDuration(severity, kind),
+    };
+  }
+
+  if (kind === "INCIDENT_COMMENT") {
+    return {
+      primary: INCIDENT_KIND_THEMES.INCIDENT_COMMENT,
       violationBadge: matchedViolation,
       severity,
       isCritical: false,

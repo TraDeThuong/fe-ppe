@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, History, RefreshCw } from "lucide-react";
+import { ChevronDown, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { RefreshIconButton } from "@/components/ui/refresh-action";
 import { useResourceAuditTrail } from "@/hooks/audit";
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
@@ -65,14 +65,13 @@ export function ResourceAuditTrailCard({
         </button>
 
         {expanded && (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={isFetching}
-            onClick={() => void refetch()}
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
-          </Button>
+          <RefreshIconButton
+            onRefresh={() => refetch()}
+            isRefreshing={isFetching}
+            title={isVi ? "Làm mới nhật ký" : "Refresh audit trail"}
+            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-xl border border-transparent text-muted-foreground hover:border-border/40 hover:text-primary disabled:opacity-50"
+            iconClassName="h-3.5 w-3.5"
+          />
         )}
       </div>
 

@@ -323,6 +323,7 @@ export function selectAutoStartCandidates(
     if (candidates.length >= remainingSlots) break;
     if (camera.status !== "ONLINE") continue;
     if (camera.config?.enabled === false) continue;
+    if (camera.config?.processingEnabled === false) continue;
     if (attempted?.has(camera.id)) continue;
 
     const existing = findSessionForCamera(sessionMap, camera);
@@ -348,6 +349,8 @@ export interface CameraLiveFormValues {
   aiFps: number;
   confirmHelmetSec: number;
   confirmVestSec: number;
+  confidenceThreshold?: number;
+  cooldownSec?: number;
   enableNoHelmet: boolean;
   enableNoVest: boolean;
   enableRestrictedArea: boolean;
@@ -392,6 +395,16 @@ function clampConfirmSec(value: number, fallback: number): number {
   return Math.min(30, Math.max(0.5, Number(value.toFixed(1))));
 }
 
+function clampConfidence(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(1.0, Math.max(0.1, Number(value.toFixed(2))));
+}
+
+function clampCooldownSec(value: number, fallback: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(3600, Math.max(0, Math.round(value)));
+}
+
 /**
  * Maps optional camera DB config and effective safety config into initial Live form defaults.
  * Priority: Effective Safety Config (Camera Override or Site Level) -> CameraConfigItem -> Fallback defaults.
@@ -412,7 +425,21 @@ export function deriveLiveDefaultsFromConfig(
       ? clampConfirmSec(effectiveSafety.confirmationDuration, 2.0)
       : 2.0;
 
-  const confirmVestSec = clampConfirmSec(confirmHelmetSec * 2, 4.0);
+  // Áp dụng đồng nhất confirmationDuration của Site/Camera cho cả Mũ và Áo (chỉ giữ 4.0s khi chưa có effectiveSafety)
+  const confirmVestSec =
+    effectiveSafety?.confirmationDuration != null
+      ? clampConfirmSec(effectiveSafety.confirmationDuration, 2.0)
+      : 4.0;
+
+  const confidenceThreshold =
+    effectiveSafety?.confidenceThreshold != null
+      ? clampConfidence(Number(effectiveSafety.confidenceThreshold), 0.8)
+      : 0.8;
+
+  const cooldownSec =
+    effectiveSafety?.cooldownDuration != null
+      ? clampCooldownSec(Number(effectiveSafety.cooldownDuration), 30)
+      : 30;
 
   const enableNoHelmet =
     effectiveSafety?.rules?.enableNoHelmet !== undefined
@@ -434,6 +461,8 @@ export function deriveLiveDefaultsFromConfig(
     aiFps,
     confirmHelmetSec,
     confirmVestSec,
+    confidenceThreshold,
+    cooldownSec,
     enableNoHelmet,
     enableNoVest,
     enableRestrictedArea,
@@ -466,6 +495,13 @@ export function buildCameraStartPayload(
     enable_restricted_area: values.enableRestrictedArea,
     enable_scene_cut: values.enableSceneCut,
   };
+
+  if (values.confidenceThreshold !== undefined) {
+    base.confidence_threshold = clampConfidence(values.confidenceThreshold, 0.8);
+  }
+  if (values.cooldownSec !== undefined) {
+    base.cooldown_s = clampCooldownSec(values.cooldownSec, 30);
+  }
 
   if (roiPolygons) {
     base.roi_polygons = roiPolygons;
@@ -502,6 +538,12 @@ export function buildCameraHotConfigPayload(
     confirmation_duration_s: clampConfirmSec(values.confirmHelmetSec, 2.0),
     confirmation_duration_vest_s: clampConfirmSec(values.confirmVestSec, 4.0),
   };
+  if (values.confidenceThreshold !== undefined) {
+    payload.confidence_threshold = clampConfidence(values.confidenceThreshold, 0.8);
+  }
+  if (values.cooldownSec !== undefined) {
+    payload.cooldown_s = clampCooldownSec(values.cooldownSec, 30);
+  }
   if (roiPolygons) {
     payload.roi_polygons = roiPolygons;
   }

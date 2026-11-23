@@ -1,7 +1,6 @@
 "use client";
 
-import { RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-action";
 import { useLocale } from "@/providers/locale-provider";
 import type { AiModelDto, CameraItem } from "@/types";
 
@@ -89,16 +88,13 @@ export function AiMetricsToolbar({
       </div>
 
       {/* Refresh Action */}
-      <Button
+      <RefreshButton
         variant="ghost"
         size="sm"
-        onClick={onRefresh}
-        disabled={loading}
+        onRefresh={onRefresh}
+        isRefreshing={loading}
         className="gap-2 text-xs self-end sm:self-auto h-8 px-3"
-      >
-        <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-        <span>{t("common.refresh")}</span>
-      </Button>
+      />
     </div>
   );
 }

@@ -82,6 +82,8 @@ export interface UserQueryParams {
   roleName?: string;
   isActive?: boolean;
   isDeleted?: boolean;
+  /** Lọc thuần FE (quét toàn bộ trang khớp bộ lọc rồi phân trang client-side) vì BE chưa hỗ trợ query param này */
+  twoFactorEnabled?: boolean;
   sortBy?: UserSortBy;
   order?: SortOrder;
   page?: number;

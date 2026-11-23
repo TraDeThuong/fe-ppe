@@ -4,13 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarClock,
   Info,
-  RefreshCw,
   Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { ForbiddenView } from "@/components/features/app-shell/forbidden-view";
-import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-action";
 import { Loader } from "@/components/ui/loader";
 import { useCronJobs, useCronMutations } from "@/hooks/cron/use-cron";
 import { useCronRecentExecutions } from "@/hooks/cron/use-cron-history";
@@ -125,7 +124,10 @@ export function ScheduledTasksScreen() {
 
   const refresh = async () => {
     if (!canRead || submitting.current) return;
-    const response = await query.refetch();
+    const [response] = await Promise.all([
+      query.refetch(),
+      canReadAudit ? recentAuditQuery.refetch() : Promise.resolve(),
+    ]);
     if (response.isSuccess) {
       setLastSynced(new Date());
       setBlockedJobs(new Set());
@@ -295,22 +297,17 @@ export function ScheduledTasksScreen() {
           time: lastSynced.toLocaleTimeString(locale),
         })}`}
         actions={
-          <Button
+          <RefreshButton
             size="sm"
             variant="outline"
-            disabled={query.isFetching || pending}
-            onClick={() => void refresh()}
+            disabled={pending}
+            isRefreshing={query.isFetching || recentAuditQuery.isFetching}
+            onRefresh={refresh}
+            label={t("cron.refresh")}
             aria-label={t("cron.refresh")}
+            iconClassName="size-4"
             className="gap-2 rounded-xl border-border/60 shadow-sm"
-          >
-            <RefreshCw
-              aria-hidden="true"
-              className={`size-4 ${
-                query.isFetching ? "animate-spin motion-reduce:animate-none" : ""
-              }`}
-            />
-            {t("cron.refresh")}
-          </Button>
+          />
         }
       />
 

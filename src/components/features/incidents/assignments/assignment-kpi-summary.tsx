@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { StatsCard, type StatsCardTone } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
+import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
 import type {
   AdminGroupMode,
   AssignmentRoleView,
@@ -29,6 +30,7 @@ export interface AssignmentKpiSummaryProps {
   loading?: boolean;
   totalIncidentsCount: number;
   categorized: CategorizedAssignments;
+  statusTotals?: Partial<AssignmentIncidentTotals>;
   activeOfficersCount: number;
   dispatchedGroupsCount: number;
   adminGroupMode: AdminGroupMode;
@@ -64,6 +66,7 @@ export function AssignmentKpiSummary({
   loading = false,
   totalIncidentsCount,
   categorized,
+  statusTotals,
   activeOfficersCount,
   dispatchedGroupsCount,
   adminGroupMode,
@@ -79,10 +82,30 @@ export function AssignmentKpiSummary({
   const showAdminOversight = isAdminRole && !adminInterventionMode;
   const showOfficerView = roleView === "SAFETY_OFFICER";
 
+  const pendingReviewCount = Math.max(
+    statusTotals?.pendingReview ?? 0,
+    categorized.pendingReview.length,
+  );
+  const unassignedConfirmedCount = categorized.unassignedConfirmed.length;
+  const triageCount = pendingReviewCount + unassignedConfirmedCount;
+  const assignedConfirmedCount = categorized.assignedConfirmed.length;
+  const awaitingAcceptanceCount = Math.max(
+    statusTotals?.resolved ?? 0,
+    categorized.awaitingAcceptance.length,
+  );
+  const closedOrDismissedCount = Math.max(
+    statusTotals?.closedOrDismissed ?? 0,
+    categorized.closedOrDismissed.length,
+  );
+  const effectiveTotalIncidentsCount = Math.max(
+    statusTotals?.total ?? 0,
+    totalIncidentsCount,
+  );
+
   const closedRate =
-    totalIncidentsCount > 0
+    effectiveTotalIncidentsCount > 0
       ? Math.round(
-          (categorized.closedOrDismissed.length / totalIncidentsCount) * 100,
+          (closedOrDismissedCount / effectiveTotalIncidentsCount) * 100,
         )
       : 100;
 
@@ -100,12 +123,12 @@ export function AssignmentKpiSummary({
           title: isVietnamese
             ? "Trách nhiệm Manager (Đầu vào)"
             : "Manager Triage Backlog",
-          value: categorized.triageItems.length,
+          value: triageCount,
           icon: AlertTriangle,
           tone: "warning",
           description: isVietnamese
-            ? `${categorized.pendingReview.length} chờ duyệt AI • ${categorized.unassignedConfirmed.length} chưa giao`
-            : `${categorized.pendingReview.length} pending AI • ${categorized.unassignedConfirmed.length} unassigned`,
+            ? `${pendingReviewCount} chờ duyệt AI • ${unassignedConfirmedCount} chưa giao`
+            : `${pendingReviewCount} pending AI • ${unassignedConfirmedCount} unassigned`,
           active: adminGroupMode === "responsibility",
           activeTextClass: "text-warning",
           hoverBorderClass: "hover:border-warning/30",
@@ -117,7 +140,7 @@ export function AssignmentKpiSummary({
           title: isVietnamese
             ? "Trách nhiệm Officer (Hiện trường)"
             : "Officer Field Workload",
-          value: categorized.assignedConfirmed.length,
+          value: assignedConfirmedCount,
           icon: UserCheck,
           tone: "primary",
           description: isVietnamese
@@ -134,7 +157,7 @@ export function AssignmentKpiSummary({
           title: isVietnamese
             ? "Trách nhiệm Manager (Nghiệm thu)"
             : "Manager Final Acceptance",
-          value: categorized.awaitingAcceptance.length,
+          value: awaitingAcceptanceCount,
           icon: ClipboardCheck,
           tone: "success",
           description: isVietnamese
@@ -149,12 +172,12 @@ export function AssignmentKpiSummary({
         {
           key: "admin-completed",
           title: isVietnamese ? "Đã Khép Hồ Sơ" : "Closed Records",
-          value: categorized.closedOrDismissed.length,
+          value: closedOrDismissedCount,
           icon: ShieldCheck,
           tone: "info",
           description: isVietnamese
-            ? `${closedRate}% hoàn tất trên ${totalIncidentsCount} sự cố`
-            : `${closedRate}% closed across ${totalIncidentsCount} records`,
+            ? `${closedRate}% hoàn tất trên ${effectiveTotalIncidentsCount} sự cố`
+            : `${closedRate}% closed across ${effectiveTotalIncidentsCount} records`,
           activeTextClass: "text-info",
           hoverBorderClass: "hover:border-info/30",
           footerLabel: `${closedRate}%`,
@@ -245,12 +268,12 @@ export function AssignmentKpiSummary({
             title: isVietnamese
               ? "Bước 1 • Duyệt & Giao việc"
               : "Step 1 • Review & Dispatch",
-            value: categorized.triageItems.length,
+            value: triageCount,
             icon: Send,
             tone: "warning",
             description: isVietnamese
-              ? `${categorized.pendingReview.length} chờ duyệt AI • ${categorized.unassignedConfirmed.length} chưa giao`
-              : `${categorized.pendingReview.length} pending AI • ${categorized.unassignedConfirmed.length} unassigned`,
+              ? `${pendingReviewCount} chờ duyệt AI • ${unassignedConfirmedCount} chưa giao`
+              : `${pendingReviewCount} pending AI • ${unassignedConfirmedCount} unassigned`,
             active: managerTab === "triage",
             activeTextClass: "text-warning",
             hoverBorderClass: "hover:border-warning/30",
@@ -269,7 +292,7 @@ export function AssignmentKpiSummary({
             title: isVietnamese
               ? "Bước 2 • Đang giao Officer"
               : "Step 2 • Field Progress",
-            value: categorized.assignedConfirmed.length,
+            value: assignedConfirmedCount,
             icon: UserCheck,
             tone: "primary",
             description: isVietnamese
@@ -293,7 +316,7 @@ export function AssignmentKpiSummary({
             title: isVietnamese
               ? "Bước 3 • Chờ Nghiệm thu"
               : "Step 3 • Accept & Close",
-            value: categorized.awaitingAcceptance.length,
+            value: awaitingAcceptanceCount,
             icon: ClipboardCheck,
             tone: "success",
             description: isVietnamese
@@ -315,12 +338,12 @@ export function AssignmentKpiSummary({
           {
             key: "mgr-closed",
             title: isVietnamese ? "Đã Khép Hồ Sơ" : "Closed Records",
-            value: categorized.closedOrDismissed.length,
+            value: closedOrDismissedCount,
             icon: ShieldCheck,
             tone: "info",
             description: isVietnamese
-              ? `${closedRate}% hoàn tất trên ${totalIncidentsCount} hồ sơ`
-              : `${closedRate}% completed of ${totalIncidentsCount} records`,
+              ? `${closedRate}% hoàn tất trên ${effectiveTotalIncidentsCount} hồ sơ`
+              : `${closedRate}% completed of ${effectiveTotalIncidentsCount} records`,
             activeTextClass: "text-info",
             hoverBorderClass: "hover:border-info/30",
             footerLabel: `${closedRate}%`,

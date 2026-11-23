@@ -132,7 +132,7 @@ export function NotificationEmailLogsTab({ className = "" }: { className?: strin
         return <div className={"font-semibold max-w-xs"}>
           <p className="truncate" title={stripEmojis(log.subject)}>{stripEmojis(log.subject)}</p>
           {log.lastError && (
-            <p className="mt-0.5 line-clamp-2 break-words text-[10px] font-normal text-destructive" title={log.lastError}>
+            <p className="mt-0.5 line-clamp-2 break-words text-[10px] font-normal text-danger" title={log.lastError}>
               {log.lastError}
             </p>
           )}
@@ -160,22 +160,22 @@ export function NotificationEmailLogsTab({ className = "" }: { className?: strin
         const log = row.original;
         return <div className={"text-center"}>
           {log.status === "SENT" ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+            <span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 text-[10px] font-bold text-success">
               <CheckCircle2 className="size-3" />
               <span>{isVietnamese ? "Thành công" : "Sent"}</span>
             </span>
           ) : log.status === "FAILED" ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-destructive/30 bg-destructive/10 px-2 py-0.5 text-[10px] font-bold text-destructive">
+            <span className="inline-flex items-center gap-1 rounded-full border border-danger/30 bg-danger/10 px-2 py-0.5 text-[10px] font-bold text-danger">
               <AlertTriangle className="size-3" />
               <span>{isVietnamese ? "Thất bại" : "Failed"}</span>
             </span>
           ) : log.status === "PROCESSING" ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+            <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
               <Loader2 className="size-3 animate-spin" />
               <span>{isVietnamese ? "Đang xử lý" : "Processing"}</span>
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+            <span className="inline-flex items-center gap-1 rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-[10px] font-bold text-warning">
               <Clock className="size-3" />
               <span>{isVietnamese ? "Chờ gửi" : "Pending"}</span>
             </span>

@@ -1,10 +1,12 @@
 "use client";
 
-// Admin Oversight Workspace with per-group & group-level pagination
+// Admin Oversight Workspace with multi-dimension grouping & per-group pagination
+import { useMemo, useState } from "react";
 import {
   Archive,
   Building2,
   Camera,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Send,
@@ -16,30 +18,60 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
+import {
+  filterAssignmentIncidents,
+  groupIncidentsForAssignment,
+  type AssignmentGroupBy,
+} from "@/lib/incident-assignment-groups";
 import type {
   CameraIncidentGroup,
   ManagerResponsibilityGroup,
   OfficerResponsibilityGroup,
+  ResponsiblePersonRef,
   SiteResponsibilityGroup,
 } from "@/lib/incident-workflow";
 import type { IncidentItem, SiteItem } from "@/types";
+import {
+  AssignmentGroupToolbar,
+  type GroupModeOption,
+} from "./assignment-group-toolbar";
 import {
   AssignmentPagination,
   PaginatedIncidentRows,
   useClientPagination,
 } from "./assignment-pagination";
+import { AssignmentWorkGroupCard } from "./assignment-work-group-card";
+import { DispatchedGroupCard } from "./dispatched-group-card";
 import type {
   AdminGroupMode,
+  AssignmentFilterState,
   AssignmentFormatters,
   AssignmentResponsibilityContext,
   AssignmentRowActions,
+  DispatchedGroupView,
 } from "./types";
+
+const ADMIN_MODE_OPTIONS: ReadonlyArray<GroupModeOption<AdminGroupMode>> = [
+  { key: "responsibility", vi: "Nhân sự", en: "Personnel" },
+  { key: "site", vi: "Công trường", en: "By Site" },
+  { key: "camera", vi: "Camera", en: "By Camera" },
+  { key: "person", vi: "Đối tượng & Đa vi phạm", en: "Person & Multi-PPE" },
+  { key: "severity", vi: "Mức độ khẩn cấp", en: "Severity" },
+  { key: "violation", vi: "Loại vi phạm", en: "Violation" },
+  { key: "hour", vi: "Khung giờ", en: "By Hour" },
+  { key: "shift", vi: "Ca trực", en: "By Shift" },
+  { key: "batches", vi: "Đợt điều phối", en: "Dispatch Batches" },
+];
 
 export interface AdminOversightWorkspaceProps {
   adminGroupMode: AdminGroupMode;
+  onAdminGroupModeChange?: (mode: AdminGroupMode) => void;
   siteFilter: string;
   onSiteChange: (siteId: string) => void;
   sites: SiteItem[];
+  incidents?: IncidentItem[];
+  dispatchedGroups?: DispatchedGroupView[];
+  usersById?: ReadonlyMap<string, ResponsiblePersonRef>;
   expandedKeys: Record<string, boolean>;
   onToggleExpand: (key: string) => void;
   managerGroups: ManagerResponsibilityGroup[];
@@ -56,9 +88,13 @@ export interface AdminOversightWorkspaceProps {
 
 export function AdminOversightWorkspace({
   adminGroupMode,
+  onAdminGroupModeChange,
   siteFilter,
   onSiteChange,
   sites,
+  incidents,
+  dispatchedGroups = [],
+  usersById = new Map(),
   expandedKeys,
   onToggleExpand,
   managerGroups,
@@ -74,8 +110,59 @@ export function AdminOversightWorkspace({
 }: AdminOversightWorkspaceProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const [filter, setFilter] = useState<AssignmentFilterState>({
+    violationType: "",
+    severity: "",
+    search: "",
+  });
 
-  const resetKey = `${adminGroupMode}:${siteFilter}`;
+  // Fallback lấy danh sách incidents từ cameraGroups nếu caller không truyền prop `incidents`
+  const resolvedIncidents = useMemo(
+    () => incidents ?? cameraGroups.flatMap((g) => g.items),
+    [incidents, cameraGroups],
+  );
+
+  const filteredIncidents = useMemo(
+    () =>
+      filterAssignmentIncidents(resolvedIncidents, filter, {
+        resolveSiteLabel: formatters.resolveSiteLabel,
+        resolveCameraLabel: formatters.resolveCameraLabel,
+        formatViolation: formatters.formatViolation,
+        responsibilityContext,
+      }),
+    [resolvedIncidents, filter, formatters, responsibilityContext],
+  );
+
+  const isDynamicGroupMode =
+    adminGroupMode === "person" ||
+    adminGroupMode === "severity" ||
+    adminGroupMode === "violation" ||
+    adminGroupMode === "hour" ||
+    adminGroupMode === "shift";
+
+  const dynamicWorkGroups = useMemo(() => {
+    if (!isDynamicGroupMode) return [];
+    return groupIncidentsForAssignment(
+      filteredIncidents,
+      adminGroupMode as AssignmentGroupBy,
+      {
+        isVietnamese,
+        resolveSiteLabel: formatters.resolveSiteLabel,
+        resolveCameraLabel: formatters.resolveCameraLabel,
+        formatViolation: formatters.formatViolation,
+        responsibilityContext,
+      },
+    );
+  }, [
+    isDynamicGroupMode,
+    filteredIncidents,
+    adminGroupMode,
+    isVietnamese,
+    formatters,
+    responsibilityContext,
+  ]);
+
+  const resetKey = `${adminGroupMode}:${siteFilter}:${filter.violationType}:${filter.severity}:${filter.search}`;
   const managerGroupsPage = useClientPagination(managerGroups, {
     defaultPageSize: 5,
     resetKey,
@@ -92,64 +179,106 @@ export function AdminOversightWorkspace({
     defaultPageSize: 5,
     resetKey,
   });
+  const dynamicGroupsPage = useClientPagination(dynamicWorkGroups, {
+    defaultPageSize: 5,
+    resetKey,
+  });
+  const batchesPage = useClientPagination(dispatchedGroups, {
+    defaultPageSize: 6,
+    resetKey: `admin-batches:${resetKey}`,
+  });
+
+  const adminModeOptions = useMemo(
+    () =>
+      ADMIN_MODE_OPTIONS.map((opt) =>
+        opt.key === "batches"
+          ? { ...opt, count: dispatchedGroups.length }
+          : opt,
+      ),
+    [dispatchedGroups.length],
+  );
 
   return (
-    <div className="space-y-6">
-      {/* Thanh Bộ lọc phạm vi Công trường (Neumorphic Toolbar) */}
-      <div
-        className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl p-3.5 ${NM.extruded}`}
-      >
-        <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-          {adminGroupMode === "responsibility" && (
-            <>
-              <Users className="h-4 w-4 text-primary" />
-              <span>
-                {isVietnamese
-                  ? `Phân rã theo Nhân sự chịu trách nhiệm (${managerGroups.length} Manager • ${officerGroups.length} Officer)`
-                  : `Grouped by Responsible Personnel (${managerGroups.length} Managers • ${officerGroups.length} Officers)`}
-              </span>
-            </>
-          )}
-          {adminGroupMode === "site" && (
-            <>
-              <Building2 className="h-4 w-4 text-primary" />
-              <span>
-                {isVietnamese
-                  ? `Phân rã theo Công trường (${siteGroups.length} công trường)`
-                  : `Grouped by Site (${siteGroups.length} sites)`}
-              </span>
-            </>
-          )}
-          {adminGroupMode === "camera" && (
-            <>
-              <Camera className="h-4 w-4 text-primary" />
-              <span>
-                {isVietnamese
-                  ? `Phân rã theo Cụm Camera (${cameraGroups.length} cụm camera)`
-                  : `Grouped by Camera Cluster (${cameraGroups.length} clusters)`}
-              </span>
-            </>
-          )}
-        </div>
+    <div className="space-y-5">
+      {/* Thanh Chuyển Chế độ Giám sát Đa chiều & Bộ lọc Nhanh */}
+      {onAdminGroupModeChange ? (
+        <AssignmentGroupToolbar
+          groupMode={adminGroupMode}
+          onGroupModeChange={onAdminGroupModeChange}
+          options={adminModeOptions}
+          filter={filter}
+          onFilterChange={setFilter}
+          siteFilter={siteFilter}
+          onSiteChange={onSiteChange}
+          sites={sites}
+          summaryText={
+            isDynamicGroupMode
+              ? isVietnamese
+                ? `${dynamicWorkGroups.length} nhóm • ${filteredIncidents.length} sự cố`
+                : `${dynamicWorkGroups.length} groups • ${filteredIncidents.length} incidents`
+              : adminGroupMode === "batches"
+                ? isVietnamese
+                  ? `${dispatchedGroups.length} đợt điều phối`
+                  : `${dispatchedGroups.length} dispatch batches`
+                : undefined
+          }
+        />
+      ) : (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl p-3.5 ${NM.extruded}`}
+        >
+          <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+            {adminGroupMode === "responsibility" && (
+              <>
+                <Users className="h-4 w-4 text-primary" />
+                <span>
+                  {isVietnamese
+                    ? `Phân rã theo Nhân sự chịu trách nhiệm (${managerGroups.length} Manager • ${officerGroups.length} Officer)`
+                    : `Grouped by Responsible Personnel (${managerGroups.length} Managers • ${officerGroups.length} Officers)`}
+                </span>
+              </>
+            )}
+            {adminGroupMode === "site" && (
+              <>
+                <Building2 className="h-4 w-4 text-primary" />
+                <span>
+                  {isVietnamese
+                    ? `Phân rã theo Công trường (${siteGroups.length} công trường)`
+                    : `Grouped by Site (${siteGroups.length} sites)`}
+                </span>
+              </>
+            )}
+            {adminGroupMode === "camera" && (
+              <>
+                <Camera className="h-4 w-4 text-primary" />
+                <span>
+                  {isVietnamese
+                    ? `Phân rã theo Cụm Camera (${cameraGroups.length} cụm camera)`
+                    : `Grouped by Camera Cluster (${cameraGroups.length} clusters)`}
+                </span>
+              </>
+            )}
+          </div>
 
-        <div className="flex w-full sm:w-auto items-center gap-2">
-          <select
-            value={siteFilter}
-            onChange={(e) => onSiteChange(e.target.value)}
-            className="w-full sm:w-auto max-w-full rounded-xl border border-border/50 bg-background px-3 py-1.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
-            aria-label={isVietnamese ? "Lọc theo công trường" : "Filter by site"}
-          >
-            <option value="">
-              {isVietnamese ? "Tất cả công trường" : "All Sites"}
-            </option>
-            {sites.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
+          <div className="flex w-full sm:w-auto items-center gap-2">
+            <select
+              value={siteFilter}
+              onChange={(e) => onSiteChange(e.target.value)}
+              className="w-full sm:w-auto max-w-full rounded-xl border border-border/50 bg-background px-3 py-1.5 text-xs font-semibold text-foreground focus:border-primary focus:outline-none"
+              aria-label={isVietnamese ? "Lọc theo công trường" : "Filter by site"}
+            >
+              <option value="">
+                {isVietnamese ? "Tất cả công trường" : "All Sites"}
               </option>
-            ))}
-          </select>
+              {sites.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* CHẾ ĐỘ 1: GOM THEO NHÂN SỰ & TRÁCH NHIỆM GIẢI QUYẾT */}
       {adminGroupMode === "responsibility" && (
@@ -724,6 +853,99 @@ export function AdminOversightWorkspace({
             hideIfSinglePageAndSmall
           />
         </div>
+      )}
+
+      {/* CHẾ ĐỘ 4–8: GOM ĐA CHIỀU (ĐỐI TƯỢNG & ĐA VI PHẠM, MỨC ĐỘ, LOẠI VI PHẠM, KHUNG GIỜ, CA TRỰC) */}
+      {isDynamicGroupMode && (
+        dynamicWorkGroups.length === 0 ? (
+          <div
+            className={`space-y-2 rounded-2xl p-10 text-center ${NM.recessed}`}
+          >
+            <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
+            <p className="text-sm font-bold text-foreground">
+              {isVietnamese
+                ? "Không có sự cố nào khớp bộ lọc hiện tại"
+                : "No incidents match current filters"}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {dynamicGroupsPage.items.map((grp) => (
+              <AssignmentWorkGroupCard
+                key={grp.key}
+                group={grp}
+                resetKey={resetKey}
+                currentUserId={currentUserId}
+                allowManagerActions
+                actionMode="admin"
+                onBatchDispatch={onBatchDispatch}
+                onBatchClose={onBatchClose}
+                responsibilityContext={responsibilityContext}
+                formatters={formatters}
+                rowActions={rowActions}
+              />
+            ))}
+
+            <AssignmentPagination
+              page={dynamicGroupsPage.page}
+              pageCount={dynamicGroupsPage.pageCount}
+              pageSize={dynamicGroupsPage.pageSize}
+              totalItems={dynamicGroupsPage.totalItems}
+              startIndex={dynamicGroupsPage.startIndex}
+              endIndex={dynamicGroupsPage.endIndex}
+              onPageChange={dynamicGroupsPage.setPage}
+              onPageSizeChange={dynamicGroupsPage.setPageSize}
+              pageSizeOptions={[5, 10, 20]}
+              variant="standalone"
+              itemLabel={{ vi: "nhóm giám sát", en: "oversight groups" }}
+              hideIfSinglePageAndSmall
+            />
+          </div>
+        )
+      )}
+
+      {/* CHẾ ĐỘ 9: GIÁM SÁT TẤT CẢ ĐỢT ĐIỀU PHỐI */}
+      {adminGroupMode === "batches" && (
+        dispatchedGroups.length === 0 ? (
+          <div
+            className={`space-y-2 rounded-2xl p-10 text-center ${NM.recessed}`}
+          >
+            <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
+            <p className="text-sm font-bold text-foreground">
+              {isVietnamese
+                ? "Chưa có đợt điều phối nhóm nào được ghi nhận"
+                : "No dispatched work batches recorded yet"}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
+              {batchesPage.items.map((entry) => (
+                <DispatchedGroupCard
+                  key={entry.group.groupId}
+                  entry={entry}
+                  usersById={usersById}
+                  formatters={formatters}
+                  showAssignee
+                />
+              ))}
+            </div>
+            <AssignmentPagination
+              page={batchesPage.page}
+              pageCount={batchesPage.pageCount}
+              pageSize={batchesPage.pageSize}
+              totalItems={batchesPage.totalItems}
+              startIndex={batchesPage.startIndex}
+              endIndex={batchesPage.endIndex}
+              onPageChange={batchesPage.setPage}
+              onPageSizeChange={batchesPage.setPageSize}
+              pageSizeOptions={[4, 6, 12]}
+              variant="standalone"
+              itemLabel={{ vi: "đợt điều phối", en: "dispatch batches" }}
+              hideIfSinglePageAndSmall
+            />
+          </div>
+        )
       )}
     </div>
   );

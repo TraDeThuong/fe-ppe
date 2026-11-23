@@ -24,6 +24,7 @@ import { AnimatedNumber } from "@/components/ui/animated-number";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
+import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
 import type { IncidentItem, IncidentSeverity, IncidentStatus, ViolationType } from "@/types";
 
 export type IncidentStatKey = "total" | "pendingReview" | "critical" | "resolved";
@@ -31,6 +32,7 @@ export type IncidentStatKey = "total" | "pendingReview" | "critical" | "resolved
 export interface IncidentStatsDetailPanelProps {
   activeStat: IncidentStatKey;
   incidents: IncidentItem[];
+  statusTotals?: Partial<AssignmentIncidentTotals>;
   loading?: boolean;
   onClose: () => void;
   onReview?: (incident: IncidentItem) => void;
@@ -60,6 +62,7 @@ function formatDate(dateInput?: string | Date | null, loc: string = "vi-VN"): st
 export function IncidentStatsDetailPanel({
   activeStat,
   incidents = [],
+  statusTotals,
   loading = false,
   onClose,
   onReview,
@@ -90,8 +93,14 @@ export function IncidentStatsDetailPanel({
       else if (item.status === "DISMISSED") dismissed++;
     }
 
-    return { pending, confirmed, resolved, closed, dismissed };
-  }, [incidents]);
+    return {
+      pending: Math.max(statusTotals?.pendingReview ?? 0, pending),
+      confirmed: Math.max(statusTotals?.confirmed ?? 0, confirmed),
+      resolved: Math.max(statusTotals?.resolved ?? 0, resolved),
+      closed: Math.max(statusTotals?.closed ?? 0, closed),
+      dismissed: Math.max(statusTotals?.dismissed ?? 0, dismissed),
+    };
+  }, [incidents, statusTotals]);
 
   // 2. Phân bổ theo loại vi phạm (Violation Type Breakdown)
   const violationStats = useMemo(() => {
@@ -145,7 +154,7 @@ export function IncidentStatsDetailPanel({
     [incidents],
   );
 
-  const totalCount = incidents.length;
+  const totalCount = Math.max(statusTotals?.total ?? 0, incidents.length);
   const resolvedCount = statusStats.resolved + statusStats.closed;
   const resolutionRate =
     totalCount > 0 ? Math.round((resolvedCount / totalCount) * 100) : 100;
@@ -194,7 +203,7 @@ export function IncidentStatsDetailPanel({
 
               <Badge variant="outline" size="sm" className="font-mono text-[10px] sm:text-[11px] text-foreground px-1.5 py-0">
                 {activeStat === "total" && `${totalCount}`}
-                {activeStat === "pendingReview" && `${pendingIncidents.length}`}
+                {activeStat === "pendingReview" && `${statusStats.pending}`}
                 {activeStat === "critical" && `${severityStats.critical + severityStats.high}`}
                 {activeStat === "resolved" && `${resolvedCount}`}
               </Badge>
@@ -520,8 +529,8 @@ export function IncidentStatsDetailPanel({
             <div className="flex-1 min-w-0">
               <p className="font-bold text-foreground text-xs sm:text-sm">
                 {isVietnamese
-                  ? `Có ${pendingIncidents.length} sự cố vi phạm đang chờ nhân sự xác thực`
-                  : `${pendingIncidents.length} violations awaiting human verification`}
+                  ? `Có ${statusStats.pending} sự cố vi phạm đang chờ nhân sự xác thực`
+                  : `${statusStats.pending} violations awaiting human verification`}
               </p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 {isVietnamese

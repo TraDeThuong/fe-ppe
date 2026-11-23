@@ -199,10 +199,10 @@ export function BroadcastNotificationModal({
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {(
               [
-                { value: "LOW", label: isVietnamese ? "Thấp" : "Low", icon: Info, color: "text-blue-500 border-blue-500/30" },
-                { value: "NORMAL", label: isVietnamese ? "Bình thường" : "Normal", icon: AlertCircle, color: "text-slate-500 border-slate-500/30" },
-                { value: "HIGH", label: isVietnamese ? "Mức cao" : "High", icon: AlertTriangle, color: "text-amber-500 border-amber-500/30" },
-                { value: "CRITICAL", label: isVietnamese ? "Khẩn cấp" : "Critical", icon: ShieldAlert, color: "text-red-500 border-red-500/30" },
+                { value: "LOW", label: isVietnamese ? "Thấp" : "Low", icon: Info, color: "text-muted-foreground border-border/50" },
+                { value: "NORMAL", label: isVietnamese ? "Bình thường" : "Normal", icon: AlertCircle, color: "text-primary border-primary/30" },
+                { value: "HIGH", label: isVietnamese ? "Mức cao" : "High", icon: AlertTriangle, color: "text-warning border-warning/30" },
+                { value: "CRITICAL", label: isVietnamese ? "Khẩn cấp" : "Critical", icon: ShieldAlert, color: "text-danger border-danger/30" },
               ] as const
             ).map((item) => {
               const Icon = item.icon;

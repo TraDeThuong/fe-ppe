@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bell, Radio, Send } from "lucide-react";
 import { PageHeader } from "@/components/features/app-shell/page-header";
@@ -10,6 +10,7 @@ import {
   NotificationTabs,
   NotificationFilterToolbar,
   NotificationList,
+  NotificationSectionList,
   NotificationDetailPanel,
   NotificationPreferencesCard,
   NotificationTemplatesTab,
@@ -29,15 +30,29 @@ import {
 } from "@/components/features/notifications";
 import {
   useAllNotifications,
-  useNotifications,
+  useFilteredNotifications,
+  useNotificationEnrichment,
+  useVisualFingerprints,
   useUnreadCount,
   useMarkAsRead,
+  useMarkManyAsRead,
   useMarkAllAsRead,
   useDeleteNotification,
 } from "@/hooks/notifications";
+import {
+  groupNotificationsByPerson,
+  groupNotificationsIntoSections,
+  paginateNotificationClusters,
+  selectVisualFingerprintCandidates,
+  wrapFlatPersonClusters,
+  type NotificationPersonCluster,
+  type NotificationViewMode,
+} from "@/lib/notification-grouping-engine";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useLocale } from "@/providers/locale-provider";
 import type { NotificationItemDto, NotificationTemplateItemDto } from "@/types";
+
+const GROUPING_PREFS_STORAGE_KEY = "ppe.notifications.grouping-prefs.v1";
 
 const STAT_TO_URL: Record<NotificationStatKey, string> = {
   total: "total",
@@ -103,9 +118,59 @@ export default function NotificationsContent() {
     }
   };
 
-  // Filtering & Pagination
+  // Filtering, Client-side Smart Grouping & Pagination
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(5);
+  const [limit, setLimit] = useState(10);
+  const [viewMode, setViewMode] = useState<NotificationViewMode>("person");
+  const [enableVisualDedup, setEnableVisualDedup] = useState(true);
+  const [windowSeconds, setWindowSeconds] = useState(45);
+  const [prefsHydrated, setPrefsHydrated] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(GROUPING_PREFS_STORAGE_KEY) || "null",
+      ) as {
+        viewMode?: NotificationViewMode;
+        enableVisualDedup?: boolean;
+        windowSeconds?: number;
+      } | null;
+      if (saved) {
+        if (
+          saved.viewMode &&
+          ["flat", "person", "hour", "camera"].includes(saved.viewMode)
+        ) {
+          setViewMode(saved.viewMode);
+        }
+        if (typeof saved.enableVisualDedup === "boolean") {
+          setEnableVisualDedup(saved.enableVisualDedup);
+        }
+        if (
+          typeof saved.windowSeconds === "number" &&
+          [30, 45, 120, 300].includes(saved.windowSeconds)
+        ) {
+          setWindowSeconds(saved.windowSeconds);
+        }
+      }
+    } catch {
+      // Ignore storage access errors
+    } finally {
+      setPrefsHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!prefsHydrated) return;
+    try {
+      localStorage.setItem(
+        GROUPING_PREFS_STORAGE_KEY,
+        JSON.stringify({ viewMode, enableVisualDedup, windowSeconds }),
+      );
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [prefsHydrated, viewMode, enableVisualDedup, windowSeconds]);
+
   const [filter, setFilter] = useState<NotificationFilterState>({
     search: "",
     isRead: undefined,
@@ -116,23 +181,32 @@ export default function NotificationsContent() {
     toDate: undefined,
   });
 
+  const filterQuery = useMemo(
+    () => ({
+      search: filter.search || undefined,
+      isRead: filter.isRead,
+      severity: filter.severity,
+      channel: filter.channel,
+      type: filter.type,
+      fromDate: filter.fromDate,
+      toDate: filter.toDate,
+    }),
+    [filter],
+  );
+
   // Queries
   const {
-    data: notificationData,
+    data: filteredNotifications,
     isLoading: isNotificationsLoading,
     isFetching: isNotificationsFetching,
     error: notificationsError,
     refetch: refetchNotifications,
-  } = useNotifications({
-    page,
-    limit,
-    search: filter.search || undefined,
-    isRead: filter.isRead,
-    severity: filter.severity,
-    channel: filter.channel,
-    type: filter.type,
-    fromDate: filter.fromDate,
-    toDate: filter.toDate,
+  } = useFilteredNotifications(filterQuery);
+
+  const shouldEnrich = activeTab === "inbox" && viewMode !== "flat";
+  const { signalsMap } = useNotificationEnrichment({
+    enabled: shouldEnrich,
+    maxIncidents: 200,
   });
 
   const { data: allNotifications = [] } = useAllNotifications();
@@ -140,6 +214,7 @@ export default function NotificationsContent() {
 
   // Mutations
   const markAsReadMutation = useMarkAsRead();
+  const markManyAsReadMutation = useMarkManyAsRead();
   const markAllAsReadMutation = useMarkAllAsRead();
   const deleteMutation = useDeleteNotification();
 
@@ -158,18 +233,86 @@ export default function NotificationsContent() {
   const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
-  const items = notificationData?.data || [];
-  const meta = notificationData?.meta || {
-    total: 0,
-    page: 1,
-    limit,
-    totalPages: 1,
-  };
+  const rawFilteredItems = filteredNotifications ?? [];
+
+  const groupingOptions = useMemo(
+    () => ({
+      isVietnamese,
+      trackWindowSeconds: windowSeconds,
+      spatialWindowSeconds: Math.min(windowSeconds, 20),
+      enableVisualDedup,
+      visualWindowSeconds: Math.max(windowSeconds, 60),
+      combinePersonInSections: true,
+    }),
+    [isVietnamese, windowSeconds, enableVisualDedup],
+  );
+
+  const visualCandidates = useMemo(
+    () =>
+      shouldEnrich && enableVisualDedup
+        ? selectVisualFingerprintCandidates(rawFilteredItems, signalsMap, groupingOptions)
+        : [],
+    [shouldEnrich, enableVisualDedup, rawFilteredItems, signalsMap, groupingOptions],
+  );
+
+  const { fingerprintsMap, isComputing: isComputingVisual } = useVisualFingerprints(
+    visualCandidates,
+    shouldEnrich && enableVisualDedup,
+  );
+
+  const allPersonClusters = useMemo<NotificationPersonCluster[]>(() => {
+    if (viewMode === "flat") {
+      return wrapFlatPersonClusters(rawFilteredItems, undefined, isVietnamese);
+    }
+    return groupNotificationsByPerson(
+      rawFilteredItems,
+      signalsMap,
+      fingerprintsMap,
+      groupingOptions,
+    );
+  }, [viewMode, rawFilteredItems, signalsMap, fingerprintsMap, groupingOptions, isVietnamese]);
+
+  const sections = useMemo(() => {
+    if (viewMode !== "hour" && viewMode !== "camera") return [];
+    return groupNotificationsIntoSections(
+      rawFilteredItems,
+      viewMode,
+      signalsMap,
+      fingerprintsMap,
+      groupingOptions,
+    );
+  }, [viewMode, rawFilteredItems, signalsMap, fingerprintsMap, groupingOptions]);
+
+  const pagedClusters = useMemo(
+    () => paginateNotificationClusters(allPersonClusters, page, limit),
+    [allPersonClusters, page, limit],
+  );
+  const visibleClusters = pagedClusters.data;
+  const items = useMemo(
+    () =>
+      viewMode === "hour" || viewMode === "camera"
+        ? rawFilteredItems
+        : visibleClusters.flatMap((cluster) => cluster.items),
+    [viewMode, rawFilteredItems, visibleClusters],
+  );
+  const meta = pagedClusters.meta;
 
   const selectedNotification = useMemo(
-    () => items.find((item) => item.id === selectedNotificationId) ?? items[0] ?? null,
-    [items, selectedNotificationId],
+    () =>
+      items.find((item) => item.id === selectedNotificationId) ??
+      visibleClusters[0]?.primary ??
+      items[0] ??
+      null,
+    [items, visibleClusters, selectedNotificationId],
   );
+
+  const selectedCluster = useMemo(() => {
+    if (!selectedNotification || viewMode === "flat") return null;
+    const found = allPersonClusters.find((cl) =>
+      cl.items.some((m) => m.id === selectedNotification.id),
+    );
+    return found && found.count > 1 ? found : null;
+  }, [selectedNotification, viewMode, allPersonClusters]);
 
   const hasActiveFilters = Boolean(
     filter.search ||
@@ -238,8 +381,8 @@ export default function NotificationsContent() {
             <span
               className={`inline-block size-2 rounded-full ${
                 isConnected
-                  ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse"
-                  : "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]"
+                  ? "bg-success shadow-[0_0_8px_color-mix(in_srgb,var(--success)_65%,transparent)] animate-pulse"
+                  : "bg-warning shadow-[0_0_8px_color-mix(in_srgb,var(--warning)_60%,transparent)]"
               }`}
             />
             <span className="font-mono text-[11px] font-semibold text-foreground">
@@ -291,7 +434,7 @@ export default function NotificationsContent() {
         unreadCount={unreadCount}
         variant="soft-extruded"
         loading={isNotificationsLoading}
-        unavailable={!notificationData && !!notificationsError}
+        unavailable={!filteredNotifications && !!notificationsError}
         selectedStat={selectedStat}
         onSelectStat={handleSelectStat}
         onOpenBroadcast={canBroadcast ? () => setIsBroadcastModalOpen(true) : undefined}
@@ -317,15 +460,28 @@ export default function NotificationsContent() {
             isMarkingAllRead={markAllAsReadMutation.isPending}
             onRefresh={() => refetchNotifications()}
             isRefreshing={isNotificationsFetching}
+            viewMode={viewMode}
+            onViewModeChange={(nextMode) => {
+              setViewMode(nextMode);
+              setPage(1);
+            }}
+            enableVisualDedup={enableVisualDedup}
+            onToggleVisualDedup={() => setEnableVisualDedup((prev) => !prev)}
+            isComputingVisual={isComputingVisual}
+            windowSeconds={windowSeconds}
+            onWindowSecondsChange={(sec) => {
+              setWindowSeconds(sec);
+              setPage(1);
+            }}
           />
 
-          {!isNotificationsLoading && items.length === 0 ? (
+          {!isNotificationsLoading && rawFilteredItems.length === 0 ? (
             <NotificationList
-              items={items}
-              total={meta.total}
-              page={meta.page}
+              items={[]}
+              total={0}
+              page={1}
               limit={limit}
-              totalPages={meta.totalPages}
+              totalPages={1}
               isLoading={isNotificationsLoading}
               error={notificationsError}
               onRetry={() => void refetchNotifications()}
@@ -335,34 +491,61 @@ export default function NotificationsContent() {
               hasActiveFilters={hasActiveFilters}
             />
           ) : (
-            <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-12">
-              <div className="xl:col-span-5">
-                <NotificationList
-                  items={items}
-                  total={meta.total}
-                  page={meta.page}
-                  limit={limit}
-                  totalPages={meta.totalPages}
-                  isLoading={isNotificationsLoading}
-                  error={notificationsError}
-                  onRetry={() => void refetchNotifications()}
-                  onPageChange={(p) => setPage(p)}
-                  onLimitChange={handleLimitChange}
-                  selectedId={selectedNotification?.id ?? null}
-                  onSelect={handleSelectNotification}
-                  onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
-                  markingReadId={markAsReadMutation.isPending ? markAsReadMutation.variables : null}
-                  onDelete={(id) => {
-                    const target = items.find((item) => item.id === id);
-                    if (target) setDeletingNotification(target);
-                  }}
-                  deletingId={deleteMutation.isPending ? deleteMutation.variables : null}
-                  onResetFilters={handleResetFilters}
-                  hasActiveFilters={hasActiveFilters}
-                />
+            <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
+              <div className="xl:col-span-4">
+                {viewMode === "hour" || viewMode === "camera" ? (
+                  <NotificationSectionList
+                    sections={sections}
+                    totalRawItems={rawFilteredItems.length}
+                    isLoading={isNotificationsLoading}
+                    error={notificationsError}
+                    onRetry={() => void refetchNotifications()}
+                    selectedId={selectedNotification?.id ?? null}
+                    onSelect={handleSelectNotification}
+                    onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
+                    onMarkManyAsRead={(ids) => markManyAsReadMutation.mutate(ids)}
+                    isMarkingManyRead={markManyAsReadMutation.isPending}
+                    markingReadId={markAsReadMutation.isPending ? markAsReadMutation.variables : null}
+                    onDelete={(id) => {
+                      const target = items.find((item) => item.id === id);
+                      if (target) setDeletingNotification(target);
+                    }}
+                    deletingId={deleteMutation.isPending ? deleteMutation.variables : null}
+                    onResetFilters={handleResetFilters}
+                    hasActiveFilters={hasActiveFilters}
+                  />
+                ) : (
+                  <NotificationList
+                    items={items}
+                    clusters={viewMode === "person" ? visibleClusters : undefined}
+                    totalRawItems={rawFilteredItems.length}
+                    total={meta.total}
+                    page={meta.page}
+                    limit={limit}
+                    totalPages={meta.totalPages}
+                    isLoading={isNotificationsLoading}
+                    error={notificationsError}
+                    onRetry={() => void refetchNotifications()}
+                    onPageChange={(p) => setPage(p)}
+                    onLimitChange={handleLimitChange}
+                    selectedId={selectedNotification?.id ?? null}
+                    onSelect={handleSelectNotification}
+                    onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
+                    onMarkManyAsRead={(ids) => markManyAsReadMutation.mutate(ids)}
+                    isMarkingManyRead={markManyAsReadMutation.isPending}
+                    markingReadId={markAsReadMutation.isPending ? markAsReadMutation.variables : null}
+                    onDelete={(id) => {
+                      const target = items.find((item) => item.id === id);
+                      if (target) setDeletingNotification(target);
+                    }}
+                    deletingId={deleteMutation.isPending ? deleteMutation.variables : null}
+                    onResetFilters={handleResetFilters}
+                    hasActiveFilters={hasActiveFilters}
+                  />
+                )}
               </div>
 
-              <div className="hidden xl:sticky xl:top-4 xl:col-span-7 xl:block">
+              <div className="hidden xl:sticky xl:top-4 xl:col-span-8 xl:block">
                 {isNotificationsLoading ? (
                   <div className="space-y-4 rounded-3xl border border-border/30 bg-background p-6 shadow-[8px_8px_20px_var(--shadow-dark),-8px_-8px_20px_var(--shadow-light)]">
                     <div className="flex items-center gap-3">
@@ -383,7 +566,11 @@ export default function NotificationsContent() {
                 ) : (
                   <NotificationDetailPanel
                     notification={selectedNotification}
+                    cluster={selectedCluster}
+                    onSelectClusterMember={(member) => setSelectedNotificationId(member.id)}
                     onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
+                    onMarkManyAsRead={(ids) => markManyAsReadMutation.mutate(ids)}
+                    isMarkingManyRead={markManyAsReadMutation.isPending}
                     isMarkingRead={
                       markAsReadMutation.isPending &&
                       markAsReadMutation.variables === selectedNotification?.id
@@ -416,8 +603,12 @@ export default function NotificationsContent() {
               >
                 <NotificationDetailPanel
                   notification={selectedNotification}
+                  cluster={selectedCluster}
+                  onSelectClusterMember={(member) => setSelectedNotificationId(member.id)}
                   onClose={() => setMobileDetailOpen(false)}
                   onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
+                  onMarkManyAsRead={(ids) => markManyAsReadMutation.mutate(ids)}
+                  isMarkingManyRead={markManyAsReadMutation.isPending}
                   isMarkingRead={
                     markAsReadMutation.isPending &&
                     markAsReadMutation.variables === selectedNotification.id

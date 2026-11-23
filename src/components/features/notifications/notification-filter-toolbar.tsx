@@ -1,10 +1,24 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Search, X, Filter, CheckCheck, RefreshCw } from "lucide-react";
+import {
+  Camera,
+  CheckCheck,
+  Clock,
+  Filter,
+  Image as ImageIcon,
+  List,
+  Loader2,
+  RefreshCw,
+  Search,
+  Users,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshIconButton } from "@/components/ui/refresh-action";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useLocale } from "@/providers/locale-provider";
+import type { NotificationViewMode } from "@/lib/notification-grouping-engine";
 import type { NotificationChannel, NotificationSeverity } from "@/types";
 
 export interface NotificationFilterState {
@@ -24,6 +38,13 @@ export interface NotificationFilterToolbarProps {
   isMarkingAllRead?: boolean;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  viewMode?: NotificationViewMode;
+  onViewModeChange?: (mode: NotificationViewMode) => void;
+  enableVisualDedup?: boolean;
+  onToggleVisualDedup?: () => void;
+  isComputingVisual?: boolean;
+  windowSeconds?: number;
+  onWindowSecondsChange?: (seconds: number) => void;
   className?: string;
 }
 
@@ -34,6 +55,13 @@ export function NotificationFilterToolbar({
   isMarkingAllRead = false,
   onRefresh,
   isRefreshing = false,
+  viewMode,
+  onViewModeChange,
+  enableVisualDedup = true,
+  onToggleVisualDedup,
+  isComputingVisual = false,
+  windowSeconds = 45,
+  onWindowSecondsChange,
   className = "",
 }: NotificationFilterToolbarProps) {
   const { t, locale } = useLocale();
@@ -165,18 +193,14 @@ export function NotificationFilterToolbar({
           )}
 
           {onRefresh && (
-            <button
-              type="button"
-              onClick={onRefresh}
-              disabled={isRefreshing}
+            <RefreshIconButton
+              onRefresh={onRefresh}
+              isRefreshing={isRefreshing}
               title={isVietnamese ? "Làm mới" : "Refresh"}
-              aria-label={isVietnamese ? "Làm mới danh sách" : "Refresh list"}
-              className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_2px_2px_4px_var(--shadow-dark)] disabled:opacity-50"
-            >
-              <RefreshCw
-                className={`size-3.5 ${isRefreshing ? "animate-spin text-primary" : ""}`}
-              />
-            </button>
+              ariaLabel={isVietnamese ? "Làm mới danh sách" : "Refresh list"}
+              className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border/40 bg-background text-foreground shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] hover:text-primary active:shadow-[inset_2px_2px_4px_var(--shadow-dark)] disabled:opacity-50"
+              iconClassName="size-3.5"
+            />
           )}
         </div>
       </div>
@@ -280,6 +304,118 @@ export function NotificationFilterToolbar({
           </button>
         )}
       </div>
+
+      {/* Client-side Smart Grouping & Visual Deduplication Strip */}
+      {onViewModeChange && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/20 pt-2.5 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold text-muted-foreground">
+              {isVietnamese ? "Hiển thị:" : "View:"}
+            </span>
+            <div
+              role="group"
+              aria-label={isVietnamese ? "Chế độ gom nhóm thông báo" : "Notification grouping mode"}
+              className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-border/30 bg-background p-1 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+            >
+              {(
+                [
+                  {
+                    key: "flat" as const,
+                    icon: List,
+                    vi: "Từng dòng",
+                    en: "Flat list",
+                  },
+                  {
+                    key: "person" as const,
+                    icon: Users,
+                    vi: "Theo người & Đa vi phạm",
+                    en: "By person & Multi-PPE",
+                  },
+                  {
+                    key: "hour" as const,
+                    icon: Clock,
+                    vi: "Theo giờ",
+                    en: "By hour",
+                  },
+                  {
+                    key: "camera" as const,
+                    icon: Camera,
+                    vi: "Theo camera",
+                    en: "By camera",
+                  },
+                ] as const
+              ).map((opt) => {
+                const active = (viewMode ?? "flat") === opt.key;
+                const Icon = opt.icon;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => onViewModeChange(opt.key)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                      active
+                        ? "bg-primary text-primary-foreground shadow-[2px_2px_5px_var(--shadow-dark)]"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Icon className="size-3" />
+                    <span>{isVietnamese ? opt.vi : opt.en}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {viewMode && viewMode !== "flat" && (
+            <div className="flex flex-wrap items-center gap-2">
+              {onToggleVisualDedup && (
+                <button
+                  type="button"
+                  onClick={onToggleVisualDedup}
+                  aria-pressed={enableVisualDedup}
+                  title={
+                    isVietnamese
+                      ? "Sử dụng dHash 64-bit & Color Histogram trong Web Worker để nhận diện 2 ảnh bằng chứng gần giống nhau"
+                      : "Use 64-bit dHash & Color Histogram in Web Worker to merge visually similar snapshots"
+                  }
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                    enableVisualDedup
+                      ? "border-primary/40 bg-primary/10 text-primary shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
+                      : "border-border/40 bg-background text-muted-foreground hover:text-foreground shadow-[2px_2px_4px_var(--shadow-dark)]"
+                  }`}
+                >
+                  {isComputingVisual ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <ImageIcon className="size-3" />
+                  )}
+                  <span>
+                    {isVietnamese ? "So khớp ảnh (dHash)" : "Visual match (dHash)"}
+                  </span>
+                </button>
+              )}
+
+              {onWindowSecondsChange && (
+                <label className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span>{isVietnamese ? "Cửa sổ:" : "Window:"}</span>
+                  <select
+                    value={windowSeconds}
+                    aria-label={isVietnamese ? "Cửa sổ thời gian gom cùng người" : "Same-person merge window"}
+                    onChange={(e) => onWindowSecondsChange(Number(e.target.value))}
+                    className="rounded-lg border border-border/40 bg-background px-2 py-1 font-mono text-[11px] text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
+                  >
+                    <option value={30}>30s</option>
+                    <option value={45}>45s</option>
+                    <option value={120}>{isVietnamese ? "2 phút" : "2 min"}</option>
+                    <option value={300}>{isVietnamese ? "5 phút" : "5 min"}</option>
+                  </select>
+                </label>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

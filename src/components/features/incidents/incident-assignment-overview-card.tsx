@@ -30,10 +30,12 @@ import {
   resolveIncidentResponsibility,
   type ResponsiblePersonRef,
 } from "@/lib/incident-workflow";
+import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
 import type { IncidentItem, NotificationItemDto } from "@/types";
 
 export interface IncidentAssignmentOverviewCardProps {
   incidents: readonly IncidentItem[];
+  statusTotals?: Partial<AssignmentIncidentTotals>;
   loading?: boolean;
   userRole?: string | null;
   userId?: string | null;
@@ -45,6 +47,7 @@ export interface IncidentAssignmentOverviewCardProps {
 
 export function IncidentAssignmentOverviewCard({
   incidents,
+  statusTotals,
   loading = false,
   userRole,
   userId,
@@ -119,7 +122,20 @@ export function IncidentAssignmentOverviewCard({
       }
     }
 
-    const triageCount = pendingReviewCount + unassignedConfirmedCount;
+    const effectivePendingReviewCount = Math.max(
+      statusTotals?.pendingReview ?? 0,
+      pendingReviewCount,
+    );
+    const effectiveAwaitingAcceptanceCount = Math.max(
+      statusTotals?.resolved ?? 0,
+      awaitingAcceptanceCount,
+    );
+    const effectiveCompletedCount = Math.max(
+      statusTotals?.closedOrDismissed ?? 0,
+      completedCount,
+    );
+
+    const triageCount = effectivePendingReviewCount + unassignedConfirmedCount;
     const responsibilityGroups = groupIncidentsByResponsibility(
       incidents,
       responsibilityContext,
@@ -158,15 +174,15 @@ export function IncidentAssignmentOverviewCard({
         : 100;
 
     return {
-      pendingReviewCount,
+      pendingReviewCount: effectivePendingReviewCount,
       unassignedConfirmedCount,
       triageCount,
       officerActiveCount,
-      awaitingAcceptanceCount,
-      completedCount,
+      awaitingAcceptanceCount: effectiveAwaitingAcceptanceCount,
+      completedCount: effectiveCompletedCount,
       openPipelineCount:
-        triageCount + officerActiveCount + awaitingAcceptanceCount,
-      managerActionCount: triageCount + awaitingAcceptanceCount,
+        triageCount + officerActiveCount + effectiveAwaitingAcceptanceCount,
+      managerActionCount: triageCount + effectiveAwaitingAcceptanceCount,
       managerGroupsCount: responsibilityGroups.managerGroups.length,
       officerGroupsCount: responsibilityGroups.officerGroups.length,
       activeOfficersCount,
@@ -177,7 +193,7 @@ export function IncidentAssignmentOverviewCard({
       myCompletionRate,
       dispatchedGroupsCount: seenGroupIds.size,
     };
-  }, [incidents, responsibilityContext, userId, notifications, isOfficerRole]);
+  }, [incidents, statusTotals, responsibilityContext, userId, notifications, isOfficerRole]);
 
   const roleHeader = isAdminRole
     ? {

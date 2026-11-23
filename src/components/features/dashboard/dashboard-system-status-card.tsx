@@ -23,6 +23,7 @@ import { NM } from "@/components/features/ai-test/nm-styles";
 import { AuthContext } from "@/contexts/AuthContext";
 import { useSystemHealth } from "@/hooks/system/use-system-health";
 import { useMaintenanceStatus } from "@/hooks/maintenance";
+import { useRefreshFeedback } from "@/hooks/use-refresh-feedback";
 import {
   buildSystemHealthSupportReport,
   explainProbeFailure,
@@ -127,6 +128,16 @@ export function DashboardSystemStatusCard({
   const [filter, setFilter] = useState<SystemStatusFilter>("ALL");
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [copiedReport, setCopiedReport] = useState(false);
+
+  const {
+    isSpinning: isRechecking,
+    isSuccess: isRecheckDone,
+    lastSyncedLabel: recheckSyncedLabel,
+    trigger: triggerRecheck,
+  } = useRefreshFeedback({
+    onRefresh: () => refetch(),
+    isRefreshing: isFetching,
+  });
 
   const isMaintenanceActive = Boolean(maintenance?.enabled);
   const services = useMemo(() => health?.services ?? [], [health?.services]);
@@ -295,16 +306,35 @@ export function DashboardSystemStatusCard({
 
         <button
           type="button"
-          onClick={() => void refetch()}
-          disabled={isFetching || Boolean(healthOverride)}
+          onClick={triggerRecheck}
+          disabled={isRechecking || Boolean(healthOverride)}
           aria-label={t("dashboard.systemCard.recheck")}
-          className={`inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-full bg-background px-3.5 text-[11px] font-bold text-foreground transition-all disabled:opacity-50 ${NM.tactileBtn}`}
+          title={
+            recheckSyncedLabel
+              ? `${t("dashboard.systemCard.recheck")} · ${recheckSyncedLabel}`
+              : t("dashboard.systemCard.recheck")
+          }
+          className={`inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-full bg-background px-3.5 text-[11px] font-bold transition-all disabled:opacity-50 ${NM.tactileBtn} ${
+            isRecheckDone
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-foreground"
+          }`}
         >
-          <RefreshCw
-            className={`size-3.5 text-primary ${isFetching ? "animate-spin" : ""}`}
-            strokeWidth={2.4}
-          />
-          <span>{t("dashboard.systemCard.recheck")}</span>
+          {isRecheckDone ? (
+            <Check className="size-3.5 stroke-[2.75] text-emerald-500" />
+          ) : (
+            <RefreshCw
+              className={`size-3.5 text-primary ${isRechecking ? "animate-spin" : ""}`}
+              strokeWidth={2.4}
+            />
+          )}
+          <span>
+            {isRecheckDone
+              ? isVi
+                ? "Đã cập nhật"
+                : "Updated"
+              : t("dashboard.systemCard.recheck")}
+          </span>
         </button>
       </div>
     </div>

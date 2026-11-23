@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertOctagon, AlertTriangle, CheckCircle, ChevronDown, ChevronUp, Clock } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
+import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
 import type { IncidentItem } from "@/types";
 import {
   IncidentStatsDetailPanel,
@@ -19,6 +20,7 @@ export interface IncidentKpiSummaryProps {
     critical: number;
     resolved: number;
   };
+  statusTotals?: Partial<AssignmentIncidentTotals>;
   loading?: boolean;
   detailLoading?: boolean;
   selectedStat?: IncidentStatKey | null;
@@ -36,6 +38,7 @@ export function IncidentKpiSummary({
   incidents,
   totalIncidentsCount,
   statusCounts,
+  statusTotals,
   loading = false,
   detailLoading,
   selectedStat: propSelectedStat,
@@ -206,6 +209,7 @@ export function IncidentKpiSummary({
         <IncidentStatsDetailPanel
           activeStat={activeStat}
           incidents={incidents}
+          statusTotals={statusTotals}
           loading={detailLoading ?? loading}
           onClose={() => handleToggle(activeStat)}
           onReview={onReview}

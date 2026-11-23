@@ -305,6 +305,7 @@ export default function ReportsContent() {
   const {
     data: rawTrends = [],
     isLoading: isTrendsLoading,
+    isFetching: isTrendsFetching,
     refetch: refetchTrends,
   } = useViolationTrends(
     { ...filterParams, groupBy: trendGroupBy },
@@ -314,16 +315,19 @@ export default function ReportsContent() {
   const {
     data: rawDistribution = [],
     isLoading: isDistributionLoading,
+    isFetching: isDistributionFetching,
     refetch: refetchDistribution,
   } = useViolationDistribution(filterParams, { enabled: isDateRangeValid });
 
   const {
     data: rawCameraRankings = [],
+    isFetching: isRankingsFetching,
     refetch: refetchRankings,
   } = useCameraRankings({ ...filterParams, limit: 5 }, { enabled: isDateRangeValid });
 
   const {
     data: templates = [],
+    isFetching: isTemplatesFetching,
     refetch: refetchTemplates,
   } = useReportTemplates();
 
@@ -349,6 +353,7 @@ export default function ReportsContent() {
   const {
     data: periodIncidents = [],
     isLoading: isIncidentsLoading,
+    isFetching: isIncidentsFetching,
     refetch: refetchIncidents,
   } = useQuery({
     queryKey: [
@@ -825,16 +830,27 @@ export default function ReportsContent() {
   };
 
   const handleRefreshAll = () => {
-    refetchSummary();
-    refetchTrends();
-    refetchDistribution();
-    refetchRankings();
-    refetchTemplates();
-    refetchHistory();
-    refetchIncidents();
+    const tasks: Promise<unknown>[] = [refetchTemplates(), refetchHistory()];
+    if (isDateRangeValid) {
+      tasks.push(
+        refetchSummary(),
+        refetchTrends(),
+        refetchDistribution(),
+        refetchRankings(),
+        refetchIncidents(),
+      );
+    }
+    void Promise.all(tasks);
   };
 
-  const isRefetching = isSummaryRefetching || isHistoryFetching;
+  const isRefetching =
+    isSummaryRefetching ||
+    isTrendsFetching ||
+    isDistributionFetching ||
+    isRankingsFetching ||
+    isTemplatesFetching ||
+    isHistoryFetching ||
+    isIncidentsFetching;
   const isOverallLoading = isSummaryLoading && isIncidentsLoading;
 
   return (

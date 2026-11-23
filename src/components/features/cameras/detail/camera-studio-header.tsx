@@ -13,11 +13,11 @@ import {
   Images,
   Layers,
   Radio,
-  RefreshCw,
   Server,
   Terminal,
 } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
+import { ConsoleRefreshButton } from "@/components/ui/refresh-action";
 import { useLocale } from "@/providers/locale-provider";
 import type { ModelInfo } from "@/types/ai-test.types";
 import type { CameraItem } from "@/types";
@@ -240,27 +240,13 @@ export function CameraStudioHeader({
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={onRefreshAll}
-              disabled={isRefreshing}
-              className={`group inline-flex h-11 sm:h-12 shrink-0 items-center gap-2 rounded-2xl px-3.5 text-xs font-bold text-foreground disabled:opacity-60 ${NM.tactileBtn}`}
-            >
-              <RefreshCw
-                className={`size-4 text-primary transition-transform duration-500 ${
-                  isRefreshing ? "animate-spin" : "group-hover:rotate-90"
-                }`}
-              />
-              <span className="hidden sm:inline">
-                {isRefreshing
-                  ? isVietnamese
-                    ? "Đang tải"
-                    : "Loading"
-                  : isVietnamese
-                    ? "Làm mới"
-                    : "Refresh"}
-              </span>
-            </button>
+            <ConsoleRefreshButton
+              compact
+              onRefresh={onRefreshAll}
+              isRefreshing={isRefreshing}
+              syncingLabel={isVietnamese ? "Đang tải" : "Loading"}
+              className="h-11 sm:h-12"
+            />
           </div>
         </div>
 

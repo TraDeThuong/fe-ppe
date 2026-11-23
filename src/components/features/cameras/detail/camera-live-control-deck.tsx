@@ -20,7 +20,7 @@ import {
   type SelectOption,
 } from "@/components/ui/form/selection-controls/select";
 import { useLocale } from "@/providers/locale-provider";
-import type { ModelInfo } from "@/types/ai-test.types";
+import type { LiveActiveConfig, ModelInfo } from "@/types/ai-test.types";
 
 export interface CameraLiveControlDeckProps {
   liveCameraId: string;
@@ -41,6 +41,11 @@ export interface CameraLiveControlDeckProps {
   onConfirmHelmetSecChange: (value: number) => void;
   confirmVestSec: number;
   onConfirmVestSecChange: (value: number) => void;
+  confidenceThreshold?: number;
+  onConfidenceThresholdChange?: (value: number) => void;
+  cooldownSec?: number;
+  onCooldownSecChange?: (value: number) => void;
+  activeAiConfig?: LiveActiveConfig | null;
   enableNoHelmet: boolean;
   onEnableNoHelmetChange: (checked: boolean) => void;
   enableNoVest: boolean;
@@ -83,6 +88,11 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
   onConfirmHelmetSecChange,
   confirmVestSec,
   onConfirmVestSecChange,
+  confidenceThreshold = 0.8,
+  onConfidenceThresholdChange,
+  cooldownSec = 30,
+  onCooldownSecChange,
+  activeAiConfig,
   enableNoHelmet,
   onEnableNoHelmetChange,
   enableNoVest,
@@ -221,8 +231,25 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                   {targetFps}/{aiFps} FPS • {confirmHelmetSec}s/{confirmVestSec}s
                 </span>
                 <span className="rounded-lg bg-primary/10 px-2 py-0.5 font-mono font-semibold text-primary">
+                  Conf {confidenceThreshold.toFixed(2)} • Cooldown {cooldownSec}s
+                </span>
+                <span className="rounded-lg bg-primary/10 px-2 py-0.5 font-mono font-semibold text-primary">
                   {enabledRulesCount}/4 Rules
                 </span>
+                {activeAiConfig && isRunning && (
+                  <span
+                    title={
+                      isVietnamese
+                        ? "Thông số thực tế đang chạy trong AI Engine"
+                        : "Live parameters currently active inside AI Engine"
+                    }
+                    className="rounded-lg bg-emerald-500/12 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400"
+                  >
+                    AI: {Number(activeAiConfig.confidence_threshold ?? confidenceThreshold).toFixed(2)} /{" "}
+                    {activeAiConfig.confirmation_duration_s ?? confirmHelmetSec}s /{" "}
+                    {activeAiConfig.cooldown_s ?? cooldownSec}s
+                  </span>
+                )}
                 {safetySource && (
                   <span
                     className={`inline-flex items-center gap-1 rounded-lg px-2 py-0.5 font-mono text-[10px] font-bold ${
@@ -585,8 +612,8 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                   </div>
                 </div>
 
-                {/* Sustain Timers */}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {/* Sustain Timers + Confidence & Cooldown */}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {[
                     {
                       key: "helmet",
@@ -648,6 +675,64 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                       />
                     </div>
                   ))}
+
+                  {/* AI Confidence Threshold */}
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/[0.05] px-3.5 py-2.5">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="size-2 shrink-0 rounded-full bg-primary" />
+                        <span className="text-xs font-bold text-foreground">
+                          {isVietnamese ? "Ngưỡng tin cậy AI" : "AI Confidence"}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 pl-3.5 font-mono text-[10px] text-muted-foreground">
+                        0.10 – 1.00
+                      </p>
+                    </div>
+                    <Input
+                      size="sm"
+                      type="number"
+                      min={0.1}
+                      max={1.0}
+                      step={0.05}
+                      value={confidenceThreshold}
+                      onChange={(e) =>
+                        onConfidenceThresholdChange?.(
+                          Math.min(1, Math.max(0.1, Number(e.target.value) || 0.8)),
+                        )
+                      }
+                      className="w-20 text-center font-mono font-bold text-primary"
+                    />
+                  </div>
+
+                  {/* Cooldown chống lặp */}
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/[0.05] px-3.5 py-2.5">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="size-2 shrink-0 rounded-full bg-primary" />
+                        <span className="text-xs font-bold text-foreground">
+                          {isVietnamese ? "Cooldown lặp (s)" : "Alert Cooldown (s)"}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 pl-3.5 font-mono text-[10px] text-muted-foreground">
+                        0 – 3600s
+                      </p>
+                    </div>
+                    <Input
+                      size="sm"
+                      type="number"
+                      min={0}
+                      max={3600}
+                      step={5}
+                      value={cooldownSec}
+                      onChange={(e) =>
+                        onCooldownSecChange?.(
+                          Math.min(3600, Math.max(0, Math.round(Number(e.target.value) || 0))),
+                        )
+                      }
+                      className="w-20 text-center font-mono font-bold text-primary"
+                    />
+                  </div>
                 </div>
 
                 {/* 4 Rules Switches */}

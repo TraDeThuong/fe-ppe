@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ExternalLink, RefreshCw, ScrollText, Shield } from "lucide-react";
+import { ExternalLink, ScrollText, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-action";
 import {
   AuditLogTable,
   AuditDetailDrawer,
@@ -94,19 +95,13 @@ export function RoleAuditTab({ role }: RoleAuditTabProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            type="button"
+          <RefreshButton
             variant="ghost"
             size="sm"
-            onClick={() => refetch()}
-            disabled={isRefetching}
-            className="h-8 gap-1.5 text-xs"
-          >
-            <RefreshCw
-              className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`}
-            />
-            <span>{t("common.refresh")}</span>
-          </Button>
+            onRefresh={() => refetch()}
+            isRefreshing={isRefetching}
+            className="h-8 text-xs"
+          />
 
           <Link href={`/audit-logs?search=${encodeURIComponent(role.name)}`}>
             <Button

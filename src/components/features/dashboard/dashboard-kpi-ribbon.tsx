@@ -21,7 +21,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export interface DashboardKpiRibbonProps {
   total: number | null;
+  rawTotal?: number | null;
   pendingCount: number | null;
+  rawPendingCount?: number | null;
   totalCamerasCount: number | null;
   onlineCamerasCount: number | null;
   analytics: import("@/types/dashboard.types").DashboardAnalytics | null;
@@ -230,7 +232,9 @@ function KpiTile({
 
 export function DashboardKpiRibbon({
   total,
+  rawTotal,
   pendingCount,
+  rawPendingCount,
   totalCamerasCount,
   onlineCamerasCount,
   analytics,
@@ -246,7 +250,8 @@ export function DashboardKpiRibbon({
   onNavigateReports,
   onNavigateIncidents,
 }: DashboardKpiRibbonProps) {
-  const { t, number } = useLocale();
+  const { t, number, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const cameraRatio =
     onlineCamerasCount !== null &&
@@ -398,7 +403,15 @@ export function DashboardKpiRibbon({
                     value={total === null ? "—" : number.format(total)}
                     icon={ShieldAlert}
                     tone="primary"
-                    footer={t("dashboard.kpi.allStatuses")}
+                    footer={
+                      total !== null &&
+                      rawTotal != null &&
+                      rawTotal > total
+                        ? isVietnamese
+                          ? `Gom từ ${number.format(rawTotal)} lỗi gốc · ${t("dashboard.kpi.allStatuses")}`
+                          : `Grouped from ${number.format(rawTotal)} raw · ${t("dashboard.kpi.allStatuses")}`
+                        : t("dashboard.kpi.allStatuses")
+                    }
                     onClick={canViewIncidents ? onNavigateIncidents : undefined}
                   />
                   {periodState}
@@ -415,7 +428,15 @@ export function DashboardKpiRibbon({
                     }
                     icon={Clock}
                     tone={pendingCount ? "warning" : "primary"}
-                    footer={t("dashboard.kpi.currentAllDays")}
+                    footer={
+                      pendingCount !== null &&
+                      rawPendingCount != null &&
+                      rawPendingCount > pendingCount
+                        ? isVietnamese
+                          ? `${number.format(rawPendingCount)} bản ghi lỗi chờ duyệt`
+                          : `${number.format(rawPendingCount)} raw records pending`
+                        : t("dashboard.kpi.currentAllDays")
+                    }
                     onClick={onFilterPending}
                   />
                   {pendingState}

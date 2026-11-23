@@ -1,5 +1,5 @@
 "use client";
-import { Table, TableToolbar, TableContent, TablePagination, TableRefresh } from "@/components/ui/table";
+import { Table, TableContent, TablePagination } from "@/components/ui/table";
 
 import { useMemo, useState } from "react";
 import {
@@ -489,7 +489,6 @@ export function SiteStatsDetailPanel({
                   pagination: false,
                 }}
               >
-                <TableToolbar showSearch={false} actions={<TableRefresh />} />
                 <TableContent />
                 <TablePagination />
               </Table>

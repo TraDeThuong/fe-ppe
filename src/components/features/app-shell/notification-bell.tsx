@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { notificationIncidentTarget } from "@/lib/incident-group";
+import {
+  formatViolationTypeLabel,
+  parseNotificationDisplay,
+} from "@/lib/notification-display";
+import {
+  groupNotificationsByPerson,
+  type NotificationPersonCluster,
+} from "@/lib/notification-grouping-engine";
+import { isNotificationRead } from "@/lib/notification-inbox";
 import {
   Bell,
   CheckCheck,
@@ -26,8 +35,10 @@ import { stripEmojis } from "@/lib/strip-emojis";
 import {
   useUnreadCount,
   useNotifications,
+  useNotificationEnrichment,
   useMarkAllAsRead,
   useMarkAsRead,
+  useMarkManyAsRead,
   useNotificationSound,
 } from "@/hooks/notifications";
 import type { NotificationItemDto, NotificationSeverity } from "@/types";
@@ -94,16 +105,33 @@ export function NotificationBell() {
     enabled: canReadNotifications,
   });
   const { data: notificationData, isLoading } = useNotifications(
-    { limit: 5 },
+    { limit: 20 },
     { enabled: open && canReadNotifications },
   );
+  const { signalsMap } = useNotificationEnrichment({
+    enabled: open && canReadNotifications,
+    maxIncidents: 100,
+  });
 
   const markAllMutation = useMarkAllAsRead();
   const markAsReadMutation = useMarkAsRead();
+  const markManyAsReadMutation = useMarkManyAsRead();
 
-  const notifications = notificationData?.data || [];
+  const bellClusters = useMemo(
+    () =>
+      groupNotificationsByPerson(
+        notificationData?.data || [],
+        signalsMap,
+        undefined,
+        {
+          isVietnamese,
+          enableVisualDedup: false,
+        },
+      ).slice(0, 5),
+    [notificationData?.data, signalsMap, isVietnamese],
+  );
 
-  // Lắng nghe sự kiện Realtime SSE: lọc theo vai trò (Manager nhận cảnh báo AI & báo cáo xong; Officer nhận tín hiệu [ĐIỀU PHỐI])
+  // Lắng nghe sự kiện Realtime SSE: lọc theo vai trò (Manager nhận cảnh báo AI & báo cáo xong; Officer nhận tín hiệu [ĐIỀU PHỐI]; tất cả liên quan nhận bình luận mới)
   useEffect(() => {
     if (!lastAlert) return;
 
@@ -111,6 +139,7 @@ export function NotificationBell() {
       lastAlert.data,
       lastAlert.type,
       user?.role,
+      user?.id,
     );
     if (!classified.shouldTriggerBellAndToast) {
       return;
@@ -129,7 +158,12 @@ export function NotificationBell() {
         ? (lastAlert.data as IncidentAlertPayload)
         : null;
 
-    if (alertData && (lastAlert.type === "notification:ppe_violation" || alertData.incidentId)) {
+    if (
+      alertData &&
+      (lastAlert.type === "notification:ppe_violation" ||
+        lastAlert.type === "notification:incident_comment" ||
+        alertData.incidentId)
+    ) {
       const {
         getCameraCode: resolveCam,
         getSiteName: resolveSite,
@@ -154,7 +188,7 @@ export function NotificationBell() {
     }
 
     return () => clearTimeout(timer);
-  }, [lastAlert, playAlert, router, user?.role]);
+  }, [lastAlert, playAlert, router, user?.role, user?.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -178,18 +212,22 @@ export function NotificationBell() {
     return null;
   }
 
-  const handleItemClick = (item: NotificationItemDto) => {
-    if (!item.isRead) {
-      markAsReadMutation.mutate(item.id);
+  const handleClusterClick = (cluster: NotificationPersonCluster) => {
+    const item = cluster.primary;
+    const unreadIds = cluster.items
+      .filter((member) => !isNotificationRead(member))
+      .map((member) => member.id);
+    if (unreadIds.length > 1) {
+      markManyAsReadMutation.mutate(unreadIds);
+    } else if (unreadIds.length === 1) {
+      markAsReadMutation.mutate(unreadIds[0]);
     }
     setOpen(false);
-    const target = notificationIncidentTarget(item);
-    if (target.group && target.href) {
-      router.push(target.href);
+    const parsed = parseNotificationDisplay(item, isVietnamese);
+    if (parsed.incidentHref) {
+      router.push(parsed.incidentHref);
     } else if (item.actionUrl) {
       router.push(item.actionUrl);
-    } else if (item.incidentId) {
-      router.push(target.href!);
     }
   };
 
@@ -283,46 +321,82 @@ export function NotificationBell() {
                   </div>
                 ))}
               </div>
-            ) : notifications.length === 0 ? (
+            ) : bellClusters.length === 0 ? (
               <p className="px-3 py-8 text-center text-xs text-muted-foreground">
                 {t("header.notifications.empty")}
               </p>
             ) : (
-              notifications.map((item) => (
+              bellClusters.map((cluster) => {
+                const item = cluster.primary;
+                const isRead = cluster.unreadCount === 0;
+                const parsedItem = parseNotificationDisplay(item, isVietnamese);
+                const multiLabels = cluster.isMultiViolation
+                  ? cluster.violationCodes
+                      .map((code) => formatViolationTypeLabel(code, isVietnamese))
+                      .join(" + ")
+                  : null;
+                return (
                 <div
-                  key={item.id}
-                  onClick={() => handleItemClick(item)}
+                  key={cluster.key}
+                  onClick={() => handleClusterClick(cluster)}
                   className={[
                     "group flex cursor-pointer items-start gap-2.5 p-2.5 rounded-xl transition-all",
-                    item.isRead
+                    isRead
                       ? "hover:bg-muted/15 opacity-80"
                       : "bg-primary/5 hover:bg-primary/10 font-medium",
                   ].join(" ")}
                 >
                   <span
-                    className={`mt-1.5 size-2 shrink-0 rounded-full ${getSeverityDot(item.severity)}`}
+                    className={`mt-1.5 size-2 shrink-0 rounded-full ${getSeverityDot(cluster.highestSeverity)}`}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-xs font-bold text-foreground group-hover:text-primary">
-                        {stripEmojis(item.title)}
-                      </p>
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <p className="truncate text-xs font-bold text-foreground group-hover:text-primary">
+                          {cluster.isMultiViolation
+                            ? isVietnamese
+                              ? `Đa vi phạm PPE${cluster.trackId !== null ? ` (Người #${cluster.trackId})` : ""}`
+                              : `Multi-PPE Violation${cluster.trackId !== null ? ` (#${cluster.trackId})` : ""}`
+                            : parsedItem.cleanTitle || stripEmojis(item.title)}
+                        </p>
+                        {cluster.isMultiViolation && (
+                          <span className="shrink-0 rounded-full bg-rose-500/15 px-1.5 py-[1px] text-[9.5px] font-bold text-rose-600 dark:text-rose-300">
+                            {cluster.violationCodes.length} {isVietnamese ? "lỗi" : "types"}
+                          </span>
+                        )}
+                      </div>
                       <span className="shrink-0 text-[10px] text-muted-foreground font-mono">
                         {formatRelativeTimeShort(item.createdAt, isVietnamese)}
                       </span>
                     </div>
                     <p className="line-clamp-2 text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                      {stripEmojis(notificationIncidentTarget(item).content)}
+                      {multiLabels ||
+                        (parsedItem.kind === "COMMENT" && parsedItem.commentAuthor
+                          ? `${parsedItem.commentAuthor}: ${parsedItem.cleanBody}`
+                          : parsedItem.cleanBody || stripEmojis(notificationIncidentTarget(item).content))}
                     </p>
                     {item.incidentId && (
                       <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-primary">
-                        <span>{notificationIncidentTarget(item).group ? (isVietnamese ? "Mở nhóm xử lý" : "Open incident group") : (isVietnamese ? "Mở hồ sơ sự cố" : "Open incident")}</span>
+                        <span>
+                          {parsedItem.isGroupLink
+                            ? isVietnamese
+                              ? "Mở nhóm xử lý"
+                              : "Open incident group"
+                            : parsedItem.kind === "COMMENT"
+                              ? isVietnamese
+                                ? "Mở trao đổi"
+                                : "Open discussion"
+                              : isVietnamese
+                                ? "Mở hồ sơ sự cố"
+                                : "Open incident"}
+                        </span>
                         <ExternalLink className="size-2.5" />
                       </div>
                     )}
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
 

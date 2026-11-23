@@ -1,7 +1,7 @@
 "use client";
 import { Table, TableToolbar, TableContent, TablePagination, TableRefresh } from "@/components/ui/table";
 
-import { CheckCircle2, Layers, Rocket } from "lucide-react";
+import { CheckCircle2, Layers, Plus, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
 import type { AiModelDto, AiModelVersionDto } from "@/types";
@@ -10,21 +10,26 @@ import { AiCardHelpButton } from "./ai-metrics-guide-modal";
 export interface ModelGovernanceTableProps {
   models: AiModelDto[];
   onDeploy?: (modelId: string, version: AiModelVersionDto) => void;
+  onAddVersion?: (modelId: string) => void;
   onRefresh?: () => void;
   onOpenGuide?: () => void;
   canDeploy?: boolean;
   loading?: boolean;
+  fetching?: boolean;
 }
 
 export function ModelGovernanceTable({
   models,
   onDeploy,
+  onAddVersion,
   onRefresh,
   onOpenGuide,
   canDeploy = true,
   loading = false,
+  fetching = false,
 }: ModelGovernanceTableProps) {
   const { t, locale } = useLocale();
+  const isVi = locale === "vi-VN";
 
   // Flatten versions from models
   const allVersions = models.flatMap((m) =>
@@ -34,6 +39,10 @@ export function ModelGovernanceTable({
       modelCode: m.code,
       modelStatus: m.status,
     }))
+  );
+
+  const modelsWithoutVersions = models.filter(
+    (m) => !m.versions || m.versions.length === 0
   );
 
   const getStatusBadge = (status: string) => {
@@ -85,6 +94,38 @@ export function ModelGovernanceTable({
           {onOpenGuide && <AiCardHelpButton onClick={onOpenGuide} />}
         </div>
       </div>
+
+      {/* Registered models that do not have any versions yet */}
+      {modelsWithoutVersions.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/30 bg-surface-elevated/40 px-3 py-2.5 text-xs">
+          <span className="font-semibold text-muted-foreground">
+            {isVi
+              ? `Mô hình chưa có phiên bản (${modelsWithoutVersions.length}):`
+              : `Models without versions (${modelsWithoutVersions.length}):`}
+          </span>
+          {modelsWithoutVersions.map((m) => (
+            <div
+              key={m.id}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border/40 bg-surface px-2.5 py-1 text-foreground"
+            >
+              <span className="font-semibold">{m.name}</span>
+              <span className="font-mono text-[11px] text-muted-foreground">
+                ({m.code})
+              </span>
+              {canDeploy && onAddVersion && (
+                <button
+                  type="button"
+                  onClick={() => onAddVersion(m.id)}
+                  className="ml-1 inline-flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary transition hover:bg-primary/20"
+                >
+                  <Plus className="h-3 w-3" />
+                  <span>{isVi ? "Thêm Version" : "Add Version"}</span>
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto">
@@ -215,6 +256,7 @@ export function ModelGovernanceTable({
             }
           }]}
           loading={loading}
+          fetching={fetching}
           onRetry={onRefresh}
           getRowId={row => row.id}
           features={{

@@ -132,16 +132,20 @@ export function buildIncidentToastPayload({
     content: rawContent,
     severity,
     status: "SENT",
-    sentAt: alertData.detectedAt ?? null,
+    sentAt: alertData.detectedAt ?? (typeof alertData.createdAt === "string" ? alertData.createdAt : null),
     readAt: null,
-    createdAt: alertData.detectedAt || new Date().toISOString(),
-    type: "PPE_VIOLATION",
+    createdAt:
+      (typeof alertData.createdAt === "string" ? alertData.createdAt : undefined) ||
+      alertData.detectedAt ||
+      new Date().toISOString(),
+    type: kind === "INCIDENT_COMMENT" ? "INCIDENT_COMMENT" : "PPE_VIOLATION",
     metadata: {
       cameraCode: alertData.cameraCode,
       cameraId: alertData.cameraId,
       siteName: alertData.siteName,
       siteId: alertData.siteId,
       violationType: alertData.violationType,
+      authorName: typeof alertData.authorName === "string" ? alertData.authorName : undefined,
     },
   };
 
@@ -163,30 +167,49 @@ export function buildIncidentToastPayload({
     resolveSiteName,
   );
 
-  const fallbackTitle =
-    kind === "OFFICER_RESOLVED_REPORT"
-      ? isVietnamese
-        ? "Sự cố đã được khắc phục"
-        : "Incident remediated"
-      : kind === "MANAGER_DISPATCH"
-        ? isVietnamese
-          ? "Nhiệm vụ xử lý sự cố mới"
-          : "New incident assignment"
-        : violationLabel
-          ? isVietnamese
-            ? `Phát hiện ${violationLabel.toLowerCase()}`
-            : `${violationLabel} detected`
-          : isVietnamese
-            ? "Phát hiện vi phạm bảo hộ PPE"
-            : "PPE violation detected";
+  const commentAuthor =
+    (typeof alertData.authorName === "string" && alertData.authorName.trim()) ||
+    parsed.commentAuthor;
 
-  const cleanTitle = stripEmojis(parsed.cleanTitle || "").trim() || fallbackTitle;
+  const fallbackTitle =
+    kind === "INCIDENT_COMMENT"
+      ? commentAuthor
+        ? isVietnamese
+          ? `Bình luận mới từ ${commentAuthor}`
+          : `New comment from ${commentAuthor}`
+        : isVietnamese
+          ? "Bình luận mới trên sự cố"
+          : "New incident comment"
+      : kind === "OFFICER_RESOLVED_REPORT"
+        ? isVietnamese
+          ? "Sự cố đã được khắc phục"
+          : "Incident remediated"
+        : kind === "MANAGER_DISPATCH"
+          ? isVietnamese
+            ? "Nhiệm vụ xử lý sự cố mới"
+            : "New incident assignment"
+          : violationLabel
+            ? isVietnamese
+              ? `Phát hiện ${violationLabel.toLowerCase()}`
+              : `${violationLabel} detected`
+            : isVietnamese
+              ? "Phát hiện vi phạm bảo hộ PPE"
+              : "PPE violation detected";
+
+  const cleanTitle =
+    kind === "INCIDENT_COMMENT"
+      ? fallbackTitle
+      : stripEmojis(parsed.cleanTitle || "").trim() || fallbackTitle;
   const rawDesc =
-    kind === "MANAGER_DISPATCH" && parsed.directiveNote
-      ? parsed.directiveNote
-      : kind === "OFFICER_RESOLVED_REPORT" && parsed.resolutionNote
-        ? parsed.resolutionNote
-        : parsed.cleanBody;
+    kind === "INCIDENT_COMMENT"
+      ? parsed.commentText ||
+        (typeof alertData.comment === "string" ? alertData.comment : "") ||
+        parsed.cleanBody
+      : kind === "MANAGER_DISPATCH" && parsed.directiveNote
+        ? parsed.directiveNote
+        : kind === "OFFICER_RESOLVED_REPORT" && parsed.resolutionNote
+          ? parsed.resolutionNote
+          : parsed.cleanBody;
   const cleanDescription = stripEmojis(rawDesc || "").trim();
   const description =
     cleanDescription &&
@@ -194,12 +217,24 @@ export function buildIncidentToastPayload({
       ? cleanDescription
       : undefined;
 
-  const incidentHref = target.href;
+  const incidentHref =
+    kind === "INCIDENT_COMMENT" && incidentId && !target.group
+      ? `/incidents/${encodeURIComponent(incidentId)}?focus=comments`
+      : target.href;
   const compareHref =
-    kind !== "OFFICER_RESOLVED_REPORT" ? compareTarget.href : null;
+    kind !== "OFFICER_RESOLVED_REPORT" && kind !== "INCIDENT_COMMENT"
+      ? compareTarget.href
+      : null;
 
-  const toastKey = `ppe-incident-${kind}-${incidentId || Date.now()}`;
-  const burstKey = `${kind}:${cameraLabel || alertData.cameraId || "global"}:${violationCode || "PPE"}`;
+  const toastKey = `ppe-incident-${kind}-${
+    kind === "INCIDENT_COMMENT" && typeof alertData.commentId === "string"
+      ? alertData.commentId
+      : incidentId || Date.now()
+  }`;
+  const burstKey =
+    kind === "INCIDENT_COMMENT"
+      ? `INCIDENT_COMMENT:${incidentId || "global"}`
+      : `${kind}:${cameraLabel || alertData.cameraId || "global"}:${violationCode || "PPE"}`;
 
   const input: IncidentToastInput = {
     kind,

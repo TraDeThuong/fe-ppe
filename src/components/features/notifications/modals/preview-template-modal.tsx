@@ -7,35 +7,16 @@ import { Button } from "@/components/ui/button";
 import { usePreviewNotificationTemplate } from "@/hooks/notifications";
 import { sanitizeHtml } from "@/lib/sanitize-html";
 import { useLocale } from "@/providers/locale-provider";
+import {
+  DEFAULT_SAMPLE_VARIABLES,
+  interpolateTemplate,
+} from "../notification-template-helpers";
 import type { NotificationTemplateItemDto, PreviewTemplateResponse } from "@/types";
 
 export interface PreviewTemplateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   template: NotificationTemplateItemDto | null;
-}
-
-const DEFAULT_SAMPLE_VARIABLES: Record<string, unknown> = {
-  workerName: "Nguyễn Văn An",
-  workerId: "NV-8921",
-  siteName: "Công trường Landmark Tòa B",
-  zoneName: "Khu vực Giàn giáo Tầng 12",
-  violationType: "Thiếu nón bảo hộ & dây an toàn",
-  severity: "HIGH",
-  cameraName: "CAM-NORTH-04",
-  timestamp: "14:32 28/10/2026",
-  actionUrl: "http://localhost:3000/incidents",
-};
-
-function interpolateTemplate(
-  raw: string | null | undefined,
-  vars: Record<string, unknown>,
-): string {
-  if (!raw) return "";
-  return raw.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (match, key: string) => {
-    const val = vars[key];
-    return val !== undefined && val !== null ? String(val) : match;
-  });
 }
 
 export function PreviewTemplateModal({
@@ -222,7 +203,7 @@ export function PreviewTemplateModal({
                       {isVietnamese ? "Xem trước khung HTML Email:" : "Email HTML Preview:"}
                     </span>
                     <div
-                      className="rounded-lg border border-border/30 bg-white p-4 text-slate-800 shadow-inner max-h-60 overflow-auto"
+                      className="rounded-lg border border-border/30 bg-white p-4 text-[#1b2632] shadow-inner max-h-60 overflow-auto"
                       dangerouslySetInnerHTML={{ __html: sanitizedPreviewHtml }}
                     />
                   </div>

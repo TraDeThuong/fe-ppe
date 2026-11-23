@@ -171,9 +171,9 @@ test("deriveLiveDefaultsFromConfig hydrates safety rules from effective site/cam
       cameraId: sampleCamera.id,
       cameraName: null,
       cameraCode: null,
-      confidenceThreshold: 0.8,
-      confirmationDuration: 3,
-      cooldownDuration: 30,
+      confidenceThreshold: 0.7,
+      confirmationDuration: 8,
+      cooldownDuration: 110,
       rules: { enableNoHelmet: true, enableNoVest: false, enableRestrictedArea: false },
       source: "SITE_LEVEL",
       resolvedAt: "",
@@ -183,8 +183,23 @@ test("deriveLiveDefaultsFromConfig hydrates safety rules from effective site/cam
   assert.equal(defaults.enableNoHelmet, true);
   assert.equal(defaults.enableNoVest, false);
   assert.equal(defaults.enableRestrictedArea, false);
-  assert.equal(defaults.confirmHelmetSec, 3);
-  assert.equal(defaults.confirmVestSec, 6);
+  assert.equal(defaults.confirmHelmetSec, 8);
+  assert.equal(defaults.confirmVestSec, 8);
+  assert.equal(defaults.confidenceThreshold, 0.7);
+  assert.equal(defaults.cooldownSec, 110);
+
+  const startPayload = buildCameraStartPayload(sampleCamera, {
+    source: "sample.mp4",
+    ...defaults,
+  });
+  assert.equal(startPayload.confidence_threshold, 0.7);
+  assert.equal(startPayload.cooldown_s, 110);
+  assert.equal(startPayload.confirmation_duration_s, 8);
+  assert.equal(startPayload.confirmation_duration_vest_s, 8);
+
+  const hotPayload = buildCameraHotConfigPayload(defaults);
+  assert.equal(hotPayload.confidence_threshold, 0.7);
+  assert.equal(hotPayload.cooldown_s, 110);
 });
 
 test("hasMaskedCredentials, canAutoStartCameraSource & resolveCameraSourceIssue reject masked RTSP and HTTPS .mp4", () => {
@@ -322,6 +337,22 @@ test("selectAutoStartCandidates picks ONLINE runnable cameras within session cap
   const cam5Runnable: CameraItem = { ...sampleCamera, id: "c5", code: "CAM-05", status: "ONLINE" };
   const cam6Attempted: CameraItem = { ...sampleCamera, id: "c6", code: "CAM-06", status: "ONLINE" };
   const cam7Overflow: CameraItem = { ...sampleCamera, id: "c7", code: "CAM-07", status: "ONLINE" };
+  const cam8PausedAi: CameraItem = {
+    ...sampleCamera,
+    id: "c8",
+    code: "CAM-08",
+    status: "ONLINE",
+    config: {
+      id: "cfg-8",
+      cameraId: "c8",
+      enabled: true,
+      captureFps: 10,
+      resolution: "1920x1080",
+      processingEnabled: false,
+      createdAt: "",
+      updatedAt: "",
+    },
+  };
 
   const activeSessions: LiveSessionInfo[] = [
     { camera_id: "CAM-04", status: "running" },
@@ -329,7 +360,7 @@ test("selectAutoStartCandidates picks ONLINE runnable cameras within session cap
   ];
 
   const selected = selectAutoStartCandidates(
-    [cam1, cam2Offline, cam3Masked, cam4AlreadyRunning, cam5Runnable, cam6Attempted, cam7Overflow],
+    [cam1, cam2Offline, cam3Masked, cam4AlreadyRunning, cam8PausedAi, cam5Runnable, cam6Attempted, cam7Overflow],
     activeSessions,
     uploadedVideos,
     {
@@ -338,7 +369,7 @@ test("selectAutoStartCandidates picks ONLINE runnable cameras within session cap
     },
   );
 
-  // 2 slots already occupied (CAM-04 + EXT-CAM), so at most 2 new cameras selected: c1 and c5
+  // 2 slots already occupied (CAM-04 + EXT-CAM), cam8PausedAi skipped (processingEnabled=false), so at most 2 new cameras selected: c1 and c5
   assert.deepEqual(
     selected.map((c) => c.id),
     ["c1", "c5"],

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { RefreshIconButton } from "@/components/ui/refresh-action";
 import { useSitesCatalog } from "@/hooks/sites";
 import { useCamerasCatalog } from "@/hooks/cameras";
 import { useLocale } from "@/providers/locale-provider";
@@ -196,18 +197,14 @@ export function IncidentFilterToolbar({
           )}
 
           {onRefresh && (
-            <button
-              type="button"
-              onClick={onRefresh}
-              disabled={isRefreshing}
+            <RefreshIconButton
+              onRefresh={onRefresh}
+              isRefreshing={isRefreshing}
               title={isVietnamese ? "Làm mới dữ liệu" : "Refresh data"}
-              aria-label={isVietnamese ? "Làm mới" : "Refresh"}
-              className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl border border-border/40 bg-surface text-foreground shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_2px_2px_4px_var(--shadow-dark)] disabled:opacity-50"
-            >
-              <RefreshCw
-                className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-primary" : ""}`}
-              />
-            </button>
+              ariaLabel={isVietnamese ? "Làm mới" : "Refresh"}
+              className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-border/40 bg-surface text-foreground shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] hover:text-primary active:shadow-[inset_2px_2px_4px_var(--shadow-dark)] disabled:opacity-50"
+              iconClassName="h-3.5 w-3.5"
+            />
           )}
         </div>
       </div>

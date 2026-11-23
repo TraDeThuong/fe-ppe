@@ -22,6 +22,14 @@ import {
   type DispatchIncidentsResult,
 } from "@/lib/incident-actions";
 import { IncidentDispatchResultPanel } from "@/components/features/incidents/incident-dispatch-result-panel";
+import { vietnamToday } from "@/lib/dashboard-data";
+import {
+  createDefaultIncidentPeriodFilter,
+  filterItemsByDateRange,
+  parseIncidentPeriodFromUrl,
+  resolveIncidentPeriod,
+  type IncidentPeriodFilter,
+} from "@/lib/incident-period";
 import { runInBatches } from "@/lib/incident-workflow";
 import {
   IncidentConsoleHeader,
@@ -38,8 +46,10 @@ import {
   BatchDispatchModal,
   BatchResolveModal,
   type IncidentStatKey,
+  type IncidentViewMode,
 } from "@/components/features/incidents";
 import {
+  useAssignmentIncidents,
   useIncidents,
   useHydratedIncidents,
   useIncidentStatusCounts,
@@ -87,14 +97,110 @@ export default function IncidentsContent() {
   const isOfficerRole = (user?.role || "").toUpperCase() === "SAFETY_OFFICER";
 
   const urlCameraId = searchParams.get("cameraId") || "";
+  const hasUrlSiteId = searchParams.has("siteId");
   const urlSiteId = searchParams.get("siteId") || "";
-  const fromDate = searchParams.get("fromDate") || undefined;
-  const toDate = searchParams.get("toDate") || undefined;
+  const urlView = searchParams.get("view");
+  const urlPeriod = searchParams.get("period");
+  const urlFromDate = searchParams.get("fromDate");
+  const urlToDate = searchParams.get("toDate");
 
-  // URL state synchronization for stats
+  const [today, setToday] = useState(() => vietnamToday());
+  useEffect(() => {
+    const syncToday = () => {
+      if (!document.hidden) {
+        const current = vietnamToday();
+        setToday((prev) => (prev === current ? prev : current));
+      }
+    };
+    document.addEventListener("visibilitychange", syncToday);
+    window.addEventListener("focus", syncToday);
+    return () => {
+      document.removeEventListener("visibilitychange", syncToday);
+      window.removeEventListener("focus", syncToday);
+    };
+  }, []);
+
+  const [periodFilter, setPeriodFilter] = useState<IncidentPeriodFilter>(() =>
+    parseIncidentPeriodFromUrl(
+      { period: urlPeriod, fromDate: urlFromDate, toDate: urlToDate },
+      vietnamToday(),
+    ),
+  );
+
+  // Đồng bộ bộ lọc thời gian khi URL thay đổi (Back / Forward hoặc điều hướng từ Dashboard)
+  useEffect(() => {
+    const parsed = parseIncidentPeriodFromUrl(
+      { period: urlPeriod, fromDate: urlFromDate, toDate: urlToDate },
+      today,
+    );
+    setPeriodFilter((prev) => {
+      const prevResolved = resolveIncidentPeriod(prev);
+      const parsedResolved = resolveIncidentPeriod(parsed);
+      if (
+        prev.mode === parsed.mode &&
+        prevResolved.fromDate === parsedResolved.fromDate &&
+        prevResolved.toDate === parsedResolved.toDate
+      ) {
+        return prev;
+      }
+      return parsed;
+    });
+  }, [urlPeriod, urlFromDate, urlToDate, today]);
+
+  const resolvedPeriod = useMemo(
+    () => resolveIncidentPeriod(periodFilter),
+    [periodFilter],
+  );
+  const fromDate =
+    resolvedPeriod.mode !== "all" && resolvedPeriod.isValid
+      ? resolvedPeriod.fromDate
+      : undefined;
+  const toDate =
+    resolvedPeriod.mode !== "all" && resolvedPeriod.isValid
+      ? resolvedPeriod.toDate
+      : undefined;
+
+  const handlePeriodFilterChange = (next: IncidentPeriodFilter) => {
+    setPeriodFilter(next);
+    setPage(1);
+    const nextResolved = resolveIncidentPeriod(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next.mode === "all") {
+      params.delete("period");
+      params.delete("fromDate");
+      params.delete("toDate");
+    } else if (nextResolved.isValid) {
+      params.set("period", next.mode);
+      if (nextResolved.fromDate) params.set("fromDate", nextResolved.fromDate);
+      else params.delete("fromDate");
+      if (nextResolved.toDate) params.set("toDate", nextResolved.toDate);
+      else params.delete("toDate");
+    } else {
+      return;
+    }
+    const q = params.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  };
+
+  // URL state synchronization for stats & view mode (default: table)
   const statParam = searchParams.get("stat");
   const statusParam = searchParams.get("status");
   const selectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
+  const [viewMode, setViewMode] = useState<IncidentViewMode>(
+    urlView === "split" || urlView === "camera" ? urlView : "table",
+  );
+
+  const handleViewModeChange = (mode: IncidentViewMode) => {
+    setViewMode(mode);
+    const params = new URLSearchParams(searchParams.toString());
+    if (mode === "table") {
+      params.delete("view");
+    } else {
+      params.set("view", mode);
+    }
+    const q = params.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  };
 
   // Filter States: Ưu tiên giá trị từ URL, nếu không có URL thì lấy từ Header globalSiteId
   const [page, setPage] = useState(1);
@@ -165,16 +271,29 @@ export default function IncidentsContent() {
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   };
 
-  // Sync state khi searchParams của URL thay đổi (Back / Forward navigation)
+  // Sync viewMode khi URL ?view= thay đổi (Back / Forward navigation)
   useEffect(() => {
-    const paramCamera = searchParams.get("cameraId") || "";
-    setCameraIdFilter(paramCamera);
-    const paramSite = searchParams.has("siteId") ? searchParams.get("siteId") || "" : globalSiteId || "";
+    const nextMode: IncidentViewMode =
+      urlView === "split" || urlView === "camera" ? urlView : "table";
+    setViewMode((prev) => (prev === nextMode ? prev : nextMode));
+  }, [urlView]);
+
+  // Sync filter state khi siteId / cameraId trên URL thay đổi (không reset trang khi chỉ đổi ?view=)
+  useEffect(() => {
+    let changed = false;
+    if (urlCameraId !== cameraIdFilter) {
+      setCameraIdFilter(urlCameraId);
+      changed = true;
+    }
+    const paramSite = hasUrlSiteId ? urlSiteId : globalSiteId || "";
     if (paramSite !== siteIdFilter) {
       setSiteIdFilter(paramSite);
+      changed = true;
     }
-    setPage(1);
-  }, [searchParams]);
+    if (changed) {
+      setPage(1);
+    }
+  }, [urlCameraId, hasUrlSiteId, urlSiteId]);
 
   useEffect(() => {
     setStatusFilter(
@@ -256,35 +375,39 @@ export default function IncidentsContent() {
   }, [lastAlert, queryClient]);
 
   // KPI summary nhẹ từ /incidents/status-counts
-  const { data: statusCounts, isLoading: statusCountsLoading } =
-    useIncidentStatusCounts({
-      siteId: siteIdFilter || undefined,
-      cameraId: cameraIdFilter || undefined,
-      fromDate,
-      toDate,
-    });
+  const {
+    data: statusCounts,
+    isLoading: statusCountsLoading,
+    isFetching: statusCountsFetching,
+    refetch: refetchStatusCounts,
+  } = useIncidentStatusCounts({
+    siteId: siteIdFilter || undefined,
+    cameraId: cameraIdFilter || undefined,
+    fromDate,
+    toDate,
+  });
 
-  // Tải 100 bản ghi tổng quan cho Card Điều phối & KPI Breakdown (không polling nền 15s, chia sẻ cache với /incidents/assignments)
-  const { data: statsOverviewData, isLoading: overviewLoading } = useIncidents(
-    {
-      page: 1,
-      siteId: siteIdFilter || undefined,
-      cameraId: cameraIdFilter || undefined,
-      limit: 100,
-      includeAssignments: true,
-      fromDate,
-      toDate,
-      sortBy: "detectedAt",
-      sortOrder: "desc",
-    },
-    {
-      staleTime: 60 * 1000,
-      refetchInterval: false,
-    },
-  );
+  // Tải sự cố tách theo từng trạng thái cho Card Điều phối & KPI Breakdown (chia sẻ cache với /incidents/assignments)
+  const {
+    items: overviewBucketItems,
+    totals: overviewStatusTotals,
+    isLoading: overviewLoading,
+    isRefetching: overviewRefetching,
+    isError: overviewIsError,
+    refetch: refetchOverview,
+  } = useAssignmentIncidents({
+    siteId: siteIdFilter || undefined,
+    cameraId: cameraIdFilter || undefined,
+    fromDate,
+    toDate,
+    includeAssignments: true,
+    includeClosedAssignments: isOfficerRole,
+    staleTime: 60 * 1000,
+    refetchInterval: false,
+  });
   const rawOverviewIncidents = useMemo(
-    () => statsOverviewData?.items || rawIncidents,
-    [statsOverviewData?.items, rawIncidents],
+    () => (overviewIsError ? rawIncidents : overviewBucketItems),
+    [overviewIsError, overviewBucketItems, rawIncidents],
   );
 
   // Gom 1 lần hydrate duy nhất (ưu tiên các dòng đang hiện trên bảng trước, sau đó đến danh sách tổng quan)
@@ -333,9 +456,19 @@ export default function IncidentsContent() {
   // Mutations
   const can = useCan();
   const canReadNotifications = can("NOTIFICATION_READ");
-  const { data: notificationsData } = useNotifications(
+  const { data: notificationsData, refetch: refetchNotifications } = useNotifications(
     { page: 1, limit: 100, channel: "IN_APP" },
     { enabled: isOfficerRole && canReadNotifications },
+  );
+  const filteredNotifications = useMemo(
+    () =>
+      filterItemsByDateRange(
+        notificationsData?.data,
+        (item) => item.createdAt,
+        fromDate,
+        toDate,
+      ),
+    [notificationsData?.data, fromDate, toDate],
   );
   const canCreateIncident = can("PPE_INCIDENT_MANAGE");
   const canCloseIncident = can("PPE_INCIDENT_MANAGE");
@@ -365,6 +498,17 @@ export default function IncidentsContent() {
   const [batchCloseNote, setBatchCloseNote] = useState("");
   const [batchActionPending, setBatchActionPending] = useState(false);
   const [singleActionPending, setSingleActionPending] = useState(false);
+
+  const isRefreshingAll = isRefetching || statusCountsFetching || overviewRefetching;
+
+  const handleRefreshAll = () => {
+    void Promise.all([
+      refetch(),
+      refetchStatusCounts(),
+      refetchOverview(),
+      isOfficerRole && canReadNotifications ? refetchNotifications() : Promise.resolve(),
+    ]);
+  };
 
   // Chỉ invalidate danh sách, bộ đếm & đúng các incidentId vừa bị tác động (không xóa sạch cache assignments của 100 hồ sơ khác)
   const invalidateAllIncidentQueries = (affectedIds?: readonly string[]) => {
@@ -636,9 +780,9 @@ export default function IncidentsContent() {
       setPage(1);
     }}
 
-    onRefresh={() => refetch()}
+    onRefresh={handleRefreshAll}
 
-    isRefreshing={isRefetching}
+    isRefreshing={isRefreshingAll}
 
     onResetFilters={() => {
       setPage(1);
@@ -649,6 +793,7 @@ export default function IncidentsContent() {
       setCameraIdFilter("");
       setSiteIdFilter("");
       setGlobalSiteId(null);
+      setPeriodFilter(createDefaultIncidentPeriodFilter(today));
       router.replace(`${pathname}?siteId=`, { scroll: false });
     }}
 
@@ -663,15 +808,11 @@ export default function IncidentsContent() {
         if (fetched.failed.length) toast.error(isVietnamese ? `${fetched.failed.length} hồ sơ chưa tải được; chưa đưa vào lần thử lại.` : `${fetched.failed.length} records could not be loaded and are excluded from this retry.`);
         setBatchDispatchItems(eligible);
       }} />}
-      {(fromDate || toDate) && <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/30 bg-surface p-3 text-xs">
-        <span>{isVietnamese ? "Theo thời điểm phát hiện (giờ Việt Nam):" : "By detection time (Vietnam time):"} {fromDate && Number.isFinite(Date.parse(fromDate)) ? new Intl.DateTimeFormat(locale, { timeZone: "Asia/Ho_Chi_Minh", dateStyle: "short", timeStyle: "medium" }).format(new Date(fromDate)) : "—"} → {toDate && Number.isFinite(Date.parse(toDate)) ? new Intl.DateTimeFormat(locale, { timeZone: "Asia/Ho_Chi_Minh", dateStyle: "short", timeStyle: "medium" }).format(new Date(toDate)) : "—"}</span>
-        <button type="button" className="font-semibold text-primary" onClick={() => { const params = new URLSearchParams(searchParams.toString()); params.delete("fromDate"); params.delete("toDate"); router.replace(`${pathname}?${params}`, { scroll: false }); }}>{isVietnamese ? "Bỏ lọc ngày" : "Clear date filter"}</button>
-      </div>}
       {/* Console Header (đồng bộ /cameras và /dashboard) */}
       <IncidentConsoleHeader
         isConnected={isConnected}
-        isRefreshing={isLoading || isRefetching}
-        onRefresh={() => refetch()}
+        isRefreshing={isLoading || isRefreshingAll}
+        onRefresh={handleRefreshAll}
         canCreateIncident={canCreateIncident}
         onCreateIncident={() => setIsCreateOpen(true)}
         siteName={siteIdFilter ? getSiteName(siteIdFilter) : null}
@@ -680,6 +821,10 @@ export default function IncidentsContent() {
           statusCounts?.critical ??
           overviewIncidents.filter((i) => i.severity === "CRITICAL").length
         }
+        periodFilter={periodFilter}
+        resolvedPeriod={resolvedPeriod}
+        today={today}
+        onPeriodFilterChange={handlePeriodFilterChange}
       />
 
       {/* KPI Overview (Chuẩn Bento, click mở rộng khung chi tiết & tự động lọc bảng) */}
@@ -690,6 +835,8 @@ export default function IncidentsContent() {
         totalIncidentsCount={statusCounts?.total ?? meta?.total ?? overviewIncidents.length}
 
         statusCounts={statusCounts}
+
+        statusTotals={overviewStatusTotals}
 
         loading={statusCountsLoading}
 
@@ -727,12 +874,13 @@ export default function IncidentsContent() {
       {/* Card Tổng quan Điều phối & Công việc (Hiển thị chuyên biệt cho 3 phân quyền, click dẫn tới /incidents/assignments) */}
       <IncidentAssignmentOverviewCard
         incidents={overviewIncidents}
+        statusTotals={overviewStatusTotals}
         loading={overviewLoading || (isOfficerRole && overviewHydrating)}
         userRole={user?.role}
         userId={user?.id}
         usersById={usersById}
         siteManagersBySiteId={siteManagersBySiteId}
-        notifications={notificationsData?.data}
+        notifications={filteredNotifications}
       />
 
       {/* Filter Toolbar (Thiết kế lại chuẩn Neumorphic, phân tầng Site -> Camera, có Chip lọc hoạt động) */}
@@ -742,6 +890,10 @@ export default function IncidentsContent() {
         <IncidentTable
 
           incidents={incidents}
+
+          viewMode={viewMode}
+
+          onViewModeChange={handleViewModeChange}
 
           loading={isLoading}
 
@@ -791,11 +943,9 @@ export default function IncidentsContent() {
             },
             rowCount: meta?.total ?? incidents.length,
             pageCount: meta?.totalPages ?? 1,
-            fetching: isRefetching,
+            fetching: isRefreshingAll,
             error,
-            onRetry: () => {
-              void refetch();
-            },
+            onRetry: handleRefreshAll,
             toolbar
           }}
 

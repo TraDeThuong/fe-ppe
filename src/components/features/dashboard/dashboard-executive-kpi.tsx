@@ -16,7 +16,9 @@ import type { DashboardTabKey } from "./dashboard-nav-tabs";
 export interface DashboardExecutiveKpiProps {
   // Safety
   totalIncidents?: number | null;
+  rawTotalIncidents?: number | null;
   pendingCount?: number | null;
+  rawPendingCount?: number | null;
   // Devices
   onlineCameras?: number | null;
   totalCameras?: number | null;
@@ -37,7 +39,9 @@ export interface DashboardExecutiveKpiProps {
 
 export function DashboardExecutiveKpi({
   totalIncidents,
+  rawTotalIncidents,
   pendingCount,
+  rawPendingCount,
   onlineCameras,
   totalCameras,
   aiModelVersion,
@@ -89,7 +93,7 @@ export function DashboardExecutiveKpi({
             <ArrowUpRight className="size-4 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-primary" />
           </div>
 
-          <div className="mt-3 flex items-baseline gap-2">
+          <div className="mt-3 flex flex-wrap items-baseline gap-2">
             {typeof totalIncidents === "number" ? (
               <span className="font-mono text-3xl font-black tracking-tight text-foreground tabular-nums">
                 <AnimatedNumber value={totalIncidents} />
@@ -98,8 +102,17 @@ export function DashboardExecutiveKpi({
               <Skeleton className="my-1 h-8 w-16 rounded-lg" />
             )}
             <span className="text-xs font-semibold uppercase text-muted-foreground">
-              {isVietnamese ? "sự cố trong kỳ" : "incidents"}
+              {isVietnamese ? "vụ việc trong kỳ" : "cases in period"}
             </span>
+            {typeof totalIncidents === "number" &&
+              typeof rawTotalIncidents === "number" &&
+              rawTotalIncidents > totalIncidents && (
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
+                  {isVietnamese
+                    ? `từ ${rawTotalIncidents} lỗi gốc`
+                    : `from ${rawTotalIncidents} raw`}
+                </span>
+              )}
           </div>
         </div>
 
@@ -116,6 +129,12 @@ export function DashboardExecutiveKpi({
               <>
                 <AnimatedNumber value={pendingCount} />{" "}
                 {isVietnamese ? "cần duyệt" : "pending"}
+                {typeof rawPendingCount === "number" &&
+                  rawPendingCount > pendingCount && (
+                    <span className="ml-1 text-[10px] font-semibold text-muted-foreground">
+                      ({rawPendingCount} {isVietnamese ? "lỗi" : "raw"})
+                    </span>
+                  )}
               </>
             ) : (
               <Skeleton className="h-3.5 w-16 rounded inline-block" />

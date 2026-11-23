@@ -211,13 +211,14 @@ describe("IncidentAssignmentOverviewCard (3 Role Views) & Sidebar Consolidation"
     assert.ok(html.includes("Đã báo cáo khắc phục"));
   });
 
-  it("does not render separate /incidents/assignments link in AppSidebar", () => {
+  it("does not render separate /incidents/assignments or /evidences link in AppSidebar", () => {
     const html = renderWithProviders(<AppSidebar badges={{}} />, "ADMIN");
     assert.ok(html.includes('href="/incidents"'));
     assert.equal(html.includes('href="/incidents/assignments"'), false);
+    assert.equal(html.includes('href="/evidences"'), false);
   });
 
-  it("renders IncidentConsoleHeader matching /cameras & /dashboard style without quick-scope tabs", () => {
+  it("renders IncidentConsoleHeader matching /cameras & /dashboard style with Evidence Vault button, time filter bar, and without quick-scope tabs", () => {
     const html = renderWithProviders(
       <IncidentConsoleHeader
         isConnected={true}
@@ -228,6 +229,14 @@ describe("IncidentAssignmentOverviewCard (3 Role Views) & Sidebar Consolidation"
         siteName="Công trường Cầu Thủ Thiêm"
         userRole="ADMIN"
         criticalCount={2}
+        today="2026-11-23"
+        periodFilter={{
+          mode: "month",
+          anchorDate: "2026-11-01",
+          customStart: "2026-11-01",
+          customEnd: "2026-11-30",
+        }}
+        onPeriodFilterChange={() => {}}
       />,
       "ADMIN",
     );
@@ -238,6 +247,15 @@ describe("IncidentAssignmentOverviewCard (3 Role Views) & Sidebar Consolidation"
     assert.equal(html.includes("Việc giao cho tôi"), false);
     assert.ok(html.includes("Realtime Active"));
     assert.ok(html.includes("Công trường Cầu Thủ Thiêm"));
+    assert.ok(html.includes('href="/evidences"'));
+    assert.ok(html.includes("Kho minh chứng"));
     assert.ok(html.includes("Báo cáo Sự cố"));
+    assert.ok(html.includes("Ngày"));
+    assert.ok(html.includes("Tuần"));
+    assert.ok(html.includes("Tháng"));
+    assert.ok(html.includes("Năm"));
+    assert.ok(html.includes("Khoảng thời gian"));
+    assert.ok(html.includes('type="month"'));
+    assert.ok(html.includes("Tháng 11/2026"));
   });
 });

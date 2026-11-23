@@ -1,18 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Building2, Loader2, Send, UserCheck } from "lucide-react";
+import { AlertTriangle, Building2, Loader2, Send, ShieldAlert, UserCheck, Users } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useUsers } from "@/hooks/users";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useLocale } from "@/providers/locale-provider";
+import { summarizeIncidentGroup } from "@/lib/incident-assignment-groups";
+import { formatViolationTypeLabel } from "@/lib/notification-display";
 import type { IncidentItem, UserResponseDto } from "@/types";
 
 export interface BatchDispatchModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   incidents: IncidentItem[];
+  /** Tải công việc hiện tại của từng Officer để Manager cân đối phân công */
+  officerWorkloadById?: ReadonlyMap<
+    string,
+    { activeCount: number; resolvedCount: number }
+  >;
   onSubmit: (payload: { assignedTo: string; note?: string }) => Promise<void>;
   loading?: boolean;
 }
@@ -21,6 +28,7 @@ export function BatchDispatchModal({
   open,
   onOpenChange,
   incidents,
+  officerWorkloadById,
   onSubmit,
   loading = false,
 }: BatchDispatchModalProps) {
@@ -36,40 +44,69 @@ export function BatchDispatchModal({
     [incidents],
   );
 
-  const cameraSummary = useMemo(() => {
-    const labels = new Set<string>();
-    for (const item of incidents) {
-      labels.add(item.cameraCode || getCameraCode(item.cameraId) || item.cameraId.slice(0, 8));
-    }
-    return Array.from(labels).slice(0, 4).join(", ") + (labels.size > 4 ? ` (+${labels.size - 4})` : "");
-  }, [incidents, getCameraCode]);
+  const batchSummary = useMemo(
+    () =>
+      summarizeIncidentGroup(
+        incidents,
+        (item) =>
+          item.cameraCode || getCameraCode(item.cameraId) || item.cameraId.slice(0, 8),
+      ),
+    [incidents, getCameraCode],
+  );
 
-  const siteOfficerIds = useMemo(() => {
-    const ids = new Set<string>();
+  const cameraSummary = useMemo(() => {
+    const labels = batchSummary.cameraLabels;
+    return (
+      labels.slice(0, 4).join(", ") +
+      (labels.length > 4 ? ` (+${labels.length - 4})` : "")
+    );
+  }, [batchSummary.cameraLabels]);
+
+  // 1. Ưu tiên cao nhất: Officer được cài đặt trực tiếp khi tạo site (`site.contactOfficers`)
+  // 2. Nhóm tiếp theo: Nhân sự được gắn `siteIds` thuộc công trường này
+  const { configuredContactOrder, siteMemberIds } = useMemo(() => {
+    const contactOrder = new Map<string, number>();
+    const memberIds = new Set<string>();
     const siteIds = new Set(incidents.map((i) => i.siteId).filter(Boolean));
+    let seq = 0;
+
     for (const sid of siteIds) {
       const site = getSite(sid);
       for (const off of site?.contactOfficers || []) {
-        if (off.userId) ids.add(off.userId);
+        if (off.userId && !contactOrder.has(off.userId)) {
+          contactOrder.set(off.userId, seq++);
+        }
       }
       for (const u of allUsers) {
         if (Array.isArray(u.siteIds) && u.siteIds.includes(sid)) {
-          ids.add(u.id);
+          memberIds.add(u.id);
         }
       }
     }
-    return ids;
+    return { configuredContactOrder: contactOrder, siteMemberIds: memberIds };
   }, [incidents, getSite, allUsers]);
 
-  const { siteOfficers, otherSafetyOfficers, otherUsers } = useMemo(() => {
-    const siteList: UserResponseDto[] = [];
+  const getActiveLoad = (userId: string) =>
+    officerWorkloadById?.get(userId)?.activeCount ?? 0;
+
+  const {
+    configuredSiteOfficers,
+    otherSiteMembers,
+    otherSafetyOfficers,
+    otherUsers,
+    leastBusyAlternative,
+  } = useMemo(() => {
+    const configuredList: UserResponseDto[] = [];
+    const siteLinkedList: UserResponseDto[] = [];
     const safetyList: UserResponseDto[] = [];
     const otherList: UserResponseDto[] = [];
 
     for (const u of allUsers) {
       const roleName = (u.role?.name || "").toUpperCase();
-      if (siteOfficerIds.has(u.id) && roleName !== "ADMIN") {
-        siteList.push(u);
+      if (configuredContactOrder.has(u.id) && roleName !== "ADMIN") {
+        configuredList.push(u);
+      } else if (siteMemberIds.has(u.id) && roleName !== "ADMIN") {
+        siteLinkedList.push(u);
       } else if (
         roleName === "SAFETY_OFFICER" ||
         roleName.includes("SAFETY") ||
@@ -81,35 +118,92 @@ export function BatchDispatchModal({
       }
     }
 
-    // Ưu tiên SAFETY_OFFICER lên đầu trong siteList
-    siteList.sort((a, b) => {
+    // Giữ ưu tiên theo thứ tự cài đặt trên site (SAFETY_OFFICER trước), sau đó ít việc hơn
+    configuredList.sort((a, b) => {
+      const ra = (a.role?.name || "").toUpperCase() === "SAFETY_OFFICER" ? 0 : 1;
+      const rb = (b.role?.name || "").toUpperCase() === "SAFETY_OFFICER" ? 0 : 1;
+      if (ra !== rb) return ra - rb;
+      return (
+        (configuredContactOrder.get(a.id) ?? 999) -
+        (configuredContactOrder.get(b.id) ?? 999)
+      );
+    });
+
+    // Các nhân sự khác: sắp xếp theo tải công việc tăng dần (ít việc / rảnh lên đầu để dễ chia việc)
+    const byWorkloadAsc = (a: UserResponseDto, b: UserResponseDto) => {
+      const loadA = officerWorkloadById?.get(a.id)?.activeCount ?? 0;
+      const loadB = officerWorkloadById?.get(b.id)?.activeCount ?? 0;
+      if (loadA !== loadB) return loadA - loadB;
       const ra = (a.role?.name || "").toUpperCase() === "SAFETY_OFFICER" ? 0 : 1;
       const rb = (b.role?.name || "").toUpperCase() === "SAFETY_OFFICER" ? 0 : 1;
       return ra - rb;
-    });
+    };
+    siteLinkedList.sort(byWorkloadAsc);
+    safetyList.sort(byWorkloadAsc);
+    otherList.sort(byWorkloadAsc);
+
+    // Gợi ý nhanh 1 Officer khác ít việc hơn nếu Officer mặc định của site đang có tải > 0
+    const allOfficerCandidates = [
+      ...configuredList,
+      ...siteLinkedList,
+      ...safetyList,
+    ];
+    const primaryCandidate = allOfficerCandidates[0];
+    const primaryLoad = primaryCandidate
+      ? (officerWorkloadById?.get(primaryCandidate.id)?.activeCount ?? 0)
+      : 0;
+    const lighter =
+      primaryCandidate && primaryLoad > 0
+        ? allOfficerCandidates.find(
+            (u) =>
+              u.id !== primaryCandidate.id &&
+              (officerWorkloadById?.get(u.id)?.activeCount ?? 0) < primaryLoad,
+          ) ?? null
+        : null;
 
     return {
-      siteOfficers: siteList,
+      configuredSiteOfficers: configuredList,
+      otherSiteMembers: siteLinkedList,
       otherSafetyOfficers: safetyList,
       otherUsers: otherList,
+      leastBusyAlternative: lighter,
     };
-  }, [allUsers, siteOfficerIds]);
+  }, [allUsers, configuredContactOrder, siteMemberIds, officerWorkloadById]);
+
+  const formatOptionLabel = (u: UserResponseDto, isSitePrimary = false) => {
+    const load = getActiveLoad(u.id);
+    const loadLabel =
+      load === 0
+        ? isVietnamese
+          ? "Đang rảnh · 0 việc"
+          : "Available · 0 active"
+        : isVietnamese
+          ? `Đang xử lý ${load} việc`
+          : `${load} active`;
+    const siteTag = isSitePrimary
+      ? isVietnamese
+        ? "★ Phụ trách site · "
+        : "★ Site default · "
+      : "";
+    return `${siteTag}${u.fullName || u.email} (${u.role?.name || "Officer"}) — ${loadLabel}`;
+  };
 
   const [assignedTo, setAssignedTo] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!assignedTo) {
-      if (siteOfficers.length > 0) {
-        setAssignedTo(siteOfficers[0].id);
-      } else if (otherSafetyOfficers.length > 0) {
-        setAssignedTo(otherSafetyOfficers[0].id);
-      } else if (allUsers.length > 0) {
-        setAssignedTo(allUsers[0].id);
-      }
+    if (!open) return;
+    if (configuredSiteOfficers.length > 0) {
+      setAssignedTo(configuredSiteOfficers[0].id);
+    } else if (otherSiteMembers.length > 0) {
+      setAssignedTo(otherSiteMembers[0].id);
+    } else if (otherSafetyOfficers.length > 0) {
+      setAssignedTo(otherSafetyOfficers[0].id);
+    } else if (allUsers.length > 0) {
+      setAssignedTo(allUsers[0].id);
     }
-  }, [assignedTo, siteOfficers, otherSafetyOfficers, allUsers]);
+  }, [open, configuredSiteOfficers, otherSiteMembers, otherSafetyOfficers, allUsers]);
 
   useEffect(() => {
     if (!open) {
@@ -196,7 +290,7 @@ export function BatchDispatchModal({
           </div>
         )}
 
-        <div className="rounded-xl border border-border/40 bg-muted/20 p-3 text-xs space-y-1">
+        <div className="rounded-xl border border-border/40 bg-muted/20 p-3 text-xs space-y-2">
           <div className="flex items-center gap-1.5 font-semibold text-foreground">
             <Building2 className="h-3.5 w-3.5 text-primary" />
             <span>
@@ -205,6 +299,46 @@ export function BatchDispatchModal({
                 : `Cameras: ${cameraSummary || "—"}`}
             </span>
           </div>
+
+          {/* Tóm tắt cấu trúc gói việc sắp giao */}
+          <div className="flex flex-wrap items-center gap-1.5 text-[10.5px]">
+            {batchSummary.severityCounts.CRITICAL > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-md border border-rose-500/35 bg-rose-500/12 px-2 py-0.5 font-bold text-rose-700 dark:text-rose-300">
+                <AlertTriangle className="h-2.5 w-2.5" />
+                <span>
+                  {batchSummary.severityCounts.CRITICAL}{" "}
+                  {isVietnamese ? "Khẩn cấp" : "Critical"}
+                </span>
+              </span>
+            )}
+            {batchSummary.severityCounts.HIGH > 0 && (
+              <span className="rounded-md border border-amber-500/35 bg-amber-500/12 px-2 py-0.5 font-bold text-amber-700 dark:text-amber-300">
+                {batchSummary.severityCounts.HIGH} {isVietnamese ? "Cao" : "High"}
+              </span>
+            )}
+            {batchSummary.violationBreakdown.slice(0, 3).map((vb) => (
+              <span
+                key={vb.type}
+                className="inline-flex items-center gap-1 rounded-md border border-border/50 bg-background px-2 py-0.5 font-semibold text-foreground"
+              >
+                <ShieldAlert className="h-2.5 w-2.5 text-danger" />
+                <span>
+                  {vb.count} {formatViolationTypeLabel(vb.type, isVietnamese)}
+                </span>
+              </span>
+            ))}
+            {incidents.length > 1 &&
+              batchSummary.estimatedDistinctPersons < incidents.length && (
+                <span className="inline-flex items-center gap-1 rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 font-semibold text-indigo-700 dark:text-indigo-300">
+                  <Users className="h-2.5 w-2.5" />
+                  <span>
+                    ≈ {batchSummary.estimatedDistinctPersons}{" "}
+                    {isVietnamese ? "đối tượng" : "persons"}
+                  </span>
+                </span>
+              )}
+          </div>
+
           {pendingCount > 0 && (
             <p className="text-[11px] text-muted-foreground">
               {isVietnamese
@@ -220,10 +354,23 @@ export function BatchDispatchModal({
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {isVietnamese ? "Cán bộ an toàn tiếp nhận" : "Safety Officer"}{" "}
-            <span className="text-danger">*</span>
-          </label>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {isVietnamese ? "Cán bộ an toàn tiếp nhận" : "Safety Officer"}{" "}
+              <span className="text-danger">*</span>
+            </label>
+            {leastBusyAlternative && assignedTo !== leastBusyAlternative.id && (
+              <button
+                type="button"
+                onClick={() => setAssignedTo(leastBusyAlternative.id)}
+                className="rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-[10.5px] font-semibold text-emerald-700 transition hover:bg-emerald-500/20 dark:text-emerald-300"
+              >
+                {isVietnamese
+                  ? `Chọn người ít việc hơn: ${leastBusyAlternative.fullName || leastBusyAlternative.email} (${getActiveLoad(leastBusyAlternative.id)} việc)`
+                  : `Pick less busy: ${leastBusyAlternative.fullName || leastBusyAlternative.email} (${getActiveLoad(leastBusyAlternative.id)})`}
+              </button>
+            )}
+          </div>
           <select
             value={assignedTo}
             onChange={(e) => setAssignedTo(e.target.value)}
@@ -236,17 +383,32 @@ export function BatchDispatchModal({
                 {isVietnamese ? "Đang tải nhân sự..." : "Loading personnel..."}
               </option>
             )}
-            {siteOfficers.length > 0 && (
+            {configuredSiteOfficers.length > 0 && (
               <optgroup
                 label={
                   isVietnamese
-                    ? "Cán bộ thuộc công trường (Ưu tiên)"
-                    : "Site Personnel (Priority)"
+                    ? "Cán bộ phụ trách cài đặt theo công trường (Ưu tiên 1)"
+                    : "Configured Site Officers (Priority 1)"
                 }
               >
-                {siteOfficers.map((u) => (
+                {configuredSiteOfficers.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.fullName || u.email} ({u.role?.name || "Officer"})
+                    {formatOptionLabel(u, true)}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {otherSiteMembers.length > 0 && (
+              <optgroup
+                label={
+                  isVietnamese
+                    ? "Nhân sự khác thuộc công trường (Sắp theo ít việc trước)"
+                    : "Other Site Staff (Least busy first)"
+                }
+              >
+                {otherSiteMembers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {formatOptionLabel(u)}
                   </option>
                 ))}
               </optgroup>
@@ -255,13 +417,13 @@ export function BatchDispatchModal({
               <optgroup
                 label={
                   isVietnamese
-                    ? "Cán bộ An toàn hệ thống"
-                    : "System Safety Officers"
+                    ? "Cán bộ An toàn khác hỗ trợ chia tải (Ít việc lên trước)"
+                    : "Other Safety Officers (Least busy first)"
                 }
               >
                 {otherSafetyOfficers.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.fullName || u.email} ({u.role?.name || "Officer"})
+                    {formatOptionLabel(u)}
                   </option>
                 ))}
               </optgroup>
@@ -270,7 +432,7 @@ export function BatchDispatchModal({
               <optgroup label={isVietnamese ? "Nhân sự khác" : "Other Staff"}>
                 {otherUsers.map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.fullName || u.email} ({u.role?.name || "User"})
+                    {formatOptionLabel(u)}
                   </option>
                 ))}
               </optgroup>
