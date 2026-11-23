@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   HardHat,
+  Layers,
   Shirt,
   ShieldAlert,
   Flame,
@@ -17,6 +18,7 @@ import {
   Target,
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import { clusterIncidentsByPerson } from "@/lib/incident-cluster-engine";
 import type { UserIncidentStats } from "../user-detail-utils";
 import type { IncidentItem, UserResponseDto } from "@/types";
 
@@ -34,18 +36,22 @@ export function UserPerformanceTab({
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  // Violation Type Breakdown
+  // Violation Type Breakdown (gom theo cụm đa sự cố + hỗ trợ đầy đủ MULTI_VIOLATION)
   const violationBreakdown = useMemo(() => {
+    const clusters = clusterIncidentsByPerson(incidents);
     const counts: Record<string, number> = {
       NO_HELMET: 0,
       NO_VEST: 0,
       RESTRICTED_AREA: 0,
+      MULTI_VIOLATION: 0,
       OTHER: 0,
     };
 
-    incidents.forEach((inc) => {
-      const type = (inc.violationType || "").toUpperCase();
-      if (type.includes("HELMET") || type.includes("MŨ")) {
+    clusters.forEach((cl) => {
+      const type = (cl.effectiveViolationType || "").toUpperCase();
+      if (type === "MULTI_VIOLATION" || cl.isMultiViolation) {
+        counts.MULTI_VIOLATION += 1;
+      } else if (type.includes("HELMET") || type.includes("MŨ")) {
         counts.NO_HELMET += 1;
       } else if (type.includes("VEST") || type.includes("ÁO")) {
         counts.NO_VEST += 1;
@@ -56,7 +62,7 @@ export function UserPerformanceTab({
       }
     });
 
-    const total = incidents.length || 1;
+    const total = clusters.length || 1;
     return [
       {
         id: "helmet",
@@ -84,6 +90,15 @@ export function UserPerformanceTab({
         icon: ShieldAlert,
         color: "text-danger bg-danger/10 border-danger/30",
         barColor: "bg-danger",
+      },
+      {
+        id: "multi",
+        label: isVietnamese ? "Đa vi phạm PPE" : "Multiple PPE Violations",
+        count: counts.MULTI_VIOLATION,
+        percent: Math.round((counts.MULTI_VIOLATION / total) * 100),
+        icon: Layers,
+        color: "text-warning bg-warning/10 border-warning/30",
+        barColor: "bg-warning",
       },
       {
         id: "other",

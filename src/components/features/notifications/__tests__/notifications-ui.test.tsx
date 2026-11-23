@@ -8,6 +8,7 @@ import { LocaleProvider } from "@/providers/locale-provider";
 import { AuthContext, type AuthContextValue } from "@/contexts/AuthContext";
 import { RealtimeContext, type RealtimeContextValue } from "@/contexts/RealtimeContext";
 import { notificationKeys } from "@/hooks/notifications/notification.query-keys";
+import { NotificationConsoleHeader } from "../notification-console-header";
 import { NotificationTabs } from "../notification-tabs";
 import { NotificationKpiSummary } from "../notification-kpi-summary";
 import { NotificationEmailLogsTab } from "../notification-email-logs-tab";
@@ -145,6 +146,39 @@ describe("Notifications UI & Logic", () => {
     );
     assert.ok(adminHtml.includes("Nhật ký gửi Email") || adminHtml.includes("Email Logs"));
     assert.ok(adminHtml.includes("Mẫu thông báo") || adminHtml.includes("Templates"));
+  });
+
+  it("renders NotificationConsoleHeader with SSE status, actions, and Day/Week/Month/Year/Custom time filter bar", () => {
+    const html = renderNotifications(
+      <NotificationConsoleHeader
+        isConnected={true}
+        isRefreshing={false}
+        onRefresh={() => {}}
+        totalCount={42}
+        unreadCount={7}
+        canBroadcast={true}
+        onOpenCustomDispatch={() => {}}
+        onOpenBroadcast={() => {}}
+        today="2026-11-23"
+        periodFilter={{
+          mode: "week",
+          anchorDate: "2026-11-23",
+          customStart: "2026-11-17",
+          customEnd: "2026-11-23",
+        }}
+        onPeriodFilterChange={() => {}}
+      />,
+      ADMIN_USER,
+    );
+    assert.ok(html.includes("42"));
+    assert.ok(html.includes("7"));
+    assert.ok(html.includes("Ngày"));
+    assert.ok(html.includes("Tuần"));
+    assert.ok(html.includes("Tháng"));
+    assert.ok(html.includes("Năm"));
+    assert.ok(html.includes("Khoảng thời gian"));
+    assert.ok(html.includes("17/11/2026"));
+    assert.ok(html.includes("23/11/2026"));
   });
 
   it("renders NotificationKpiSummary and detail panel consistently with full inbox stats", () => {

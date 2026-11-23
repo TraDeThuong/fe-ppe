@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
   Download,
+  ExternalLink,
   FilePlus2,
+  Layers,
   RefreshCw,
   Trash2,
 } from "lucide-react";
@@ -32,6 +35,7 @@ import {
   resolveIncidentsWithReport,
 } from "@/lib/incident-actions";
 import { isIncidentAssignedToUser } from "@/lib/incident-workflow";
+import { clusterIncidentsByPerson } from "@/lib/incident-cluster-engine";
 import { canResolveGroupIncident, nextGroupIncident } from "@/lib/incident-group";
 import { IncidentGroupWorkspace, useIncidentGroupWorkspace } from "@/components/features/incidents/incident-group-workspace";
 import { incidentService, notificationService } from "@/services";
@@ -61,6 +65,7 @@ import {
 } from "@/components/features/incidents";
 import {
   useIncidentDetail,
+  useIncidents,
   useIncidentComments,
   useAddIncidentComment,
   useUpdateIncident,
@@ -148,6 +153,45 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
   const refetch = useCallback(() => groupRefresh ? groupRefresh() : detailQuery.refetch(), [groupRefresh, detailQuery.refetch]);
 
   const commentsQuery = useIncidentComments(id, canRead);
+
+  // Truy vấn nhẹ các sự cố cùng camera trong cửa sổ ±2 phút để phát hiện cụm đa vi phạm cùng 1 đối tượng
+  const nearbyWindow = useMemo(() => {
+    if (!incident?.detectedAt || !incident.cameraId || groupWorkspace) return null;
+    const centerMs = Date.parse(incident.detectedAt);
+    if (!Number.isFinite(centerMs)) return null;
+    return {
+      cameraId: incident.cameraId,
+      siteId: incident.siteId,
+      fromDate: new Date(centerMs - 120_000).toISOString(),
+      toDate: new Date(centerMs + 120_000).toISOString(),
+    };
+  }, [incident?.detectedAt, incident?.cameraId, incident?.siteId, groupWorkspace]);
+
+  const { data: nearbyIncidentsData } = useIncidents(
+    {
+      cameraId: nearbyWindow?.cameraId,
+      siteId: nearbyWindow?.siteId,
+      fromDate: nearbyWindow?.fromDate,
+      toDate: nearbyWindow?.toDate,
+      page: 1,
+      limit: 20,
+      sortBy: "detectedAt",
+      sortOrder: "desc",
+    },
+    { enabled: canRead && Boolean(nearbyWindow) },
+  );
+
+  const relatedPersonCluster = useMemo(() => {
+    if (!incident) return null;
+    const pool = new Map<string, IncidentItem>();
+    pool.set(incident.id, incident);
+    for (const item of nearbyIncidentsData?.items ?? []) {
+      if (!pool.has(item.id)) pool.set(item.id, item);
+    }
+    const clusters = clusterIncidentsByPerson(Array.from(pool.values()));
+    const match = clusters.find((cl) => cl.incidentIds.includes(incident.id));
+    return match && match.rawCount > 1 ? match : null;
+  }, [incident, nearbyIncidentsData?.items]);
 
   // Tự động làm mới dữ liệu khi có cảnh báo/sự kiện liên quan đến sự cố hiện tại
   useEffect(() => {
@@ -585,6 +629,64 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         onResolve={canSelfOrAssignedResolve ? () => setIsResolveOpen(true) : undefined}
         onClose={canClose ? () => setIsCloseOpen(true) : undefined}
       />
+
+      {/* Related Multi-Violation Cluster Banner (cùng đối tượng / track_id trên cùng camera) */}
+      {relatedPersonCluster && (
+        <section
+          aria-label={
+            isVietnamese
+              ? "Cụm đa vi phạm cùng đối tượng"
+              : "Related multi-violation cluster"
+          }
+          className="rounded-2xl border border-warning/35 bg-warning/[0.06] p-4 shadow-[4px_4px_12px_var(--shadow-dark),-3px_-3px_10px_var(--shadow-light)]"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-warning/15 text-warning">
+                <Layers className="size-4" />
+              </div>
+              <div>
+                <h3 className="text-xs font-extrabold text-foreground sm:text-sm">
+                  {isVietnamese
+                    ? `Phát hiện cụm đa vi phạm cùng đối tượng (${relatedPersonCluster.rawCount} lỗi PPE)`
+                    : `Related Multi-Violation Cluster (${relatedPersonCluster.rawCount} PPE alerts)`}
+                  {relatedPersonCluster.personTrackId !== null && (
+                    <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
+                      Track #{relatedPersonCluster.personTrackId}
+                    </span>
+                  )}
+                </h3>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {isVietnamese
+                    ? "Các bản ghi vi phạm sau được phát hiện trên cùng công nhân trong cùng khung thời gian:"
+                    : "The following violation records were detected on the same worker within the same time window:"}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {relatedPersonCluster.items.map((sibling) => {
+                const isCurrent = sibling.id === incident.id;
+                return (
+                  <Link
+                    key={sibling.id}
+                    href={`/incidents/${sibling.id}`}
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[11px] font-bold transition ${
+                      isCurrent
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "bg-surface text-foreground hover:text-primary shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]"
+                    }`}
+                  >
+                    <span className="font-mono">#{sibling.id.slice(0, 6)}</span>
+                    <span>•</span>
+                    <span>{sibling.violationType}</span>
+                    {!isCurrent && <ExternalLink className="size-3" />}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Main Content Layout: 2 Columns */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">

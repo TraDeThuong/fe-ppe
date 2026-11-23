@@ -34,6 +34,12 @@ export interface NotificationKpiSummaryProps {
   unreadCount?: number;
   /** Hoặc truyền trực tiếp đối tượng stats đã tính toán */
   stats?: NotificationKpiStatsData;
+  /** Số liệu gốc chưa gom (dùng để hiển thị phụ chú minh bạch 2 lớp số liệu khi đang bật gom cụm) */
+  rawStats?: {
+    total: number;
+    unread: number;
+    ppeAlerts: number;
+  };
   /** Biến thể thiết kế: classic | soft-extruded | deep-elevation (mặc định: soft-extruded) */
   variant?: "classic" | "soft-extruded" | "deep-elevation";
   /** Trạng thái đang tải dữ liệu */
@@ -58,6 +64,7 @@ export function NotificationKpiSummary({
   totalCount,
   unreadCount: propUnreadCount,
   stats: externalStats,
+  rawStats,
   variant = "soft-extruded",
   loading = false,
   unavailable = false,
@@ -156,9 +163,13 @@ export function NotificationKpiSummary({
           tone="primary"
           showGlow={false}
           description={
-            isVietnamese
-              ? "Tổng số bản tin nhận được"
-              : "Total notifications received"
+            rawStats && rawStats.total > computedStats.total
+              ? isVietnamese
+                ? `Gom từ ${rawStats.total} thông báo gốc`
+                : `Grouped from ${rawStats.total} raw alerts`
+              : isVietnamese
+                ? "Tổng số bản tin nhận được"
+                : "Total notifications received"
           }
           loading={loading}
           depth="medium"
@@ -191,13 +202,21 @@ export function NotificationKpiSummary({
           accentColor={computedStats.unread > 0 ? "var(--warning)" : undefined}
           showGlow={false}
           description={
-            unavailable ? (isVietnamese ? "Chưa tải được dữ liệu" : "Data unavailable") : computedStats.unread > 0
+            unavailable
               ? isVietnamese
-                ? "Cần xem và xử lý kịp thời"
-                : "Requires your attention"
-              : isVietnamese
-                ? "Hộp thư đã được đọc hết"
-                : "All caught up"
+                ? "Chưa tải được dữ liệu"
+                : "Data unavailable"
+              : computedStats.unread > 0
+                ? rawStats && rawStats.unread > computedStats.unread
+                  ? isVietnamese
+                    ? `${rawStats.unread} bản tin gốc chưa đọc`
+                    : `${rawStats.unread} raw alerts unread`
+                  : isVietnamese
+                    ? "Cần xem và xử lý kịp thời"
+                    : "Requires your attention"
+                : isVietnamese
+                  ? "Hộp thư đã được đọc hết"
+                  : "All caught up"
           }
           loading={loading}
           depth="medium"
@@ -230,9 +249,13 @@ export function NotificationKpiSummary({
           accentColor={computedStats.ppeAlerts > 0 ? "var(--danger)" : undefined}
           showGlow={false}
           description={
-            isVietnamese
-              ? "Cảnh báo mức cao & khẩn cấp"
-              : "High & critical priority alerts"
+            rawStats && rawStats.ppeAlerts > computedStats.ppeAlerts
+              ? isVietnamese
+                ? `Gom từ ${rawStats.ppeAlerts} cảnh báo gốc`
+                : `Grouped from ${rawStats.ppeAlerts} raw PPE alerts`
+              : isVietnamese
+                ? "Cảnh báo mức cao & khẩn cấp"
+                : "High & critical priority alerts"
           }
           loading={loading}
           depth="medium"

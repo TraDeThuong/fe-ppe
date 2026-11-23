@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import { StatsCard, type StatsCardTone } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
+import { clusterIncidentsByPerson } from "@/lib/incident-cluster-engine";
 import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
 import type {
   AdminGroupMode,
@@ -88,6 +90,10 @@ export function AssignmentKpiSummary({
   );
   const unassignedConfirmedCount = categorized.unassignedConfirmed.length;
   const triageCount = pendingReviewCount + unassignedConfirmedCount;
+  const triageClusterCount = useMemo(
+    () => clusterIncidentsByPerson(categorized.triageItems).length,
+    [categorized.triageItems],
+  );
   const assignedConfirmedCount = categorized.assignedConfirmed.length;
   const awaitingAcceptanceCount = Math.max(
     statusTotals?.resolved ?? 0,
@@ -101,6 +107,13 @@ export function AssignmentKpiSummary({
     statusTotals?.total ?? 0,
     totalIncidentsCount,
   );
+
+  const triageClusterHint =
+    triageClusterCount > 0 && triageClusterCount < categorized.triageItems.length
+      ? isVietnamese
+        ? ` • ${triageClusterCount} cụm đa sự cố`
+        : ` • ${triageClusterCount} clustered cases`
+      : "";
 
   const closedRate =
     effectiveTotalIncidentsCount > 0
@@ -127,8 +140,8 @@ export function AssignmentKpiSummary({
           icon: AlertTriangle,
           tone: "warning",
           description: isVietnamese
-            ? `${pendingReviewCount} chờ duyệt AI • ${unassignedConfirmedCount} chưa giao`
-            : `${pendingReviewCount} pending AI • ${unassignedConfirmedCount} unassigned`,
+            ? `${pendingReviewCount} chờ duyệt AI • ${unassignedConfirmedCount} chưa giao${triageClusterHint}`
+            : `${pendingReviewCount} pending AI • ${unassignedConfirmedCount} unassigned${triageClusterHint}`,
           active: adminGroupMode === "responsibility",
           activeTextClass: "text-warning",
           hoverBorderClass: "hover:border-warning/30",

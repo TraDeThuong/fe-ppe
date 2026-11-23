@@ -1,6 +1,11 @@
 import type { CameraStatDto, HourlyRiskItemDto, IncidentItem, ReportGenerationDto, ShiftRiskSummaryDto, TrendItemDto } from "@/types";
 import type { DashboardCollection, DashboardPage, DashboardPeriod } from "@/types/dashboard.types";
 import { addCalendarDays, collectDashboardPages, dashboardPeriod, incidentInPeriod, vietnamToday } from "./dashboard-data";
+import {
+  clusterIncidentsByPerson,
+  projectClusterToRepresentativeIncident,
+  type IncidentAggregationMode,
+} from "./incident-cluster-engine";
 
 export type AnalyticsGroupBy = "DAY" | "WEEK" | "MONTH";
 export type IncidentOutcome = "pending" | "confirmed" | "resolved" | "dismissed" | "unknown";
@@ -18,6 +23,7 @@ export interface AnalyticsSeverity {
 }
 export interface SiteAnalytics {
   totalIncidents: number;
+  rawTotalIncidents: number;
   trueViolations: number;
   pending: number;
   confirmed: number;
@@ -136,8 +142,16 @@ function bucketKey(day: string, groupBy: AnalyticsGroupBy): string {
 }
 
 export function aggregateSiteAnalytics(
-  items: readonly IncidentItem[], period: DashboardPeriod, groupBy: AnalyticsGroupBy,
+  items: readonly IncidentItem[],
+  period: DashboardPeriod,
+  groupBy: AnalyticsGroupBy,
+  options: { mode?: IncidentAggregationMode } = {},
 ): SiteAnalytics {
+  const mode: IncidentAggregationMode = options.mode ?? "clustered";
+  const effectiveItems =
+    mode === "clustered"
+      ? clusterIncidentsByPerson(items).map(projectClusterToRepresentativeIncident)
+      : items;
   const trends = new Map<string, TrendItemDto>();
   for (let day = period.startDate; day <= period.endDate; day = addCalendarDays(day, 1)) {
     const date = bucketKey(day, groupBy);
@@ -151,7 +165,7 @@ export function aggregateSiteAnalytics(
   const distribution = new Map<string, number>();
   const cameras = new Map<string, CameraStatDto>();
   const counts = { pending: 0, confirmed: 0, resolved: 0, dismissed: 0, unknown: 0 };
-  for (const item of items) {
+  for (const item of effectiveItems) {
     const outcome = incidentOutcome(item);
     counts[outcome]++;
     const trend = trends.get(bucketKey(vietnamToday(new Date(item.detectedAt)), groupBy))!;
@@ -187,8 +201,10 @@ export function aggregateSiteAnalytics(
   const trueViolations = counts.confirmed + counts.resolved;
   const reviewed = trueViolations + counts.dismissed;
   return {
-    totalIncidents: items.length, trueViolations, ...counts,
-    confirmedRate: items.length ? trueViolations / items.length * 100 : null,
+    totalIncidents: effectiveItems.length,
+    rawTotalIncidents: items.length,
+    trueViolations, ...counts,
+    confirmedRate: effectiveItems.length ? trueViolations / effectiveItems.length * 100 : null,
     falseAlarmRate: reviewed ? counts.dismissed / reviewed * 100 : null,
     mttrMinutes: resolutionSamples ? [...durations.values()].reduce((a, b) => a + b, 0) / resolutionSamples : null,
     resolutionSamples,
@@ -202,13 +218,21 @@ export function aggregateSiteAnalytics(
 
 const vnHour = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", hourCycle: "h23" });
 
-export function aggregateSiteHourlyRisk(items: readonly IncidentItem[]): SiteHourlyRisk {
+export function aggregateSiteHourlyRisk(
+  items: readonly IncidentItem[],
+  options: { mode?: IncidentAggregationMode } = {},
+): SiteHourlyRisk {
+  const mode: IncidentAggregationMode = options.mode ?? "clustered";
+  const effectiveItems =
+    mode === "clustered"
+      ? clusterIncidentsByPerson(items).map(projectClusterToRepresentativeIncident)
+      : items;
   const hourly: HourlyRiskItemDto[] = Array.from({ length: 24 }, (_, hour) => ({
     hour, label: `${String(hour).padStart(2, "0")}:00`, count: 0, riskLevel: "LOW",
     shift: hour >= 6 && hour < 14 ? "MORNING" : hour >= 14 && hour < 22 ? "AFTERNOON" : "NIGHT",
     severityBreakdown: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 },
   }));
-  for (const item of items) {
+  for (const item of effectiveItems) {
     if (!["confirmed", "resolved"].includes(incidentOutcome(item))) continue;
     const hour = hourly[Number(vnHour.format(new Date(item.detectedAt)))];
     hour.count++;

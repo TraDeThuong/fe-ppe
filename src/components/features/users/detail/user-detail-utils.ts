@@ -1,3 +1,8 @@
+import {
+  clusterIncidentsByPerson,
+  projectClusterToRepresentativeIncident,
+  type IncidentAggregationMode,
+} from "@/lib/incident-cluster-engine";
 import type {
   CameraItem,
   IncidentItem,
@@ -15,6 +20,7 @@ export type PerformanceTier =
 
 export interface UserIncidentStats {
   totalIncidents: number;
+  rawTotalIncidents: number;
   resolvedIncidents: number;
   dismissedIncidents: number;
   pendingIncidents: number;
@@ -211,16 +217,27 @@ export function correlateUserIncidents(
 /**
  * Computes consistent incident & SLA KPIs for a user across Overview, KPI Bar, Incidents, and Performance tabs.
  */
-export function computeUserIncidentStats(userIncidents: IncidentItem[]): UserIncidentStats {
-  const total = userIncidents.length;
-  const resolved = userIncidents.filter(
+export function computeUserIncidentStats(
+  userIncidents: IncidentItem[],
+  options: { mode?: IncidentAggregationMode } = {},
+): UserIncidentStats {
+  const mode: IncidentAggregationMode = options.mode ?? "clustered";
+  const effectiveIncidents =
+    mode === "clustered"
+      ? clusterIncidentsByPerson(userIncidents).map(
+          projectClusterToRepresentativeIncident,
+        )
+      : userIncidents;
+
+  const total = effectiveIncidents.length;
+  const resolved = effectiveIncidents.filter(
     (i) => i.status === "RESOLVED" || i.status === "CLOSED",
   ).length;
-  const dismissed = userIncidents.filter((i) => i.status === "DISMISSED").length;
-  const pending = userIncidents.filter(
+  const dismissed = effectiveIncidents.filter((i) => i.status === "DISMISSED").length;
+  const pending = effectiveIncidents.filter(
     (i) => i.status !== "RESOLVED" && i.status !== "CLOSED" && i.status !== "DISMISSED",
   ).length;
-  const critical = userIncidents.filter((i) => i.severity === "CRITICAL").length;
+  const critical = effectiveIncidents.filter((i) => i.severity === "CRITICAL").length;
 
   const actionableTotal = total - dismissed;
   const resolutionRate =
@@ -234,7 +251,7 @@ export function computeUserIncidentStats(userIncidents: IncidentItem[]): UserInc
   let resolvedWithDurationCount = 0;
   let slaComplianceCount = 0;
 
-  for (const inc of userIncidents) {
+  for (const inc of effectiveIncidents) {
     if ((inc.status === "RESOLVED" || inc.status === "CLOSED") && inc.resolvedAt) {
       const start = new Date(inc.detectedAt).getTime();
       const end = new Date(inc.resolvedAt).getTime();
@@ -275,6 +292,7 @@ export function computeUserIncidentStats(userIncidents: IncidentItem[]): UserInc
 
   return {
     totalIncidents: total,
+    rawTotalIncidents: userIncidents.length,
     resolvedIncidents: resolved,
     dismissedIncidents: dismissed,
     pendingIncidents: pending,

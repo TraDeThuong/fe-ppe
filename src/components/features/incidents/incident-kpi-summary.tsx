@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertOctagon, AlertTriangle, CheckCircle, ChevronDown, ChevronUp, Clock } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
+import {
+  clusterIncidentsByPerson,
+  computeClusterStatusCounts,
+  type IncidentAggregationMode,
+} from "@/lib/incident-cluster-engine";
 import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
 import type { IncidentItem } from "@/types";
 import {
@@ -21,6 +26,7 @@ export interface IncidentKpiSummaryProps {
     resolved: number;
   };
   statusTotals?: Partial<AssignmentIncidentTotals>;
+  groupingMode?: IncidentAggregationMode;
   loading?: boolean;
   detailLoading?: boolean;
   selectedStat?: IncidentStatKey | null;
@@ -39,6 +45,7 @@ export function IncidentKpiSummary({
   totalIncidentsCount,
   statusCounts,
   statusTotals,
+  groupingMode = "clustered",
   loading = false,
   detailLoading,
   selectedStat: propSelectedStat,
@@ -66,18 +73,60 @@ export function IncidentKpiSummary({
     }
   };
 
-  const total =
+  const clusterCounts = useMemo(
+    () => computeClusterStatusCounts(clusterIncidentsByPerson(incidents)),
+    [incidents],
+  );
+
+  const rawTotal =
     statusCounts?.total ??
     (totalIncidentsCount !== undefined ? totalIncidentsCount : incidents.length);
-  const pending =
+  const rawPending =
     statusCounts?.pendingReview ??
     incidents.filter((i) => i.status === "PENDING_REVIEW").length;
-  const critical =
+  const rawCritical =
     statusCounts?.critical ??
     incidents.filter((i) => i.severity === "CRITICAL" || i.severity === "HIGH").length;
-  const resolved =
+  const rawResolved =
     statusCounts?.resolved ??
     incidents.filter((i) => i.status === "RESOLVED" || i.status === "CLOSED").length;
+
+  const canUseClusteredTotals =
+    groupingMode === "clustered" &&
+    incidents.length > 0 &&
+    incidents.length >= rawTotal;
+
+  const total = canUseClusteredTotals ? clusterCounts.total : rawTotal;
+  const pending = canUseClusteredTotals ? clusterCounts.pendingReview : rawPending;
+  const critical = canUseClusteredTotals ? clusterCounts.critical : rawCritical;
+  const resolved = canUseClusteredTotals
+    ? clusterCounts.resolved + clusterCounts.closed
+    : rawResolved;
+
+  const totalDesc =
+    canUseClusteredTotals && rawTotal > total
+      ? isVietnamese
+        ? `Gom từ ${rawTotal} lỗi gốc (${clusterCounts.multiViolation} đa vi phạm)`
+        : `Grouped from ${rawTotal} raw (${clusterCounts.multiViolation} multi)`
+      : t("incidents.kpi.totalDesc");
+  const pendingDesc =
+    canUseClusteredTotals && rawPending > pending
+      ? isVietnamese
+        ? `${rawPending} bản ghi lỗi chờ thẩm duyệt`
+        : `${rawPending} raw records pending review`
+      : t("incidents.kpi.pendingReviewDesc");
+  const criticalDesc =
+    canUseClusteredTotals && rawCritical > critical
+      ? isVietnamese
+        ? `${rawCritical} bản ghi mức cao / khẩn cấp`
+        : `${rawCritical} raw high / critical records`
+      : t("incidents.kpi.criticalDesc");
+  const resolvedDesc =
+    canUseClusteredTotals && rawResolved > resolved
+      ? isVietnamese
+        ? `${rawResolved} bản ghi lỗi đã giải quyết`
+        : `${rawResolved} raw records resolved`
+      : t("incidents.kpi.resolvedDesc");
 
   // Hiệu ứng chìm sâu (neumorphic sunken) chuẩn mực giống trang Role:
   // - Chìm xuống dưới (translate-y-1.5)
@@ -99,7 +148,7 @@ export function IncidentKpiSummary({
           variant="soft-extruded"
           tone="primary"
           showGlow={false}
-          description={t("incidents.kpi.totalDesc")}
+          description={totalDesc}
           onClick={() => handleToggle("total")}
           className={`transition-all duration-200 cursor-pointer ${
             activeStat === "total" ? sunkenClass : "hover:border-primary/30"
@@ -127,7 +176,7 @@ export function IncidentKpiSummary({
           variant="soft-extruded"
           tone="warning"
           showGlow={false}
-          description={t("incidents.kpi.pendingReviewDesc")}
+          description={pendingDesc}
           onClick={() => handleToggle("pendingReview")}
           className={`transition-all duration-200 cursor-pointer ${
             activeStat === "pendingReview" ? sunkenClass : "hover:border-warning/30"
@@ -155,7 +204,7 @@ export function IncidentKpiSummary({
           variant="soft-extruded"
           tone="danger"
           showGlow={false}
-          description={t("incidents.kpi.criticalDesc")}
+          description={criticalDesc}
           onClick={() => handleToggle("critical")}
           className={`transition-all duration-200 cursor-pointer ${
             activeStat === "critical" ? sunkenClass : "hover:border-danger/30"
@@ -183,7 +232,7 @@ export function IncidentKpiSummary({
           variant="soft-extruded"
           tone="success"
           showGlow={false}
-          description={t("incidents.kpi.resolvedDesc")}
+          description={resolvedDesc}
           onClick={() => handleToggle("resolved")}
           className={`transition-all duration-200 cursor-pointer ${
             activeStat === "resolved" ? sunkenClass : "hover:border-success/30"
@@ -210,6 +259,7 @@ export function IncidentKpiSummary({
           activeStat={activeStat}
           incidents={incidents}
           statusTotals={statusTotals}
+          groupingMode={groupingMode}
           loading={detailLoading ?? loading}
           onClose={() => handleToggle(activeStat)}
           onReview={onReview}

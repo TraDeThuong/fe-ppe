@@ -45,6 +45,8 @@ export interface NotificationFilterToolbarProps {
   isComputingVisual?: boolean;
   windowSeconds?: number;
   onWindowSecondsChange?: (seconds: number) => void;
+  /** Ẩn ô chọn ngày cục bộ khi header trang đã tích hợp bộ lọc thời gian toàn trang */
+  hideDateRange?: boolean;
   className?: string;
 }
 
@@ -62,6 +64,7 @@ export function NotificationFilterToolbar({
   isComputingVisual = false,
   windowSeconds = 45,
   onWindowSecondsChange,
+  hideDateRange = false,
   className = "",
 }: NotificationFilterToolbarProps) {
   const { t, locale } = useLocale();
@@ -255,43 +258,45 @@ export function NotificationFilterToolbar({
         </select>
 
         {/* Date Range with explicit labels */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <label className="inline-flex items-center gap-1.5 text-muted-foreground">
-            <span className="text-[11px] font-medium">
-              {isVietnamese ? "Từ" : "From"}
-            </span>
-            <input
-              type="date"
-              value={filter.fromDate || ""}
-              onChange={(e) =>
-                onFilterChange({
-                  ...filter,
-                  fromDate: e.target.value || undefined,
-                })
-              }
-              aria-label={isVietnamese ? "Từ ngày" : "From date"}
-              className="rounded-lg border border-border/40 bg-background px-2 py-1 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
-            />
-          </label>
+        {!hideDateRange && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <label className="inline-flex items-center gap-1.5 text-muted-foreground">
+              <span className="text-[11px] font-medium">
+                {isVietnamese ? "Từ" : "From"}
+              </span>
+              <input
+                type="date"
+                value={filter.fromDate || ""}
+                onChange={(e) =>
+                  onFilterChange({
+                    ...filter,
+                    fromDate: e.target.value || undefined,
+                  })
+                }
+                aria-label={isVietnamese ? "Từ ngày" : "From date"}
+                className="rounded-lg border border-border/40 bg-background px-2 py-1 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
+              />
+            </label>
 
-          <label className="inline-flex items-center gap-1.5 text-muted-foreground">
-            <span className="text-[11px] font-medium">
-              {isVietnamese ? "Đến" : "To"}
-            </span>
-            <input
-              type="date"
-              value={filter.toDate || ""}
-              onChange={(e) =>
-                onFilterChange({
-                  ...filter,
-                  toDate: e.target.value || undefined,
-                })
-              }
-              aria-label={isVietnamese ? "Đến ngày" : "To date"}
-              className="rounded-lg border border-border/40 bg-background px-2 py-1 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
-            />
-          </label>
-        </div>
+            <label className="inline-flex items-center gap-1.5 text-muted-foreground">
+              <span className="text-[11px] font-medium">
+                {isVietnamese ? "Đến" : "To"}
+              </span>
+              <input
+                type="date"
+                value={filter.toDate || ""}
+                onChange={(e) =>
+                  onFilterChange({
+                    ...filter,
+                    toDate: e.target.value || undefined,
+                  })
+                }
+                aria-label={isVietnamese ? "Đến ngày" : "To date"}
+                className="rounded-lg border border-border/40 bg-background px-2 py-1 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
+              />
+            </label>
+          </div>
+        )}
 
         {hasActiveFilters && (
           <button

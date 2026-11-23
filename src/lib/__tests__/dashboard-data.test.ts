@@ -384,4 +384,66 @@ describe("dashboard aggregate semantics", () => {
       true,
     );
   });
+
+  it("clusters same-person multi-violation detections into 1 MULTI_VIOLATION case in clustered mode and preserves raw mode", () => {
+    const withTrack = (
+      id: string,
+      violationType: string,
+      detectedAt: string,
+      severity: string,
+    ) =>
+      incident({
+        id,
+        cameraId: "cam-1",
+        violationType,
+        severity,
+        status: "CONFIRMED",
+        detectedAt,
+        evidences: [
+          {
+            id: `ev-${id}`,
+            incidentId: id,
+            cameraId: "cam-1",
+            evidenceType: "SNAPSHOT",
+            storageKey: `evidences/s/CAM-01/shot_track7_${id}.jpg`,
+            fileName: `shot_track7_${id}.jpg`,
+            mimeType: "image/jpeg",
+            fileSize: 1024,
+            capturedAt: detectedAt,
+            createdAt: detectedAt,
+          },
+        ],
+      });
+
+    const items = [
+      withTrack("m-1", "NO_HELMET", "2026-11-07T03:00:00Z", "HIGH"),
+      withTrack("m-2", "NO_VEST", "2026-11-07T03:00:03Z", "MEDIUM"),
+    ];
+
+    const clustered = aggregateDashboard(items, { mode: "clustered" });
+    assert.equal(clustered.total, 1);
+    assert.equal(clustered.rawTotal, 2);
+    assert.equal(clustered.multiViolationClusters, 1);
+    assert.equal(
+      clustered.distribution.find((r) => r.key === "MULTI_VIOLATION")?.count,
+      1,
+    );
+    assert.equal(
+      clustered.componentViolationBreakdown.find((r) => r.key === "NO_HELMET")
+        ?.count,
+      1,
+    );
+    assert.equal(
+      clustered.componentViolationBreakdown.find((r) => r.key === "NO_VEST")
+        ?.count,
+      1,
+    );
+    assert.equal(clustered.cameras[0].total, 1);
+    assert.equal(clustered.shifts.morning, 1);
+
+    const raw = aggregateDashboard(items, { mode: "raw" });
+    assert.equal(raw.total, 2);
+    assert.equal(raw.rawTotal, 2);
+    assert.equal(raw.cameras[0].total, 2);
+  });
 });

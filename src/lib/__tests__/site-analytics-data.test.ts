@@ -112,6 +112,42 @@ describe("confirmed site analytics", () => {
     assert.equal(risk.hourly[0].riskLevel, "HIGH");
     assert.equal(risk.shifts.night.riskLevel, "CRITICAL");
   });
+  it("clusters same-person multi-violation records into 1 MULTI_VIOLATION case in site analytics and hourly risk", () => {
+    const mk = (id: string, violationType: string, detectedAt: string) =>
+      incident(id, {
+        cameraId: "cam-a",
+        violationType,
+        status: "CONFIRMED",
+        detectedAt,
+        evidences: [
+          {
+            id: `ev-${id}`,
+            incidentId: id,
+            cameraId: "cam-a",
+            evidenceType: "SNAPSHOT",
+            storageKey: `evidences/site/CAM-A/frame_track5_${id}.jpg`,
+            fileName: `frame_track5_${id}.jpg`,
+            mimeType: "image/jpeg",
+            fileSize: 512,
+            capturedAt: detectedAt,
+            createdAt: detectedAt,
+          },
+        ],
+      });
+    const pair = [
+      mk("p1", "NO_HELMET", "2026-11-16T17:00:00.000Z"),
+      mk("p2", "NO_VEST", "2026-11-16T17:00:04.000Z"),
+    ];
+    const clustered = aggregateSiteAnalytics(pair, period, "DAY");
+    assert.equal(clustered.totalIncidents, 1);
+    assert.equal(clustered.rawTotalIncidents, 2);
+    assert.equal(clustered.distribution.find((d) => d.type === "MULTI_VIOLATION")?.count, 1);
+    assert.equal(aggregateSiteHourlyRisk(pair).total, 1);
+
+    const raw = aggregateSiteAnalytics(pair, period, "DAY", { mode: "raw" });
+    assert.equal(raw.totalIncidents, 2);
+    assert.equal(aggregateSiteHourlyRisk(pair, { mode: "raw" }).total, 2);
+  });
 });
 
 describe("complete incident collection", () => {

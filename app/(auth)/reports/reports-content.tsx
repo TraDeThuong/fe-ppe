@@ -13,6 +13,11 @@ import { incidentService } from "@/services/incident.service";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { addCalendarDays, vietnamToday } from "@/lib/dashboard-data";
 import {
+  clusterIncidentsByPerson,
+  projectClusterToRepresentativeIncident,
+  type IncidentAggregationMode,
+} from "@/lib/incident-cluster-engine";
+import {
   canAccessGeneratedReport,
   computeReportArchiveStats,
   computeResolutionFunnel,
@@ -244,6 +249,8 @@ export default function ReportsContent() {
     () => vietnamToday()
   );
   const [trendGroupBy, setTrendGroupBy] = useState<TrendGroupBy>("DAY");
+  const [groupingMode, setGroupingMode] =
+    useState<IncidentAggregationMode>("clustered");
 
   // Filter & Selection States (Reports Tab)
   const [reportsSiteId, setReportsSiteId] = useState("");
@@ -444,21 +451,34 @@ export default function ReportsContent() {
     });
   }, [hydratedIncidents, historyFallbackIds, detailHistoryQueries]);
 
-  const resolutionFunnel = useMemo(
-    () => computeResolutionFunnel(enrichedIncidents),
+  const reportClusters = useMemo(
+    () => clusterIncidentsByPerson(enrichedIncidents),
     [enrichedIncidents],
+  );
+
+  const analyticsIncidents = useMemo(
+    () =>
+      groupingMode === "clustered"
+        ? reportClusters.map(projectClusterToRepresentativeIncident)
+        : enrichedIncidents,
+    [groupingMode, reportClusters, enrichedIncidents],
+  );
+
+  const resolutionFunnel = useMemo(
+    () => computeResolutionFunnel(analyticsIncidents),
+    [analyticsIncidents],
   );
 
   const siteComparisonStats = useMemo(() => {
     const scopedSites = selectedSiteId
       ? sites.filter((site) => site.id === selectedSiteId)
       : sites;
-    return computeSiteComparisonStats(enrichedIncidents, scopedSites, getSiteName);
-  }, [enrichedIncidents, sites, selectedSiteId, getSiteName]);
+    return computeSiteComparisonStats(analyticsIncidents, scopedSites, getSiteName);
+  }, [analyticsIncidents, sites, selectedSiteId, getSiteName]);
 
   const personnelPerformance = useMemo(
     () =>
-      computeRoleSegmentedPersonnelStats(enrichedIncidents, {
+      computeRoleSegmentedPersonnelStats(analyticsIncidents, {
         usersById,
         allUsers,
         siteManagersBySiteId,
@@ -467,7 +487,7 @@ export default function ReportsContent() {
         resolveSiteName: getSiteName,
       }),
     [
-      enrichedIncidents,
+      analyticsIncidents,
       usersById,
       allUsers,
       siteManagersBySiteId,
@@ -477,20 +497,24 @@ export default function ReportsContent() {
     ],
   );
 
-  // Reconcile Summary: ưu tiên số liệu đầy đủ nhất giữa Reporting Rollup và Live Incidents
+  // Reconcile Summary: ở chế độ "raw" ưu tiên số liệu đầy đủ nhất giữa Reporting Rollup và Live Incidents;
+  // ở chế độ "clustered" luôn tính chuẩn trên tập cụm vụ việc đã gom để khớp /dashboard và /incidents.
   const isRollupAuthoritative = useMemo(() => {
+    if (groupingMode === "clustered" && analyticsIncidents.length > 0) {
+      return false;
+    }
     return Boolean(
       rawSummary &&
       rawSummary.totalIncidents >= filteredIncidents.length &&
       rawSummary.totalIncidents > 0
     );
-  }, [rawSummary, filteredIncidents.length]);
+  }, [groupingMode, analyticsIncidents.length, rawSummary, filteredIncidents.length]);
 
   const summary: StatisticsSummaryDto = useMemo(() => {
-    // Tính MTTR bổ sung từ severityBreakdown hoặc filteredIncidents khi BE trả 0
+    // Tính MTTR bổ sung từ severityBreakdown hoặc analyticsIncidents khi BE trả 0
     let fallbackMttrHours = 0;
     const sb = rawSummary?.severityBreakdown;
-    if (sb) {
+    if (sb && groupingMode === "raw") {
       let weightedMinutes = 0;
       let totalResolvedWithMttr = 0;
       for (const lvl of ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const) {
@@ -505,10 +529,10 @@ export default function ReportsContent() {
       }
     }
 
-    if (fallbackMttrHours === 0 && filteredIncidents.length > 0) {
+    if (fallbackMttrHours === 0 && analyticsIncidents.length > 0) {
       let totalResolveHours = 0;
       let resolvedWithTimestamp = 0;
-      for (const inc of filteredIncidents) {
+      for (const inc of analyticsIncidents) {
         const st = String(inc.status || "").toUpperCase();
         if (st === "RESOLVED" || st === "CLOSED") {
           const endTs = inc.resolvedAt || inc.updatedAt;
@@ -537,13 +561,13 @@ export default function ReportsContent() {
       };
     }
 
-    const totalIncidents = filteredIncidents.length;
+    const totalIncidents = analyticsIncidents.length;
     let openIncidents = 0;
     let resolvedIncidents = 0;
     let falseAlarms = 0;
     let trueViolations = 0;
 
-    for (const inc of filteredIncidents) {
+    for (const inc of analyticsIncidents) {
       const status = String(inc.status || "").toUpperCase();
       if (status === "PENDING_REVIEW") {
         openIncidents++;
@@ -588,26 +612,26 @@ export default function ReportsContent() {
       periodEnd: endDate,
       severityBreakdown: rawSummary?.severityBreakdown,
     };
-  }, [isRollupAuthoritative, rawSummary, filteredIncidents, startDate, endDate]);
+  }, [isRollupAuthoritative, groupingMode, rawSummary, analyticsIncidents, startDate, endDate]);
 
   // Reconcile Trends (hỗ trợ gom nhóm DAY / WEEK / MONTH đồng bộ BE, lấp đầy chuỗi thời gian liên tục)
   const trends: TrendItemDto[] = useMemo(
     () =>
       reconcileReportTrends({
-        rawTrends,
-        rawSummary,
-        filteredIncidents,
+        rawTrends: groupingMode === "clustered" && analyticsIncidents.length > 0 ? [] : rawTrends,
+        rawSummary: groupingMode === "clustered" && analyticsIncidents.length > 0 ? null : rawSummary,
+        filteredIncidents: analyticsIncidents,
         startDate,
         endDate,
         groupBy: trendGroupBy,
       }),
-    [rawTrends, rawSummary, filteredIncidents, startDate, endDate, trendGroupBy],
+    [groupingMode, rawTrends, rawSummary, analyticsIncidents, startDate, endDate, trendGroupBy],
   );
 
   // Reconcile Violation Distribution
   const distribution: ViolationTypeStatDto[] = useMemo(() => {
     if (isRollupAuthoritative && rawDistribution.length > 0) return rawDistribution;
-    if (filteredIncidents.length === 0) return rawDistribution;
+    if (analyticsIncidents.length === 0) return rawDistribution;
 
     const map = new Map<
       string,
@@ -623,7 +647,7 @@ export default function ReportsContent() {
       }
     >();
 
-    for (const inc of filteredIncidents) {
+    for (const inc of analyticsIncidents) {
       const vType = inc.violationType || "UNKNOWN";
       const item = map.get(vType) || {
         count: 0,
@@ -643,24 +667,24 @@ export default function ReportsContent() {
       map.set(vType, item);
     }
 
-    const grandTotal = filteredIncidents.length;
+    const grandTotal = analyticsIncidents.length;
     return Array.from(map.entries()).map(([violationType, data]) => ({
       violationType,
       count: data.count,
       percentage: grandTotal > 0 ? Number(((data.count / grandTotal) * 100).toFixed(2)) : 0,
       severityBreakdown: data.severityBreakdown,
     }));
-  }, [isRollupAuthoritative, rawDistribution, filteredIncidents]);
+  }, [isRollupAuthoritative, rawDistribution, analyticsIncidents]);
 
   // Reconcile & Enrich Camera Rankings with Real Camera Names
   const cameraRankings: CameraStatDto[] = useMemo(() => {
     const baseList: CameraStatDto[] =
       isRollupAuthoritative && rawCameraRankings.length > 0
         ? rawCameraRankings
-        : filteredIncidents.length > 0
+        : analyticsIncidents.length > 0
           ? (() => {
             const camMap = new Map<string, CameraStatDto>();
-            for (const inc of filteredIncidents) {
+            for (const inc of analyticsIncidents) {
               if (!inc.cameraId) continue;
               const item = camMap.get(inc.cameraId) || {
                 cameraId: inc.cameraId,
@@ -696,7 +720,7 @@ export default function ReportsContent() {
           (cam ? `${cam.name} (${cam.code})` : `Camera #${item.cameraId.slice(0, 8)}`),
       };
     });
-  }, [isRollupAuthoritative, rawCameraRankings, filteredIncidents, getCamera]);
+  }, [isRollupAuthoritative, rawCameraRankings, analyticsIncidents, getCamera]);
 
   // Enrich History with Real Site Names
   const history = useMemo(() => {
@@ -887,7 +911,7 @@ export default function ReportsContent() {
             templates={templates}
             history={history}
             sites={sites}
-            incidents={filteredIncidents}
+            incidents={analyticsIncidents}
             onGenerateReport={(tpl) => handleOpenGenerate(tpl)}
             onViewHistory={() => handleTabChange("reports")}
           />
@@ -905,6 +929,10 @@ export default function ReportsContent() {
             rangeError={rangeError}
             onStartDateChange={setCustomStartDate}
             onEndDateChange={setCustomEndDate}
+            groupingMode={groupingMode}
+            onChangeGroupingMode={setGroupingMode}
+            rawIncidentsCount={enrichedIncidents.length}
+            clusteredIncidentsCount={reportClusters.length}
           />
 
           {/* Row 1: 2-Column Analytics Charts: Trends (8 cols) & Violation Breakdown (4 cols) */}

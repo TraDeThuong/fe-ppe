@@ -31,6 +31,7 @@ import {
   useDashboardPeriod,
 } from "@/hooks/dashboard/use-dashboard-data";
 import { dashboardIncidentHref } from "@/lib/dashboard-data";
+import type { IncidentAggregationMode } from "@/lib/incident-cluster-engine";
 import { Button } from "@/components/ui/button";
 import {
   DashboardHeroHeader,
@@ -161,6 +162,8 @@ export default function DashboardContent() {
   );
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [groupingMode, setGroupingMode] =
+    useState<IncidentAggregationMode>("clustered");
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<IncidentItem | null>(
     null,
@@ -214,12 +217,14 @@ export default function DashboardContent() {
     cameras: canViewCameras,
     cameraCatalog: activeTab === "devices",
     model: canViewAi,
+    groupingMode,
   });
 
   const {
     periodQuery,
     pendingQuery,
     recentQuery,
+    unresolvedClusters,
     cameraQuery,
     cameraCountsQuery,
     onlineQuery,
@@ -333,8 +338,28 @@ export default function DashboardContent() {
     cameraCountsQuery.data?.total ?? cameraQuery.data?.total ?? null;
   const onlineCamerasCount =
     cameraCountsQuery.data?.online ?? onlineQuery.data ?? null;
-  const effectivePendingCount =
+  const rawPendingCount =
     pendingQuery.data ?? dashboardKpiQuery.data?.pendingReview ?? null;
+  const clusteredPendingCount = useMemo(() => {
+    if (!recentQuery.data) return null;
+    return unresolvedClusters.filter(
+      (cl) => cl.effectiveStatus === "PENDING_REVIEW",
+    ).length;
+  }, [recentQuery.data, unresolvedClusters]);
+  const effectivePendingCount =
+    groupingMode === "clustered" &&
+    clusteredPendingCount !== null &&
+    (rawPendingCount === null || rawPendingCount <= 100)
+      ? clusteredPendingCount
+      : rawPendingCount;
+  const displayPeriodTotal =
+    period && canViewIncidents
+      ? (analytics?.total ?? periodQuery.data?.total ?? null)
+      : null;
+  const displayRawPeriodTotal =
+    period && canViewIncidents
+      ? (analytics?.rawTotal ?? periodQuery.data?.total ?? null)
+      : null;
 
   const activeModelName = useMemo(() => {
     const activeVersion = modelQuery.data;
@@ -474,6 +499,8 @@ export default function DashboardContent() {
         onSiteChange={setSiteId}
         canViewSites={canViewSites}
         periodState={periodState}
+        groupingMode={groupingMode}
+        onChangeGroupingMode={setGroupingMode}
       />
 
       {/* TAB 1: EXECUTIVE OVERVIEW (CROSS-DOMAIN) */}
@@ -481,10 +508,10 @@ export default function DashboardContent() {
         <div className="space-y-6">
           {/* Executive 4-Pillar Metric Ribbon */}
           <DashboardExecutiveKpi
-            totalIncidents={
-              period && canViewIncidents ? (periodQuery.data?.total ?? null) : null
-            }
+            totalIncidents={displayPeriodTotal}
+            rawTotalIncidents={displayRawPeriodTotal}
             pendingCount={effectivePendingCount}
+            rawPendingCount={rawPendingCount}
             onlineCameras={onlineCamerasCount}
             totalCameras={totalCamerasCount}
             aiModelVersion={executiveAiModelLabel}
@@ -514,6 +541,7 @@ export default function DashboardContent() {
                   incidents={recentIncidents}
                   totalPendingCount={recentQuery.data?.totalPending}
                   totalConfirmedCount={recentQuery.data?.totalConfirmed}
+                  groupingMode={groupingMode}
                   loading={recentQuery.isLoading}
                   error={recentQuery.isError && !recentQuery.data}
                   highlightedId={highlightedId}
@@ -595,12 +623,10 @@ export default function DashboardContent() {
         <div className="space-y-6">
           {/* Safety KPI Ribbon */}
           <DashboardKpiRibbon
-            total={
-              period && canViewIncidents
-                ? (periodQuery.data?.total ?? null)
-                : null
-            }
+            total={displayPeriodTotal}
+            rawTotal={displayRawPeriodTotal}
             pendingCount={effectivePendingCount}
+            rawPendingCount={rawPendingCount}
             totalCamerasCount={totalCamerasCount}
             onlineCamerasCount={onlineCamerasCount}
             analytics={analytics}
@@ -623,7 +649,11 @@ export default function DashboardContent() {
             (analytics ? (
               <div className="space-y-6">
                 <DashboardOperationalSuite analytics={analytics} />
-                <DashboardPpeRadarChart distribution={analytics.distribution} />
+                <DashboardPpeRadarChart
+                  distribution={analytics.distribution}
+                  componentBreakdown={analytics.componentViolationBreakdown}
+                  rawTotal={analytics.rawTotal}
+                />
                 <DashboardDataState
                   stale={periodQuery.isRefetchError}
                   updatedAt={periodQuery.dataUpdatedAt}
@@ -643,6 +673,7 @@ export default function DashboardContent() {
                 incidents={recentIncidents}
                 totalPendingCount={recentQuery.data?.totalPending}
                 totalConfirmedCount={recentQuery.data?.totalConfirmed}
+                groupingMode={groupingMode}
                 loading={recentQuery.isLoading}
                 error={recentQuery.isError && !recentQuery.data}
                 highlightedId={highlightedId}

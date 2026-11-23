@@ -102,7 +102,7 @@ export function DashboardExecutiveKpi({
               <Skeleton className="my-1 h-8 w-16 rounded-lg" />
             )}
             <span className="text-xs font-semibold uppercase text-muted-foreground">
-              {isVietnamese ? "vụ việc trong kỳ" : "cases in period"}
+              {isVietnamese ? "sự cố trong kỳ" : "incidents"}
             </span>
             {typeof totalIncidents === "number" &&
               typeof rawTotalIncidents === "number" &&

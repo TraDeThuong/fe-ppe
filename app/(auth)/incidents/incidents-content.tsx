@@ -187,7 +187,9 @@ export default function IncidentsContent() {
   const statusParam = searchParams.get("status");
   const selectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
   const [viewMode, setViewMode] = useState<IncidentViewMode>(
-    urlView === "split" || urlView === "camera" ? urlView : "table",
+    urlView === "grouped" || urlView === "split" || urlView === "camera"
+      ? urlView
+      : "table",
   );
 
   const handleViewModeChange = (mode: IncidentViewMode) => {
@@ -274,7 +276,9 @@ export default function IncidentsContent() {
   // Sync viewMode khi URL ?view= thay đổi (Back / Forward navigation)
   useEffect(() => {
     const nextMode: IncidentViewMode =
-      urlView === "split" || urlView === "camera" ? urlView : "table";
+      urlView === "grouped" || urlView === "split" || urlView === "camera"
+        ? urlView
+        : "table";
     setViewMode((prev) => (prev === nextMode ? prev : nextMode));
   }, [urlView]);
 

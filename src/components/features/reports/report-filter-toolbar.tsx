@@ -1,7 +1,8 @@
 "use client";
 
-import { AlertCircle, Building2, CalendarDays } from "lucide-react";
+import { AlertCircle, Building2, CalendarDays, Layers } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
+import type { IncidentAggregationMode } from "@/lib/incident-cluster-engine";
 import type { SiteItem } from "@/types";
 
 export interface ReportFilterToolbarProps {
@@ -16,6 +17,10 @@ export interface ReportFilterToolbarProps {
   rangeError?: string | null;
   onStartDateChange?: (date: string) => void;
   onEndDateChange?: (date: string) => void;
+  groupingMode?: IncidentAggregationMode;
+  onChangeGroupingMode?: (mode: IncidentAggregationMode) => void;
+  rawIncidentsCount?: number;
+  clusteredIncidentsCount?: number;
 }
 
 export function ReportFilterToolbar({
@@ -30,8 +35,13 @@ export function ReportFilterToolbar({
   rangeError,
   onStartDateChange,
   onEndDateChange,
+  groupingMode = "clustered",
+  onChangeGroupingMode,
+  rawIncidentsCount,
+  clusteredIncidentsCount,
 }: ReportFilterToolbarProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVietnamese = locale === "vi-VN";
 
   const periodOptions = [
     { value: "today", label: t("reports.toolbar.periodToday") },
@@ -124,14 +134,73 @@ export function ReportFilterToolbar({
           )}
         </div>
 
-        {/* Right: Active Date Range Indicator */}
-        {activeDateRangeLabel && (
-          <div className="flex items-center gap-1.5 self-start rounded-xl bg-background/80 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] lg:self-auto">
-            <CalendarDays className="h-3.5 w-3.5 text-primary" />
-            <span className="tabular-nums">{activeDateRangeLabel}</span>
+        {/* Right: Grouping Mode Switch + Active Date Range Indicator */}
+        <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+          {onChangeGroupingMode && (
+            <div
+              role="group"
+              aria-label={isVietnamese ? "Chế độ tính báo cáo" : "Report aggregation mode"}
+              className="inline-flex items-center gap-1 rounded-xl bg-background/80 p-1 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+            >
+              <button
+                type="button"
+                onClick={() => onChangeGroupingMode("clustered")}
+                className={`inline-flex cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${
+                  groupingMode === "clustered"
+                    ? "bg-surface text-primary shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)]"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Layers className="h-3 w-3" />
+                <span>{isVietnamese ? "Vụ việc đã gom" : "Clustered"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeGroupingMode("raw")}
+                className={`inline-flex cursor-pointer items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all ${
+                  groupingMode === "raw"
+                    ? "bg-surface text-primary shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)]"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>{isVietnamese ? "Bản ghi gốc (PDF BE)" : "Raw (BE PDF)"}</span>
+              </button>
+            </div>
+          )}
+
+          {activeDateRangeLabel && (
+            <div className="flex items-center gap-1.5 rounded-xl bg-background/80 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+              <CalendarDays className="h-3.5 w-3.5 text-primary" />
+              <span className="tabular-nums">{activeDateRangeLabel}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {groupingMode === "clustered" &&
+        rawIncidentsCount != null &&
+        clusteredIncidentsCount != null &&
+        rawIncidentsCount > clusteredIncidentsCount && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/25 bg-primary/[0.06] px-3.5 py-2 text-[11px] text-foreground">
+            <span>
+              {isVietnamese ? (
+                <>
+                  Đang thống kê theo{" "}
+                  <strong>{clusteredIncidentsCount} vụ việc đã gom</strong> (từ{" "}
+                  <strong>{rawIncidentsCount} bản ghi lỗi gốc</strong>). File PDF/Excel xuất trực tiếp từ Backend dùng số bản ghi gốc — chuyển sang chế độ{" "}
+                  <strong>&quot;Bản ghi gốc (PDF BE)&quot;</strong> nếu cần đối chiếu 1-1.
+                </>
+              ) : (
+                <>
+                  Aggregating by{" "}
+                  <strong>{clusteredIncidentsCount} clustered cases</strong> (from{" "}
+                  <strong>{rawIncidentsCount} raw violation records</strong>). Backend PDF/Excel exports count raw DB rows — switch to{" "}
+                  <strong>&quot;Raw (BE PDF)&quot;</strong> for 1-to-1 parity.
+                </>
+              )}
+            </span>
           </div>
         )}
-      </div>
 
       {rangeError && (
         <div

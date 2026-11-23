@@ -8,8 +8,11 @@ import {
   Camera,
   Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Eye,
+  Layers,
   Loader2,
   Radio,
   Wrench,
@@ -22,6 +25,11 @@ import { IncidentSeverityBadge } from "@/components/features/incidents/incident-
 import { IncidentStatusBadge } from "@/components/features/incidents/incident-status-badge";
 import { useLocale } from "@/providers/locale-provider";
 import { resolveEvidenceUrl } from "@/lib/evidence-url";
+import {
+  clusterIncidentsByPerson,
+  type IncidentAggregationMode,
+  type IncidentCluster,
+} from "@/lib/incident-cluster-engine";
 import type {
   IncidentItem,
   IncidentSeverity,
@@ -34,6 +42,7 @@ export interface DashboardLiveIncidentsProps {
   incidents: IncidentItem[];
   totalPendingCount?: number | null;
   totalConfirmedCount?: number | null;
+  groupingMode?: IncidentAggregationMode;
   loading?: boolean;
   error?: boolean;
   viewAllHref?: string;
@@ -144,6 +153,7 @@ export function DashboardLiveIncidents({
   incidents,
   totalPendingCount,
   totalConfirmedCount,
+  groupingMode = "clustered",
   loading = false,
   error = false,
   viewAllHref = "/incidents",
@@ -161,6 +171,7 @@ export function DashboardLiveIncidents({
   const isVietnamese = locale === "vi-VN";
   const [statusFilter, setStatusFilter] =
     useState<UnresolvedIncidentFilter>("ALL");
+  const [expandedClusters, setExpandedClusters] = useState<Record<string, boolean>>({});
 
   // Keep only unresolved incidents (PENDING_REVIEW + CONFIRMED), sorted by severity & newest first
   const unresolvedIncidents = useMemo(() => {
@@ -177,32 +188,84 @@ export function DashboardLiveIncidents({
       });
   }, [incidents]);
 
-  const pendingItems = useMemo(
+  const unresolvedClusters = useMemo<IncidentCluster[]>(() => {
+    if (groupingMode === "raw") {
+      return unresolvedIncidents.map((inc) => ({
+        clusterId: inc.id,
+        primary: inc,
+        items: [inc],
+        signals: [],
+        rawCount: 1,
+        incidentIds: [inc.id],
+        isMultiViolation: inc.violationType === "MULTI_VIOLATION",
+        effectiveViolationType: inc.violationType,
+        violationCodes: [inc.violationType],
+        effectiveSeverity: inc.severity,
+        effectiveStatus: inc.status,
+        earliestDetectedAt: inc.detectedAt,
+        latestDetectedAt: inc.detectedAt,
+        effectiveResolvedAt: inc.resolvedAt ?? null,
+        personTrackId: null,
+        cameraId: inc.cameraId,
+        matchMethod: "SINGLE",
+        matchReasons: [],
+        bestSpatialIoUPct: null,
+      }));
+    }
+    return clusterIncidentsByPerson(unresolvedIncidents).sort((a, b) => {
+      const sevA = SEVERITY_PRIORITY[a.effectiveSeverity] ?? 9;
+      const sevB = SEVERITY_PRIORITY[b.effectiveSeverity] ?? 9;
+      if (sevA !== sevB) return sevA - sevB;
+      return Date.parse(b.latestDetectedAt) - Date.parse(a.latestDetectedAt);
+    });
+  }, [unresolvedIncidents, groupingMode]);
+
+  const pendingClusters = useMemo(
     () =>
-      unresolvedIncidents.filter((inc) => inc.status === "PENDING_REVIEW"),
+      unresolvedClusters.filter(
+        (cl) => cl.effectiveStatus === "PENDING_REVIEW",
+      ),
+    [unresolvedClusters],
+  );
+  const confirmedClusters = useMemo(
+    () =>
+      unresolvedClusters.filter((cl) => cl.effectiveStatus === "CONFIRMED"),
+    [unresolvedClusters],
+  );
+
+  const visibleClusters = useMemo(() => {
+    if (statusFilter === "PENDING_REVIEW") return pendingClusters;
+    if (statusFilter === "CONFIRMED") return confirmedClusters;
+    return unresolvedClusters;
+  }, [statusFilter, pendingClusters, confirmedClusters, unresolvedClusters]);
+
+  const rawPendingItemsCount = useMemo(
+    () => unresolvedIncidents.filter((inc) => inc.status === "PENDING_REVIEW").length,
     [unresolvedIncidents],
   );
-  const confirmedItems = useMemo(
-    () => unresolvedIncidents.filter((inc) => inc.status === "CONFIRMED"),
+  const rawConfirmedItemsCount = useMemo(
+    () => unresolvedIncidents.filter((inc) => inc.status === "CONFIRMED").length,
     [unresolvedIncidents],
   );
 
-  const visibleIncidents = useMemo(() => {
-    if (statusFilter === "PENDING_REVIEW") return pendingItems;
-    if (statusFilter === "CONFIRMED") return confirmedItems;
-    return unresolvedIncidents;
-  }, [statusFilter, pendingItems, confirmedItems, unresolvedIncidents]);
-
-  const pendingCountDisplay = totalPendingCount ?? pendingItems.length;
-  const confirmedCountDisplay = totalConfirmedCount ?? confirmedItems.length;
+  const pendingCountDisplay =
+    groupingMode === "clustered"
+      ? pendingClusters.length
+      : (totalPendingCount ?? rawPendingItemsCount);
+  const confirmedCountDisplay =
+    groupingMode === "clustered"
+      ? confirmedClusters.length
+      : (totalConfirmedCount ?? rawConfirmedItemsCount);
   const totalUnresolvedDisplay = pendingCountDisplay + confirmedCountDisplay;
 
   const pendingIds = useMemo(
     () =>
-      visibleIncidents
-        .filter((inc) => inc.status === "PENDING_REVIEW")
-        .map((inc) => inc.id),
-    [visibleIncidents],
+      visibleClusters.flatMap((cl) =>
+        cl.items
+          .filter((inc) => inc.status === "PENDING_REVIEW")
+          .map((inc) => inc.id),
+      ),
+    [visibleClusters],
   );
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -219,11 +282,16 @@ export function DashboardLiveIncidents({
   const allPendingSelected =
     pendingIds.length > 0 && activeSelectedIds.length === pendingIds.length;
 
-  const toggleSelectOne = (id: string) => {
+  const toggleSelectMany = (ids: string[]) => {
     setBatchError(null);
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-    );
+    setSelectedIds((prev) => {
+      const allIn = ids.every((id) => prev.includes(id));
+      if (allIn) {
+        const drop = new Set(ids);
+        return prev.filter((item) => !drop.has(item));
+      }
+      return Array.from(new Set([...prev, ...ids]));
+    });
   };
 
   const toggleSelectAllPending = () => {
@@ -429,11 +497,12 @@ export function DashboardLiveIncidents({
             {t("dashboard.liveIncidents.urgentBanner")}:{" "}
             <strong className="font-black">{totalUnresolvedDisplay}</strong>
           </span>
-          {totalUnresolvedDisplay > unresolvedIncidents.length && (
-            <span className="font-mono text-[10px] text-muted-foreground">
-              ({unresolvedIncidents.length}/{totalUnresolvedDisplay})
-            </span>
-          )}
+          {unresolvedIncidents.length > unresolvedClusters.length &&
+            groupingMode === "clustered" && (
+              <span className="font-mono text-[10px] text-muted-foreground">
+                ({unresolvedIncidents.length} {isVietnamese ? "lỗi gốc" : "raw"})
+              </span>
+            )}
         </div>
       </div>
     )}
@@ -553,7 +622,7 @@ export function DashboardLiveIncidents({
           <p className="py-12 text-center text-xs font-medium text-muted-foreground">
             {t("dashboard.data.error")}
           </p>
-        ) : visibleIncidents.length === 0 ? (
+        ) : visibleClusters.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
             <div className="mb-2.5 flex size-12 items-center justify-center rounded-[15px] bg-background text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
               <CheckCircle2 className="size-6" strokeWidth={2.2} />
@@ -568,27 +637,35 @@ export function DashboardLiveIncidents({
             </p>
           </div>
         ) : (
-          visibleIncidents.map((inc) => {
-            const isHighlighted = inc.id === highlightedId;
-            const isPending = inc.status === "PENDING_REVIEW";
-            const isConfirmed = inc.status === "CONFIRMED";
-            const isSelected = activeSelectedIds.includes(inc.id);
+          visibleClusters.map((cluster) => {
+            const inc = cluster.primary;
+            const clusterPendingIds = cluster.items
+              .filter((m) => m.status === "PENDING_REVIEW")
+              .map((m) => m.id);
+            const isHighlighted = cluster.incidentIds.includes(highlightedId ?? "");
+            const isPending = clusterPendingIds.length > 0;
+            const isConfirmed =
+              !isPending && cluster.effectiveStatus === "CONFIRMED";
+            const isSelected =
+              clusterPendingIds.length > 0 &&
+              clusterPendingIds.every((id) => activeSelectedIds.includes(id));
+            const isExpanded = Boolean(expandedClusters[cluster.clusterId]);
             const violationLabel =
-              VIOLATION_LABELS[inc.violationType]?.[
+              VIOLATION_LABELS[cluster.effectiveViolationType]?.[
                 isVietnamese ? "vi" : "en"
-              ] || inc.violationType;
+              ] || cluster.effectiveViolationType;
             const cameraLabel = resolveCameraLabel(inc);
             const timeLabel = formatIncidentTimeLabel(
-              inc.detectedAt,
+              cluster.latestDetectedAt,
               isVietnamese,
             );
 
             return (
-              /* Từng thẻ sự cố: Nổi mượt trên khay lõm bằng chính màu nền bg-background */
+              /* Từng thẻ sự cố (hoặc cụm đa sự cố): Nổi mượt trên khay lõm bằng chính màu nền bg-background */
               <div
-                key={inc.id}
+                key={cluster.clusterId}
                 className={[
-                  "group relative flex flex-col justify-between gap-3 rounded-[15px] p-3 transition-all duration-200 sm:flex-row sm:items-center",
+                  "group relative flex flex-col gap-2.5 rounded-[15px] p-3 transition-all duration-200",
                   "bg-background",
                   isHighlighted
                     ? "animate-pulse shadow-[0_0_16px_rgba(239,68,68,0.28)]"
@@ -597,6 +674,7 @@ export function DashboardLiveIncidents({
                       : "shadow-[3.5px_3.5px_8px_var(--shadow-dark),-3.5px_-3.5px_8px_var(--shadow-light)] hover:-translate-y-[1px] hover:shadow-[5px_5px_11px_var(--shadow-dark),-5px_-5px_11px_var(--shadow-light)]",
                 ].join(" ")}
               >
+                <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                 {/* Left: Checkbox, Recessed Snapshot Screen & Metadata */}
                 <div className="flex min-w-0 items-center gap-3">
                   {batchEnabled && isPending && (
@@ -609,7 +687,7 @@ export function DashboardLiveIncidents({
                           ? `Chọn sự cố ${violationLabel} tại ${cameraLabel}`
                           : `Select ${violationLabel} at ${cameraLabel}`
                       }
-                      onClick={() => toggleSelectOne(inc.id)}
+                      onClick={() => toggleSelectMany(clusterPendingIds)}
                       className={`flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-[7px] transition-all ${
                         isSelected
                           ? "bg-primary text-primary-foreground shadow-[0_0_8px_hsl(var(--primary)/0.5)]"
@@ -641,6 +719,11 @@ export function DashboardLiveIncidents({
                         ) : (
                           <Camera className="size-5 text-muted-foreground/70" />
                         )}
+                        {cluster.rawCount > 1 && (
+                          <span className="absolute bottom-0.5 right-0.5 rounded-md bg-black/75 px-1 font-mono text-[9px] font-black text-white">
+                            ×{cluster.rawCount}
+                          </span>
+                        )}
                         {isHighlighted && (
                           <span className="absolute right-1 top-1 flex size-2">
                             <span className="absolute inline-flex size-full animate-ping rounded-full bg-danger opacity-75" />
@@ -657,18 +740,45 @@ export function DashboardLiveIncidents({
                       <span className="max-w-[160px] truncate font-mono text-xs font-extrabold text-foreground sm:max-w-none">
                         {violationLabel}
                       </span>
+                      {cluster.rawCount > 1 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 font-mono text-[10px] font-extrabold text-warning">
+                          <Layers className="size-2.5" />
+                          {cluster.rawCount} {isVietnamese ? "lỗi" : "alerts"}
+                        </span>
+                      )}
                       <IncidentSeverityBadge
-                        severity={inc.severity as IncidentSeverity}
+                        severity={cluster.effectiveSeverity as IncidentSeverity}
                       />
                       <IncidentStatusBadge
-                        status={inc.status as IncidentStatus}
+                        status={cluster.effectiveStatus as IncidentStatus}
                       />
                     </div>
+
+                    {cluster.isMultiViolation && cluster.violationCodes.length > 1 && (
+                      <div className="flex flex-wrap items-center gap-1">
+                        {cluster.violationCodes.map((code) => (
+                          <span
+                            key={code}
+                            className="rounded-md bg-surface px-1.5 py-0.5 text-[10px] font-bold text-foreground/85 shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
+                          >
+                            {VIOLATION_LABELS[code]?.[isVietnamese ? "vi" : "en"] || code}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
                       <span className="max-w-[180px] truncate font-semibold text-foreground/85 sm:max-w-[240px]">
                         {cameraLabel}
                       </span>
+                      {cluster.personTrackId !== null && (
+                        <>
+                          <span className="opacity-50">•</span>
+                          <span className="font-mono text-[10px] font-bold text-primary">
+                            Track #{cluster.personTrackId}
+                          </span>
+                        </>
+                      )}
                       {inc.zoneName && (
                         <>
                           <span className="opacity-50">•</span>
@@ -691,15 +801,53 @@ export function DashboardLiveIncidents({
 
                 {/* Right: Action Buttons (Dùng Primary & Accent) */}
                 <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
-                  {canReview && isPending && onReview && (
+                  {cluster.rawCount > 1 && (
                     <Button
                       size="sm"
-                      variant="primary"
-                      onClick={() => onReview(inc)}
-                      className="h-8 rounded-xl px-3 text-xs font-bold shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)] transition-transform active:scale-95"
+                      variant="ghost"
+                      type="button"
+                      onClick={() =>
+                        setExpandedClusters((prev) => ({
+                          ...prev,
+                          [cluster.clusterId]: !prev[cluster.clusterId],
+                        }))
+                      }
+                      className="h-8 gap-1 rounded-xl bg-background px-2 text-[11px] font-bold text-muted-foreground shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] hover:text-primary"
                     >
-                      {t("dashboard.liveIncidents.quickReview")}
+                      {isExpanded ? (
+                        <ChevronUp className="size-3.5" />
+                      ) : (
+                        <ChevronDown className="size-3.5" />
+                      )}
+                      <span>{cluster.rawCount}</span>
                     </Button>
+                  )}
+
+                  {canReview && isPending && (
+                    clusterPendingIds.length > 1 && onBatchReview ? (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        disabled={batchReviewPending}
+                        onClick={() =>
+                          void onBatchReview(clusterPendingIds, "CONFIRM")
+                        }
+                        className="h-8 rounded-xl px-3 text-xs font-bold shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)] transition-transform active:scale-95"
+                      >
+                        {isVietnamese
+                          ? `Duyệt cụm (${clusterPendingIds.length})`
+                          : `Confirm (${clusterPendingIds.length})`}
+                      </Button>
+                    ) : onReview ? (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => onReview(inc)}
+                        className="h-8 rounded-xl px-3 text-xs font-bold shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)] transition-transform active:scale-95"
+                      >
+                        {t("dashboard.liveIncidents.quickReview")}
+                      </Button>
+                    ) : null
                   )}
 
                   {canResolve && isConfirmed && onResolve && (
@@ -727,6 +875,44 @@ export function DashboardLiveIncidents({
                     </Button>
                   </Link>
                 </div>
+                </div>
+
+                {cluster.rawCount > 1 && isExpanded && (
+                  <div className="space-y-1.5 rounded-xl bg-surface/60 p-2.5 shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+                      {isVietnamese
+                        ? `Các bản ghi lỗi thành phần (${cluster.rawCount})`
+                        : `Component violation records (${cluster.rawCount})`}
+                    </p>
+                    {cluster.items.map((child) => (
+                      <div
+                        key={child.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-background/80 px-2.5 py-1.5 text-[11px]"
+                      >
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-mono font-bold text-foreground">
+                            {VIOLATION_LABELS[child.violationType]?.[
+                              isVietnamese ? "vi" : "en"
+                            ] || child.violationType}
+                          </span>
+                          <IncidentStatusBadge
+                            status={child.status as IncidentStatus}
+                          />
+                          <span className="font-mono text-[10px] text-muted-foreground">
+                            {formatExactVnTimestamp(child.detectedAt)}
+                          </span>
+                        </div>
+                        <Link
+                          href={`/incidents/${child.id}`}
+                          className="inline-flex items-center gap-1 font-bold text-primary hover:underline"
+                        >
+                          <span>#{child.id.slice(0, 6)}</span>
+                          <Eye className="size-3" />
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })

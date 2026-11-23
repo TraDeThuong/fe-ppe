@@ -1,15 +1,26 @@
 "use client";
 import { Table, TableContent, TablePagination, TableRefresh } from "@/components/ui/table";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Mail, RefreshCw, CheckCircle2, Clock, AlertTriangle, Loader2, Search, X } from "lucide-react";
 import { useEmailLogs, useRetryEmail } from "@/hooks/notifications";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useCan } from "@/hooks/use-can";
+import { filterItemsByDateRange } from "@/lib/incident-period";
 import { useLocale } from "@/providers/locale-provider";
 import { stripEmojis } from "@/lib/strip-emojis";
 
-export function NotificationEmailLogsTab({ className = "" }: { className?: string }) {
+export interface NotificationEmailLogsTabProps {
+  className?: string;
+  fromDate?: string;
+  toDate?: string;
+}
+
+export function NotificationEmailLogsTab({
+  className = "",
+  fromDate,
+  toDate,
+}: NotificationEmailLogsTabProps) {
   const canRetry = useCan()("NOTIFICATION_UPDATE");
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -18,18 +29,44 @@ export function NotificationEmailLogsTab({ className = "" }: { className?: strin
   const [toEmail, setToEmail] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const debouncedEmail = useDebounce(toEmail, 350);
+  const hasPeriodFilter = Boolean(fromDate || toDate);
+
+  useEffect(() => {
+    setPage(1);
+  }, [fromDate, toDate]);
 
   const { data, isLoading, isFetching, error, refetch } = useEmailLogs({
-    page,
-    limit,
+    page: hasPeriodFilter ? 1 : page,
+    limit: hasPeriodFilter ? 100 : limit,
     toEmail: debouncedEmail || undefined,
     status: statusFilter === "ALL" ? undefined : statusFilter,
-
   });
 
   const retryMutation = useRetryEmail();
-  const logs = data?.data || [];
-  const meta = data?.meta || { total: 0, totalPages: 1 };
+  const rawLogs = data?.data || [];
+  const filteredLogs = useMemo(
+    () =>
+      hasPeriodFilter
+        ? filterItemsByDateRange(
+            rawLogs,
+            (log) => log.sentAt ?? log.createdAt,
+            fromDate,
+            toDate,
+          )
+        : rawLogs,
+    [hasPeriodFilter, rawLogs, fromDate, toDate],
+  );
+  const logs = useMemo(() => {
+    if (!hasPeriodFilter) return filteredLogs;
+    const start = (page - 1) * limit;
+    return filteredLogs.slice(start, start + limit);
+  }, [hasPeriodFilter, filteredLogs, page, limit]);
+  const meta = hasPeriodFilter
+    ? {
+        total: filteredLogs.length,
+        totalPages: Math.max(1, Math.ceil(filteredLogs.length / limit)),
+      }
+    : data?.meta || { total: 0, totalPages: 1 };
 
   const handleRetry = (id: string) => {
     retryMutation.mutate(id);
@@ -266,7 +303,7 @@ export function NotificationEmailLogsTab({ className = "" }: { className?: strin
       setPage(next.pageIndex + 1);
       setLimit(next.pageSize);
     }}
-    filterKey={`${debouncedEmail}:${statusFilter}`}
+    filterKey={`${debouncedEmail}:${statusFilter}:${fromDate || ""}:${toDate || ""}`}
   >
     <TableContent />
     <TablePagination />

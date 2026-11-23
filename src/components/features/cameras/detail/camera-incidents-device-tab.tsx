@@ -12,6 +12,7 @@ import {
   Cpu,
   Database,
   ImageOff,
+  Layers,
   Link2,
   Loader2,
   MapPin,
@@ -24,6 +25,7 @@ import {
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { formatViolationLabel } from "@/components/features/ai-test/ai-test-utils";
 import { getIncidentEvidenceUrl } from "@/components/features/incidents/incident-table";
+import { clusterIncidentsByPerson } from "@/lib/incident-cluster-engine";
 import { Input } from "@/components/ui/form";
 import {
   Select,
@@ -114,6 +116,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
 
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [severityFilter, setSeverityFilter] = useState<string>("ALL");
+  const [groupByPerson, setGroupByPerson] = useState<boolean>(true);
   const [healthStatusFilter, setHealthStatusFilter] = useState<string>("");
   const [overrideExpanded, setOverrideExpanded] = useState<boolean>(
     Boolean(overrideSource),
@@ -159,6 +162,33 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
       return true;
     });
   }, [incidents, statusFilter, severityFilter]);
+
+  const displayedClusters = useMemo(() => {
+    if (!groupByPerson) {
+      return filteredIncidents.map((inc) => ({
+        clusterId: inc.id,
+        primary: inc,
+        items: [inc],
+        signals: [],
+        rawCount: 1,
+        incidentIds: [inc.id],
+        isMultiViolation: inc.violationType === "MULTI_VIOLATION",
+        effectiveViolationType: inc.violationType,
+        violationCodes: [inc.violationType],
+        effectiveSeverity: inc.severity,
+        effectiveStatus: inc.status,
+        earliestDetectedAt: inc.detectedAt,
+        latestDetectedAt: inc.detectedAt,
+        effectiveResolvedAt: inc.resolvedAt ?? null,
+        personTrackId: null,
+        cameraId: inc.cameraId,
+        matchMethod: "SINGLE" as const,
+        matchReasons: [],
+        bestSpatialIoUPct: null,
+      }));
+    }
+    return clusterIncidentsByPerson(filteredIncidents);
+  }, [filteredIncidents, groupByPerson]);
 
   const videoOptions = useMemo<SelectOption[]>(
     () =>
@@ -206,9 +236,35 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                     : "Stored Incident DB Records"}
                 </h2>
                 <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[11px] font-bold text-primary">
-                  {filteredIncidents.length}
-                  {hasFilters ? `/${incidents.length}` : ""}
+                  {displayedClusters.length}
+                  {groupByPerson && filteredIncidents.length > displayedClusters.length
+                    ? isVietnamese
+                      ? ` vụ (${filteredIncidents.length} lỗi)`
+                      : ` cases (${filteredIncidents.length} raw)`
+                    : hasFilters
+                      ? `/${incidents.length}`
+                      : ""}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setGroupByPerson((prev) => !prev)}
+                  className={`inline-flex cursor-pointer items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold transition ${
+                    groupByPerson
+                      ? "bg-warning/15 text-warning"
+                      : "bg-foreground/[0.06] text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Layers className="size-2.5" />
+                  <span>
+                    {groupByPerson
+                      ? isVietnamese
+                        ? "Đang gom đa sự cố"
+                        : "Clustered"
+                      : isVietnamese
+                        ? "Bản ghi gốc"
+                        : "Raw"}
+                  </span>
+                </button>
               </div>
               <p className="text-xs text-muted-foreground">
                 {isVietnamese
@@ -301,15 +357,17 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
           </div>
         ) : (
           <div className={`max-h-[580px] space-y-2.5 overflow-y-auto rounded-2xl p-3 ${NM.recessed}`}>
-            {filteredIncidents.map((inc) => {
+            {displayedClusters.map((cluster) => {
+              const inc = cluster.primary;
               const isHigh =
-                inc.severity === "CRITICAL" || inc.severity === "HIGH";
+                cluster.effectiveSeverity === "CRITICAL" ||
+                cluster.effectiveSeverity === "HIGH";
               const thumbUrl =
                 getIncidentEvidenceUrl(inc) || getDbIncidentSnapshotUrl(inc);
 
               return (
                 <Link
-                  key={inc.id}
+                  key={cluster.clusterId}
                   href={`/incidents/${inc.id}`}
                   className={`relative flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-xs transition-transform hover:translate-x-0.5 ${NM.extruded}`}
                 >
@@ -322,18 +380,23 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                   <div className="flex min-w-0 flex-1 items-center gap-3 pl-2">
                     {/* MinIO Evidence Thumbnail */}
                     <div
-                      className={`flex h-12 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg ${NM.recessed}`}
+                      className={`relative flex h-12 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg ${NM.recessed}`}
                     >
                       {thumbUrl ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img
                           src={thumbUrl}
-                          alt={`Evidence ${inc.violationType}`}
+                          alt={`Evidence ${cluster.effectiveViolationType}`}
                           loading="lazy"
                           className="h-full w-full object-cover"
                         />
                       ) : (
                         <ImageOff className="size-4 text-muted-foreground/45" />
+                      )}
+                      {cluster.rawCount > 1 && (
+                        <span className="absolute bottom-0.5 right-0.5 rounded bg-black/75 px-1 font-mono text-[9px] font-black text-white">
+                          ×{cluster.rawCount}
+                        </span>
                       )}
                     </div>
 
@@ -346,15 +409,23 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                               : "bg-primary/15 text-primary"
                           }`}
                         >
-                          {formatViolationLabel(inc.violationType, locale)}
+                          {formatViolationLabel(cluster.effectiveViolationType, locale)}
                         </span>
 
+                        {cluster.rawCount > 1 && (
+                          <span className="rounded-md bg-warning/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-warning">
+                            {cluster.violationCodes
+                              .map((c) => formatViolationLabel(c, locale))
+                              .join(" + ")}
+                          </span>
+                        )}
+
                         <span className="rounded-md bg-foreground/[0.05] px-2 py-0.5 font-mono text-[10px] font-bold text-foreground">
-                          {inc.severity}
+                          {cluster.effectiveSeverity}
                         </span>
 
                         <span className="rounded-md bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
-                          {inc.status}
+                          {cluster.effectiveStatus}
                         </span>
                       </div>
 
@@ -369,7 +440,7 @@ export const CameraIncidentsDeviceTab = memo(function CameraIncidentsDeviceTab({
                   <div className="flex shrink-0 items-center gap-1.5 font-mono text-[11px] text-muted-foreground">
                     <Clock className="size-3" />
                     <span className="hidden sm:inline">
-                      {new Date(inc.detectedAt || inc.createdAt).toLocaleString(
+                      {new Date(cluster.latestDetectedAt || inc.createdAt).toLocaleString(
                         locale,
                       )}
                     </span>

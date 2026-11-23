@@ -2,10 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Bell, Radio, Send } from "lucide-react";
-import { PageHeader } from "@/components/features/app-shell/page-header";
-import { Button } from "@/components/ui/button";
 import {
+  NotificationConsoleHeader,
   NotificationKpiSummary,
   NotificationTabs,
   NotificationFilterToolbar,
@@ -39,6 +37,15 @@ import {
   useMarkAllAsRead,
   useDeleteNotification,
 } from "@/hooks/notifications";
+import { vietnamToday } from "@/lib/dashboard-data";
+import {
+  createDefaultIncidentPeriodFilter,
+  filterItemsByDateRange,
+  parseIncidentPeriodFromUrl,
+  resolveIncidentPeriod,
+  type IncidentPeriodFilter,
+} from "@/lib/incident-period";
+import { isNotificationRead } from "@/lib/notification-inbox";
 import {
   groupNotificationsByPerson,
   groupNotificationsIntoSections,
@@ -82,6 +89,89 @@ export default function NotificationsContent() {
     canManageTemplates,
     allowedTabs,
   } = useNotificationTabAccess();
+
+  // Header time period filter state (đồng bộ với URL & tác động toàn trang)
+  const urlPeriod = searchParams.get("period");
+  const urlFromDate = searchParams.get("fromDate");
+  const urlToDate = searchParams.get("toDate");
+
+  const [today, setToday] = useState(() => vietnamToday());
+  useEffect(() => {
+    const syncToday = () => {
+      if (!document.hidden) {
+        const current = vietnamToday();
+        setToday((prev) => (prev === current ? prev : current));
+      }
+    };
+    document.addEventListener("visibilitychange", syncToday);
+    window.addEventListener("focus", syncToday);
+    return () => {
+      document.removeEventListener("visibilitychange", syncToday);
+      window.removeEventListener("focus", syncToday);
+    };
+  }, []);
+
+  const [periodFilter, setPeriodFilter] = useState<IncidentPeriodFilter>(() =>
+    parseIncidentPeriodFromUrl(
+      { period: urlPeriod, fromDate: urlFromDate, toDate: urlToDate },
+      vietnamToday(),
+    ),
+  );
+
+  useEffect(() => {
+    const parsed = parseIncidentPeriodFromUrl(
+      { period: urlPeriod, fromDate: urlFromDate, toDate: urlToDate },
+      today,
+    );
+    setPeriodFilter((prev) => {
+      const prevResolved = resolveIncidentPeriod(prev);
+      const parsedResolved = resolveIncidentPeriod(parsed);
+      if (
+        prev.mode === parsed.mode &&
+        prevResolved.fromDate === parsedResolved.fromDate &&
+        prevResolved.toDate === parsedResolved.toDate
+      ) {
+        return prev;
+      }
+      return parsed;
+    });
+  }, [urlPeriod, urlFromDate, urlToDate, today]);
+
+  const resolvedPeriod = useMemo(
+    () => resolveIncidentPeriod(periodFilter),
+    [periodFilter],
+  );
+  const periodFromDate =
+    resolvedPeriod.mode !== "all" && resolvedPeriod.isValid
+      ? resolvedPeriod.fromDate
+      : undefined;
+  const periodToDate =
+    resolvedPeriod.mode !== "all" && resolvedPeriod.isValid
+      ? resolvedPeriod.toDate
+      : undefined;
+  const hasPeriodFilter = Boolean(periodFromDate || periodToDate);
+
+  const handlePeriodFilterChange = (next: IncidentPeriodFilter) => {
+    setPeriodFilter(next);
+    setPage(1);
+    const nextResolved = resolveIncidentPeriod(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next.mode === "all") {
+      params.delete("period");
+      params.delete("fromDate");
+      params.delete("toDate");
+    } else if (nextResolved.isValid) {
+      params.set("period", next.mode);
+      if (nextResolved.fromDate) params.set("fromDate", nextResolved.fromDate);
+      else params.delete("fromDate");
+      if (nextResolved.toDate) params.set("toDate", nextResolved.toDate);
+      else params.delete("toDate");
+    } else {
+      return;
+    }
+    const q = params.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  };
 
   // URL state synchronization for stats (giống hệt trang role)
   const statParam = searchParams.get("stat");
@@ -188,10 +278,10 @@ export default function NotificationsContent() {
       severity: filter.severity,
       channel: filter.channel,
       type: filter.type,
-      fromDate: filter.fromDate,
-      toDate: filter.toDate,
+      fromDate: periodFromDate ?? filter.fromDate,
+      toDate: periodToDate ?? filter.toDate,
     }),
-    [filter],
+    [filter, periodFromDate, periodToDate],
   );
 
   // Queries
@@ -283,6 +373,85 @@ export default function NotificationsContent() {
     );
   }, [viewMode, rawFilteredItems, signalsMap, fingerprintsMap, groupingOptions]);
 
+  const periodNotifications = useMemo(
+    () =>
+      hasPeriodFilter
+        ? filterItemsByDateRange(
+            allNotifications,
+            (item) => item.createdAt,
+            periodFromDate,
+            periodToDate,
+          )
+        : allNotifications,
+    [allNotifications, hasPeriodFilter, periodFromDate, periodToDate],
+  );
+
+  const periodUnreadCount = useMemo(() => {
+    if (!hasPeriodFilter) return unreadCount;
+    let count = 0;
+    for (const item of periodNotifications) {
+      if (!isNotificationRead(item)) count += 1;
+    }
+    return count;
+  }, [hasPeriodFilter, unreadCount, periodNotifications]);
+
+  const allInboxClusters = useMemo<NotificationPersonCluster[]>(() => {
+    if (viewMode === "flat") return [];
+    return groupNotificationsByPerson(
+      periodNotifications,
+      signalsMap,
+      fingerprintsMap,
+      groupingOptions,
+    );
+  }, [viewMode, periodNotifications, signalsMap, fingerprintsMap, groupingOptions]);
+
+  const kpiDualStats = useMemo(() => {
+    if (viewMode === "flat" || periodNotifications.length === 0) {
+      return { clustered: undefined, raw: undefined };
+    }
+    let rawPpe = 0;
+    for (const item of periodNotifications) {
+      if (
+        item.type === "PPE_VIOLATION" ||
+        item.severity === "CRITICAL" ||
+        item.severity === "HIGH" ||
+        item.title?.toLowerCase().includes("ppe") ||
+        item.title?.toLowerCase().includes("bảo hộ")
+      ) {
+        rawPpe += 1;
+      }
+    }
+
+    let unreadClusters = 0;
+    let ppeClusters = 0;
+    for (const cl of allInboxClusters) {
+      if (cl.unreadCount > 0) unreadClusters += 1;
+      const isPpe =
+        cl.violationCodes.length > 0 ||
+        cl.highestSeverity === "CRITICAL" ||
+        cl.highestSeverity === "HIGH" ||
+        cl.primary.type === "PPE_VIOLATION" ||
+        cl.primary.title?.toLowerCase().includes("ppe") ||
+        cl.primary.title?.toLowerCase().includes("bảo hộ");
+      if (isPpe) ppeClusters += 1;
+    }
+
+    const totalClusters = allInboxClusters.length;
+    return {
+      clustered: {
+        total: totalClusters,
+        unread: unreadClusters,
+        ppeAlerts: ppeClusters,
+        resolved: Math.max(0, totalClusters - unreadClusters),
+      },
+      raw: {
+        total: periodNotifications.length,
+        unread: periodUnreadCount,
+        ppeAlerts: rawPpe,
+      },
+    };
+  }, [viewMode, periodNotifications, allInboxClusters, periodUnreadCount]);
+
   const pagedClusters = useMemo(
     () => paginateNotificationClusters(allPersonClusters, page, limit),
     [allPersonClusters, page, limit],
@@ -321,7 +490,8 @@ export default function NotificationsContent() {
       filter.channel ||
       filter.type ||
       filter.fromDate ||
-      filter.toDate,
+      filter.toDate ||
+      hasPeriodFilter,
   );
 
   const handleFilterChange = (newFilter: NotificationFilterState) => {
@@ -344,6 +514,7 @@ export default function NotificationsContent() {
       fromDate: undefined,
       toDate: undefined,
     });
+    handlePeriodFilterChange(createDefaultIncidentPeriodFilter(today));
     setPage(1);
   };
 
@@ -371,67 +542,29 @@ export default function NotificationsContent() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-10">
-      {/* 1. Header Trang & Trạng thái Realtime SSE */}
-      <PageHeader
-        icon={Bell}
-        title={t("notifications.title")}
-        description={t("notifications.description")}
-        badge={
-          <div className="flex items-center gap-2">
-            <span
-              className={`inline-block size-2 rounded-full ${
-                isConnected
-                  ? "bg-success shadow-[0_0_8px_color-mix(in_srgb,var(--success)_65%,transparent)] animate-pulse"
-                  : "bg-warning shadow-[0_0_8px_color-mix(in_srgb,var(--warning)_60%,transparent)]"
-              }`}
-            />
-            <span className="font-mono text-[11px] font-semibold text-foreground">
-              {isConnected
-                ? isVietnamese
-                  ? "Luồng SSE Trực tuyến"
-                  : "Realtime SSE Active"
-                : isVietnamese
-                  ? "Đang kết nối SSE..."
-                  : "SSE Connecting..."}
-            </span>
-          </div>
-        }
-        badgeIcon={Radio}
-        breadcrumbs={[{ label: t("notifications.title") }]}
-        actions={
-          canBroadcast ? (
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Nút gửi thông báo tùy chỉnh / theo mẫu */}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsCustomDispatchModalOpen(true)}
-                className="flex items-center gap-2 font-semibold shadow-[2px_2px_6px_var(--shadow-dark)]"
-              >
-                <Send className="size-4" />
-                <span>{isVietnamese ? "Gửi thông báo tùy chỉnh" : "Custom Dispatch"}</span>
-              </Button>
-
-              {/* Nút phát thông báo khẩn cấp */}
-              <Button
-                type="button"
-                variant="primary"
-                onClick={() => setIsBroadcastModalOpen(true)}
-                className="flex items-center gap-2 font-bold shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]"
-              >
-                <Radio className="size-4" />
-                <span>{isVietnamese ? "+ Phát lệnh khẩn cấp" : "+ Broadcast Alert"}</span>
-              </Button>
-            </div>
-          ) : undefined
-        }
+      {/* 1. Console Header Trang, Trạng thái Realtime SSE & Bộ lọc thời gian toàn trang */}
+      <NotificationConsoleHeader
+        isConnected={isConnected}
+        isRefreshing={isNotificationsLoading || isNotificationsFetching}
+        onRefresh={() => void refetchNotifications()}
+        totalCount={periodNotifications.length}
+        unreadCount={periodUnreadCount}
+        canBroadcast={canBroadcast}
+        onOpenCustomDispatch={() => setIsCustomDispatchModalOpen(true)}
+        onOpenBroadcast={() => setIsBroadcastModalOpen(true)}
+        periodFilter={periodFilter}
+        resolvedPeriod={resolvedPeriod}
+        today={today}
+        onPeriodFilterChange={handlePeriodFilterChange}
       />
 
       {/* 2. Thẻ KPI Thống kê Neumorphism Tương tác (Sunken khi chọn + Khung chi tiết mở ra) */}
       <NotificationKpiSummary
-        notifications={allNotifications}
-        totalCount={allNotifications.length}
-        unreadCount={unreadCount}
+        notifications={periodNotifications}
+        totalCount={periodNotifications.length}
+        unreadCount={periodUnreadCount}
+        stats={kpiDualStats.clustered}
+        rawStats={kpiDualStats.raw}
         variant="soft-extruded"
         loading={isNotificationsLoading}
         unavailable={!filteredNotifications && !!notificationsError}
@@ -447,7 +580,7 @@ export default function NotificationsContent() {
       <NotificationTabs
         activeTab={activeTab}
         onTabChange={handleTabChange}
-        unreadCount={unreadCount}
+        unreadCount={periodUnreadCount}
       />
 
       {/* 4. Nội dung chi tiết theo từng Tab */}
@@ -473,6 +606,7 @@ export default function NotificationsContent() {
               setWindowSeconds(sec);
               setPage(1);
             }}
+            hideDateRange={true}
           />
 
           {!isNotificationsLoading && rawFilteredItems.length === 0 ? (
@@ -647,7 +781,10 @@ export default function NotificationsContent() {
       )}
 
       {activeTab === "emailLogs" && (
-        <NotificationEmailLogsTab />
+        <NotificationEmailLogsTab
+          fromDate={periodFromDate}
+          toDate={periodToDate}
+        />
       )}
 
       {/* 5. Modals & Dialogs Tương tác Nghiệp vụ */}

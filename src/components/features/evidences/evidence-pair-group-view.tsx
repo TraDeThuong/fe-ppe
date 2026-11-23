@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import {
   ArrowLeftRight,
@@ -8,6 +9,7 @@ import {
   ExternalLink,
   Film,
   ImageOff,
+  Layers,
   ShieldCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +18,10 @@ import { IncidentSeverityBadge } from "@/components/features/incidents/incident-
 import { IncidentStatusBadge } from "@/components/features/incidents/incident-status-badge";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { resolveEvidenceUrl } from "@/lib/evidence-url";
+import {
+  clusterIncidentsByPerson,
+  type IncidentCluster,
+} from "@/lib/incident-cluster-engine";
 import {
   extractEvidenceBoundingBoxes,
   formatRelativeEvidenceTime,
@@ -57,6 +63,20 @@ export function EvidencePairGroupView({
     (camId) => getCamera(camId)?.siteId,
   );
 
+  const clusterByIncidentId = useMemo(() => {
+    const map = new Map<string, IncidentCluster>();
+    const allIncidents = Array.from(incidentsMap.values());
+    if (allIncidents.length === 0) return map;
+    for (const cl of clusterIncidentsByPerson(allIncidents)) {
+      if (cl.rawCount > 1) {
+        for (const id of cl.incidentIds) {
+          map.set(id, cl);
+        }
+      }
+    }
+    return map;
+  }, [incidentsMap]);
+
   return (
     <div className="space-y-4">
       {groups.map((group) => {
@@ -65,6 +85,7 @@ export function EvidencePairGroupView({
         const canCompare = Boolean(refEv && snapEv);
         const primaryTarget = snapEv ?? refEv ?? group.videos[0] ?? group.allItems[0];
         const inc = group.incident;
+        const multiCluster = clusterByIncidentId.get(group.incidentId);
         const siteLabel = group.siteId
           ? getSiteCode(group.siteId) || getSiteName(group.siteId)
           : "";
@@ -84,6 +105,21 @@ export function EvidencePairGroupView({
                   <Badge variant="danger" size="sm">
                     {getViolationLabel(inc.violationType, isVi)}
                   </Badge>
+                )}
+                {multiCluster && (
+                  <span
+                    title={multiCluster.violationCodes
+                      .map((c) => getViolationLabel(c, isVi))
+                      .join(" + ")}
+                    className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-extrabold text-warning"
+                  >
+                    <Layers className="size-3" />
+                    <span>
+                      {isVi
+                        ? `Cùng cụm đa vi phạm (${multiCluster.rawCount} lỗi)`
+                        : `Multi-violation cluster (${multiCluster.rawCount})`}
+                    </span>
+                  </span>
                 )}
                 {inc?.severity && <IncidentSeverityBadge severity={inc.severity} />}
                 {inc?.status && <IncidentStatusBadge status={inc.status} />}

@@ -117,7 +117,7 @@ export function NotificationBell() {
   const markAsReadMutation = useMarkAsRead();
   const markManyAsReadMutation = useMarkManyAsRead();
 
-  const bellClusters = useMemo(
+  const allBellClusters = useMemo(
     () =>
       groupNotificationsByPerson(
         notificationData?.data || [],
@@ -127,8 +127,16 @@ export function NotificationBell() {
           isVietnamese,
           enableVisualDedup: false,
         },
-      ).slice(0, 5),
+      ),
     [notificationData?.data, signalsMap, isVietnamese],
+  );
+  const bellClusters = useMemo(
+    () => allBellClusters.slice(0, 5),
+    [allBellClusters],
+  );
+  const bellUnreadClusters = useMemo(
+    () => allBellClusters.filter((cl) => cl.unreadCount > 0).length,
+    [allBellClusters],
   );
 
   // Lắng nghe sự kiện Realtime SSE: lọc theo vai trò (Manager nhận cảnh báo AI & báo cáo xong; Officer nhận tín hiệu [ĐIỀU PHỐI]; tất cả liên quan nhận bình luận mới)
@@ -261,7 +269,11 @@ export function NotificationBell() {
               </span>
               {unreadCount > 0 && (
                 <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-500">
-                  {unreadCount} {isVietnamese ? "mới" : "new"}
+                  {bellUnreadClusters > 0 && bellUnreadClusters < unreadCount
+                    ? isVietnamese
+                      ? `${bellUnreadClusters} cụm (${unreadCount} tin)`
+                      : `${bellUnreadClusters} clusters (${unreadCount})`
+                    : `${unreadCount} ${isVietnamese ? "mới" : "new"}`}
                 </span>
               )}
             </div>

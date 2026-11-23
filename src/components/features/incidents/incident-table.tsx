@@ -46,8 +46,9 @@ import {
   groupIncidentsByCamera,
   isIncidentAssignedToUser,
 } from "@/lib/incident-workflow";
+import { clusterIncidentsByPerson } from "@/lib/incident-cluster-engine";
 
-export type IncidentViewMode = "table" | "split" | "camera";
+export type IncidentViewMode = "table" | "grouped" | "split" | "camera";
 
 export interface IncidentTableProps {
   incidents: IncidentItem[];
@@ -206,6 +207,11 @@ export function IncidentTable({
         return name && name !== code ? `${code} (${name})` : code || inc.cameraId.slice(0, 8);
       }),
     [incidents, getCameraCode, getCameraName],
+  );
+
+  const personClusters = useMemo(
+    () => clusterIncidentsByPerson(incidents),
+    [incidents],
   );
 
   const toggleGroupSelection = (ids: string[]) => {
@@ -479,6 +485,23 @@ export function IncidentTable({
           </button>
           <button
             type="button"
+            aria-pressed={viewMode === "grouped"}
+            onClick={() => setViewMode("grouped")}
+            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
+              viewMode === "grouped"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5" />
+            <span>
+              {isVietnamese
+                ? `Gom đa sự cố (${personClusters.length})`
+                : `Grouped (${personClusters.length})`}
+            </span>
+          </button>
+          <button
+            type="button"
             aria-pressed={viewMode === "split"}
             onClick={() => setViewMode("split")}
             className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
@@ -506,7 +529,254 @@ export function IncidentTable({
         </div>
       </div>
 
-      {viewMode === "split" ? (
+      {viewMode === "grouped" ? (
+        <div className="space-y-4">
+          {tableState?.toolbar}
+
+          {selectedIdSet.size > 0 && bulkActions.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-primary/40 bg-primary/10 px-4 py-2.5 shadow-sm">
+              <span className="text-xs font-bold text-foreground">
+                {isVietnamese
+                  ? `Đang chọn ${selectedIdSet.size} bản ghi sự cố`
+                  : `${selectedIdSet.size} incident records selected`}
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                {bulkActions.map((act) => (
+                  <Button
+                    key={act.id}
+                    type="button"
+                    size="sm"
+                    variant={act.variant === "primary" ? "primary" : "outline"}
+                    disabled={act.disabled}
+                    onClick={() => void act.onClick()}
+                    className="gap-1.5 text-xs"
+                  >
+                    {act.icon}
+                    <span>{act.label}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {personClusters.map((cluster) => {
+              const allIds = cluster.incidentIds;
+              const selectedInCluster = allIds.filter((id) =>
+                selectedIdSet.has(id),
+              ).length;
+              const isAllSelected =
+                selectedInCluster === allIds.length && allIds.length > 0;
+              const isCollapsed = Boolean(collapsedCameras[`cl:${cluster.clusterId}`]);
+              const primary = cluster.primary;
+              const siteName = primary.siteName || getSiteName(primary.siteId);
+              const cameraCode =
+                primary.cameraCode || getCameraCode(primary.cameraId);
+              const cameraName =
+                primary.cameraName || getCameraName(primary.cameraId);
+              const cameraLabel =
+                cameraName && cameraName !== cameraCode
+                  ? `${cameraCode} (${cameraName})`
+                  : cameraCode || primary.cameraId.slice(0, 8);
+              const dispatchable = cluster.items.filter(
+                (i) => i.status === "PENDING_REVIEW" || i.status === "CONFIRMED",
+              );
+              const resolvedItems = cluster.items.filter(
+                (i) => i.status === "RESOLVED",
+              );
+
+              return (
+                <div
+                  key={cluster.clusterId}
+                  className="overflow-hidden rounded-2xl border border-border/50 bg-surface shadow-nm-sm"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 bg-muted/20 px-4 py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {canSelectRows && (
+                        <input
+                          type="checkbox"
+                          checked={isAllSelected}
+                          onChange={() => toggleGroupSelection(allIds)}
+                          className="h-4 w-4 rounded accent-primary cursor-pointer"
+                          aria-label={`Select cluster ${cluster.clusterId}`}
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setCollapsedCameras((prev) => ({
+                            ...prev,
+                            [`cl:${cluster.clusterId}`]: !prev[`cl:${cluster.clusterId}`],
+                          }))
+                        }
+                        className="flex items-center gap-2 text-left min-w-0"
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
+                        <Layers className="h-4 w-4 text-primary shrink-0" />
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-sm font-bold text-foreground">
+                              {formatViolation(cluster.effectiveViolationType)}
+                            </span>
+                            {cluster.rawCount > 1 && (
+                              <span className="rounded-full bg-warning/15 px-2 py-0.5 font-mono text-[10px] font-extrabold text-warning">
+                                {cluster.rawCount} {isVietnamese ? "lỗi gốc" : "raw"}
+                              </span>
+                            )}
+                            {cluster.personTrackId !== null && (
+                              <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-bold text-primary">
+                                Track #{cluster.personTrackId}
+                              </span>
+                            )}
+                            <IncidentSeverityBadge severity={cluster.effectiveSeverity} />
+                            <IncidentStatusBadge status={cluster.effectiveStatus} />
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <span>{siteName}</span>
+                            <span>•</span>
+                            <span className="font-semibold text-foreground/80">
+                              {cameraLabel}
+                            </span>
+                            <span>•</span>
+                            <span>
+                              {new Date(cluster.latestDetectedAt).toLocaleString(locale)}
+                            </span>
+                            {cluster.isMultiViolation && cluster.violationCodes.length > 1 && (
+                              <>
+                                <span>•</span>
+                                <span className="font-semibold text-warning">
+                                  {cluster.violationCodes.map(formatViolation).join(" + ")}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {canBatchDispatch && onBatchDispatch && dispatchable.length > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="primary"
+                          disabled={anyBatchPending}
+                          onClick={() => void onBatchDispatch(dispatchable)}
+                          className="h-7 gap-1 px-2.5 text-[11px]"
+                        >
+                          <Send className="h-3 w-3" />
+                          <span>
+                            {isVietnamese
+                              ? `Giao cụm (${dispatchable.length})`
+                              : `Dispatch (${dispatchable.length})`}
+                          </span>
+                        </Button>
+                      )}
+                      {canBatchClose && onBatchClose && resolvedItems.length > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={anyBatchPending}
+                          onClick={() => void onBatchClose(resolvedItems)}
+                          className="h-7 gap-1 px-2.5 text-[11px]"
+                        >
+                          <Archive className="h-3 w-3" />
+                          <span>
+                            {isVietnamese
+                              ? `Đóng cụm (${resolvedItems.length})`
+                              : `Close (${resolvedItems.length})`}
+                          </span>
+                        </Button>
+                      )}
+                      <Link
+                        href={`/incidents/${primary.id}`}
+                        className="inline-flex h-7 items-center gap-1 rounded-lg border border-border/50 px-2.5 text-[11px] font-semibold text-foreground hover:border-primary hover:text-primary transition"
+                      >
+                        <span>{isVietnamese ? "Chi tiết" : "Details"}</span>
+                        <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    </div>
+                  </div>
+
+                  {!isCollapsed && (
+                    <div className="divide-y divide-border/20">
+                      {cluster.items.map((incident) => {
+                        const isSelected = selectedIdSet.has(incident.id);
+                        const evidenceUrl = getIncidentEvidenceUrl(incident);
+                        return (
+                          <div
+                            key={incident.id}
+                            className={`flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 transition ${
+                              incident.id === highlightedId
+                                ? "bg-danger/10"
+                                : isSelected
+                                  ? "bg-primary/5"
+                                  : "hover:bg-muted/15"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              {canSelectRows && (
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => toggleSingleRow(incident.id)}
+                                  className="h-4 w-4 rounded accent-primary cursor-pointer shrink-0"
+                                />
+                              )}
+                              <div className="relative flex h-10 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/40 bg-slate-950/80">
+                                {evidenceUrl ? (
+                                  <img
+                                    src={evidenceUrl}
+                                    alt="Evidence"
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <Camera className="h-4 w-4 text-muted-foreground/60" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Link
+                                    href={`/incidents/${incident.id}`}
+                                    className="font-mono text-xs font-bold text-primary hover:underline"
+                                  >
+                                    #{incident.id.slice(0, 8)}
+                                  </Link>
+                                  <span className="text-xs font-semibold text-foreground">
+                                    {formatViolation(incident.violationType)}
+                                  </span>
+                                  <IncidentSeverityBadge severity={incident.severity} />
+                                  <IncidentStatusBadge status={incident.status} />
+                                </div>
+                                <p className="text-[11px] text-muted-foreground truncate">
+                                  {new Date(incident.detectedAt).toLocaleString(locale)} •{" "}
+                                  {incident.description || formatViolation(incident.violationType)}
+                                </p>
+                              </div>
+                            </div>
+                            <Link
+                              href={`/incidents/${incident.id}`}
+                              className="inline-flex items-center gap-1 rounded-lg border border-border/50 px-2.5 py-1 text-[11px] font-semibold text-foreground hover:border-primary hover:text-primary transition"
+                            >
+                              <span>{isVietnamese ? "Mở" : "Open"}</span>
+                              <ExternalLink className="h-3 w-3" />
+                            </Link>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : viewMode === "split" ? (
         <div className="space-y-4">
           {tableState?.toolbar}
 

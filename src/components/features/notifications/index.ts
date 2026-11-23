@@ -1,3 +1,4 @@
+export * from "./notification-console-header";
 export * from "./notification-kpi-summary";
 export * from "./notification-stats-detail-panel";
 export * from "./notification-predefined-data";

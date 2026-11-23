@@ -24,6 +24,10 @@ import { AnimatedNumber } from "@/components/ui/animated-number";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
+import {
+  clusterIncidentsByPerson,
+  type IncidentAggregationMode,
+} from "@/lib/incident-cluster-engine";
 import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
 import type { IncidentItem, IncidentSeverity, IncidentStatus, ViolationType } from "@/types";
 
@@ -33,6 +37,7 @@ export interface IncidentStatsDetailPanelProps {
   activeStat: IncidentStatKey;
   incidents: IncidentItem[];
   statusTotals?: Partial<AssignmentIncidentTotals>;
+  groupingMode?: IncidentAggregationMode;
   loading?: boolean;
   onClose: () => void;
   onReview?: (incident: IncidentItem) => void;
@@ -63,6 +68,7 @@ export function IncidentStatsDetailPanel({
   activeStat,
   incidents = [],
   statusTotals,
+  groupingMode = "clustered",
   loading = false,
   onClose,
   onReview,
@@ -77,6 +83,11 @@ export function IncidentStatsDetailPanel({
   const isVietnamese = locale === "vi-VN";
   const { getSiteName, getCameraCode } = useEntityLookup();
 
+  const clusters = useMemo(
+    () => (groupingMode === "clustered" ? clusterIncidentsByPerson(incidents) : null),
+    [incidents, groupingMode],
+  );
+
   // 1. Phân bổ theo trạng thái (Status Breakdown)
   const statusStats = useMemo(() => {
     let pending = 0;
@@ -84,6 +95,17 @@ export function IncidentStatsDetailPanel({
     let resolved = 0;
     let closed = 0;
     let dismissed = 0;
+
+    if (clusters) {
+      for (const cl of clusters) {
+        if (cl.effectiveStatus === "PENDING_REVIEW") pending++;
+        else if (cl.effectiveStatus === "CONFIRMED") confirmed++;
+        else if (cl.effectiveStatus === "RESOLVED") resolved++;
+        else if (cl.effectiveStatus === "CLOSED") closed++;
+        else if (cl.effectiveStatus === "DISMISSED") dismissed++;
+      }
+      return { pending, confirmed, resolved, closed, dismissed };
+    }
 
     for (const item of incidents) {
       if (item.status === "PENDING_REVIEW") pending++;
@@ -100,7 +122,7 @@ export function IncidentStatsDetailPanel({
       closed: Math.max(statusTotals?.closed ?? 0, closed),
       dismissed: Math.max(statusTotals?.dismissed ?? 0, dismissed),
     };
-  }, [incidents, statusTotals]);
+  }, [incidents, statusTotals, clusters]);
 
   // 2. Phân bổ theo loại vi phạm (Violation Type Breakdown)
   const violationStats = useMemo(() => {
@@ -109,6 +131,17 @@ export function IncidentStatsDetailPanel({
     let restrictedArea = 0;
     let multi = 0;
     let other = 0;
+
+    if (clusters) {
+      for (const cl of clusters) {
+        if (cl.effectiveViolationType === "NO_HELMET") noHelmet++;
+        else if (cl.effectiveViolationType === "NO_VEST") noVest++;
+        else if (cl.effectiveViolationType === "RESTRICTED_AREA") restrictedArea++;
+        else if (cl.effectiveViolationType === "MULTI_VIOLATION") multi++;
+        else other++;
+      }
+      return { noHelmet, noVest, restrictedArea, multi, other };
+    }
 
     for (const item of incidents) {
       if (item.violationType === "NO_HELMET") noHelmet++;
@@ -119,7 +152,7 @@ export function IncidentStatsDetailPanel({
     }
 
     return { noHelmet, noVest, restrictedArea, multi, other };
-  }, [incidents]);
+  }, [incidents, clusters]);
 
   // 3. Phân bổ theo mức độ (Severity Breakdown)
   const severityStats = useMemo(() => {
@@ -127,6 +160,16 @@ export function IncidentStatsDetailPanel({
     let high = 0;
     let medium = 0;
     let low = 0;
+
+    if (clusters) {
+      for (const cl of clusters) {
+        if (cl.effectiveSeverity === "CRITICAL") critical++;
+        else if (cl.effectiveSeverity === "HIGH") high++;
+        else if (cl.effectiveSeverity === "MEDIUM") medium++;
+        else low++;
+      }
+      return { critical, high, medium, low };
+    }
 
     for (const item of incidents) {
       if (item.severity === "CRITICAL") critical++;
@@ -136,7 +179,7 @@ export function IncidentStatsDetailPanel({
     }
 
     return { critical, high, medium, low };
-  }, [incidents]);
+  }, [incidents, clusters]);
 
   // 4. Các danh sách sự cố đã lọc theo mục đích
   const pendingIncidents = useMemo(
@@ -154,7 +197,9 @@ export function IncidentStatsDetailPanel({
     [incidents],
   );
 
-  const totalCount = Math.max(statusTotals?.total ?? 0, incidents.length);
+  const totalCount = clusters
+    ? clusters.length
+    : Math.max(statusTotals?.total ?? 0, incidents.length);
   const resolvedCount = statusStats.resolved + statusStats.closed;
   const resolutionRate =
     totalCount > 0 ? Math.round((resolvedCount / totalCount) * 100) : 100;
