@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import {
+  AlertTriangle,
   SlidersHorizontal,
   Bell,
+  BellOff,
   Mail,
   ShieldAlert,
   Volume2,
@@ -11,11 +13,17 @@ import {
   Clock,
   Radio,
 } from "lucide-react";
+import { usePublicConfig } from "@/hooks/auth";
 import {
   useNotificationPreferences,
   useUpdateNotificationPreference,
 } from "@/hooks/notifications";
 import { useNotificationSound } from "@/hooks/notifications/use-notification-sound";
+import {
+  getConfig,
+  isFeatureFlagEnabled,
+  SYSTEM_CONFIG_KEYS,
+} from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 import {
   SOUND_PRESET_NAMES,
@@ -23,9 +31,21 @@ import {
 } from "@/services/sound.service";
 import type { NotificationChannel, NotificationSeverity } from "@/types";
 
-export function NotificationPreferencesCard({ className = "" }: { className?: string }) {
+export function NotificationPreferencesCard({
+  className = "",
+  notificationsEnabled: notificationsEnabledProp,
+}: {
+  className?: string;
+  notificationsEnabled?: boolean;
+}) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const { data: publicConfig } = usePublicConfig();
+  const notificationsEnabled =
+    notificationsEnabledProp ??
+    isFeatureFlagEnabled(
+      getConfig(publicConfig, SYSTEM_CONFIG_KEYS.notificationsEnabled, true),
+    );
 
   // Preferences từ backend
   const { data: preferences = [], isLoading } = useNotificationPreferences();
@@ -140,15 +160,54 @@ export function NotificationPreferencesCard({ className = "" }: { className?: st
           <SlidersHorizontal className="relative size-5 text-primary drop-shadow-[0_2px_6px_hsl(var(--primary)/0.35)]" />
         </div>
 
-        <div className="min-w-0">
-          <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground">
-            {t("notifications.preferences.title")}
-          </h2>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground">
+              {t("notifications.preferences.title")}
+            </h2>
+            {!notificationsEnabled && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-warning/35 bg-warning/15 px-2.5 py-0.5 font-mono text-[10px] font-extrabold uppercase tracking-wider text-warning">
+                <BellOff className="size-3" />
+                <span>
+                  {isVietnamese
+                    ? "Hệ thống đang tạm dừng"
+                    : "System Paused"}
+                </span>
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-xs sm:text-sm text-muted-foreground leading-relaxed">
             {t("notifications.preferences.subtitle")}
           </p>
         </div>
       </div>
+
+      {/* ===================================================================== */}
+      {/* 1b. BANNER CẢNH BÁO TẠM DỪNG TOÀN HỆ THỐNG                            */}
+      {/* ===================================================================== */}
+      {!notificationsEnabled && (
+        <div
+          role="alert"
+          data-testid="preferences-notifications-disabled-banner"
+          className="flex items-start gap-3.5 rounded-2xl border border-warning/35 bg-gradient-to-r from-warning/15 via-background/85 to-warning/10 p-4 text-xs leading-relaxed shadow-[inset_3px_3px_8px_var(--shadow-dark),inset_-3px_-3px_8px_var(--shadow-light)]"
+        >
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-warning/30 bg-warning/15 text-warning shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)]">
+            <AlertTriangle className="size-4.5" />
+          </div>
+          <div className="space-y-1">
+            <p className="font-bold text-foreground">
+              {isVietnamese
+                ? "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng. Các cảnh báo tự động, email và thao tác phát thông báo tạm thời bị vô hiệu hóa."
+                : "Automated notifications and email dispatch are currently paused by the Administrator. Automated alerts, emails, and manual dispatch actions are temporarily disabled."}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {isVietnamese
+                ? "Lưu ý: Dù công tắc kênh In-App hoặc Email cá nhân của bạn bên dưới đang ở trạng thái BẬT, hệ thống sẽ không phát thông báo mới cho tới khi Quản trị viên kích hoạt lại cờ thông báo toàn cục."
+                : "Note: Even if your personal In-App or Email switches below are set to ON, no new notifications will be dispatched until the Administrator re-enables the global notification flag."}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ===================================================================== */}
       {/* 2. AUDIO NOTIFICATION ENGINE (TACTILE CONSOLE)                        */}

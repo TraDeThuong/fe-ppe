@@ -254,7 +254,7 @@ export function parseIncidentPeriodFromUrl(
     fromDate?: string | null;
     toDate?: string | null;
   },
-  today = vietnamToday(),
+  today?: string,
 ): IncidentPeriodFilter {
   const rawMode = params.period as IncidentPeriodMode | null | undefined;
   const explicitMode =
@@ -266,19 +266,21 @@ export function parseIncidentPeriodFromUrl(
     return createDefaultIncidentPeriodFilter(today);
   }
 
+  const fallbackAnchor = startDate || endDate || (today ?? vietnamToday());
+
   if (explicitMode && explicitMode !== "all") {
     if (explicitMode === "custom") {
       return {
         mode: "custom",
-        anchorDate: startDate || endDate || today,
+        anchorDate: fallbackAnchor,
         customStart: startDate || "",
         customEnd: endDate || "",
       };
     }
     const anchor =
       explicitMode === "week"
-        ? endDate || startDate || today
-        : startDate || endDate || today;
+        ? endDate || startDate || fallbackAnchor
+        : fallbackAnchor;
     return {
       mode: explicitMode,
       anchorDate: anchor,
@@ -331,7 +333,7 @@ export function parseIncidentPeriodFromUrl(
 
   return {
     mode: "custom",
-    anchorDate: startDate || endDate || today,
+    anchorDate: fallbackAnchor,
     customStart: startDate || "",
     customEnd: endDate || "",
   };

@@ -12,6 +12,7 @@ import {
   Loader2,
   Plus,
   Power,
+  RefreshCw,
   ShieldCheck,
   Sliders,
   Trash2,
@@ -36,8 +37,9 @@ import {
   useUpdateRestrictedArea,
 } from "@/hooks/sites/use-restricted-areas";
 import { useCan } from "@/hooks/use-can";
+import { isCodeTaken, sanitizeManualCode } from "@/lib/code-generator";
 import { useLocale } from "@/providers/locale-provider";
-import { normalizeZoneCode } from "../../site-helpers";
+import { generateUniqueZoneCode } from "../../site-helpers";
 import type { RestrictedAreaItem, SiteItem, ZoneItem, ZoneStatus } from "@/types";
 
 export interface SiteSpatialZonesTabProps {
@@ -86,8 +88,17 @@ export function SiteSpatialZonesTab({
   const [editingZone, setEditingZone] = useState<ZoneItem | null>(null);
   const [zoneName, setZoneName] = useState("");
   const [zoneCode, setZoneCode] = useState("");
+  const [isZoneCodeManual, setIsZoneCodeManual] = useState(false);
   const [zoneDescription, setZoneDescription] = useState("");
   const [zoneStatus, setZoneStatus] = useState<ZoneStatus>("ACTIVE");
+
+  const existingZoneCodes = useMemo(
+    () =>
+      zones
+        .filter((z) => z.id !== editingZone?.id)
+        .map((z) => z.code),
+    [zones, editingZone],
+  );
 
   // Delete Zone confirmation dialog
   const [deleteZoneTarget, setDeleteZoneTarget] = useState<ZoneItem | null>(null);
@@ -101,7 +112,8 @@ export function SiteSpatialZonesTab({
   const openCreateZone = () => {
     setEditingZone(null);
     setZoneName("");
-    setZoneCode("");
+    setZoneCode(generateUniqueZoneCode("", existingZoneCodes, true));
+    setIsZoneCodeManual(false);
     setZoneDescription("");
     setZoneStatus("ACTIVE");
     setShowZoneForm((v) => !v);
@@ -111,6 +123,7 @@ export function SiteSpatialZonesTab({
     setEditingZone(zone);
     setZoneName(zone.name);
     setZoneCode(zone.code);
+    setIsZoneCodeManual(true);
     setZoneDescription(zone.description || "");
     setZoneStatus((zone.status as ZoneStatus) || "ACTIVE");
     setShowZoneForm(true);
@@ -120,25 +133,32 @@ export function SiteSpatialZonesTab({
     setEditingZone(null);
     setZoneName("");
     setZoneCode("");
+    setIsZoneCodeManual(false);
     setZoneDescription("");
     setZoneStatus("ACTIVE");
     setShowZoneForm(false);
+  };
+
+  const handleRandomizeZoneCode = () => {
+    const nextCode = generateUniqueZoneCode(
+      zoneName,
+      [...existingZoneCodes, zoneCode],
+      true,
+    );
+    setZoneCode(nextCode);
+    setIsZoneCodeManual(false);
   };
 
   const handleZoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!zoneName.trim()) return;
 
-    const resolvedCode = zoneCode.trim()
-      ? zoneCode
-          .trim()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/đ/g, "d")
-          .replace(/Đ/g, "D")
-          .toUpperCase()
-          .replace(/[^A-Z0-9_-]+/g, "-")
-      : normalizeZoneCode(zoneName);
+    const sanitizedManual = sanitizeManualCode(zoneCode, "standard");
+    const resolvedCode =
+      sanitizedManual.length >= 2 &&
+      !isCodeTaken(sanitizedManual, existingZoneCodes)
+        ? sanitizedManual
+        : generateUniqueZoneCode(zoneName, existingZoneCodes, false);
 
     if (editingZone) {
       await updateZoneMutation.mutateAsync({
@@ -366,25 +386,50 @@ export function SiteSpatialZonesTab({
                   onChange={(e) => {
                     const nextName = e.target.value;
                     setZoneName(nextName);
-                    if (!editingZone && !zoneCode) {
-                      // Preview handled cleanly on submit
+                    if (!editingZone && !isZoneCodeManual) {
+                      setZoneCode(
+                        generateUniqueZoneCode(
+                          nextName,
+                          existingZoneCodes,
+                          !nextName.trim(),
+                        ),
+                      );
                     }
                   }}
                   className="h-10 w-full rounded-xl border border-border/15 bg-surface/70 px-3.5 text-xs text-foreground shadow-nm-inset focus:border-primary/30 focus:outline-none"
                   required
                 />
 
-                <input
-                  type="text"
-                  placeholder={
-                    isVietnamese
-                      ? `Mã (tự sinh: ${zoneName ? normalizeZoneCode(zoneName) : "ZONE-..."})`
-                      : "Code (auto-generated if blank)"
-                  }
-                  value={zoneCode}
-                  onChange={(e) => setZoneCode(e.target.value.toUpperCase())}
-                  className="h-10 w-full rounded-xl border border-border/15 bg-surface/70 px-3.5 font-mono text-xs uppercase text-foreground shadow-nm-inset focus:border-primary/30 focus:outline-none"
-                />
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    placeholder={
+                      isVietnamese
+                        ? "Mã phân khu (tự sinh hoặc nhập tay)"
+                        : "Zone code (auto-generated or custom)"
+                    }
+                    value={zoneCode}
+                    onChange={(e) => {
+                      const val = e.target.value.toUpperCase();
+                      setZoneCode(val);
+                      setIsZoneCodeManual(Boolean(val.trim()));
+                    }}
+                    className="h-10 w-full rounded-xl border border-border/15 bg-surface/70 pl-3.5 pr-20 font-mono text-xs uppercase text-foreground shadow-nm-inset focus:border-primary/30 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRandomizeZoneCode}
+                    title={
+                      isVietnamese
+                        ? "Tạo mã phân khu ngẫu nhiên không trùng"
+                        : "Randomize unique zone code"
+                    }
+                    className="absolute right-1.5 inline-flex items-center gap-1 rounded-lg border border-primary/25 bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary hover:bg-primary/20 transition"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    <span>Random</span>
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-[1fr_150px]">

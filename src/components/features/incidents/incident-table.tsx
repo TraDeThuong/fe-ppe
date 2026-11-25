@@ -47,12 +47,14 @@ import {
   isIncidentAssignedToUser,
 } from "@/lib/incident-workflow";
 import { clusterIncidentsByPerson } from "@/lib/incident-cluster-engine";
+import { getIncidentClosure } from "@/lib/incident-list-scope";
 
 export type IncidentViewMode = "table" | "grouped" | "split" | "camera";
 
 export interface IncidentTableProps {
   incidents: IncidentItem[];
   viewMode?: IncidentViewMode;
+  history?: boolean;
   onViewModeChange?: (mode: IncidentViewMode) => void;
   onReview?: (incident: IncidentItem) => void;
   onBatchReview?: (ids: string[], action: "CONFIRM" | "REJECT") => Promise<void> | void;
@@ -95,6 +97,7 @@ export function getIncidentEvidenceUrl(incident: IncidentItem): string {
 export function IncidentTable({
   incidents,
   viewMode: controlledViewMode,
+  history = false,
   onViewModeChange,
   onReview,
   onBatchReview,
@@ -113,7 +116,7 @@ export function IncidentTable({
   tableState,
   highlightedId,
 }: IncidentTableProps) {
-  const { t, locale } = useLocale();
+  const { t, locale, dateTime } = useLocale();
   const can = useCan();
   const { user } = useAuth();
   const router = useRouter();
@@ -124,7 +127,7 @@ export function IncidentTable({
   const [internalViewMode, setInternalViewMode] = useState<IncidentViewMode>("table");
   const [collapsedCameras, setCollapsedCameras] = useState<Record<string, boolean>>({});
 
-  const viewMode: IncidentViewMode = controlledViewMode ?? internalViewMode;
+  const viewMode: IncidentViewMode = history ? "table" : controlledViewMode ?? internalViewMode;
   const setViewMode = (mode: IncidentViewMode) => {
     if (onViewModeChange) {
       onViewModeChange(mode);
@@ -465,7 +468,7 @@ export function IncidentTable({
         </div>
 
         {/* Toggle chế độ Bảng <-> Chia 2 cột <-> Gom nhóm theo Camera */}
-        <div
+        {!history && <div
           role="group"
           aria-label={isVietnamese ? "Chọn chế độ hiển thị" : "Select display mode"}
           className="inline-flex items-center rounded-xl border border-border/50 bg-background/70 p-0.5 shadow-nm-inset shrink-0"
@@ -526,7 +529,7 @@ export function IncidentTable({
             <Layers className="h-3.5 w-3.5" />
             <span>{isVietnamese ? "Gom theo Camera" : "Group by Camera"}</span>
           </button>
-        </div>
+        </div>}
       </div>
 
       {viewMode === "grouped" ? (
@@ -1306,6 +1309,19 @@ export function IncidentTable({
               enableSorting: true,
               cell: ({ row }) => {
                 const incident = row.original;
+                if (history) {
+                  const closure = getIncidentClosure(incident);
+                  return (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-semibold">{t(closure.label)}</span>
+                      {closure.date && (
+                        <time dateTime={closure.date} className="text-xs text-muted-foreground">
+                          {dateTime.format(new Date(closure.date))}
+                        </time>
+                      )}
+                    </div>
+                  );
+                }
                 const activeAssignee =
                   incident.assignments?.find((a) => a.status !== "COMPLETED") ||
                   incident.assignments?.[0];

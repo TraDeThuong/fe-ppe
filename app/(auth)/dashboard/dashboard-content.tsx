@@ -41,6 +41,7 @@ import {
   DashboardQuickActions,
   DashboardOperationalSuite,
   DashboardPpeRadarChart,
+  DashboardViolationTrendsChart,
   type DashboardTabKey,
   DashboardExecutiveKpi,
   DashboardSystemStatusCard,
@@ -62,7 +63,10 @@ import type {
   ResolveIncidentPayload,
   ReviewIncidentPayload,
 } from "@/types";
-import type { DashboardPreset } from "@/types/dashboard.types";
+import type {
+  DashboardPreset,
+  DashboardTrendGroupBy,
+} from "@/types/dashboard.types";
 
 const HelmetShowcase = dynamic(
   () =>
@@ -164,6 +168,8 @@ export default function DashboardContent() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [groupingMode, setGroupingMode] =
     useState<IncidentAggregationMode>("clustered");
+  const [trendGroupBy, setTrendGroupBy] =
+    useState<DashboardTrendGroupBy>("DAY");
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<IncidentItem | null>(
     null,
@@ -191,11 +197,11 @@ export default function DashboardContent() {
     authenticated && (isAdmin || permissions.includes("PPE_CAMERA_READ"));
   const canViewSites =
     authenticated && (isAdmin || permissions.includes("PPE_SITE_READ"));
-  const canViewAi =
-    authenticated &&
-    (isAdmin ||
-      permissions.includes("PPE_AI_METRICS_READ") ||
-      permissions.includes("PPE_MODEL_READ"));
+  const canViewAiMetrics =
+    authenticated && (isAdmin || permissions.includes("PPE_AI_METRICS_READ"));
+  const canViewAiModels =
+    authenticated && (isAdmin || permissions.includes("PPE_MODEL_READ"));
+  const canViewAi = canViewAiMetrics || canViewAiModels;
   const canViewUsers =
     authenticated && (isAdmin || permissions.includes("USER_READ"));
   const canViewAudit =
@@ -216,8 +222,10 @@ export default function DashboardContent() {
     analytics: canViewReports,
     cameras: canViewCameras,
     cameraCatalog: activeTab === "devices",
-    model: canViewAi,
+    model: canViewAiModels,
+    aiMetrics: canViewAiMetrics,
     groupingMode,
+    trendGroupBy,
   });
 
   const {
@@ -229,6 +237,11 @@ export default function DashboardContent() {
     cameraCountsQuery,
     onlineQuery,
     dashboardKpiQuery,
+    trendsQuery,
+    trendsWindow,
+    trends,
+    aiPerformanceQuery,
+    aiTelemetry,
     modelQuery,
     modelsQuery,
     analytics,
@@ -349,15 +362,18 @@ export default function DashboardContent() {
   const effectivePendingCount =
     groupingMode === "clustered" &&
     clusteredPendingCount !== null &&
-    (rawPendingCount === null || rawPendingCount <= 100)
+    (rawPendingCount === null || rawPendingCount <= 15)
       ? clusteredPendingCount
       : rawPendingCount;
   const displayPeriodTotal =
-    period && canViewIncidents
-      ? (analytics?.total ?? periodQuery.data?.total ?? null)
+    period && canViewReports
+      ? (analytics?.total ??
+          periodQuery.data?.total ??
+          dashboardKpiQuery.data?.totalIncidents ??
+          null)
       : null;
   const displayRawPeriodTotal =
-    period && canViewIncidents
+    period && canViewReports
       ? (analytics?.rawTotal ?? periodQuery.data?.total ?? null)
       : null;
 
@@ -420,15 +436,13 @@ export default function DashboardContent() {
     [recentQuery.data, cameras],
   );
 
-  const unavailable = !canViewIncidents
-    ? t("dashboard.data.incidentPermission")
+  const unavailable = !canViewReports
+    ? t("dashboard.data.noAccess")
     : !period
       ? t("dashboard.data.invalidPeriod")
       : periodQuery.isError
         ? t("dashboard.data.error")
-        : periodQuery.data?.issue
-          ? t(`dashboard.data.${periodQuery.data.issue}`)
-          : null;
+        : null;
 
   const periodNotice = (
     <DashboardDataState
@@ -437,7 +451,7 @@ export default function DashboardContent() {
       stale={periodQuery.isRefetchError}
       updatedAt={periodQuery.dataUpdatedAt}
       onRetry={
-        canViewReports && canViewIncidents && period && isReady
+        canViewReports && period && isReady
           ? () => void periodQuery.refetch()
           : undefined
       }
@@ -493,14 +507,12 @@ export default function DashboardContent() {
         canViewSafety={canViewIncidents || canViewReports}
         canViewDevices={canViewCameras || canViewAi}
         canViewSystem={canViewUsers || canViewSystem || canViewAudit}
-        showFilterBar={canViewReports}
+        showFilterBar={canViewReports || canViewIncidents}
         sites={sitesData?.items ?? []}
         siteId={siteId}
         onSiteChange={setSiteId}
         canViewSites={canViewSites}
         periodState={periodState}
-        groupingMode={groupingMode}
-        onChangeGroupingMode={setGroupingMode}
       />
 
       {/* TAB 1: EXECUTIVE OVERVIEW (CROSS-DOMAIN) */}
@@ -542,6 +554,7 @@ export default function DashboardContent() {
                   totalPendingCount={recentQuery.data?.totalPending}
                   totalConfirmedCount={recentQuery.data?.totalConfirmed}
                   groupingMode={groupingMode}
+                  onChangeGroupingMode={setGroupingMode}
                   loading={recentQuery.isLoading}
                   error={recentQuery.isError && !recentQuery.data}
                   highlightedId={highlightedId}
@@ -589,7 +602,10 @@ export default function DashboardContent() {
                   <DashboardAiStatusCard
                     activeVersion={modelQuery.data}
                     modelName={activeModelName}
-                    loading={modelQuery.isLoading}
+                    telemetry={aiTelemetry}
+                    loading={
+                      modelQuery.isLoading || aiPerformanceQuery.isLoading
+                    }
                     error={modelQuery.isError && !modelQuery.data}
                     className="h-full"
                   />
@@ -644,6 +660,19 @@ export default function DashboardContent() {
             }
           />
 
+          {/* Violation Trends (Day / Week / Month) from /api/v1/statistics/trends */}
+          {canViewReports && (
+            <DashboardViolationTrendsChart
+              trends={trends}
+              groupBy={trendGroupBy}
+              onChangeGroupBy={setTrendGroupBy}
+              trendsWindow={trendsWindow}
+              loading={trendsQuery.isLoading}
+              error={trendsQuery.isError && !trendsQuery.data}
+              onRetry={() => void trendsQuery.refetch()}
+            />
+          )}
+
           {/* Operational Analytics Suite (Hourly & Severity & MTTR) */}
           {canViewReports &&
             (analytics ? (
@@ -674,6 +703,7 @@ export default function DashboardContent() {
                 totalPendingCount={recentQuery.data?.totalPending}
                 totalConfirmedCount={recentQuery.data?.totalConfirmed}
                 groupingMode={groupingMode}
+                onChangeGroupingMode={setGroupingMode}
                 loading={recentQuery.isLoading}
                 error={recentQuery.isError && !recentQuery.data}
                 highlightedId={highlightedId}
@@ -761,7 +791,8 @@ export default function DashboardContent() {
               <DashboardAiStatusCard
                 activeVersion={modelQuery.data}
                 modelName={activeModelName}
-                loading={modelQuery.isLoading}
+                telemetry={aiTelemetry}
+                loading={modelQuery.isLoading || aiPerformanceQuery.isLoading}
                 error={modelQuery.isError && !modelQuery.data}
                 className="h-full"
               />
@@ -774,14 +805,10 @@ export default function DashboardContent() {
                 loading={
                   (canViewCameras && cameraQuery.isLoading) ||
                   (canViewReports &&
-                    canViewIncidents &&
                     periodQuery.isFetching &&
                     !periodQuery.data)
                 }
-                incidentUnavailable={
-                  unavailable ??
-                  (!canViewReports ? t("dashboard.data.noAccess") : null)
-                }
+                incidentUnavailable={unavailable}
                 catalogError={
                   !canViewCameras
                     ? t("dashboard.data.noAccess")
@@ -791,7 +818,7 @@ export default function DashboardContent() {
                 }
                 onRetry={() => {
                   if (canViewCameras) void cameraQuery.refetch();
-                  if (canViewReports && canViewIncidents && period && isReady) {
+                  if (canViewReports && period && isReady) {
                     void periodQuery.refetch();
                   }
                 }}

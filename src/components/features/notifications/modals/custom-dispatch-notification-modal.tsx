@@ -2,12 +2,19 @@
 
 import { useMemo, useState } from "react";
 import {
+  AlertTriangle,
   Send,
   Volume2,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePublicConfig } from "@/hooks/auth";
 import { useCan } from "@/hooks/use-can";
+import {
+  getConfig,
+  isFeatureFlagEnabled,
+  SYSTEM_CONFIG_KEYS,
+} from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 import { useNotificationSound } from "@/hooks/notifications/use-notification-sound";
 import {
@@ -36,6 +43,10 @@ export function CustomDispatchNotificationModal({
   const can = useCan();
   const canReadUsers = can("USER_READ");
   const { playPreset } = useNotificationSound();
+  const { data: publicConfig } = usePublicConfig();
+  const notificationsEnabled = isFeatureFlagEnabled(
+    getConfig(publicConfig, SYSTEM_CONFIG_KEYS.notificationsEnabled, true),
+  );
 
   const [selectedTemplateCode, setSelectedTemplateCode] = useState<string>("CUSTOM");
   const [title, setTitle] = useState("");
@@ -119,7 +130,7 @@ export function CustomDispatchNotificationModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !content.trim()) return;
+    if (!notificationsEnabled || !title.trim() || !content.trim()) return;
 
     if (targetScope !== "BROADCAST") {
       const userIds =
@@ -217,6 +228,20 @@ export function CustomDispatchNotificationModal({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          {!notificationsEnabled && (
+            <div
+              role="alert"
+              className="flex items-start gap-2.5 rounded-xl border border-warning/35 bg-warning/15 p-3 text-xs text-foreground"
+            >
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+              <p className="font-bold">
+                {isVietnamese
+                  ? "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng. Thao tác gửi thông báo tùy chỉnh tạm thời bị vô hiệu hóa."
+                  : "Automated notifications and email dispatch are currently paused by the Administrator. Custom dispatch is temporarily disabled."}
+              </p>
+            </div>
+          )}
+
           {/* Lựa chọn khuôn mẫu có sẵn */}
           <div>
             <label className="block text-xs font-semibold text-foreground mb-1">
@@ -446,11 +471,19 @@ export function CustomDispatchNotificationModal({
               variant="primary"
               size="sm"
               disabled={
+                !notificationsEnabled ||
                 broadcastMutation.isPending ||
                 sendMutation.isPending ||
                 (targetScope === "SPECIFIC_USERS"
                   ? selectedUserIds.length === 0
                   : targetScope !== "BROADCAST" && scopedRecipients.length === 0)
+              }
+              title={
+                !notificationsEnabled
+                  ? isVietnamese
+                    ? "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng"
+                    : "Automated notifications and email dispatch are currently paused by Administrator"
+                  : undefined
               }
               className="flex items-center gap-1.5 font-bold shadow-[2px_2px_6px_var(--shadow-dark)]"
             >

@@ -149,7 +149,7 @@ export function useResolveIncident() {
   });
 }
 
-export function useCloseIncident() {
+export function useCloseIncident(historyHref = "/incidents?scope=history") {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -163,6 +163,7 @@ export function useCloseIncident() {
           "Đã nghiệm thu và đóng hồ sơ sự cố thành công.",
           "Incident verified and closed.",
         ),
+        { action: { label: pickLocaleText("Xem Lịch sử", "View history"), href: historyHref } },
       );
     },
     onError: (err: unknown) => {

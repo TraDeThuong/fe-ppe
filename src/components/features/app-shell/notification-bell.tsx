@@ -106,7 +106,7 @@ export function NotificationBell() {
   });
   const { data: notificationData, isLoading } = useNotifications(
     { limit: 20 },
-    { enabled: open && canReadNotifications },
+    { enabled: open && canReadNotifications, visibility: "active" },
   );
   const { signalsMap } = useNotificationEnrichment({
     enabled: open && canReadNotifications,

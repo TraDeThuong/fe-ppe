@@ -5,10 +5,16 @@ import { Bell, Inbox, Radio, Send } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { PeriodFilterStrip } from "@/components/features/app-shell/period-filter-strip";
 import { ConsoleRefreshButton } from "@/components/ui/refresh-action";
+import { usePublicConfig } from "@/hooks/auth";
 import type {
   IncidentPeriodFilter,
   ResolvedIncidentPeriod,
 } from "@/lib/incident-period";
+import {
+  getConfig,
+  isFeatureFlagEnabled,
+  SYSTEM_CONFIG_KEYS,
+} from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 
 export interface NotificationConsoleHeaderProps {
@@ -18,6 +24,7 @@ export interface NotificationConsoleHeaderProps {
   totalCount: number;
   unreadCount: number;
   canBroadcast: boolean;
+  notificationsEnabled?: boolean;
   onOpenCustomDispatch: () => void;
   onOpenBroadcast: () => void;
   periodFilter?: IncidentPeriodFilter;
@@ -33,6 +40,7 @@ export function NotificationConsoleHeader({
   totalCount,
   unreadCount,
   canBroadcast,
+  notificationsEnabled: notificationsEnabledProp,
   onOpenCustomDispatch,
   onOpenBroadcast,
   periodFilter,
@@ -42,6 +50,16 @@ export function NotificationConsoleHeader({
 }: NotificationConsoleHeaderProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const { data: publicConfig } = usePublicConfig();
+  const notificationsEnabled =
+    notificationsEnabledProp ??
+    isFeatureFlagEnabled(
+      getConfig(publicConfig, SYSTEM_CONFIG_KEYS.notificationsEnabled, true),
+    );
+
+  const disabledDispatchTooltip = isVietnamese
+    ? "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng"
+    : "Automated notifications and email dispatch are currently paused by Administrator";
 
   return (
     <section
@@ -161,11 +179,23 @@ export function NotificationConsoleHeader({
               <>
                 <button
                   type="button"
-                  onClick={onOpenCustomDispatch}
-                  className={`group inline-flex shrink-0 cursor-pointer items-center gap-2.5 rounded-2xl px-3.5 py-2 sm:px-4 sm:py-2.5 text-xs font-bold uppercase tracking-wider text-foreground transition-all duration-200 hover:text-primary active:scale-[0.98] ${NM.tactileBtn}`}
+                  disabled={!notificationsEnabled}
+                  aria-disabled={!notificationsEnabled}
+                  onClick={() => {
+                    if (!notificationsEnabled) return;
+                    onOpenCustomDispatch();
+                  }}
+                  title={
+                    !notificationsEnabled
+                      ? disabledDispatchTooltip
+                      : isVietnamese
+                        ? "Gửi thông báo tùy chỉnh theo mẫu và người nhận"
+                        : "Send custom notification by template and recipients"
+                  }
+                  className={`group inline-flex shrink-0 cursor-pointer items-center gap-2.5 rounded-2xl px-3.5 py-2 sm:px-4 sm:py-2.5 text-xs font-bold uppercase tracking-wider text-foreground transition-all duration-200 hover:text-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-foreground disabled:active:scale-100 ${NM.tactileBtn}`}
                 >
                   <span
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-primary transition-all duration-200 group-hover:scale-105 ${NM.recessed}`}
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-primary transition-all duration-200 group-hover:scale-105 group-disabled:scale-100 ${NM.recessed}`}
                   >
                     <Send className="size-4" />
                   </span>
@@ -181,8 +211,20 @@ export function NotificationConsoleHeader({
 
                 <button
                   type="button"
-                  onClick={onOpenBroadcast}
-                  className="inline-flex h-11 sm:h-14 shrink-0 cursor-pointer items-center gap-2 rounded-2xl bg-primary px-4 sm:px-5 text-xs font-extrabold uppercase tracking-wider text-primary-foreground shadow-[6px_6px_14px_rgba(0,0,0,0.16),-4px_-4px_10px_rgba(255,255,255,0.7),inset_1px_1px_1px_rgba(255,255,255,0.35)] transition-all hover:brightness-105 active:scale-[0.98] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.5)]"
+                  disabled={!notificationsEnabled}
+                  aria-disabled={!notificationsEnabled}
+                  onClick={() => {
+                    if (!notificationsEnabled) return;
+                    onOpenBroadcast();
+                  }}
+                  title={
+                    !notificationsEnabled
+                      ? disabledDispatchTooltip
+                      : isVietnamese
+                        ? "Phát lệnh thông báo khẩn cấp toàn hệ thống"
+                        : "Broadcast emergency alert system-wide"
+                  }
+                  className="inline-flex h-11 sm:h-14 shrink-0 cursor-pointer items-center gap-2 rounded-2xl bg-primary px-4 sm:px-5 text-xs font-extrabold uppercase tracking-wider text-primary-foreground shadow-[6px_6px_14px_rgba(0,0,0,0.16),-4px_-4px_10px_rgba(255,255,255,0.7),inset_1px_1px_1px_rgba(255,255,255,0.35)] transition-all hover:brightness-105 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100 disabled:active:scale-100 dark:shadow-[6px_6px_14px_rgba(0,0,0,0.5)]"
                 >
                   <Radio className="size-4" />
                   <span>

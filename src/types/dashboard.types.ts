@@ -1,6 +1,25 @@
 import type { CameraItem, IncidentItem, PaginationMeta } from "@/types";
 
 export type DashboardPreset = "today" | "7d" | "month" | "custom";
+export type DashboardTrendGroupBy = "DAY" | "WEEK" | "MONTH";
+
+export interface DashboardTrendsWindow {
+  startDate: string;
+  endDate: string;
+  groupBy: DashboardTrendGroupBy;
+  /** True khi tự động mở rộng khoảng lùi (vd: preset Hôm nay mở rộng thành 7 ngày cho biểu đồ đường) */
+  autoExpanded: boolean;
+}
+
+export interface DashboardAiTelemetrySummary {
+  avgFps: number | null;
+  avgLatencyMs: number | null;
+  maxLatencyMs: number | null;
+  totalFrames: number;
+  sampleDays: number;
+  source: "telemetry" | "declared" | "none";
+}
+
 export interface DashboardPeriod {
   startDate: string;
   endDate: string;
@@ -38,6 +57,7 @@ export interface DashboardSeverity extends DashboardGroup {
   dismissed: number;
   other: number;
   mttrMinutes: number | null;
+  targetSlaMinutes?: number | null;
   resolutionSamples: number;
 }
 export interface DashboardCameraStat {
@@ -85,5 +105,13 @@ export interface DashboardAnalytics {
   cameras: DashboardCameraStat[];
   mttrMinutes: number | null;
   resolutionSamples: number;
+  /** Các trường bổ sung trực tiếp từ GET /api/v1/statistics/summary phục vụ chuẩn D08 */
+  openIncidents?: number;
+  resolvedIncidents?: number;
+  trueViolations?: number;
+  falseAlarms?: number;
+  falseAlarmRate?: number | null;
+  complianceRate?: number | null;
+  hourlyDate?: string | null;
 }
 export type DashboardIncidentCollection = DashboardCollection<IncidentItem>;

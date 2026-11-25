@@ -183,7 +183,7 @@ export function NotificationList({
                 key={notification.id}
                 notification={notification}
                 selected={selectedId === notification.id}
-                onSelect={(notif) => onSelect?.(notif)}
+                onSelect={onSelect}
                 onMarkAsRead={onMarkAsRead}
                 isMarkingRead={markingReadId === notification.id}
                 onDelete={onDelete}

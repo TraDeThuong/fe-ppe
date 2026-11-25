@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { AlertTriangle, BellOff } from "lucide-react";
 import {
   NotificationConsoleHeader,
   NotificationKpiSummary,
@@ -26,6 +27,13 @@ import {
   type NotificationFilterState,
   type NotificationStatKey,
 } from "@/components/features/notifications";
+import {
+  NotificationArchiveButton,
+  NotificationArchiveSettings,
+  NotificationArchiveTab,
+} from "@/components/features/notifications/notification-archive-controls";
+import { useNotificationArchiveAccount } from "@/hooks/notifications/use-notification-archive";
+import { usePublicConfig } from "@/hooks/auth";
 import {
   useAllNotifications,
   useFilteredNotifications,
@@ -56,10 +64,16 @@ import {
   type NotificationViewMode,
 } from "@/lib/notification-grouping-engine";
 import { useRealtime } from "@/contexts/RealtimeContext";
+import {
+  getConfig,
+  isFeatureFlagEnabled,
+  SYSTEM_CONFIG_KEYS,
+} from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 import type { NotificationItemDto, NotificationTemplateItemDto } from "@/types";
 
 const GROUPING_PREFS_STORAGE_KEY = "ppe.notifications.grouping-prefs.v1";
+const EMPTY_NOTIFICATIONS: NotificationItemDto[] = [];
 
 const STAT_TO_URL: Record<NotificationStatKey, string> = {
   total: "total",
@@ -82,8 +96,13 @@ export default function NotificationsContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const archiveAccount = useNotificationArchiveAccount();
 
   const { isConnected } = useRealtime();
+  const { data: publicConfig } = usePublicConfig();
+  const notificationsEnabled = isFeatureFlagEnabled(
+    getConfig(publicConfig, SYSTEM_CONFIG_KEYS.notificationsEnabled, true),
+  );
   const {
     canBroadcast,
     canManageTemplates,
@@ -195,6 +214,7 @@ export default function NotificationsContent() {
 
   const handleTabChange = (tab: NotificationTabKey) => {
     if (!allowedTabs.includes(tab)) return;
+    setMobileDetailOpen(false);
     const params = new URLSearchParams(searchParams.toString());
     if (tab === "inbox") {
       params.delete("tab");
@@ -289,9 +309,10 @@ export default function NotificationsContent() {
     data: filteredNotifications,
     isLoading: isNotificationsLoading,
     isFetching: isNotificationsFetching,
+    fetchStatus: notificationsFetchStatus,
     error: notificationsError,
     refetch: refetchNotifications,
-  } = useFilteredNotifications(filterQuery);
+  } = useFilteredNotifications(filterQuery, { visibility: "active" });
 
   const shouldEnrich = activeTab === "inbox" && viewMode !== "flat";
   const { signalsMap } = useNotificationEnrichment({
@@ -299,7 +320,8 @@ export default function NotificationsContent() {
     maxIncidents: 200,
   });
 
-  const { data: allNotifications = [] } = useAllNotifications();
+  const { data: allActiveNotifications } = useAllNotifications({ visibility: "active" });
+  const allNotifications = allActiveNotifications ?? EMPTY_NOTIFICATIONS;
   const { data: unreadCount = 0 } = useUnreadCount();
 
   // Mutations
@@ -323,7 +345,15 @@ export default function NotificationsContent() {
   const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
-  const rawFilteredItems = filteredNotifications ?? [];
+  const rawFilteredItems = filteredNotifications ?? EMPTY_NOTIFICATIONS;
+
+  useEffect(() => {
+    if (selectedNotificationId && allActiveNotifications &&
+      !allActiveNotifications.some((item) => item.id === selectedNotificationId)) {
+      setSelectedNotificationId(null);
+      setMobileDetailOpen(false);
+    }
+  }, [allActiveNotifications, selectedNotificationId]);
 
   const groupingOptions = useMemo(
     () => ({
@@ -466,6 +496,10 @@ export default function NotificationsContent() {
   );
   const meta = pagedClusters.meta;
 
+  useEffect(() => {
+    if (!isNotificationsLoading && page !== meta.page) setPage(meta.page);
+  }, [isNotificationsLoading, meta.page, page]);
+
   const selectedNotification = useMemo(
     () =>
       items.find((item) => item.id === selectedNotificationId) ??
@@ -482,6 +516,8 @@ export default function NotificationsContent() {
     );
     return found && found.count > 1 ? found : null;
   }, [selectedNotification, viewMode, allPersonClusters]);
+
+  const showMobileDetail = mobileDetailOpen && selectedNotification?.id === selectedNotificationId;
 
   const hasActiveFilters = Boolean(
     filter.search ||
@@ -550,13 +586,57 @@ export default function NotificationsContent() {
         totalCount={periodNotifications.length}
         unreadCount={periodUnreadCount}
         canBroadcast={canBroadcast}
-        onOpenCustomDispatch={() => setIsCustomDispatchModalOpen(true)}
-        onOpenBroadcast={() => setIsBroadcastModalOpen(true)}
+        notificationsEnabled={notificationsEnabled}
+        onOpenCustomDispatch={() => {
+          if (!notificationsEnabled) return;
+          setIsCustomDispatchModalOpen(true);
+        }}
+        onOpenBroadcast={() => {
+          if (!notificationsEnabled) return;
+          setIsBroadcastModalOpen(true);
+        }}
         periodFilter={periodFilter}
         resolvedPeriod={resolvedPeriod}
         today={today}
         onPeriodFilterChange={handlePeriodFilterChange}
       />
+
+      {/* 1b. Banner cảnh báo toàn trang khi Hệ thống thông báo bị Quản trị viên tạm dừng */}
+      {!notificationsEnabled && (
+        <div
+          role="alert"
+          data-testid="notifications-disabled-banner"
+          className="relative flex flex-col gap-3 overflow-hidden rounded-2xl border border-warning/35 bg-gradient-to-r from-warning/15 via-surface/95 to-warning/10 p-4 text-xs shadow-[6px_6px_16px_var(--shadow-dark),-6px_-6px_16px_var(--shadow-light)] sm:flex-row sm:items-center sm:justify-between sm:rounded-3xl sm:p-5 dark:border-warning/30 dark:bg-card/95"
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-warning/30 bg-warning/15 text-warning shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]">
+              <BellOff className="size-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1 rounded-full border border-warning/35 bg-warning/15 px-2.5 py-0.5 font-mono text-[10px] font-extrabold uppercase tracking-wider text-warning">
+                  <AlertTriangle className="size-3" />
+                  <span>
+                    {isVietnamese
+                      ? "Tạm dừng toàn hệ thống"
+                      : "System-wide Pause"}
+                  </span>
+                </span>
+              </div>
+              <p className="text-xs font-bold leading-relaxed text-foreground sm:text-sm">
+                {isVietnamese
+                  ? "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng. Các cảnh báo tự động, email và thao tác phát thông báo tạm thời bị vô hiệu hóa."
+                  : "Automated notifications and email dispatch are currently paused by the Administrator. Automated alerts, emails, and manual dispatch actions are temporarily disabled."}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                {isVietnamese
+                  ? "Bạn vẫn có thể tra cứu lịch sử hộp thư thông báo cũ và tùy chỉnh cấu hình nhận tin cá nhân để áp dụng khi hệ thống hoạt động trở lại."
+                  : "You can still browse historical inbox records and adjust personal preferences for when the notification system is re-enabled."}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. Thẻ KPI Thống kê Neumorphism Tương tác (Sunken khi chọn + Khung chi tiết mở ra) */}
       <NotificationKpiSummary
@@ -570,7 +650,11 @@ export default function NotificationsContent() {
         unavailable={!filteredNotifications && !!notificationsError}
         selectedStat={selectedStat}
         onSelectStat={handleSelectStat}
-        onOpenBroadcast={canBroadcast ? () => setIsBroadcastModalOpen(true) : undefined}
+        onOpenBroadcast={
+          canBroadcast && notificationsEnabled
+            ? () => setIsBroadcastModalOpen(true)
+            : undefined
+        }
         onOpenPreferences={() => handleTabChange("preferences")}
         onMarkAllAsRead={() => markAllAsReadMutation.mutate()}
         onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
@@ -591,6 +675,13 @@ export default function NotificationsContent() {
             onFilterChange={handleFilterChange}
             onMarkAllRead={() => markAllAsReadMutation.mutate()}
             isMarkingAllRead={markAllAsReadMutation.isPending}
+            archiveAction={archiveAccount && (
+              <NotificationArchiveButton
+                key={archiveAccount}
+                items={allActiveNotifications}
+                inboxReady={Boolean(allActiveNotifications) && notificationsFetchStatus === "idle" && !notificationsError}
+              />
+            )}
             onRefresh={() => refetchNotifications()}
             isRefreshing={isNotificationsFetching}
             viewMode={viewMode}
@@ -724,7 +815,7 @@ export default function NotificationsContent() {
           )}
 
           {/* Responsive Detail Modal for Mobile/Tablet (< xl) */}
-          {mobileDetailOpen && selectedNotification && (
+          {showMobileDetail && selectedNotification && (
             <div
               role="dialog"
               aria-modal="true"
@@ -762,8 +853,13 @@ export default function NotificationsContent() {
         </div>
       )}
 
+      {activeTab === "archive" && archiveAccount && <NotificationArchiveTab key={archiveAccount} />}
+
       {activeTab === "preferences" && (
-        <NotificationPreferencesCard />
+        <div className="space-y-4">
+          {archiveAccount && <NotificationArchiveSettings key={archiveAccount} />}
+          <NotificationPreferencesCard />
+        </div>
       )}
 
       {activeTab === "templates" && (

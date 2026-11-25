@@ -6,6 +6,7 @@ import {
   RotateCcw,
   Search,
   SlidersHorizontal,
+  UserCheck,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,8 +19,6 @@ import { useLocale } from "@/providers/locale-provider";
 export interface IncidentFilterToolbarProps {
   search: string;
   onSearchChange: (value: string) => void;
-  statusFilter: string;
-  onStatusFilterChange: (value: string) => void;
   severityFilter: string;
   onSeverityFilterChange: (value: string) => void;
   violationFilter: string;
@@ -28,6 +27,8 @@ export interface IncidentFilterToolbarProps {
   onSiteFilterChange?: (value: string) => void;
   cameraIdFilter?: string;
   onCameraIdFilterChange?: (value: string) => void;
+  assignedToMe?: boolean;
+  onAssignedToMeChange?: (value: boolean) => void;
   onResetFilters?: () => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
@@ -37,8 +38,6 @@ export interface IncidentFilterToolbarProps {
 export function IncidentFilterToolbar({
   search,
   onSearchChange,
-  statusFilter,
-  onStatusFilterChange,
   severityFilter,
   onSeverityFilterChange,
   violationFilter,
@@ -47,6 +46,8 @@ export function IncidentFilterToolbar({
   onSiteFilterChange,
   cameraIdFilter = "",
   onCameraIdFilterChange,
+  assignedToMe = false,
+  onAssignedToMeChange,
   onResetFilters,
   onRefresh,
   isRefreshing = false,
@@ -81,39 +82,25 @@ export function IncidentFilterToolbar({
     if (search.trim()) count++;
     if (siteFilter) count++;
     if (cameraIdFilter) count++;
-    if (statusFilter) count++;
     if (severityFilter) count++;
     if (violationFilter) count++;
+    if (assignedToMe) count++;
     return count;
-  }, [search, siteFilter, cameraIdFilter, statusFilter, severityFilter, violationFilter]);
+  }, [search, siteFilter, cameraIdFilter, severityFilter, violationFilter, assignedToMe]);
 
   const hasActiveFilters = activeFiltersCount > 0;
 
   const handleResetAll = () => {
+    if (onResetFilters) {
+      onResetFilters();
+      return;
+    }
     onSearchChange("");
     if (onSiteFilterChange) onSiteFilterChange("");
     if (onCameraIdFilterChange) onCameraIdFilterChange("");
-    onStatusFilterChange("");
     onSeverityFilterChange("");
     onViolationFilterChange("");
-    if (onResetFilters) onResetFilters();
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "PENDING_REVIEW":
-        return t("incidents.status.pendingReview");
-      case "CONFIRMED":
-        return t("incidents.status.confirmed");
-      case "DISMISSED":
-        return t("incidents.status.dismissed");
-      case "RESOLVED":
-        return t("incidents.status.resolved");
-      case "CLOSED":
-        return t("incidents.status.closed");
-      default:
-        return status;
-    }
+    if (onAssignedToMeChange) onAssignedToMeChange(false);
   };
 
   const getSeverityLabel = (sev: string) => {
@@ -260,22 +247,6 @@ export function IncidentFilterToolbar({
           </div>
         )}
 
-        {/* 3. Lọc Trạng thái (Status Filter) */}
-        <div className="relative min-w-[125px] flex-1 sm:flex-initial">
-          <select
-            value={statusFilter}
-            onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="w-full rounded-xl border border-border/40 bg-surface px-2.5 py-1.5 sm:py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)] transition-colors"
-          >
-            <option value="">{t("incidents.toolbar.allStatuses")}</option>
-            <option value="PENDING_REVIEW">{t("incidents.status.pendingReview")}</option>
-            <option value="CONFIRMED">{t("incidents.status.confirmed")}</option>
-            <option value="RESOLVED">{t("incidents.status.resolved")}</option>
-            <option value="CLOSED">{t("incidents.status.closed")}</option>
-            <option value="DISMISSED">{t("incidents.status.dismissed")}</option>
-          </select>
-        </div>
-
         {/* 4. Lọc Mức độ nguy hiểm (Severity Filter) */}
         <div className="relative min-w-[115px] flex-1 sm:flex-initial">
           <select
@@ -305,6 +276,25 @@ export function IncidentFilterToolbar({
             <option value="MULTI_VIOLATION">{t("incidents.violation.multi")}</option>
           </select>
         </div>
+
+        {/* 6. Lọc nhanh Việc được giao cho tôi (Server-side assignedToMe) */}
+        {onAssignedToMeChange && (
+          <button
+            type="button"
+            aria-pressed={assignedToMe}
+            onClick={() => onAssignedToMeChange(!assignedToMe)}
+            className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 sm:py-2 text-xs font-semibold transition-all cursor-pointer ${
+              assignedToMe
+                ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 shadow-sm"
+                : "border-border/40 bg-surface text-foreground hover:border-primary/40 hover:text-primary shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
+            }`}
+          >
+            <UserCheck className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              {isVietnamese ? "Việc được giao cho tôi" : "Assigned to me"}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* ── HÀNG 3: ACTIVE FILTER CHIPS (KHI CÓ BỘ LỌC ĐANG CHỌN) ─────────── */}
@@ -313,6 +303,21 @@ export function IncidentFilterToolbar({
           <span className="text-[11px] text-muted-foreground mr-1">
             {t("incidents.toolbar.activeFilters") || (isVietnamese ? "Đang lọc:" : "Active:")}
           </span>
+
+          {assignedToMe && onAssignedToMeChange && (
+            <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+              <UserCheck className="h-3 w-3" />
+              <span>{isVietnamese ? "Việc được giao cho tôi" : "Assigned to me"}</span>
+              <button
+                type="button"
+                onClick={() => onAssignedToMeChange(false)}
+                className="hover:text-danger transition ml-0.5"
+                aria-label="Remove assigned to me filter"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )}
 
           {search.trim() && (
             <span className="inline-flex items-center gap-1 rounded-lg border border-border/40 bg-background/80 px-2 py-0.5 text-[11px] text-foreground font-mono">
@@ -354,21 +359,6 @@ export function IncidentFilterToolbar({
                 onClick={() => onCameraIdFilterChange("")}
                 className="hover:text-danger transition ml-0.5"
                 aria-label="Remove camera filter"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          )}
-
-          {statusFilter && (
-            <span className="inline-flex items-center gap-1 rounded-lg border border-border/40 bg-background/80 px-2 py-0.5 text-[11px] text-foreground">
-              <span className="text-muted-foreground">{isVietnamese ? "Trạng thái:" : "Status:"}</span>
-              <span className="font-semibold">{getStatusLabel(statusFilter)}</span>
-              <button
-                type="button"
-                onClick={() => onStatusFilterChange("")}
-                className="hover:text-danger text-muted-foreground transition ml-0.5"
-                aria-label="Remove status filter"
               >
                 <X className="h-3 w-3" />
               </button>

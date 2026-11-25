@@ -1,20 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Volume2,
   X,
   Plus,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocale } from "@/providers/locale-provider";
 import { useNotificationSound } from "@/hooks/notifications/use-notification-sound";
-import { useCreateNotificationTemplate } from "@/hooks/notifications/use-notification-templates";
+import {
+  useCreateNotificationTemplate,
+  useNotificationTemplatesCatalog,
+} from "@/hooks/notifications/use-notification-templates";
+import {
+  generateUniqueEntityCode,
+  isCodeTaken,
+  sanitizeManualCode,
+} from "@/lib/code-generator";
 import {
   SOUND_PRESET_NAMES,
   type SoundPreset,
 } from "@/services/sound.service";
+import { PREDEFINED_SYSTEM_TEMPLATES } from "../notification-predefined-data";
 import type {
   CreateNotificationTemplatePayload,
   NotificationChannel,
@@ -47,6 +57,7 @@ export function CreateNotificationTemplateModal({
   const { playPreset } = useNotificationSound();
 
   const [code, setCode] = useState("");
+  const [isCodeManual, setIsCodeManual] = useState(false);
   const [name, setName] = useState("");
   const [channel, setChannel] = useState<NotificationChannel>("IN_APP");
   const [severity, setSeverity] = useState<NotificationSeverity>("NORMAL");
@@ -55,6 +66,49 @@ export function CreateNotificationTemplateModal({
   const [contentTemplate, setContentTemplate] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
+
+  const { data: templatesCatalog = [] } = useNotificationTemplatesCatalog();
+  const existingTemplateCodes = useMemo(() => {
+    const codes = new Set<string>();
+    for (const item of PREDEFINED_SYSTEM_TEMPLATES) {
+      codes.add(item.code.toUpperCase());
+    }
+    for (const item of templatesCatalog) {
+      if (item.code) codes.add(item.code.toUpperCase());
+    }
+    return Array.from(codes);
+  }, [templatesCatalog]);
+
+  useEffect(() => {
+    if (!open) return;
+    setCode((prev) => {
+      if (prev.trim() && !isCodeTaken(prev, existingTemplateCodes)) return prev;
+      return generateUniqueEntityCode({
+        prefix: "TPL",
+        extraHint: channel,
+        nameHint: name,
+        existingCodes: existingTemplateCodes,
+        separator: "_",
+      });
+    });
+  }, [open, existingTemplateCodes]);
+
+  const handleRandomizeCode = () => {
+    const nextCode = generateUniqueEntityCode({
+      prefix: "TPL",
+      extraHint: channel,
+      nameHint: name,
+      existingCodes: [...existingTemplateCodes, code],
+      separator: "_",
+    });
+    setCode(nextCode);
+    setIsCodeManual(false);
+  };
+
+  const isDuplicateCode = useMemo(
+    () => Boolean(code.trim()) && isCodeTaken(code, existingTemplateCodes),
+    [code, existingTemplateCodes],
+  );
 
   const createMutation = useCreateNotificationTemplate({
     onSuccess: () => {
@@ -66,6 +120,7 @@ export function CreateNotificationTemplateModal({
 
   const resetForm = () => {
     setCode("");
+    setIsCodeManual(false);
     setName("");
     setChannel("IN_APP");
     setSeverity("NORMAL");
@@ -82,10 +137,23 @@ export function CreateNotificationTemplateModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!code.trim() || !name.trim() || !contentTemplate.trim()) return;
+    if (!name.trim() || !contentTemplate.trim()) return;
+
+    const sanitizedManual = sanitizeManualCode(code, "underscore_upper");
+    const finalCode =
+      sanitizedManual.length >= 2 &&
+      !isCodeTaken(sanitizedManual, existingTemplateCodes)
+        ? sanitizedManual
+        : generateUniqueEntityCode({
+            prefix: "TPL",
+            extraHint: channel,
+            nameHint: name,
+            existingCodes: existingTemplateCodes,
+            separator: "_",
+          });
 
     const payload: CreateNotificationTemplatePayload = {
-      code: code.trim().toUpperCase().replace(/\s+/g, "_"),
+      code: finalCode,
       name: name.trim(),
       channel,
       subjectTemplate: subjectTemplate.trim() || null,
@@ -138,24 +206,6 @@ export function CreateNotificationTemplateModal({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Mã mẫu (Template Code) */}
-            <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">
-                {isVietnamese ? "Mã khuôn mẫu (Code) *" : "Template Code *"}
-              </label>
-              <input
-                type="text"
-                required
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                placeholder={isVietnamese ? "VD: CUSTOM_HIGH_ZONE_ALERT" : "e.g., CUSTOM_HIGH_ZONE_ALERT"}
-                className="w-full rounded-xl border border-border/40 bg-background px-3 py-2 font-mono text-xs text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark)] outline-none focus:border-primary/60"
-              />
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                {isVietnamese ? "Viết hoa, không dấu, nối bằng dấu gạch dưới" : "Uppercase letters and underscores only"}
-              </p>
-            </div>
-
             {/* Tên hiển thị */}
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1">
@@ -165,7 +215,21 @@ export function CreateNotificationTemplateModal({
                 type="text"
                 required
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  const nextName = e.target.value;
+                  setName(nextName);
+                  if (!isCodeManual) {
+                    setCode(
+                      generateUniqueEntityCode({
+                        prefix: "TPL",
+                        extraHint: channel,
+                        nameHint: nextName,
+                        existingCodes: existingTemplateCodes,
+                        separator: "_",
+                      }),
+                    );
+                  }
+                }}
                 placeholder={
                   isVietnamese
                     ? "VD: Cảnh báo công nhân vào vùng cấm"
@@ -173,6 +237,64 @@ export function CreateNotificationTemplateModal({
                 }
                 className="w-full rounded-xl border border-border/40 bg-background px-3 py-2 text-xs text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark)] outline-none focus:border-primary/60"
               />
+            </div>
+
+            {/* Mã mẫu (Template Code) */}
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label className="block text-xs font-semibold text-foreground">
+                  {isVietnamese ? "Mã khuôn mẫu (Code)" : "Template Code"}
+                </label>
+                <button
+                  type="button"
+                  onClick={handleRandomizeCode}
+                  disabled={createMutation.isPending}
+                  className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary hover:bg-primary/20 transition disabled:opacity-50"
+                  title={
+                    isVietnamese
+                      ? "Tự động tạo mã mẫu thông báo ngẫu nhiên không trùng"
+                      : "Generate a unique random template code"
+                  }
+                >
+                  <RefreshCw className="size-3" />
+                  <span>{isVietnamese ? "Random mã" : "Randomize"}</span>
+                </button>
+              </div>
+              <input
+                type="text"
+                value={code}
+                onChange={(e) => {
+                  const nextVal = sanitizeManualCode(
+                    e.target.value,
+                    "underscore_upper",
+                  );
+                  setCode(nextVal);
+                  setIsCodeManual(Boolean(nextVal.trim()));
+                }}
+                placeholder={
+                  isVietnamese
+                    ? "Tự động sinh nếu bỏ trống (VD: TPL_IN_APP_8F2K)"
+                    : "Auto-generated if blank (e.g., TPL_IN_APP_8F2K)"
+                }
+                className={`w-full rounded-xl border bg-background px-3 py-2 font-mono text-xs text-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark)] outline-none ${
+                  isDuplicateCode
+                    ? "border-danger text-danger focus:border-danger"
+                    : "border-border/40 focus:border-primary/60"
+                }`}
+              />
+              {isDuplicateCode ? (
+                <p className="text-[10px] font-medium text-danger mt-0.5">
+                  {isVietnamese
+                    ? "Mã này đã tồn tại. Bấm 'Random mã' để đổi mã mới."
+                    : "This code already exists. Click 'Randomize' to generate a unique code."}
+                </p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {isVietnamese
+                    ? "Tự động chuẩn hóa IN_HOA_KHONG_DAU hoặc bấm Random mã"
+                    : "Uppercase letters, digits, and underscores (auto-generated)"}
+                </p>
+              )}
             </div>
           </div>
 

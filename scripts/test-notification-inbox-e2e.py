@@ -29,6 +29,9 @@ def api(route):
         if meta is not None: body['meta'] = meta
         route.fulfill(json=body)
     if path == '/system/public': return ok({})
+    if path == '/auth/me': return ok(dict(id=user, role='ADMIN', siteIds=[]))
+    if path in ('/sites', '/cameras', '/incidents'):
+        return ok([], dict(page=1, limit=int(q.get('limit', ['100'])[0]), total=0, totalPages=0))
     if path == '/notifications':
         page, limit = int(q['page'][0]), int(q['limit'][0])
         reads.append((user, page))

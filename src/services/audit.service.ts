@@ -143,19 +143,50 @@ function normalizeAuditSummary(raw: any): AuditSummaryDto {
   }
   const categoryCounts = raw.categoryCounts || {};
   const totalLogs = raw.totalLogs ?? 0;
-  const successRate = raw.successRate !== undefined ? raw.successRate : null;
+  const recentActivity: AuditLogItem[] | undefined = Array.isArray(raw.recentActivity)
+    ? raw.recentActivity.map(normalizeAuditItem)
+    : undefined;
+
+  let failedCount: number;
+  if (typeof raw.failedCount === "number") {
+    failedCount = raw.failedCount;
+  } else {
+    const failedFromTopActions = Array.isArray(raw.topActions)
+      ? raw.topActions.reduce((acc: number, item: any) => {
+          const act = typeof item?.action === "string" ? item.action : "";
+          const cnt = typeof item?.count === "number" ? item.count : 0;
+          return act === "ACCOUNT_LOCKED" || FAILED_ACTION_REGEX.test(act)
+            ? acc + cnt
+            : acc;
+        }, 0)
+      : 0;
+    const failedFromRecent = Array.isArray(recentActivity)
+      ? recentActivity.filter((item) => item.status === "FAILED").length
+      : 0;
+    failedCount = Math.min(totalLogs, Math.max(failedFromTopActions, failedFromRecent));
+  }
+
+  const successCount =
+    typeof raw.successCount === "number"
+      ? raw.successCount
+      : Math.max(0, totalLogs - failedCount);
+
+  const successRate =
+    raw.successRate !== undefined
+      ? raw.successRate
+      : totalLogs > 0
+        ? Number(((successCount / totalLogs) * 100).toFixed(1))
+        : null;
 
   return {
     ...raw,
     totalLogs,
-    successCount: raw.successCount,
-    failedCount: raw.failedCount,
+    successCount,
+    failedCount,
     configChangesCount: raw.configChangesCount ?? categoryCounts.config ?? 0,
     incidentReviewsCount: raw.incidentReviewsCount ?? categoryCounts.incidentReview ?? 0,
     successRate,
-    recentActivity: Array.isArray(raw.recentActivity)
-      ? raw.recentActivity.map(normalizeAuditItem)
-      : undefined,
+    recentActivity,
     byAction: raw.byAction ?? (Array.isArray(raw.topActions)
       ? Object.fromEntries(raw.topActions.map((a: any) => [a.action, a.count]))
       : undefined),
@@ -216,6 +247,35 @@ export const auditService = {
   async getLogs(
     params?: AuditLogQueryParams,
   ): Promise<{ items: AuditLogItem[]; meta: PaginationMeta }> {
+    const statusFilter = params?.status;
+    if (statusFilter === "SUCCESS" || statusFilter === "FAILED") {
+      const requestedPage = Math.max(1, Number(params?.page ?? 1));
+      const requestedLimit = Math.max(1, Number(params?.limit ?? 20));
+      const { status: _ignoredStatus, ...restParams } = params ?? {};
+      const res = await apiClient.get<any>("/audit-logs", {
+        params: mapAuditQueryParams({
+          ...restParams,
+          page: 1,
+          limit: 100,
+        }),
+      });
+      const unpacked = unwrapPaginated<AuditLogItem>(res, normalizeAuditItem);
+      const filtered = unpacked.items.filter((item) => item.status === statusFilter);
+      const start = (requestedPage - 1) * requestedLimit;
+      const pagedItems = filtered.slice(start, start + requestedLimit);
+      const total = filtered.length;
+      const totalPages = total > 0 ? Math.ceil(total / requestedLimit) : 0;
+      return {
+        items: pagedItems,
+        meta: {
+          page: requestedPage,
+          limit: requestedLimit,
+          total,
+          totalPages,
+        },
+      };
+    }
+
     const res = await apiClient.get<any>("/audit-logs", {
       params: mapAuditQueryParams(params),
     });

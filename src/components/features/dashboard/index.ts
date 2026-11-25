@@ -9,6 +9,7 @@ export * from "./charts/dashboard-ppe-radar-chart";
 export * from "./charts/dashboard-hourly-risk-chart";
 export * from "./charts/dashboard-severity-sla-chart";
 export * from "./charts/dashboard-zone-risk-chart";
+export * from "./charts/dashboard-violation-trends-chart";
 export * from "./dashboard-nav-tabs";
 export * from "./dashboard-executive-kpi";
 export * from "./dashboard-system-status-card";

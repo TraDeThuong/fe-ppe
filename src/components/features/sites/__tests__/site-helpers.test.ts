@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  generateUniqueZoneCode,
   normalizeZoneCode,
   parseSiteContactOfficers,
   resolveDisplayOfficers,
@@ -51,5 +52,19 @@ describe("site-helpers", () => {
     assert.equal(toDateInputValue("2026-11-16T08:30:00.000Z"), "2026-11-16");
     assert.equal(toDateInputValue("invalid-date"), "");
     assert.equal(toDateInputValue(null), "");
+  });
+
+  it("generates unique zone codes that avoid existing zone codes in the site", () => {
+    const existing = ["ZONE-KHU-A", "ZONE-AREA"];
+    const first = generateUniqueZoneCode("Khu B", existing, false);
+    assert.equal(first, "ZONE-KHU-B");
+
+    const collided = generateUniqueZoneCode("Khu A", existing, false);
+    assert.notEqual(collided, "ZONE-KHU-A");
+    assert.match(collided, /^ZONE-KHU-A-[A-Z0-9]{4}$/);
+
+    const forcedRandom = generateUniqueZoneCode("Khu A", existing, true);
+    assert.notEqual(forcedRandom, "ZONE-KHU-A");
+    assert.match(forcedRandom, /^ZONE-[A-Z0-9-]+$/);
   });
 });

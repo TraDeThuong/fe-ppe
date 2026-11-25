@@ -33,13 +33,11 @@ import type { AuditLogItem, AuditLogStatus, ExportAuditParams } from "@/types";
 const STAT_TO_URL: Record<AuditStatKey, string> = {
   totalLogs: "total-logs",
   configChanges: "config-changes",
-  failed: "failed",
 };
 
 const URL_TO_STAT: Record<string, AuditStatKey> = {
   "total-logs": "totalLogs",
   "config-changes": "configChanges",
-  failed: "failed",
   totalLogs: "totalLogs",
   configChanges: "configChanges",
 };
@@ -263,7 +261,6 @@ export default function AuditLogsContent() {
       {/* 2. Unified 2-in-1 Bento Card & Panel Chi Tiết Mở Rộng */}
       <AuditKpiSummary
         summary={summaryData}
-        logs={logsData?.items ?? []}
         totalLogsCount={totalLogsCount}
         loading={isLoadingSummary}
         selectedStat={selectedStat}
@@ -272,15 +269,10 @@ export default function AuditLogsContent() {
         onOpenExport={() => setExportModalOpen(true)}
         onOpenHelp={() => setHelpModalOpen(true)}
         onSwitchTab={handleTabChange}
-        onFilterStatus={(status) => {
-          setStatusFilter(status);
-          setPage(1);
-        }}
         onFilterAction={(action) => {
           setActionFilter(action);
           setPage(1);
         }}
-        onSelectRecord={handleSelectRecord}
       />
 
       {/* 3. Thanh Tab Phân Loại Nhanh (Tất cả Nhật ký, Thay đổi Cấu hình) */}

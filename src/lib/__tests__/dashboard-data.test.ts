@@ -2,12 +2,16 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   aggregateDashboard,
+  buildDashboardAnalyticsFromReporting,
   collectDashboardPages,
   dashboardIncidentHref,
   dashboardPeriod,
   incidentInPeriod,
+  normalizeDashboardTrends,
   pageTotal,
   partitionDashboardCameras,
+  resolveDashboardTrendsWindow,
+  summarizeAiPerformanceTelemetry,
   vietnamToday,
 } from "../dashboard-data";
 import type { CameraItem, IncidentItem } from "@/types";
@@ -445,5 +449,234 @@ describe("dashboard aggregate semantics", () => {
     assert.equal(raw.total, 2);
     assert.equal(raw.rawTotal, 2);
     assert.equal(raw.cameras[0].total, 2);
+  });
+
+  it("resolves safe <= 90-day windows and zero-fills Day/Week/Month trend buckets", () => {
+    const todayPeriod = dashboardPeriod("today", "2026-11-25")!;
+    const dayWin = resolveDashboardTrendsWindow(todayPeriod, "DAY")!;
+    assert.equal(dayWin.startDate, "2026-11-19");
+    assert.equal(dayWin.endDate, "2026-11-25");
+    assert.equal(dayWin.autoExpanded, true);
+
+    const normalizedDay = normalizeDashboardTrends(
+      [
+        {
+          date: "2026-11-20",
+          totalIncidents: 5,
+          trueViolations: 4,
+          falseAlarms: 1,
+          resolvedCount: 3,
+        },
+      ],
+      dayWin,
+    );
+    assert.equal(normalizedDay.length, 7);
+    assert.equal(normalizedDay[0].date, "2026-11-19");
+    assert.equal(normalizedDay[0].totalIncidents, 0);
+    assert.equal(normalizedDay[1].date, "2026-11-20");
+    assert.equal(normalizedDay[1].totalIncidents, 5);
+
+    const monthWin = resolveDashboardTrendsWindow(todayPeriod, "MONTH")!;
+    const diffDays =
+      (Date.parse(`${monthWin.endDate}T00:00:00Z`) -
+        Date.parse(`${monthWin.startDate}T00:00:00Z`)) /
+      86_400_000;
+    assert.ok(diffDays <= 90);
+    const normalizedMonth = normalizeDashboardTrends([], monthWin);
+    assert.ok(normalizedMonth.length >= 3);
+  });
+
+  it("computes frame-weighted AI telemetry FPS & Latency and falls back to declared metrics", () => {
+    const telemetry = summarizeAiPerformanceTelemetry(
+      [
+        {
+          id: "t1",
+          cameraId: "cam-1",
+          modelVersionId: "ver-1",
+          statDate: "2026-11-24",
+          avgFps: 30,
+          avgLatencyMs: 12,
+          maxLatencyMs: 18,
+          totalFrames: "1000",
+        },
+        {
+          id: "t2",
+          cameraId: "cam-2",
+          modelVersionId: "ver-1",
+          statDate: "2026-11-25",
+          avgFps: 20,
+          avgLatencyMs: 22,
+          maxLatencyMs: 35,
+          totalFrames: "3000",
+        },
+      ],
+      {
+        id: "ver-1",
+        modelId: "mod-1",
+        version: "1.2.0",
+        framework: "TENSORRT",
+        inputSize: "640x640",
+        status: "DEPLOYED",
+        metrics: { fps: 45, latencyMs: 8 },
+        createdAt: "2026-11-01T00:00:00Z",
+      },
+    );
+    assert.equal(telemetry.source, "telemetry");
+    assert.equal(telemetry.totalFrames, 4000);
+    assert.equal(telemetry.avgFps, 22.5);
+    assert.equal(telemetry.avgLatencyMs, 19.5);
+    assert.equal(telemetry.maxLatencyMs, 35);
+
+    const fallback = summarizeAiPerformanceTelemetry([], {
+      id: "ver-1",
+      modelId: "mod-1",
+      version: "1.2.0",
+      framework: "TENSORRT",
+      inputSize: "640x640",
+      status: "DEPLOYED",
+      metrics: { fps: 45, latencyMs: 8 },
+      createdAt: "2026-11-01T00:00:00Z",
+    });
+    assert.equal(fallback.source, "declared");
+    assert.equal(fallback.avgFps, 45);
+    assert.equal(fallback.avgLatencyMs, 8);
+  });
+
+  it("maps Backend /statistics/* DTOs via buildDashboardAnalyticsFromReporting and strips TOTAL_AGGREGATED", () => {
+    const analytics = buildDashboardAnalyticsFromReporting({
+      summary: {
+        totalIncidents: 20,
+        openIncidents: 4,
+        resolvedIncidents: 10,
+        trueViolations: 4,
+        falseAlarms: 2,
+        falseAlarmRate: 12.5,
+        complianceRate: 94.2,
+        meanTimeToResolveHours: 0.5,
+        periodStart: "2026-11-19",
+        periodEnd: "2026-11-25",
+        severityBreakdown: {
+          CRITICAL: {
+            count: 5,
+            resolved: 3,
+            targetSlaMinutes: 15,
+            actualMttrMinutes: 12,
+          },
+          HIGH: {
+            count: 8,
+            resolved: 4,
+            targetSlaMinutes: 30,
+            actualMttrMinutes: 25,
+          },
+          MEDIUM: {
+            count: 5,
+            resolved: 2,
+            targetSlaMinutes: 60,
+            actualMttrMinutes: 45,
+          },
+          LOW: {
+            count: 2,
+            resolved: 1,
+            targetSlaMinutes: 120,
+            actualMttrMinutes: 60,
+          },
+        },
+      },
+      violations: [
+        { violationType: "TOTAL_AGGREGATED", count: 0, percentage: 0 },
+        { violationType: "NO_HARD_HAT", count: 9, percentage: 45 },
+        { violationType: "NO_SAFETY_VEST", count: 6, percentage: 30 },
+        { violationType: "RESTRICTED_ZONE", count: 3, percentage: 15 },
+        { violationType: "MULTI_VIOLATION", count: 2, percentage: 10 },
+      ],
+      hourlyRisk: {
+        date: "2026-11-25",
+        totalIncidents: 20,
+        peakHour: { hour: 9, label: "09:00 - 09:59", count: 7 },
+        hourly: [
+          { hour: 2, label: "02:00", count: 3 },
+          { hour: 9, label: "09:00", count: 7 },
+          { hour: 15, label: "15:00", count: 6 },
+          { hour: 23, label: "23:00", count: 4 },
+        ],
+        shifts: {
+          morning: {
+            name: "Ca sáng",
+            timeRange: "06:00 - 14:00",
+            totalIncidents: 7,
+            percentage: 35,
+          },
+          afternoon: {
+            name: "Ca chiều",
+            timeRange: "14:00 - 22:00",
+            totalIncidents: 6,
+            percentage: 30,
+          },
+          night: {
+            name: "Ca đêm",
+            timeRange: "22:00 - 06:00",
+            totalIncidents: 7,
+            percentage: 35,
+          },
+        },
+      },
+      cameraRankings: [
+        {
+          cameraId: "cam-2",
+          cameraName: "Camera Kho",
+          totalViolations: 12,
+          resolvedCount: 7,
+          falseAlarmCount: 2,
+        },
+        {
+          cameraId: "cam-1",
+          cameraName: "Camera Cổng",
+          totalViolations: 8,
+          resolvedCount: 3,
+          falseAlarmCount: 0,
+        },
+      ],
+    });
+
+    assert.equal(analytics.total, 20);
+    assert.equal(analytics.multiViolationClusters, 2);
+    assert.equal(
+      analytics.distribution.find((d) => d.key === "OTHER"),
+      undefined,
+    );
+    assert.equal(
+      analytics.distribution.find((d) => d.key === "NO_HELMET")?.count,
+      9,
+    );
+    assert.equal(
+      analytics.distribution.find((d) => d.key === "NO_VEST")?.count,
+      6,
+    );
+    assert.equal(
+      analytics.distribution.find((d) => d.key === "RESTRICTED_AREA")?.count,
+      3,
+    );
+
+    assert.equal(analytics.hours[9], 7);
+    assert.equal(analytics.hours[15], 6);
+    assert.deepEqual(analytics.shifts, { morning: 7, afternoon: 6, night: 7 });
+
+    const critical = analytics.severities.find((s) => s.key === "CRITICAL")!;
+    assert.equal(critical.count, 5);
+    assert.equal(critical.resolved, 3);
+    assert.equal(critical.pending + critical.confirmed + critical.dismissed, 2);
+    assert.equal(critical.mttrMinutes, 12);
+    assert.equal(critical.targetSlaMinutes, 15);
+
+    assert.equal(analytics.mttrMinutes, 30); // 0.5h * 60
+    assert.equal(analytics.reviewed, 16); // 4 + 10 + 2
+    assert.equal(analytics.dismissedRate, 12.5);
+    assert.equal(analytics.complianceRate, 94.2);
+
+    assert.equal(analytics.cameras[0].cameraId, "cam-2");
+    assert.equal(analytics.cameras[0].total, 12);
+    assert.equal(analytics.cameras[0].resolved, 7);
+    assert.equal(analytics.cameras[0].dismissed, 2);
+    assert.equal(analytics.cameras[0].pending, 3); // 12 - 7 - 2
   });
 });

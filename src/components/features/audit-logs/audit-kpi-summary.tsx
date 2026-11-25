@@ -2,18 +2,16 @@
 
 import { useState } from "react";
 import {
-  AlertTriangle,
   ChevronDown,
   ChevronUp,
   FileText,
   Settings,
   ShieldCheck,
 } from "lucide-react";
-import { Typography } from "@/components/ui/typography";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { useLocale } from "@/providers/locale-provider";
-import type { AuditLogItem, AuditSummaryDto } from "@/types";
+import type { AuditSummaryDto } from "@/types";
 import {
   AuditStatsDetailPanel,
   type AuditStatKey,
@@ -23,7 +21,6 @@ export type { AuditStatKey };
 
 export interface AuditKpiSummaryProps {
   summary?: AuditSummaryDto;
-  logs?: AuditLogItem[];
   totalLogsCount: number;
   loading?: boolean;
   selectedStat?: AuditStatKey | null;
@@ -32,14 +29,11 @@ export interface AuditKpiSummaryProps {
   onOpenExport?: () => void;
   onOpenHelp?: () => void;
   onSwitchTab?: (tab: "all" | "configChanges") => void;
-  onFilterStatus?: (status: "SUCCESS" | "FAILED" | "") => void;
   onFilterAction?: (action: string) => void;
-  onSelectRecord?: (record: AuditLogItem) => void;
 }
 
 export function AuditKpiSummary({
   summary,
-  logs = [],
   totalLogsCount,
   loading = false,
   selectedStat: propSelectedStat,
@@ -48,9 +42,7 @@ export function AuditKpiSummary({
   onOpenExport,
   onOpenHelp,
   onSwitchTab,
-  onFilterStatus,
   onFilterAction,
-  onSelectRecord,
 }: AuditKpiSummaryProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -70,7 +62,6 @@ export function AuditKpiSummary({
 
   const total = summary?.totalLogs ?? totalLogsCount;
   const configChanges = summary?.configChangesCount ?? summary?.categoryCounts?.config ?? 0;
-  const failedCount = summary?.failedCount ?? 0;
 
   const configRatio = total > 0 ? Math.min(100, Number(((configChanges / total) * 100).toFixed(1))) : 0;
 
@@ -119,32 +110,8 @@ export function AuditKpiSummary({
               </span>
             </div>
 
-            {/* Header Actions: Conditional Failure Alert Badge + WORM Badge */}
+            {/* Header Actions: WORM Badge */}
             <div className="flex flex-wrap items-center gap-2">
-              {!loading && failedCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => handleToggle("failed")}
-                  aria-expanded={activeStat === "failed"}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-extrabold transition-all duration-200 cursor-pointer ${activeStat === "failed"
-                      ? "border-rose-500 bg-rose-500 text-white shadow-[0_3px_10px_rgba(244,63,94,0.35)]"
-                      : "border-rose-500/35 bg-rose-500/10 text-rose-600 dark:text-rose-400 shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] hover:-translate-y-0.5 hover:bg-rose-500/15"
-                    }`}
-                >
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                  <span>
-                    {failedCount === 1
-                      ? t("audit.kpi.failedAlert", { count: failedCount })
-                      : t("audit.kpi.failedAlertPlural", { count: failedCount })}
-                  </span>
-                  {activeStat === "failed" ? (
-                    <ChevronUp className="h-3.5 w-3.5 shrink-0" />
-                  ) : (
-                    <ChevronDown className="h-3.5 w-3.5 shrink-0" />
-                  )}
-                </button>
-              )}
-
               {/* Recessed Security Badge */}
               <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-gradient-to-r from-primary/10 via-background to-accent/15 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-primary shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
                 <ShieldCheck className="h-3.5 w-3.5 text-primary" />
@@ -322,16 +289,13 @@ export function AuditKpiSummary({
         <AuditStatsDetailPanel
           activeStat={activeStat}
           summary={summary}
-          logs={logs}
           totalLogsCount={totalLogsCount}
           selectedAction={selectedAction}
           onClose={() => handleToggle(activeStat)}
           onOpenExport={onOpenExport}
           onOpenHelp={onOpenHelp}
           onSwitchTab={onSwitchTab}
-          onFilterStatus={onFilterStatus}
           onFilterAction={onFilterAction}
-          onSelectRecord={onSelectRecord}
         />
       )}
     </div>

@@ -11,18 +11,26 @@ import { cameraKeys } from "@/hooks/cameras/camera.query-keys";
 import { aiMetricsKeys } from "@/hooks/ai-metrics/ai-metrics.query-keys";
 import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
 import {
-  aggregateDashboard,
+  buildDashboardAnalyticsFromReporting,
   collectDashboardPages,
   dashboardPeriod,
-  incidentInPeriod,
+  normalizeDashboardTrends,
   pageTotal,
+  resolveDashboardTrendsWindow,
+  summarizeAiPerformanceTelemetry,
   vietnamToday,
 } from "@/lib/dashboard-data";
 import {
   clusterIncidentsByPerson,
   type IncidentAggregationMode,
 } from "@/lib/incident-cluster-engine";
-import type { DashboardPeriod, DashboardPreset } from "@/types/dashboard.types";
+import type {
+  DashboardPeriod,
+  DashboardPreset,
+  DashboardTrendGroupBy,
+} from "@/types/dashboard.types";
+
+const LIVE_INCIDENTS_QUEUE_LIMIT = 15;
 
 export function useDashboardPeriod(initial?: {
   preset?: DashboardPreset | null;
@@ -78,8 +86,10 @@ interface DashboardAccess {
   cameras: boolean;
   cameraCatalog?: boolean;
   model: boolean;
+  aiMetrics?: boolean;
   ready: boolean;
   groupingMode?: IncidentAggregationMode;
+  trendGroupBy?: DashboardTrendGroupBy;
 }
 
 // Retain stale data for transport failures, but never after access is revoked.
@@ -101,26 +111,79 @@ export function useDashboardData(access: DashboardAccess) {
     staleTime: 10_000,
     retry: false,
   } as const;
-  const periodQuery = useQuery({
-    queryKey: [...incidentKeys.lists(), "dashboard-period", scope, period],
-    enabled: ready && access.incidents && !!period,
+  const statsFilter = useMemo(
+    () =>
+      period
+        ? {
+            ...(siteId ? { siteId } : {}),
+            startDate: period.startDate,
+            endDate: period.endDate,
+          }
+        : undefined,
+    [siteId, period],
+  );
+  const summaryQuery = useQuery({
+    queryKey: [...reportingKeys.summary(statsFilter), "dashboard", userId],
+    enabled: ready && access.analytics && !!statsFilter,
     queryFn: ({ signal }) =>
-      collectDashboardPages(
-        (page, limit) =>
-          incidentService.getIncidents(
-            {
-              siteId: siteId || undefined,
-              fromDate: period!.fromDate,
-              toDate: period!.toDate,
-              page,
-              limit,
-              sortBy: "detectedAt",
-              sortOrder: "desc",
-            },
-            { signal },
-          ),
-        { signal, accept: (item) => incidentInPeriod(item, period!, siteId) },
-      ),
+      reportingService.getSummary(statsFilter, {
+        signal,
+        suppressToast: true,
+        strict: true,
+      }),
+    ...polling,
+  });
+  const violationQuery = useQuery({
+    queryKey: [...reportingKeys.distribution(statsFilter), "dashboard", userId],
+    enabled: ready && access.analytics && !!statsFilter,
+    queryFn: ({ signal }) =>
+      reportingService.getViolationDistribution(statsFilter, {
+        signal,
+        suppressToast: true,
+      }),
+    ...polling,
+  });
+  const hourlyRiskParams = useMemo(
+    () =>
+      period
+        ? {
+            ...(siteId ? { siteId } : {}),
+            startDate: period.startDate,
+            endDate: period.endDate,
+          }
+        : undefined,
+    [siteId, period],
+  );
+  const hourlyRiskQuery = useQuery({
+    queryKey: [
+      ...reportingKeys.hourlyRisk(hourlyRiskParams),
+      "dashboard",
+      userId,
+    ],
+    enabled: ready && access.analytics && !!hourlyRiskParams,
+    queryFn: ({ signal }) =>
+      reportingService.getHourlyRisk(hourlyRiskParams, {
+        signal,
+        suppressToast: true,
+      }),
+    ...polling,
+  });
+  const cameraRankingsParams = useMemo(
+    () => (statsFilter ? { ...statsFilter, limit: 50 } : undefined),
+    [statsFilter],
+  );
+  const cameraRankingsQuery = useQuery({
+    queryKey: [
+      ...reportingKeys.rankings(cameraRankingsParams),
+      "dashboard",
+      userId,
+    ],
+    enabled: ready && access.analytics && !!cameraRankingsParams,
+    queryFn: ({ signal }) =>
+      reportingService.getCameraRankings(cameraRankingsParams, {
+        signal,
+        suppressToast: true,
+      }),
     ...polling,
   });
   const pendingQuery = useQuery({
@@ -160,7 +223,7 @@ export function useDashboardData(access: DashboardAccess) {
             siteId: siteId || undefined,
             status: "PENDING_REVIEW",
             page: 1,
-            limit: 100,
+            limit: LIVE_INCIDENTS_QUEUE_LIMIT,
             sortBy: "detectedAt",
             sortOrder: "desc",
           },
@@ -171,7 +234,7 @@ export function useDashboardData(access: DashboardAccess) {
             siteId: siteId || undefined,
             status: "CONFIRMED",
             page: 1,
-            limit: 100,
+            limit: LIVE_INCIDENTS_QUEUE_LIMIT,
             sortBy: "detectedAt",
             sortOrder: "desc",
           },
@@ -198,6 +261,57 @@ export function useDashboardData(access: DashboardAccess) {
     // BE GET /statistics/dashboard-kpi yêu cầu chặt quyền PPE_REPORTING_READ (access.analytics)
     enabled: ready && access.analytics,
     queryFn: () => reportingService.getDashboardKpi(siteId || undefined),
+    ...polling,
+  });
+  const trendGroupBy: DashboardTrendGroupBy = access.trendGroupBy ?? "DAY";
+  const trendsWindow = useMemo(
+    () => resolveDashboardTrendsWindow(period, trendGroupBy),
+    [period, trendGroupBy],
+  );
+  const trendsParams = useMemo(
+    () =>
+      trendsWindow
+        ? {
+            ...(siteId ? { siteId } : {}),
+            startDate: trendsWindow.startDate,
+            endDate: trendsWindow.endDate,
+            groupBy: trendsWindow.groupBy,
+          }
+        : undefined,
+    [siteId, trendsWindow],
+  );
+  const trendsQuery = useQuery({
+    queryKey: [...reportingKeys.trends(trendsParams), "dashboard", userId],
+    enabled: ready && access.analytics && !!trendsWindow,
+    queryFn: ({ signal }) =>
+      reportingService.getTrends(trendsParams, {
+        signal,
+        suppressToast: true,
+      }),
+    ...polling,
+  });
+  const aiPerfParams = useMemo(
+    () =>
+      period
+        ? {
+            startDate: period.startDate,
+            endDate: period.endDate,
+          }
+        : undefined,
+    [period],
+  );
+  const aiPerformanceQuery = useQuery({
+    queryKey: [
+      ...reportingKeys.aiPerformance(aiPerfParams),
+      "dashboard",
+      userId,
+    ],
+    enabled: ready && Boolean(access.aiMetrics) && !!period,
+    queryFn: ({ signal }) =>
+      reportingService.getAiPerformance(aiPerfParams, {
+        signal,
+        suppressToast: true,
+      }),
     ...polling,
   });
   const recentNeedsCameraName = (recentQuery.data?.items ?? []).some(
@@ -280,9 +394,21 @@ export function useDashboardData(access: DashboardAccess) {
     queryFn: () => aiMetricsService.getAiModels(),
     ...polling,
   });
-  const visiblePeriod = visibleQuery(
-    periodQuery,
-    ready && access.incidents && !!period,
+  const visibleSummary = visibleQuery(
+    summaryQuery,
+    ready && access.analytics && !!statsFilter,
+  );
+  const visibleViolation = visibleQuery(
+    violationQuery,
+    ready && access.analytics && !!statsFilter,
+  );
+  const visibleHourlyRisk = visibleQuery(
+    hourlyRiskQuery,
+    ready && access.analytics && !!hourlyRiskParams,
+  );
+  const visibleCameraRankings = visibleQuery(
+    cameraRankingsQuery,
+    ready && access.analytics && !!cameraRankingsParams,
   );
   const visibleCameraCounts = visibleQuery(
     cameraCountsQuery,
@@ -295,13 +421,83 @@ export function useDashboardData(access: DashboardAccess) {
     }),
     [visibleCameraCounts],
   );
-  const groupingMode: IncidentAggregationMode =
-    access.groupingMode ?? "clustered";
   const analytics = useMemo(() => {
-    if (!visiblePeriod.data?.complete) return null;
-    return aggregateDashboard(visiblePeriod.data.items, { mode: groupingMode });
-  }, [visiblePeriod.data, groupingMode]);
+    if (!visibleSummary.data) return null;
+    return buildDashboardAnalyticsFromReporting({
+      summary: visibleSummary.data,
+      violations: visibleViolation.data,
+      hourlyRisk: visibleHourlyRisk.data,
+      cameraRankings: visibleCameraRankings.data,
+    });
+  }, [
+    visibleSummary.data,
+    visibleViolation.data,
+    visibleHourlyRisk.data,
+    visibleCameraRankings.data,
+  ]);
+  const visiblePeriod = useMemo(
+    () => ({
+      ...visibleSummary,
+      data: visibleSummary.data
+        ? {
+            total: analytics?.total ?? visibleSummary.data.totalIncidents,
+            complete: true as const,
+            issue: null,
+          }
+        : undefined,
+      refetch: async () => {
+        const [summaryRes] = await Promise.all([
+          summaryQuery.refetch(),
+          violationQuery.refetch(),
+          hourlyRiskQuery.refetch(),
+          cameraRankingsQuery.refetch(),
+          trendsQuery.refetch(),
+        ]);
+        return summaryRes;
+      },
+    }),
+    [
+      visibleSummary,
+      analytics?.total,
+      summaryQuery,
+      violationQuery,
+      hourlyRiskQuery,
+      cameraRankingsQuery,
+      trendsQuery,
+    ],
+  );
   const visibleRecent = visibleQuery(recentQuery, ready && access.incidents);
+  const visibleDashboardKpi = visibleQuery(
+    dashboardKpiQuery,
+    ready && access.analytics,
+  );
+  const visibleModel = visibleQuery(modelQuery, ready && access.model);
+  const visibleModels = visibleQuery(modelsQuery, ready && access.model);
+  const visibleTrends = visibleQuery(
+    trendsQuery,
+    ready && access.analytics && !!trendsWindow,
+  );
+  const visibleAiPerformance = visibleQuery(
+    aiPerformanceQuery,
+    ready && Boolean(access.aiMetrics) && !!period,
+  );
+  const trends = useMemo(
+    () => normalizeDashboardTrends(visibleTrends.data ?? [], trendsWindow),
+    [visibleTrends.data, trendsWindow],
+  );
+  const aiTelemetry = useMemo(
+    () =>
+      summarizeAiPerformanceTelemetry(
+        visibleAiPerformance.data,
+        visibleModel.data,
+        visibleDashboardKpi.data?.activeModel ?? null,
+      ),
+    [
+      visibleAiPerformance.data,
+      visibleModel.data,
+      visibleDashboardKpi.data?.activeModel,
+    ],
+  );
   const unresolvedClusters = useMemo(() => {
     const items = visibleRecent.data?.items ?? [];
     if (items.length === 0) return [];
@@ -309,18 +505,24 @@ export function useDashboardData(access: DashboardAccess) {
   }, [visibleRecent.data?.items]);
   return {
     periodQuery: visiblePeriod,
+    summaryQuery: visibleSummary,
+    violationQuery: visibleViolation,
+    hourlyRiskQuery: visibleHourlyRisk,
+    cameraRankingsQuery: visibleCameraRankings,
     pendingQuery: visibleQuery(pendingQuery, ready && access.incidents),
     recentQuery: visibleRecent,
     unresolvedClusters,
     cameraQuery: visibleQuery(cameraQuery, ready && access.cameras),
     cameraCountsQuery: visibleCameraCounts,
     onlineQuery,
-    dashboardKpiQuery: visibleQuery(
-      dashboardKpiQuery,
-      ready && access.analytics,
-    ),
-    modelQuery: visibleQuery(modelQuery, ready && access.model),
-    modelsQuery: visibleQuery(modelsQuery, ready && access.model),
+    dashboardKpiQuery: visibleDashboardKpi,
+    trendsQuery: visibleTrends,
+    trendsWindow,
+    trends,
+    aiPerformanceQuery: visibleAiPerformance,
+    aiTelemetry,
+    modelQuery: visibleModel,
+    modelsQuery: visibleModels,
     analytics,
   };
 }

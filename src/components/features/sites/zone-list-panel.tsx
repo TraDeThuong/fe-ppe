@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Edit2, Layers, Loader2, Plus, Trash2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Edit2, Layers, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   useCreateZone,
@@ -10,8 +10,9 @@ import {
   useUpdateZone,
 } from "@/hooks/sites";
 import { useCan } from "@/hooks/use-can";
+import { isCodeTaken, sanitizeManualCode } from "@/lib/code-generator";
 import { useLocale } from "@/providers/locale-provider";
-import { normalizeZoneCode } from "./site-helpers";
+import { generateUniqueZoneCode } from "./site-helpers";
 import type { ZoneItem, ZoneStatus } from "@/types";
 
 export interface ZoneListPanelProps {
@@ -30,32 +31,48 @@ export function ZoneListPanel({ siteId }: ZoneListPanelProps) {
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [isCodeManual, setIsCodeManual] = useState(false);
   const [status, setStatus] = useState<ZoneStatus>("ACTIVE");
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
 
+  const existingZoneCodes = useMemo(
+    () =>
+      zones
+        .filter((z) => z.id !== editingZoneId)
+        .map((z) => z.code),
+    [zones, editingZoneId],
+  );
+
   const resetForm = () => {
     setName("");
     setCode("");
+    setIsCodeManual(false);
     setStatus("ACTIVE");
     setEditingZoneId(null);
     setIsAdding(false);
+  };
+
+  const handleRandomizeCode = () => {
+    const nextCode = generateUniqueZoneCode(
+      name,
+      [...existingZoneCodes, code],
+      true,
+    );
+    setCode(nextCode);
+    setIsCodeManual(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
-    const formattedCode = code.trim()
-      ? code
-          .trim()
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/đ/g, "d")
-          .replace(/Đ/g, "D")
-          .toUpperCase()
-          .replace(/[^A-Z0-9_-]+/g, "-")
-      : normalizeZoneCode(name);
+    const sanitizedManual = sanitizeManualCode(code, "standard");
+    const formattedCode =
+      sanitizedManual.length >= 2 &&
+      !isCodeTaken(sanitizedManual, existingZoneCodes)
+        ? sanitizedManual
+        : generateUniqueZoneCode(name, existingZoneCodes, false);
 
     if (editingZoneId) {
       await updateZone.mutateAsync({
@@ -85,6 +102,7 @@ export function ZoneListPanel({ siteId }: ZoneListPanelProps) {
     setEditingZoneId(zone.id);
     setName(zone.name);
     setCode(zone.code);
+    setIsCodeManual(true);
     setStatus((zone.status as ZoneStatus) || "ACTIVE");
     setIsAdding(true);
   };
@@ -112,6 +130,9 @@ export function ZoneListPanel({ siteId }: ZoneListPanelProps) {
           size="sm"
           onClick={() => {
             setEditingZoneId(null);
+            setName("");
+            setCode(generateUniqueZoneCode("", existingZoneCodes, true));
+            setIsCodeManual(false);
             setIsAdding(true);
           }}
           className="flex items-center gap-1.5 text-xs w-full justify-center"
@@ -130,18 +151,48 @@ export function ZoneListPanel({ siteId }: ZoneListPanelProps) {
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                const nextName = e.target.value;
+                setName(nextName);
+                if (!editingZoneId && !isCodeManual) {
+                  setCode(
+                    generateUniqueZoneCode(
+                      nextName,
+                      existingZoneCodes,
+                      !nextName.trim(),
+                    ),
+                  );
+                }
+              }}
               placeholder={t("sites.zones.namePlaceholder")}
               className="rounded-lg border border-border/50 bg-background/80 px-3 py-1.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none"
               required
             />
-            <input
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder={t("sites.zones.codePlaceholder")}
-              className="rounded-lg border border-border/50 bg-background/80 px-3 py-1.5 font-mono text-xs uppercase shadow-nm-inset focus:border-primary focus:outline-none"
-            />
+            <div className="relative flex items-center">
+              <input
+                type="text"
+                value={code}
+                onChange={(e) => {
+                  const val = e.target.value.toUpperCase();
+                  setCode(val);
+                  setIsCodeManual(Boolean(val.trim()));
+                }}
+                placeholder={t("sites.zones.codePlaceholder")}
+                className="w-full rounded-lg border border-border/50 bg-background/80 pl-3 pr-8 py-1.5 font-mono text-xs uppercase shadow-nm-inset focus:border-primary focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleRandomizeCode}
+                title={
+                  isVietnamese
+                    ? "Random mã phân khu không trùng"
+                    : "Randomize unique zone code"
+                }
+                className="absolute right-1.5 rounded-md p-1 text-primary hover:bg-primary/15 transition"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
+            </div>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value as ZoneStatus)}

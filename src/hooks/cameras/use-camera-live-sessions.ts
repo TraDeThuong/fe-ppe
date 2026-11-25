@@ -49,6 +49,7 @@ export function useCameraLiveSessions(options?: {
     enabled,
     staleTime: 60_000,
     retry: 1,
+    meta: { suppressErrorToast: true },
   });
 
   const videosQuery = useQuery<LiveVideoItem[]>({
@@ -57,6 +58,7 @@ export function useCameraLiveSessions(options?: {
     enabled,
     staleTime: 15_000,
     retry: 1,
+    meta: { suppressErrorToast: true },
   });
 
   const runtimeConfigQuery = useQuery<LiveRuntimeConfigResponse | null>({
@@ -75,6 +77,7 @@ export function useCameraLiveSessions(options?: {
     staleTime: 15_000,
     refetchInterval: (query) => (enabled && query.state.data !== null ? 15_000 : false),
     retry: false,
+    meta: { suppressErrorToast: true },
   });
 
   const sessionsQuery = useQuery<{
@@ -86,6 +89,7 @@ export function useCameraLiveSessions(options?: {
     enabled,
     refetchInterval: enabled ? pollIntervalMs : false,
     retry: 1,
+    meta: { suppressErrorToast: true },
   });
 
   const productionMode =

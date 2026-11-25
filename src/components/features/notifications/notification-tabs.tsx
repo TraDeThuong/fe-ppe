@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Inbox, SlidersHorizontal, FileText, Mail } from "lucide-react";
+import { Archive, Inbox, SlidersHorizontal, FileText, Mail } from "lucide-react";
 import {
   SegmentedControl,
   type SegmentedControlOption,
@@ -9,20 +9,23 @@ import {
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 
-export type NotificationTabKey = "inbox" | "preferences" | "templates" | "emailLogs";
+export type NotificationTabKey = "inbox" | "archive" | "preferences" | "templates" | "emailLogs";
 
 export function useNotificationTabAccess() {
   const can = useCan();
+  const canRead = can("NOTIFICATION_READ");
   const canViewTemplates = can("NOTIFICATION_TEMPLATE_READ");
   const canViewEmailLogs = can("NOTIFICATION_TEMPLATE_MANAGE");
   const canManageTemplates = can("NOTIFICATION_TEMPLATE_MANAGE");
   const canBroadcast = can("NOTIFICATION_CREATE");
 
   const allowedTabs: NotificationTabKey[] = ["inbox", "preferences"];
+  if (canRead) allowedTabs.push("archive");
   if (canViewTemplates) allowedTabs.push("templates");
   if (canViewEmailLogs) allowedTabs.push("emailLogs");
 
   return {
+    canRead,
     canViewTemplates,
     canViewEmailLogs,
     canManageTemplates,
@@ -45,7 +48,7 @@ export function NotificationTabs({
   className = "",
 }: NotificationTabsProps) {
   const { t } = useLocale();
-  const { canViewTemplates, canViewEmailLogs } = useNotificationTabAccess();
+  const { canRead, canViewTemplates, canViewEmailLogs } = useNotificationTabAccess();
 
   const tabOptions = useMemo<SegmentedControlOption<NotificationTabKey>[]>(() => {
     const options: SegmentedControlOption<NotificationTabKey>[] = [
@@ -57,12 +60,16 @@ export function NotificationTabs({
             : t("notifications.tabs.inbox"),
         icon: <Inbox className="size-4" />,
       },
-      {
-        value: "preferences",
-        label: t("notifications.tabs.preferences"),
-        icon: <SlidersHorizontal className="size-4" />,
-      },
     ];
+
+    if (canRead) {
+      options.push({ value: "archive", label: t("notifications.tabs.archive"), icon: <Archive className="size-4" /> });
+    }
+    options.push({
+      value: "preferences",
+      label: t("notifications.tabs.preferences"),
+      icon: <SlidersHorizontal className="size-4" />,
+    });
 
     if (canViewTemplates) {
       options.push({
@@ -81,7 +88,7 @@ export function NotificationTabs({
     }
 
     return options;
-  }, [t, unreadCount, canViewTemplates, canViewEmailLogs]);
+  }, [t, unreadCount, canRead, canViewTemplates, canViewEmailLogs]);
 
   return (
     <div className={`w-full ${className}`}>

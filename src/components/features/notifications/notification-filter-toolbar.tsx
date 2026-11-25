@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import {
   Camera,
   CheckCheck,
@@ -36,6 +36,7 @@ export interface NotificationFilterToolbarProps {
   onFilterChange: (newFilter: NotificationFilterState) => void;
   onMarkAllRead?: () => void;
   isMarkingAllRead?: boolean;
+  archiveAction?: ReactNode;
   onRefresh?: () => void;
   isRefreshing?: boolean;
   viewMode?: NotificationViewMode;
@@ -55,6 +56,7 @@ export function NotificationFilterToolbar({
   onFilterChange,
   onMarkAllRead,
   isMarkingAllRead = false,
+  archiveAction,
   onRefresh,
   isRefreshing = false,
   viewMode,
@@ -194,6 +196,8 @@ export function NotificationFilterToolbar({
               <span>{t("notifications.actions.markAllRead")}</span>
             </Button>
           )}
+
+          {archiveAction}
 
           {onRefresh && (
             <RefreshIconButton

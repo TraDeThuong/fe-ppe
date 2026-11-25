@@ -36,6 +36,18 @@ export function handleMutationError(error: unknown, suppressToast?: boolean): vo
   if (!shouldToastError(error, suppressToast)) return;
 
   if (error instanceof ApiError) {
+    if (error.code === ErrorCode.FEATURE_DISABLED) {
+      toast.error(
+        pickLocaleText(
+          error.message && error.message !== "Request failed."
+            ? error.message
+            : "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng.",
+          "Automated notifications and email dispatch are currently paused by the Administrator.",
+        ),
+      );
+      return;
+    }
+
     toast.error(
       error.message ||
         pickLocaleText(

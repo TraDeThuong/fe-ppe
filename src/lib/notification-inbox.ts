@@ -20,7 +20,11 @@ export function getNotificationChannels(item: NotificationItemDto): Notification
   }
   return [item.channel];
 }
-export interface NotificationInboxSnapshot { items: NotificationItemDto[]; rawTotal: number }
+export interface NotificationInboxSnapshot {
+  items: NotificationItemDto[];
+  rawTotal: number;
+  broadcastAliases?: Readonly<Record<string, string>>;
+}
 interface InboxReceipts { aliases: Record<string, string>; read: string[]; dismissed: string[] }
 const memory = new Map<string, InboxReceipts>();
 const storageKey = (userId: string) => `ppe.notification-inbox.v1:${userId}`;
@@ -199,7 +203,7 @@ export function normalizeNotificationInbox(raw: NotificationItemDto[], userId: s
 
   const items = mergeMultiChannelDeliveries(afterBroadcast, userId, usedOwned)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() || b.id.localeCompare(a.id));
-  return { items, rawTotal: raw.length };
+  return { items, rawTotal: raw.length, broadcastAliases: saved.aliases };
 }
 
 function parseBoundaryTimestamp(raw: string, endOfDay: boolean): number {

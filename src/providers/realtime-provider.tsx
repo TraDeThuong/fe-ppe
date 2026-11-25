@@ -144,9 +144,36 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           void queryClient.invalidateQueries({ queryKey: maintenanceQueryKeys.all });
         });
 
-        source.addEventListener("system:feature_toggle", () => {
-          void queryClient.invalidateQueries({ queryKey: systemQueryKeys.all });
+        source.addEventListener("system:feature_toggle", (event) => {
+          try {
+            const msg = event as MessageEvent<string>;
+            if (msg.data) {
+              const parsed = JSON.parse(msg.data) as {
+                key?: unknown;
+                enabled?: unknown;
+              };
+              if (
+                parsed &&
+                typeof parsed.key === "string" &&
+                typeof parsed.enabled === "boolean"
+              ) {
+                queryClient.setQueryData<Record<string, unknown>>(
+                  authKeys.config(),
+                  (prev) =>
+                    prev
+                      ? { ...prev, [parsed.key as string]: parsed.enabled }
+                      : prev,
+                );
+              }
+            }
+          } catch {
+            // Bỏ qua lỗi parse payload SSE và luôn invalidate query bên dưới
+          }
           void queryClient.invalidateQueries({ queryKey: authKeys.config() });
+          void queryClient.invalidateQueries({
+            queryKey: systemQueryKeys.featureFlags(),
+          });
+          void queryClient.invalidateQueries({ queryKey: systemQueryKeys.all });
         });
       } catch (err: unknown) {
         setIsConnected(false);

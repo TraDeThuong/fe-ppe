@@ -1,3 +1,8 @@
+import {
+  buildExistingCodeSet,
+  generateRandomToken,
+  generateUniqueEntityCode,
+} from "@/lib/code-generator";
 import { userService } from "@/services/user.service";
 import type { SiteContactOfficer, SiteItem, UserResponseDto } from "@/types";
 
@@ -93,6 +98,45 @@ export function normalizeZoneCode(name: string): string {
 
   const suffix = ascii || "AREA";
   return suffix.startsWith("ZONE-") ? suffix.slice(0, 50) : `ZONE-${suffix}`.slice(0, 50);
+}
+
+/**
+ * Generates a unique zone code that does not collide with `existingCodes` in the site.
+ * - If `forceRandom` is false and `name` is provided, tries `normalizeZoneCode(name)` first
+ *   and appends a random suffix if that code is already taken.
+ * - If `forceRandom` is true or `name` is blank, generates a fresh random zone code.
+ */
+export function generateUniqueZoneCode(
+  name?: string,
+  existingCodes?: Iterable<string>,
+  forceRandom = false,
+): string {
+  const existingSet = buildExistingCodeSet(existingCodes);
+  const trimmedName = (name || "").trim();
+
+  if (!forceRandom && trimmedName) {
+    const base = normalizeZoneCode(trimmedName);
+    if (!existingSet.has(base.toUpperCase())) {
+      return base;
+    }
+    for (let i = 0; i < 30; i++) {
+      const token = generateRandomToken(4);
+      const maxBaseLen = Math.max(4, 50 - 1 - token.length);
+      const candidate = `${base.slice(0, maxBaseLen).replace(/-+$/g, "")}-${token}`;
+      if (!existingSet.has(candidate.toUpperCase())) {
+        return candidate;
+      }
+    }
+  }
+
+  return generateUniqueEntityCode({
+    prefix: "ZONE",
+    nameHint: trimmedName,
+    existingCodes: existingSet,
+    separator: "-",
+    randomLength: 4,
+    alwaysIncludeRandomSuffix: true,
+  });
 }
 
 /**

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Activity, AlertCircle, Cpu, Info, Layers, Plus } from "lucide-react";
+import { Activity, AlertCircle, Cpu, Info, Layers, Plus, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -10,8 +10,13 @@ import {
   Select,
   type SelectOption,
 } from "@/components/ui/form/selection-controls/select";
-import { useAiModelDetail } from "@/hooks/ai-metrics";
+import { useAiModelDetail, useAiModels } from "@/hooks/ai-metrics";
 import { useCameras } from "@/hooks/cameras";
+import {
+  generateUniqueEntityCode,
+  isCodeTaken,
+  sanitizeManualCode,
+} from "@/lib/code-generator";
 import { useLocale } from "@/providers/locale-provider";
 import type {
   AiModelDto,
@@ -97,9 +102,15 @@ export function CreateAiModelModal({
 }: CreateAiModelModalProps) {
   const { locale } = useLocale();
   const isVi = locale === "vi-VN";
+  const { data: existingModels = [] } = useAiModels();
+  const existingModelCodes = useMemo(
+    () => existingModels.map((m) => m.code),
+    [existingModels],
+  );
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [isCodeManual, setIsCodeManual] = useState(false);
   const [modelType, setModelType] = useState("OBJECT_DETECTION");
   const [description, setDescription] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -108,16 +119,53 @@ export function CreateAiModelModal({
     if (!open) {
       setName("");
       setCode("");
+      setIsCodeManual(false);
       setModelType("OBJECT_DETECTION");
       setDescription("");
       setFormError(null);
+      return;
     }
-  }, [open]);
+    setCode((prev) => {
+      if (prev.trim() && !isCodeTaken(prev, existingModelCodes)) return prev;
+      return generateUniqueEntityCode({
+        prefix: "MDL",
+        nameHint: name,
+        existingCodes: existingModelCodes,
+        lowercase: true,
+      });
+    });
+  }, [open, existingModelCodes]);
+
+  const handleRandomizeCode = () => {
+    const nextCode = generateUniqueEntityCode({
+      prefix: "MDL",
+      nameHint: name,
+      existingCodes: [...existingModelCodes, code],
+      lowercase: true,
+    });
+    setCode(nextCode);
+    setIsCodeManual(false);
+    setFormError(null);
+  };
+
+  const isDuplicateCode = useMemo(
+    () => Boolean(code.trim()) && isCodeTaken(code, existingModelCodes),
+    [code, existingModelCodes],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
-    const trimmedCode = code.trim();
+    const sanitizedManual = sanitizeManualCode(code, "dotted");
+    const trimmedCode =
+      sanitizedManual.length >= 2
+        ? sanitizedManual
+        : generateUniqueEntityCode({
+            prefix: "MDL",
+            nameHint: trimmedName,
+            existingCodes: existingModelCodes,
+            lowercase: true,
+          });
 
     if (trimmedName.length < 2) {
       setFormError(
@@ -137,6 +185,15 @@ export function CreateAiModelModal({
       return;
     }
 
+    if (isCodeTaken(trimmedCode, existingModelCodes)) {
+      setFormError(
+        isVi
+          ? `Mã mô hình "${trimmedCode}" đã tồn tại. Vui lòng nhập mã khác hoặc bấm Random mã.`
+          : `Model code "${trimmedCode}" already exists. Please enter another code or click Randomize.`,
+      );
+      return;
+    }
+
     setFormError(null);
     try {
       await onSubmit({
@@ -147,6 +204,7 @@ export function CreateAiModelModal({
       });
       setName("");
       setCode("");
+      setIsCodeManual(false);
       setModelType("OBJECT_DETECTION");
       setDescription("");
       onOpenChange(false);
@@ -185,28 +243,66 @@ export function CreateAiModelModal({
               maxLength={150}
               value={name}
               onChange={(e) => {
-                setName(e.target.value);
+                const nextName = e.target.value;
+                setName(nextName);
+                if (!isCodeManual) {
+                  setCode(
+                    generateUniqueEntityCode({
+                      prefix: "MDL",
+                      nameHint: nextName,
+                      existingCodes: existingModelCodes,
+                      lowercase: true,
+                    }),
+                  );
+                }
                 if (formError) setFormError(null);
               }}
               placeholder="YOLOv11 PPE Detector"
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground">
-              {isVi ? "Mã định danh *" : "Model Code *"}
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-bold text-foreground">
+                {isVi ? "Mã định danh" : "Model Code"}
+              </label>
+              <button
+                type="button"
+                onClick={handleRandomizeCode}
+                disabled={loading}
+                className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary hover:bg-primary/20 transition disabled:opacity-50"
+                title={
+                  isVi
+                    ? "Tự động tạo mã mô hình ngẫu nhiên không trùng"
+                    : "Generate a unique random model code"
+                }
+              >
+                <RefreshCw className="h-3 w-3" />
+                <span>{isVi ? "Random mã" : "Randomize"}</span>
+              </button>
+            </div>
             <Input
-              required
-              minLength={2}
               maxLength={50}
-              pattern="^[a-zA-Z0-9._-]+$"
               value={code}
+              error={isDuplicateCode}
               onChange={(e) => {
-                setCode(e.target.value);
+                const nextVal = e.target.value;
+                setCode(nextVal);
+                setIsCodeManual(Boolean(nextVal.trim()));
                 if (formError) setFormError(null);
               }}
-              placeholder="yolo11-ppe"
+              placeholder={
+                isVi
+                  ? "Tự động sinh nếu bỏ trống (VD: mdl-yolo11-8f2k)"
+                  : "Auto-generated if blank (e.g., mdl-yolo11-8f2k)"
+              }
             />
+            {isDuplicateCode && (
+              <p className="text-[11px] font-medium text-danger">
+                {isVi
+                  ? "Mã mô hình đã tồn tại. Bấm 'Random mã' để đổi mã mới."
+                  : "This model code already exists. Click 'Randomize' to generate a unique code."}
+              </p>
+            )}
           </div>
         </div>
 

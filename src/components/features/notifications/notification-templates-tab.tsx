@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   Columns2,
   Edit,
   Eye,
@@ -24,9 +25,15 @@ import {
   SegmentedControl,
   type SegmentedControlOption,
 } from "@/components/ui/segmented-control";
+import { usePublicConfig } from "@/hooks/auth";
 import { useNotificationTemplatesCatalog } from "@/hooks/notifications";
 import { useNotificationSound } from "@/hooks/notifications/use-notification-sound";
 import { useDebounce } from "@/hooks/use-debounce";
+import {
+  getConfig,
+  isFeatureFlagEnabled,
+  SYSTEM_CONFIG_KEYS,
+} from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 import {
   TEMPLATE_CATEGORY_LABELS,
@@ -66,6 +73,10 @@ export function NotificationTemplatesTab({
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const { playPreset } = useNotificationSound();
+  const { data: publicConfig } = usePublicConfig();
+  const notificationsEnabled = isFeatureFlagEnabled(
+    getConfig(publicConfig, SYSTEM_CONFIG_KEYS.notificationsEnabled, true),
+  );
 
   const [viewMode, setViewMode] = useState<TemplateViewMode>(
     defaultViewMode ?? "table",
@@ -289,6 +300,28 @@ export function NotificationTemplatesTab({
 
       {/* SHARED HEADER & FILTER CONTROLS */}
       <div className="relative space-y-4 pb-4">
+        {!notificationsEnabled && (
+          <div
+            role="alert"
+            data-testid="templates-notifications-disabled-banner"
+            className="flex items-start gap-3 rounded-2xl border border-warning/35 bg-warning/10 p-3.5 text-xs text-foreground shadow-[inset_2px_2px_6px_var(--shadow-dark)]"
+          >
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+            <div>
+              <p className="font-bold">
+                {isVietnamese
+                  ? "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng."
+                  : "Automated notifications and email dispatch are currently paused by the Administrator."}
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                {isVietnamese
+                  ? "Bạn vẫn có thể xem trước, tạo mới và chỉnh sửa mẫu, nhưng thao tác Gửi thử mẫu (Test Send) tạm thời bị vô hiệu hóa."
+                  : "You can still preview, create, and edit templates, but Test Send is temporarily disabled."}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* 1. HEADER TOOLBAR */}
         <div className="relative flex flex-col gap-3.5 pb-4 lg:flex-row lg:items-center lg:justify-between">
           {/* Engraved Divider */}
@@ -645,9 +678,21 @@ export function NotificationTemplatesTab({
                       {onTestSendTemplate && (
                         <button
                           type="button"
-                          onClick={() => onTestSendTemplate(tpl)}
-                          title={isVietnamese ? "Gửi thử nghiệm" : "Test Send"}
-                          className="flex size-7 items-center justify-center rounded-lg border border-primary/25 bg-surface text-primary shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] transition-all hover:bg-primary hover:text-primary-foreground active:shadow-[inset_2px_2px_4px_var(--shadow-dark)] dark:bg-card"
+                          disabled={!notificationsEnabled}
+                          onClick={() => {
+                            if (!notificationsEnabled) return;
+                            onTestSendTemplate(tpl);
+                          }}
+                          title={
+                            !notificationsEnabled
+                              ? isVietnamese
+                                ? "Hệ thống gửi thông báo đang tạm tắt"
+                                : "Notifications are currently disabled"
+                              : isVietnamese
+                                ? "Gửi thử nghiệm"
+                                : "Test Send"
+                          }
+                          className="flex size-7 items-center justify-center rounded-lg border border-primary/25 bg-surface text-primary shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] transition-all hover:bg-primary hover:text-primary-foreground active:shadow-[inset_2px_2px_4px_var(--shadow-dark)] disabled:pointer-events-none disabled:opacity-45 dark:bg-card"
                         >
                           <Send className="size-3.5" />
                         </button>

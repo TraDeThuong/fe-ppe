@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
@@ -19,7 +20,7 @@ import {
   Shirt,
   X,
 } from "lucide-react";
-import { Toaster, toast } from "react-hot-toast";
+import { Toaster, toast, type Toast } from "react-hot-toast";
 import { stripEmojis } from "@/lib/strip-emojis";
 import {
   resolveIncidentToastVisual,
@@ -29,6 +30,10 @@ import {
 } from "./toast-violation-theme";
 
 export type ToastType = "success" | "error" | "loading" | "blank";
+export interface ToastOptions {
+  id?: string;
+  action?: { label: string; href: string };
+}
 
 export interface IncidentToastInput {
   kind?: IncidentToastKind;
@@ -294,9 +299,11 @@ function getMedallionStyle(dark: boolean, accent: string) {
 function WoodenToast({
   message,
   type,
+  action,
 }: {
   message: string;
   type: ToastType;
+  action?: ReactNode;
 }) {
   const { dark, isEn } = useToastEnvironment();
   const theme = toastTheme[type];
@@ -340,6 +347,7 @@ function WoodenToast({
         <p className="break-words text-[13px] font-medium leading-[1.65] tracking-[0.005em]">
           {stripEmojis(message)}
         </p>
+        {action}
       </div>
     </WoodenToastShell>
   );
@@ -696,13 +704,24 @@ export function WoodenIncidentToast({
 export function showToast(
   message: string,
   type: ToastType = "blank",
-  options?: { id?: string },
+  options?: ToastOptions,
 ) {
-  const content = () => <WoodenToast message={message} type={type} />;
+  const content = (entry: Toast) => (
+    <WoodenToast
+      message={message}
+      type={type}
+      action={options?.action && (
+        <Link href={options.action.href} prefetch={false} onClick={() => toast.dismiss(entry.id)}
+          className="mt-1 inline-flex text-xs font-bold underline underline-offset-2">
+          {options.action.label}
+        </Link>
+      )}
+    />
+  );
   const base = options?.id ? { id: options.id } : {};
 
   if (type === "success") {
-    return toast.custom(content, { duration: 3000, ...base });
+    return toast.custom(content, { duration: options?.action ? 8000 : 3000, ...base });
   }
 
   if (type === "error") {

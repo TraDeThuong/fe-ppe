@@ -1,19 +1,27 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Building2,
   ChevronDown,
   Loader2,
   Phone,
   Plus,
+  RefreshCw,
   Trash2,
   User,
   ShieldCheck,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { useCan } from "@/hooks/use-can";
+import { useSitesCatalog } from "@/hooks/sites";
 import { useUsers } from "@/hooks/users";
+import {
+  generateUniqueEntityCode,
+  isCodeTaken,
+  sanitizeManualCode,
+} from "@/lib/code-generator";
 import { useLocale } from "@/providers/locale-provider";
 import { groupUsersBySafetyRole, suggestSiteRoleTitle } from "./site-helpers";
 import type { CreateSitePayload, SiteContactOfficer, UserResponseDto } from "@/types";
@@ -42,6 +50,16 @@ export function CreateSiteModal({
 }: CreateSiteModalProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const canReadSites = useCan()("PPE_SITE_READ");
+
+  // Fetch existing sites catalog to guarantee unique site code
+  const { data: sitesCatalog } = useSitesCatalog({
+    enabled: open && canReadSites,
+  });
+  const existingSiteCodes = useMemo(
+    () => (sitesCatalog ?? []).map((s) => s.code),
+    [sitesCatalog],
+  );
 
   // Fetch users for the dropdown
   const { data: usersData, isLoading: usersLoading } = useUsers({ limit: 100 });
@@ -56,9 +74,52 @@ export function CreateSiteModal({
   // Form states
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [isCodeManual, setIsCodeManual] = useState(false);
   const [address, setAddress] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setError(null);
+    setCode((prev) => {
+      if (prev.trim() && !isCodeTaken(prev, existingSiteCodes)) return prev;
+      return generateUniqueEntityCode({
+        prefix: "SITE",
+        nameHint: name,
+        existingCodes: existingSiteCodes,
+      });
+    });
+  }, [open, existingSiteCodes]);
+
+  const handleRandomizeCode = () => {
+    const nextCode = generateUniqueEntityCode({
+      prefix: "SITE",
+      nameHint: name,
+      existingCodes: [...existingSiteCodes, code],
+    });
+    setCode(nextCode);
+    setIsCodeManual(false);
+    setError(null);
+  };
+
+  const handleNameChange = (nextName: string) => {
+    setName(nextName);
+    if (!isCodeManual) {
+      setCode(
+        generateUniqueEntityCode({
+          prefix: "SITE",
+          nameHint: nextName,
+          existingCodes: existingSiteCodes,
+        }),
+      );
+    }
+  };
+
+  const isDuplicateCode = useMemo(
+    () => Boolean(code.trim()) && isCodeTaken(code, existingSiteCodes),
+    [code, existingSiteCodes],
+  );
 
   // Officers list state (at least 1 officer by default)
   const [officers, setOfficers] = useState<OfficerFormState[]>([
@@ -205,12 +266,21 @@ export function CreateSiteModal({
       return;
     }
 
-    const formattedCode = code.trim().toUpperCase().replace(/\s+/g, "-");
-    if (!formattedCode) {
+    const sanitizedManual = sanitizeManualCode(code, "standard");
+    const formattedCode =
+      sanitizedManual.length >= 2
+        ? sanitizedManual
+        : generateUniqueEntityCode({
+            prefix: "SITE",
+            nameHint: name,
+            existingCodes: existingSiteCodes,
+          });
+
+    if (isCodeTaken(formattedCode, existingSiteCodes)) {
       setError(
         isVietnamese
-          ? "Vui lòng nhập mã định danh công trường (VD: SITE-LANDMARK-01)."
-          : "Please enter a site identifier code (e.g., SITE-LANDMARK-01).",
+          ? `Mã công trường "${formattedCode}" đã tồn tại. Vui lòng nhập mã khác hoặc bấm nút Random mã mới.`
+          : `Site code "${formattedCode}" already exists. Please enter another code or click Randomize.`,
       );
       return;
     }
@@ -244,6 +314,7 @@ export function CreateSiteModal({
 
       setName("");
       setCode("");
+      setIsCodeManual(false);
       setAddress("");
       setDescription("");
       setOfficers([
@@ -292,7 +363,7 @@ export function CreateSiteModal({
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => handleNameChange(e.target.value)}
               placeholder={t("sites.form.namePlaceholder")}
               className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={loading}
@@ -302,18 +373,53 @@ export function CreateSiteModal({
 
           {/* Site Code */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {t("sites.form.code")} <span className="text-accent">*</span>
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t("sites.form.code")}
+              </label>
+              <button
+                type="button"
+                onClick={handleRandomizeCode}
+                disabled={loading}
+                className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary hover:bg-primary/20 transition disabled:opacity-50"
+                title={
+                  isVietnamese
+                    ? "Tự động tạo mã ngẫu nhiên không trùng"
+                    : "Generate a unique random site code"
+                }
+              >
+                <RefreshCw className="h-3 w-3" />
+                <span>{isVietnamese ? "Random mã" : "Randomize"}</span>
+              </button>
+            </div>
             <input
               type="text"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder={t("sites.form.codePlaceholder")}
-              className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 font-mono text-xs uppercase shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              onChange={(e) => {
+                const nextVal = e.target.value;
+                setCode(nextVal);
+                setIsCodeManual(Boolean(nextVal.trim()));
+                if (error) setError(null);
+              }}
+              placeholder={
+                isVietnamese
+                  ? "Tự động sinh nếu bỏ trống (VD: SITE-9F4X)"
+                  : "Auto-generated if left blank (e.g., SITE-9F4X)"
+              }
+              className={`w-full rounded-xl border bg-background/50 px-3.5 py-2.5 font-mono text-xs uppercase shadow-nm-inset focus:outline-none focus:ring-1 ${
+                isDuplicateCode
+                  ? "border-danger text-danger focus:border-danger focus:ring-danger"
+                  : "border-border/50 focus:border-primary focus:ring-primary"
+              }`}
               disabled={loading}
-              required
             />
+            {isDuplicateCode && (
+              <p className="text-[11px] font-medium text-danger">
+                {isVietnamese
+                  ? "Mã này đã tồn tại trong danh sách công trường. Bấm 'Random mã' để đổi mã mới."
+                  : "This code already exists. Click 'Randomize' to generate a unique code."}
+              </p>
+            )}
           </div>
         </div>
 

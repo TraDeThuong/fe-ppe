@@ -34,7 +34,7 @@ function Fixture() {
   const [lastAlert, setLastAlert] = useState<PpeAlertEvent | null>(null);
   const userId = identity === "manager" ? uuid(200) : identity === "officer" ? uuid(201) : uuid(202);
   const user = { id: userId, email: `${identity}@example.test`, fullName: identity === "manager" ? "Nguyễn Quản Lý" : "Trần Cán Bộ", role: identity === "manager" ? "SAFETY_MANAGER" : "SAFETY_OFFICER",
-    permissions: [...(readable ? ["PPE_INCIDENT_READ"] : []), "PPE_INCIDENT_UPDATE", ...(identity === "manager" ? ["PPE_INCIDENT_MANAGE", "PPE_INCIDENT_REVIEW"] : [])],
+    permissions: [...(readable ? ["PPE_INCIDENT_READ"] : []), "PPE_INCIDENT_UPDATE", "NOTIFICATION_READ", ...(identity === "manager" ? ["PPE_INCIDENT_MANAGE", "PPE_INCIDENT_REVIEW"] : [])],
   } as MeDto;
   sessionStorage.setItem("fixture-user", userId);
   const router = useMemo(() => {

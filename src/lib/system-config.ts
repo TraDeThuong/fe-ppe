@@ -14,6 +14,7 @@ export const SYSTEM_CONFIG_KEYS = {
   supportEmail: "app.support_email",
   registrationEnabled: "feature.registration.enabled",
   socialLoginEnabled: "feature.social_login.enabled",
+  notificationsEnabled: "feature.notifications.enabled",
   aiLiveMaxSessions: "ai.live_max_sessions",
 } as const;
 

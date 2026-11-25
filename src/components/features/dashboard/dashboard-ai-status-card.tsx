@@ -16,10 +16,12 @@ import { AnimatedMetricValue } from "@/components/ui/animated-number";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/providers/locale-provider";
 import type { AiModelVersionDto } from "@/types";
+import type { DashboardAiTelemetrySummary } from "@/types/dashboard.types";
 
 export interface DashboardAiStatusCardProps {
   activeVersion?: AiModelVersionDto | null;
   modelName?: string | null;
+  telemetry?: DashboardAiTelemetrySummary | null;
   loading?: boolean;
   error?: boolean;
   className?: string;
@@ -28,11 +30,12 @@ export interface DashboardAiStatusCardProps {
 export function DashboardAiStatusCard({
   activeVersion,
   modelName: modelNameProp,
+  telemetry,
   loading = false,
   error = false,
   className = "",
 }: DashboardAiStatusCardProps) {
-  const { t, locale } = useLocale();
+  const { t, number, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
   const isModelActive = Boolean(
@@ -67,17 +70,26 @@ export function DashboardAiStatusCard({
       ? `${(activeVersion.metrics.mAP50 * 100).toFixed(1)}%`
       : "--";
 
-  const latencyValue =
-    typeof activeVersion?.metrics?.latencyMs === "number" &&
-    Number.isFinite(activeVersion.metrics.latencyMs)
-      ? `${activeVersion.metrics.latencyMs}ms`
-      : "--";
+  const isLiveTelemetry = telemetry?.source === "telemetry";
 
-  const fpsValue =
-    typeof activeVersion?.metrics?.fps === "number" &&
+  const resolvedLatencyMs =
+    telemetry?.avgLatencyMs ??
+    (typeof activeVersion?.metrics?.latencyMs === "number" &&
+    Number.isFinite(activeVersion.metrics.latencyMs)
+      ? activeVersion.metrics.latencyMs
+      : null);
+
+  const resolvedFps =
+    telemetry?.avgFps ??
+    (typeof activeVersion?.metrics?.fps === "number" &&
     Number.isFinite(activeVersion.metrics.fps)
-      ? `${activeVersion.metrics.fps} FPS`
-      : "--";
+      ? activeVersion.metrics.fps
+      : null);
+
+  const latencyValue =
+    resolvedLatencyMs !== null ? `${resolvedLatencyMs}ms` : "--";
+
+  const fpsValue = resolvedFps !== null ? `${resolvedFps} FPS` : "--";
 
   const frameworkValue = isModelActive
     ? activeVersion?.framework || "—"
@@ -156,7 +168,9 @@ export function DashboardAiStatusCard({
               {t("dashboard.aiStatus.title")}
             </h4>
             <p className="mt-0.5 truncate text-[10px] font-medium tracking-wide text-muted-foreground">
-              {t("dashboard.ai.declared")}
+              {isLiveTelemetry
+                ? t("dashboard.aiStatus.telemetrySubtitle")
+                : t("dashboard.ai.declared")}
             </p>
           </div>
         </div>
@@ -241,12 +255,25 @@ export function DashboardAiStatusCard({
 
       {/* Performance metrics */}
       <div className="mt-4">
-        <div className="mb-2.5 flex items-center justify-between gap-2 px-1">
+        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 px-1">
           <span className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground">
             {isVietnamese ? "Hiệu suất mô hình" : "Model Performance"}
           </span>
-          <span className="text-[9px] font-semibold text-muted-foreground/70">
-            {t("dashboard.aiStatus.declaredBadge")}
+          <span
+            className={
+              isLiveTelemetry
+                ? "inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 font-mono text-[9px] font-bold text-primary"
+                : "text-[9px] font-semibold text-muted-foreground/70"
+            }
+          >
+            {isLiveTelemetry && (
+              <span className="size-1.5 rounded-full bg-primary" />
+            )}
+            {isLiveTelemetry
+              ? telemetry?.totalFrames && telemetry.totalFrames > 0
+                ? `${t("dashboard.aiStatus.telemetryBadge")} · ${number.format(telemetry.totalFrames)} ${t("dashboard.aiStatus.framesProcessed")}`
+                : t("dashboard.aiStatus.telemetryBadge")
+              : t("dashboard.aiStatus.declaredBadge")}
           </span>
         </div>
 

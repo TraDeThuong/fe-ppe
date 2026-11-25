@@ -9,7 +9,7 @@ import tempfile
 import threading
 
 @contextmanager
-def browser_fixture(entry):
+def browser_fixture(entry, *, spa=False):
     root = Path(__file__).resolve().parents[1]
     with tempfile.TemporaryDirectory(prefix='ppe-inbox-') as temp:
         out = Path(temp)
@@ -22,6 +22,10 @@ def browser_fixture(entry):
         (out / 'index.html').write_text('<html lang="vi" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><style>*,*::before,*::after{animation:none!important;transition:none!important}</style></head><body><div id="root"></div><script src="/app.js"></script></body></html>')
         class Handler(SimpleHTTPRequestHandler):
             def log_message(self, *_): pass
+            def do_GET(self):
+                if spa and not Path(self.translate_path(self.path)).is_file():
+                    self.path = '/index.html'
+                super().do_GET()
         server = ThreadingHTTPServer(('127.0.0.1', 0), partial(Handler, directory=temp))
         threading.Thread(target=server.serve_forever, daemon=True).start()
         try: yield f'http://127.0.0.1:{server.server_port}'

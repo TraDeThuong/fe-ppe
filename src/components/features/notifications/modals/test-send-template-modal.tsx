@@ -1,13 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Send, Mail, CheckCircle, RefreshCw } from "lucide-react";
+import { AlertTriangle, Send, Mail } from "lucide-react";
 import { SculptedModal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { usePublicConfig } from "@/hooks/auth";
 import { useTestSendNotificationTemplate } from "@/hooks/notifications";
 import { useAuth } from "@/contexts/AuthContext";
+import { ApiError } from "@/lib/axios";
+import {
+  getConfig,
+  isFeatureFlagEnabled,
+  SYSTEM_CONFIG_KEYS,
+} from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
-import type { NotificationTemplateItemDto } from "@/types";
+import { ErrorCode, type NotificationTemplateItemDto } from "@/types";
 
 export interface TestSendTemplateModalProps {
   open: boolean;
@@ -32,21 +39,28 @@ export function TestSendTemplateModal({
   const { user } = useAuth();
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const { data: publicConfig } = usePublicConfig();
+  const notificationsEnabled = isFeatureFlagEnabled(
+    getConfig(publicConfig, SYSTEM_CONFIG_KEYS.notificationsEnabled, true),
+  );
 
   const [toEmail, setToEmail] = useState("");
   const [variablesText, setVariablesText] = useState(
     JSON.stringify(DEFAULT_SAMPLE_VARIABLES, null, 2),
   );
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setToEmail(user?.email || "");
       setVariablesText(JSON.stringify(DEFAULT_SAMPLE_VARIABLES, null, 2));
+      setSubmitError(null);
     }
   }, [open, user]);
 
   const testSendMutation = useTestSendNotificationTemplate({
     onSuccess: () => {
+      setSubmitError(null);
       onOpenChange(false);
     },
   });
@@ -55,7 +69,8 @@ export function TestSendTemplateModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!template) return;
+    if (!template || !notificationsEnabled) return;
+    setSubmitError(null);
 
     let parsedVars: Record<string, unknown> = {};
     try {
@@ -64,13 +79,28 @@ export function TestSendTemplateModal({
       // JSON parse error
     }
 
-    await testSendMutation.mutateAsync({
-      code: template.code,
-      payload: {
-        toEmail: toEmail.trim() || undefined,
-        variables: parsedVars,
-      },
-    });
+    try {
+      await testSendMutation.mutateAsync({
+        code: template.code,
+        payload: {
+          toEmail: toEmail.trim() || undefined,
+          variables: parsedVars,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.code === ErrorCode.FEATURE_DISABLED
+      ) {
+        setSubmitError(
+          isVietnamese
+            ? "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng. Không thể gửi thử mẫu lúc này."
+            : "Automated notifications and email dispatch are currently paused by the Administrator. Cannot send test template right now.",
+        );
+      } else if (error instanceof Error) {
+        setSubmitError(error.message);
+      }
+    }
   };
 
   const inputSocketClass = [
@@ -106,7 +136,14 @@ export function TestSendTemplateModal({
             type="submit"
             form="test-send-template-form"
             variant="primary"
-            disabled={testSendMutation.isPending}
+            disabled={testSendMutation.isPending || !notificationsEnabled}
+            title={
+              !notificationsEnabled
+                ? isVietnamese
+                  ? "Hệ thống gửi thông báo đang tạm tắt trong Cấu hình hệ thống"
+                  : "Notification dispatch is currently disabled in System Settings"
+                : undefined
+            }
           >
             <Send className="mr-1.5 size-3.5" />
             {testSendMutation.isPending
@@ -125,6 +162,37 @@ export function TestSendTemplateModal({
         onSubmit={handleSubmit}
         className="space-y-4 text-xs"
       >
+        {!notificationsEnabled && (
+          <div
+            role="alert"
+            data-testid="test-send-disabled-alert"
+            className="flex items-start gap-2.5 rounded-xl border border-warning/35 bg-warning/15 p-3 text-xs text-foreground"
+          >
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+            <div>
+              <p className="font-bold">
+                {isVietnamese
+                  ? "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng."
+                  : "Automated notifications and email dispatch are currently paused by the Administrator."}
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                {isVietnamese
+                  ? "Thao tác gửi thử mẫu tạm thời bị vô hiệu hóa cho đến khi Quản trị viên bật lại tính năng này."
+                  : "Test send is temporarily disabled until the Administrator re-enables this feature."}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {submitError && (
+          <p
+            role="alert"
+            className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-xs text-danger"
+          >
+            {submitError}
+          </p>
+        )}
+
         {/* Email nhận thử nghiệm */}
         <div>
           <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">

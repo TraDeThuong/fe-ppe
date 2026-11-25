@@ -1,11 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Camera, Loader2, Plus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Camera, Loader2, Plus, RefreshCw } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { useCamerasCatalog } from "@/hooks/cameras";
 import { useCan } from "@/hooks/use-can";
 import { useSitesCatalog, useSiteZones } from "@/hooks/sites";
+import {
+  generateUniqueEntityCode,
+  isCodeTaken,
+  sanitizeManualCode,
+} from "@/lib/code-generator";
 import { useLocale } from "@/providers/locale-provider";
 import type { CameraSourceType, CreateCameraPayload } from "@/types";
 
@@ -31,6 +37,7 @@ export function CreateCameraModal({
   const can = useCan();
   const canReadSites = can("PPE_SITE_READ");
   const canReadZones = can("PPE_ZONE_READ");
+  const canReadCameras = can("PPE_CAMERA_READ");
 
   // Chỉ tải danh sách site khi modal mở và có quyền PPE_SITE_READ
   const { data: sitesData } = useSitesCatalog({
@@ -38,8 +45,18 @@ export function CreateCameraModal({
   });
   const sites = sitesData ?? [];
 
+  // Tải danh sách mã camera hiện có để đảm bảo mã tự sinh hoặc nhập tay không bị trùng
+  const { data: camerasCatalog } = useCamerasCatalog({
+    enabled: open && canReadCameras,
+  });
+  const existingCameraCodes = useMemo(
+    () => (camerasCatalog ?? []).map((c) => c.code),
+    [camerasCatalog],
+  );
+
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [isCodeManual, setIsCodeManual] = useState(false);
   const [siteId, setSiteId] = useState(defaultSiteId || "");
   const [zoneId, setZoneId] = useState(defaultZoneId || "");
   const [sourceType, setSourceType] = useState<CameraSourceType>("RTSP");
@@ -63,7 +80,44 @@ export function CreateCameraModal({
     } else if (sites.length > 0) {
       setSiteId((prev) => prev || sites[0].id);
     }
-  }, [open, defaultSiteId, defaultZoneId, sites]);
+    setCode((prev) => {
+      if (prev.trim() && !isCodeTaken(prev, existingCameraCodes)) return prev;
+      return generateUniqueEntityCode({
+        prefix: "CAM",
+        nameHint: name,
+        existingCodes: existingCameraCodes,
+      });
+    });
+  }, [open, defaultSiteId, defaultZoneId, sites, existingCameraCodes]);
+
+  const handleRandomizeCode = (customHint?: string) => {
+    const nextCode = generateUniqueEntityCode({
+      prefix: "CAM",
+      nameHint: customHint !== undefined ? customHint : name,
+      existingCodes: [...existingCameraCodes, code],
+    });
+    setCode(nextCode);
+    setIsCodeManual(false);
+    setError(null);
+  };
+
+  const handleNameChange = (nextName: string) => {
+    setName(nextName);
+    if (!isCodeManual) {
+      setCode(
+        generateUniqueEntityCode({
+          prefix: "CAM",
+          nameHint: nextName,
+          existingCodes: existingCameraCodes,
+        }),
+      );
+    }
+  };
+
+  const isDuplicateCode = useMemo(
+    () => Boolean(code.trim()) && isCodeTaken(code, existingCameraCodes),
+    [code, existingCameraCodes],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,9 +128,22 @@ export function CreateCameraModal({
       return;
     }
 
-    const formattedCode = code.trim().toUpperCase().replace(/\s+/g, "-");
-    if (!formattedCode) {
-      setError(isVietnamese ? "Vui lòng nhập mã camera (VD: CAM-NORTH-01)." : "Please enter camera code (e.g., CAM-NORTH-01).");
+    const sanitizedManual = sanitizeManualCode(code, "standard");
+    const formattedCode =
+      sanitizedManual.length >= 2
+        ? sanitizedManual
+        : generateUniqueEntityCode({
+            prefix: "CAM",
+            nameHint: name,
+            existingCodes: existingCameraCodes,
+          });
+
+    if (isCodeTaken(formattedCode, existingCameraCodes)) {
+      setError(
+        isVietnamese
+          ? `Mã camera "${formattedCode}" đã tồn tại trong danh sách. Vui lòng nhập mã khác hoặc bấm nút Random mã mới.`
+          : `Camera code "${formattedCode}" already exists. Please enter another code or click Randomize.`,
+      );
       return;
     }
 
@@ -116,6 +183,7 @@ export function CreateCameraModal({
 
       setName("");
       setCode("");
+      setIsCodeManual(false);
       setStreamUrl("");
       setLocation("");
       setDescription("");
@@ -151,7 +219,7 @@ export function CreateCameraModal({
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => handleNameChange(e.target.value)}
               placeholder={isVietnamese ? "VD: Camera Giàn Giáo Tầng 5" : "e.g., 5th Floor Scaffolding Camera"}
               className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={loading}
@@ -161,18 +229,53 @@ export function CreateCameraModal({
 
           {/* Camera Code */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {isVietnamese ? "Mã Camera" : "Camera Code"} <span className="text-danger">*</span>
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {isVietnamese ? "Mã Camera" : "Camera Code"}
+              </label>
+              <button
+                type="button"
+                onClick={() => handleRandomizeCode()}
+                disabled={loading}
+                className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary hover:bg-primary/20 transition disabled:opacity-50"
+                title={
+                  isVietnamese
+                    ? "Tự động tạo mã camera ngẫu nhiên không trùng"
+                    : "Generate a unique random camera code"
+                }
+              >
+                <RefreshCw className="h-3 w-3" />
+                <span>{isVietnamese ? "Random mã" : "Randomize"}</span>
+              </button>
+            </div>
             <input
               type="text"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="VD: CAM-NORTH-01"
-              className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 font-mono text-xs uppercase shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              onChange={(e) => {
+                const nextVal = e.target.value;
+                setCode(nextVal);
+                setIsCodeManual(Boolean(nextVal.trim()));
+                if (error) setError(null);
+              }}
+              placeholder={
+                isVietnamese
+                  ? "Tự động sinh nếu bỏ trống (VD: CAM-7K2M)"
+                  : "Auto-generated if left blank (e.g., CAM-7K2M)"
+              }
+              className={`w-full rounded-xl border bg-background/50 px-3.5 py-2.5 font-mono text-xs uppercase shadow-nm-inset focus:outline-none focus:ring-1 ${
+                isDuplicateCode
+                  ? "border-danger text-danger focus:border-danger focus:ring-danger"
+                  : "border-border/50 focus:border-primary focus:ring-primary"
+              }`}
               disabled={loading}
-              required
             />
+            {isDuplicateCode && (
+              <p className="text-[11px] font-medium text-danger">
+                {isVietnamese
+                  ? "Mã này đã tồn tại trong danh sách camera. Bấm 'Random mã' để đổi mã mới."
+                  : "This camera code already exists. Click 'Randomize' to generate a unique code."}
+              </p>
+            )}
           </div>
         </div>
 
@@ -293,8 +396,11 @@ export function CreateCameraModal({
               onClick={() => {
                 setStreamUrl("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
                 setSourceType("HLS");
-                if (!name) setName(isVietnamese ? "Camera Giàn Giáo Test" : "Scaffolding Test Camera");
-                if (!code) setCode("CAM-TEST-MP4");
+                const nextName = name.trim() || (isVietnamese ? "Camera Giàn Giáo Test" : "Scaffolding Test Camera");
+                if (!name.trim()) setName(nextName);
+                if (!isCodeManual || !code.trim() || isCodeTaken(code, existingCameraCodes)) {
+                  handleRandomizeCode("TEST-MP4");
+                }
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
@@ -305,8 +411,11 @@ export function CreateCameraModal({
               onClick={() => {
                 setStreamUrl("https://www.youtube.com/watch?v=1-iS7LArMPA");
                 setSourceType("HLS");
-                if (!name) setName(isVietnamese ? "Camera Công Trường YouTube Live" : "Construction Site YouTube Live");
-                if (!code) setCode("CAM-YOUTUBE-01");
+                const nextName = name.trim() || (isVietnamese ? "Camera Công Trường YouTube Live" : "Construction Site YouTube Live");
+                if (!name.trim()) setName(nextName);
+                if (!isCodeManual || !code.trim() || isCodeTaken(code, existingCameraCodes)) {
+                  handleRandomizeCode("YOUTUBE");
+                }
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
@@ -317,8 +426,11 @@ export function CreateCameraModal({
               onClick={() => {
                 setStreamUrl("rtsp://admin:Pass@123@192.168.1.100:554/stream1");
                 setSourceType("RTSP");
-                if (!name) setName(isVietnamese ? "Camera Cổng Chính RTSP" : "Main Gate RTSP Camera");
-                if (!code) setCode("CAM-RTSP-01");
+                const nextName = name.trim() || (isVietnamese ? "Camera Cổng Chính RTSP" : "Main Gate RTSP Camera");
+                if (!name.trim()) setName(nextName);
+                if (!isCodeManual || !code.trim() || isCodeTaken(code, existingCameraCodes)) {
+                  handleRandomizeCode("RTSP");
+                }
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >

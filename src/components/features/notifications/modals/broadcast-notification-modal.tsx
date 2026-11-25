@@ -4,10 +4,16 @@ import { useCallback, useId, useRef, useState } from "react";
 import { Radio, AlertTriangle, AlertCircle, Info, ShieldAlert, Send, Loader2 } from "lucide-react";
 import { SculptedModal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { usePublicConfig } from "@/hooks/auth";
 import { useBroadcastNotification } from "@/hooks/notifications";
+import {
+  getConfig,
+  isFeatureFlagEnabled,
+  SYSTEM_CONFIG_KEYS,
+} from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 import { ApiError } from "@/lib/axios";
-import type { NotificationSeverity } from "@/types";
+import { ErrorCode, type NotificationSeverity } from "@/types";
 
 type FormField = "title" | "content" | "actionUrl";
 
@@ -22,6 +28,10 @@ export function BroadcastNotificationModal({
 }: BroadcastNotificationModalProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const { data: publicConfig } = usePublicConfig();
+  const notificationsEnabled = isFeatureFlagEnabled(
+    getConfig(publicConfig, SYSTEM_CONFIG_KEYS.notificationsEnabled, true),
+  );
   const formId = useId();
   const formRef = useRef<HTMLFormElement>(null);
   const submitting = useRef(false);
@@ -68,7 +78,7 @@ export function BroadcastNotificationModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submitting.current || broadcastMutation.isPending) return;
+    if (submitting.current || broadcastMutation.isPending || !notificationsEnabled) return;
     setSubmitError(null);
     const errors: Partial<Record<FormField, string>> = {};
     if (!title.trim()) errors.title = isVietnamese ? "Vui lòng nhập tiêu đề thông báo." : "Enter a notification title.";
@@ -101,9 +111,13 @@ export function BroadcastNotificationModal({
       showFieldErrors(errors);
       setSubmitError(error instanceof ApiError && (error.status === 422 || error.code === "VALIDATION_ERROR")
         ? isVietnamese ? "Máy chủ từ chối dữ liệu thông báo. Vui lòng kiểm tra tiêu đề, nội dung và đường dẫn hành động." : "The server rejected this notification. Check the title, content and action URL."
-        : error instanceof ApiError && error.status === 403
-          ? isVietnamese ? "Tài khoản không có quyền phát thông báo toàn hệ thống." : "You do not have permission to broadcast notifications."
-          : error instanceof Error ? error.message : isVietnamese ? "Không thể phát thông báo. Vui lòng thử lại." : "Unable to broadcast. Please retry.");
+        : error instanceof ApiError && error.code === ErrorCode.FEATURE_DISABLED
+          ? isVietnamese
+            ? "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng. Không thể phát thông báo lúc này."
+            : "Automated notifications and email dispatch are currently paused by the Administrator."
+          : error instanceof ApiError && error.status === 403
+            ? isVietnamese ? "Tài khoản không có quyền phát thông báo toàn hệ thống." : "You do not have permission to broadcast notifications."
+            : error instanceof Error ? error.message : isVietnamese ? "Không thể phát thông báo. Vui lòng thử lại." : "Unable to broadcast. Please retry.");
     } finally {
       submitting.current = false;
     }
@@ -143,7 +157,19 @@ export function BroadcastNotificationModal({
             type="submit"
             form={formId}
             variant="primary"
-            disabled={broadcastMutation.isPending || !title.trim() || !content.trim()}
+            disabled={
+              broadcastMutation.isPending ||
+              !notificationsEnabled ||
+              !title.trim() ||
+              !content.trim()
+            }
+            title={
+              !notificationsEnabled
+                ? isVietnamese
+                  ? "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng"
+                  : "Automated notifications and email dispatch are currently paused by Administrator"
+                : undefined
+            }
           >
             {broadcastMutation.isPending ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Send className="mr-1.5 size-3.5" />}
             {broadcastMutation.isPending
@@ -164,6 +190,19 @@ export function BroadcastNotificationModal({
         onSubmit={handleSubmit}
         className="space-y-4 text-xs"
       >
+        {!notificationsEnabled && (
+          <div
+            role="alert"
+            className="flex items-start gap-2.5 rounded-xl border border-warning/35 bg-warning/15 p-3 text-xs text-foreground"
+          >
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+            <p className="font-bold">
+              {isVietnamese
+                ? "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng. Thao tác phát lệnh khẩn cấp tạm thời bị vô hiệu hóa."
+                : "Automated notifications and email dispatch are currently paused by the Administrator. Broadcast actions are temporarily disabled."}
+            </p>
+          </div>
+        )}
         {submitError && <p role="alert" className="rounded-xl border border-danger/30 bg-danger/10 p-3 text-xs text-danger">{submitError}</p>}
         {/* Tiêu đề */}
         <div>

@@ -18,6 +18,7 @@ import {
   DashboardHourlyRiskChart,
   DashboardSeveritySlaChart,
   DashboardZoneRiskChart,
+  DashboardViolationTrendsChart,
   DashboardNavTabs,
   DashboardExecutiveKpi,
   DashboardSystemStatusCard,
@@ -26,7 +27,10 @@ import {
   DashboardCronMiniCard,
 } from "../index";
 import { DashboardChartExplainButton } from "../charts/dashboard-chart-explain-modal";
-import { aggregateDashboard } from "@/lib/dashboard-data";
+import {
+  aggregateDashboard,
+  buildDashboardAnalyticsFromReporting,
+} from "@/lib/dashboard-data";
 import type { AuthUser, IncidentItem } from "@/types";
 
 function renderWithProviders(element: React.ReactElement) {
@@ -1013,6 +1017,181 @@ describe("Dashboard Components", () => {
         <DashboardCronMiniCard canReadOverride={false} />,
       );
       assert.ok(html.includes("CRON_JOB_READ"));
+    });
+  });
+
+  describe("Step 1: Violation Trends Chart & Live AI Telemetry", () => {
+    it("renders Day/Week/Month switcher and trend metrics when data exists", () => {
+      const html = renderWithProviders(
+        <DashboardViolationTrendsChart
+          groupBy="DAY"
+          onChangeGroupBy={() => {}}
+          trendsWindow={{
+            startDate: "2026-11-19",
+            endDate: "2026-11-25",
+            groupBy: "DAY",
+            autoExpanded: true,
+          }}
+          trends={[
+            {
+              date: "2026-11-19",
+              totalIncidents: 4,
+              trueViolations: 3,
+              falseAlarms: 1,
+              resolvedCount: 2,
+            },
+            {
+              date: "2026-11-25",
+              totalIncidents: 8,
+              trueViolations: 7,
+              falseAlarms: 1,
+              resolvedCount: 6,
+            },
+          ]}
+        />,
+      );
+
+      assert.ok(html.includes("Xu hướng vi phạm an toàn"));
+      assert.ok(html.includes("Ngày"));
+      assert.ok(html.includes("Tuần"));
+      assert.ok(html.includes("Tháng"));
+      assert.ok(html.includes("2026-11-19 → 2026-11-25"));
+      assert.ok(html.includes("12")); // totalDetected = 4 + 8
+      assert.ok(html.includes("10")); // trueViolations = 3 + 7
+    });
+
+    it("renders live AI telemetry FPS, Latency, and sampled frames badge on DashboardAiStatusCard", () => {
+      const html = renderWithProviders(
+        <DashboardAiStatusCard
+          modelName="YOLOv11-PPE"
+          activeVersion={{
+            id: "ver-1",
+            modelId: "mod-1",
+            version: "2.1.0",
+            framework: "TENSORRT",
+            inputSize: "640x640",
+            status: "DEPLOYED",
+            metrics: { mAP50: 0.942, fps: 40, latencyMs: 9 },
+            createdAt: "2026-11-01T00:00:00Z",
+          }}
+          telemetry={{
+            avgFps: 27.4,
+            avgLatencyMs: 14.8,
+            maxLatencyMs: 26,
+            totalFrames: 12500,
+            sampleDays: 3,
+            source: "telemetry",
+          }}
+        />,
+      );
+
+      assert.ok(html.includes("14.8ms"));
+      assert.ok(html.includes("27.4 FPS"));
+      assert.ok(html.includes("94.2%"));
+      assert.ok(html.includes("Telemetry thực tế"));
+      assert.ok(!html.includes("Benchmark khai báo"));
+    });
+  });
+
+  describe("Step 2: Live Incidents Inline Grouping Switcher & Reporting Analytics Charts", () => {
+    it("renders inline Clustered | Raw grouping switcher inside DashboardLiveIncidents when onChangeGroupingMode is passed", () => {
+      const html = renderWithProviders(
+        <DashboardLiveIncidents
+          incidents={[MOCK_INCIDENT]}
+          groupingMode="clustered"
+          onChangeGroupingMode={() => {}}
+          canReview={true}
+        />,
+      );
+
+      assert.ok(html.includes("Gom đa sự cố") || html.includes("Clustered"));
+      assert.ok(html.includes("Bản ghi gốc") || html.includes("Raw"));
+    });
+
+    it("renders existing operational charts directly from buildDashboardAnalyticsFromReporting", () => {
+      const reportingAnalytics = buildDashboardAnalyticsFromReporting({
+        summary: {
+          totalIncidents: 14,
+          openIncidents: 3,
+          resolvedIncidents: 8,
+          trueViolations: 2,
+          falseAlarms: 1,
+          falseAlarmRate: 9.09,
+          complianceRate: 96.5,
+          meanTimeToResolveHours: 0.4,
+          periodStart: "2026-11-25",
+          periodEnd: "2026-11-25",
+          severityBreakdown: {
+            CRITICAL: {
+              count: 4,
+              resolved: 3,
+              targetSlaMinutes: 15,
+              actualMttrMinutes: 14,
+            },
+            HIGH: {
+              count: 10,
+              resolved: 5,
+              targetSlaMinutes: 30,
+              actualMttrMinutes: 26,
+            },
+          },
+        },
+        violations: [
+          { violationType: "TOTAL_AGGREGATED", count: 0, percentage: 0 },
+          { violationType: "NO_HELMET", count: 10, percentage: 71.4 },
+          { violationType: "NO_VEST", count: 4, percentage: 28.6 },
+        ],
+        hourlyRisk: {
+          date: "2026-11-25",
+          totalIncidents: 14,
+          peakHour: { hour: 8, label: "08:00", count: 9 },
+          hourly: [
+            { hour: 8, label: "08:00", count: 9 },
+            { hour: 16, label: "16:00", count: 5 },
+          ],
+          shifts: {
+            morning: {
+              name: "Ca sáng",
+              timeRange: "06:00 - 14:00",
+              totalIncidents: 9,
+              percentage: 64.3,
+            },
+            afternoon: {
+              name: "Ca chiều",
+              timeRange: "14:00 - 22:00",
+              totalIncidents: 5,
+              percentage: 35.7,
+            },
+            night: {
+              name: "Ca đêm",
+              timeRange: "22:00 - 06:00",
+              totalIncidents: 0,
+              percentage: 0,
+            },
+          },
+        },
+        cameraRankings: [
+          {
+            cameraId: "cam-1",
+            cameraName: "CCTV Cổng Số 1",
+            totalViolations: 14,
+            resolvedCount: 8,
+            falseAlarmCount: 1,
+          },
+        ],
+      });
+
+      const suiteHtml = renderWithProviders(
+        <DashboardOperationalSuite analytics={reportingAnalytics} />,
+      );
+      const radarHtml = renderWithProviders(
+        <DashboardPpeRadarChart distribution={reportingAnalytics.distribution} />,
+      );
+
+      assert.ok(suiteHtml.includes("08:00: 9"));
+      assert.ok(suiteHtml.includes("24 phút")); // 0.4h * 60
+      assert.ok(radarHtml.includes("Không đội mũ"));
+      assert.ok(!radarHtml.includes("TOTAL_AGGREGATED"));
     });
   });
 });

@@ -5,10 +5,10 @@ import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 
 const queryCache = new QueryCache({
-  onError: (error) => {
+  onError: (error, query) => {
     // Lỗi kỹ thuật đã toast ở interceptor; ở đây chỉ bắt lỗi bất ngờ
     // không phải ApiError (bug code, exception trong queryFn...)
-    if (!(error instanceof ApiError)) {
+    if (!(error instanceof ApiError) && !query.meta?.suppressErrorToast) {
       toast.error(
         error instanceof Error
           ? error.message

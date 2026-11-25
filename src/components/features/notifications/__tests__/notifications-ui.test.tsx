@@ -16,6 +16,7 @@ import { NotificationList } from "../notification-list";
 import { NotificationSectionList } from "../notification-section-list";
 import { NotificationDetailPanel } from "../notification-detail-panel";
 import { NotificationFilterToolbar } from "../notification-filter-toolbar";
+import { NotificationPreferencesCard } from "../notification-preferences-card";
 import { NotificationTemplatesTab } from "../notification-templates-tab";
 import { NotificationTemplateCardList } from "../notification-template-card-list";
 import { NotificationTemplateDetailPanel } from "../notification-template-detail-panel";
@@ -533,6 +534,149 @@ describe("Notifications UI & Logic", () => {
     assert.ok(
       editHtml.includes("Xem trước trực tiếp khi gõ") ||
         editHtml.includes("Live Preview"),
+    );
+  });
+
+  it("disables Test Send button when feature.notifications.enabled is false", () => {
+    const merged = mergeNotificationTemplates([], true);
+    const emailTpl = merged.find((t) => t.code === "VERIFY_EMAIL")!;
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    queryClient.setQueryData(["auth", "config"], {
+      "feature.notifications.enabled": false,
+    });
+
+    const authValue: AuthContextValue = {
+      user: ADMIN_USER,
+      status: "authenticated",
+      logout: async () => {},
+      setUser: () => {},
+    };
+    const realtimeValue: RealtimeContextValue = {
+      isConnected: true,
+      lastAlert: null,
+    };
+
+    const html = renderToString(
+      React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        React.createElement(
+          AuthContext.Provider,
+          { value: authValue },
+          React.createElement(
+            RealtimeContext.Provider,
+            { value: realtimeValue },
+            React.createElement(
+              LocaleProvider,
+              null,
+              React.createElement(NotificationTemplateDetailPanel, {
+                template: emailTpl,
+                canEdit: true,
+                mode: "view",
+                onModeChange: () => {},
+                onTestSend: () => {},
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    assert.ok(
+      html.includes('disabled=""') &&
+        (html.includes("Hệ thống gửi thông báo đang tạm tắt") ||
+          html.includes("Notifications are currently disabled")),
+    );
+  });
+
+  it("renders pause warning banner in NotificationPreferencesCard and disables dispatch buttons in NotificationConsoleHeader when feature.notifications.enabled is false", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
+    queryClient.setQueryData(["auth", "config"], {
+      "feature.notifications.enabled": false,
+    });
+
+    const authValue: AuthContextValue = {
+      user: SAFETY_MANAGER_USER,
+      status: "authenticated",
+      logout: async () => {},
+      setUser: () => {},
+    };
+    const realtimeValue: RealtimeContextValue = {
+      isConnected: true,
+      lastAlert: null,
+    };
+
+    const prefsHtml = renderToString(
+      React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        React.createElement(
+          AuthContext.Provider,
+          { value: authValue },
+          React.createElement(
+            RealtimeContext.Provider,
+            { value: realtimeValue },
+            React.createElement(
+              LocaleProvider,
+              null,
+              React.createElement(NotificationPreferencesCard, {}),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    assert.ok(
+      prefsHtml.includes(
+        "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng. Các cảnh báo tự động, email và thao tác phát thông báo tạm thời bị vô hiệu hóa.",
+      ) ||
+        prefsHtml.includes(
+          "Automated notifications and email dispatch are currently paused by the Administrator.",
+        ),
+    );
+
+    const headerHtml = renderToString(
+      React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        React.createElement(
+          AuthContext.Provider,
+          { value: authValue },
+          React.createElement(
+            RealtimeContext.Provider,
+            { value: realtimeValue },
+            React.createElement(
+              LocaleProvider,
+              null,
+              React.createElement(NotificationConsoleHeader, {
+                isConnected: true,
+                isRefreshing: false,
+                onRefresh: () => {},
+                totalCount: 10,
+                unreadCount: 2,
+                canBroadcast: true,
+                onOpenCustomDispatch: () => {},
+                onOpenBroadcast: () => {},
+              }),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    assert.ok(headerHtml.includes('disabled=""'));
+    assert.ok(
+      headerHtml.includes(
+        "Hệ thống gửi thông báo và email tự động đang bị Quản trị viên tạm dừng",
+      ) ||
+        headerHtml.includes(
+          "Automated notifications and email dispatch are currently paused by Administrator",
+        ),
     );
   });
 });

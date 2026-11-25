@@ -3,6 +3,7 @@ import {
   showToast,
   toast as hotToast,
   type IncidentToastInput,
+  type ToastOptions,
 } from "@ui/toaster";
 
 export interface IncidentToastOptions {
@@ -133,7 +134,7 @@ function triggerIncidentToast(
  * trong app (kể cả cảnh báo sự cố PPE) gọi qua đây để ăn đúng giao diện gỗ tùy chỉnh (WoodenToast).
  */
 export const toast = {
-  success: (message: string, options?: { id?: string }) =>
+  success: (message: string, options?: ToastOptions) =>
     showToast(message, "success", options),
   error: (message: string, options?: { id?: string }) =>
     showToast(message, "error", options),

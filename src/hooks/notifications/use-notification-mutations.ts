@@ -3,6 +3,9 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useContext } from "react";
 import { AuthContext } from "@/contexts/AuthContext";
+import { authKeys } from "@/hooks/auth/auth.query-keys";
+import { systemQueryKeys } from "@/hooks/system/system.query-keys";
+import { ApiError } from "@/lib/axios";
 import { applyNotificationInboxAction } from "@/lib/notification-inbox-actions";
 import type { NotificationInboxSnapshot } from "@/lib/notification-inbox";
 import {
@@ -13,9 +16,10 @@ import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { notificationService } from "@/services/notification.service";
 import { notificationKeys } from "./notification.query-keys";
-import type {
-  BroadcastNotificationPayload,
-  SendNotificationPayload,
+import {
+  ErrorCode,
+  type BroadcastNotificationPayload,
+  type SendNotificationPayload,
 } from "@/types";
 
 function useInboxAction(action: "read" | "read-many" | "read-all" | "delete") {
@@ -192,7 +196,13 @@ export function useBroadcastNotification(
     },
     onError: async (...args) => {
       const [error] = args;
-      handleMutationError(error, options?.suppressToast);
+      if (error instanceof ApiError && error.code === ErrorCode.FEATURE_DISABLED) {
+        void queryClient.invalidateQueries({ queryKey: authKeys.config() });
+        void queryClient.invalidateQueries({ queryKey: systemQueryKeys.featureFlags() });
+        handleMutationError(error, false);
+      } else {
+        handleMutationError(error, options?.suppressToast);
+      }
       await onError?.(...args);
     },
   });
@@ -229,7 +239,13 @@ export function useSendNotification(
     },
     onError: async (...args) => {
       const [error] = args;
-      handleMutationError(error, options?.suppressToast);
+      if (error instanceof ApiError && error.code === ErrorCode.FEATURE_DISABLED) {
+        void queryClient.invalidateQueries({ queryKey: authKeys.config() });
+        void queryClient.invalidateQueries({ queryKey: systemQueryKeys.featureFlags() });
+        handleMutationError(error, false);
+      } else {
+        handleMutationError(error, options?.suppressToast);
+      }
       await onError?.(...args);
     },
   });

@@ -2,6 +2,7 @@ import { apiClient } from "@/lib/axios";
 import { downloadBlob } from "@/lib/file-download";
 import type {
   AggregateDailyPayload,
+  AiPerformanceStatDto,
   CameraStatDto,
   CreateReportTemplateDto,
   DashboardKpiDto,
@@ -68,39 +69,99 @@ export const reportingService = {
    * GET /api/v1/statistics/dashboard-kpi
    * Lấy số liệu KPI tổng hợp cho Dashboard (BFF endpoint từ origin/develop).
    */
-  async getDashboardKpi(siteId?: string): Promise<DashboardKpiDto | null> {
+  async getDashboardKpi(
+    siteId?: string,
+    options?: { signal?: AbortSignal; suppressToast?: boolean; strict?: boolean },
+  ): Promise<DashboardKpiDto | null> {
     try {
       const res = await apiClient.get<unknown>("/statistics/dashboard-kpi", {
         params: siteId ? { siteId } : undefined,
-      });
+        signal: options?.signal,
+        ...(options?.suppressToast ? { suppressToast: true } : {}),
+      } as Record<string, unknown>);
       const data = unwrapData<DashboardKpiDto>(res);
       return data && typeof data === "object" && "totalIncidents" in data
         ? data
         : null;
-    } catch {
+    } catch (error) {
+      if (options?.strict) throw error;
       return null;
     }
   },
 
   /**
    * GET /api/v1/statistics/hourly-risk
-   * Thống kê rủi ro vi phạm theo 24 giờ và 3 ca trực trong 1 ngày.
+   * Thống kê rủi ro vi phạm theo 24 giờ và 3 ca trực.
+   * Tự động fallback sang ngày cuối kỳ (date = endDate) nếu BE chưa mở rộng multi-day (trả 400/422).
    */
-  async getHourlyRisk(params?: {
-    siteId?: string;
-    date?: string;
-    startDate?: string;
-    endDate?: string;
-  }): Promise<HourlyRiskResponseDto | null> {
-    try {
-      const res = await apiClient.get<unknown>("/statistics/hourly-risk", {
-        params,
-      });
+  async getHourlyRisk(
+    params?: {
+      siteId?: string;
+      date?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+    options?: { signal?: AbortSignal; suppressToast?: boolean; strict?: boolean },
+  ): Promise<HourlyRiskResponseDto | null> {
+    const requestConfig = (queryParams?: Record<string, unknown>) =>
+      ({
+        params: queryParams,
+        signal: options?.signal,
+        suppressToast: options?.suppressToast ?? true,
+      }) as Record<string, unknown>;
+
+    const parseHourly = (res: unknown): HourlyRiskResponseDto | null => {
       const data = unwrapData<HourlyRiskResponseDto>(res);
       return data && typeof data === "object" && Array.isArray(data.hourly)
         ? data
         : null;
-    } catch {
+    };
+
+    try {
+      const normalizedParams =
+        params?.startDate &&
+        params?.endDate &&
+        params.startDate === params.endDate &&
+        !params.date
+          ? {
+              ...(params.siteId ? { siteId: params.siteId } : {}),
+              date: params.startDate,
+            }
+          : params;
+
+      const res = await apiClient.get<unknown>(
+        "/statistics/hourly-risk",
+        requestConfig(normalizedParams as Record<string, unknown> | undefined),
+      );
+      return parseHourly(res);
+    } catch (error) {
+      const status =
+        error && typeof error === "object" && "status" in error
+          ? Number((error as { status?: unknown }).status)
+          : 0;
+
+      if (
+        (status === 400 || status === 422) &&
+        params?.startDate &&
+        params?.endDate &&
+        params.startDate !== params.endDate
+      ) {
+        try {
+          const fallbackRes = await apiClient.get<unknown>(
+            "/statistics/hourly-risk",
+            requestConfig({
+              ...(params.siteId ? { siteId: params.siteId } : {}),
+              date: params.endDate,
+            }),
+          );
+          return parseHourly(fallbackRes);
+        } catch (fallbackErr) {
+          if (options?.strict) throw fallbackErr;
+          return null;
+        }
+      }
+
+      if (options?.strict) throw error;
       return null;
     }
   },
@@ -110,7 +171,7 @@ export const reportingService = {
    */
   async getSummary(
     params?: ReportingFilterParams,
-    options?: { signal?: AbortSignal; suppressToast?: boolean },
+    options?: { signal?: AbortSignal; suppressToast?: boolean; strict?: boolean },
   ): Promise<StatisticsSummaryDto> {
     try {
       const res = await apiClient.get<unknown>("/statistics/summary", {
@@ -122,7 +183,8 @@ export const reportingService = {
       return data && typeof data === "object" && "totalIncidents" in data
         ? data
         : EMPTY_SUMMARY;
-    } catch {
+    } catch (error) {
+      if (options?.strict) throw error;
       return EMPTY_SUMMARY;
     }
   },
@@ -130,7 +192,10 @@ export const reportingService = {
   /**
    * GET /api/v1/statistics/trends
    */
-  async getTrends(params?: ReportingFilterParams): Promise<TrendItemDto[]> {
+  async getTrends(
+    params?: ReportingFilterParams,
+    options?: { signal?: AbortSignal; suppressToast?: boolean; strict?: boolean },
+  ): Promise<TrendItemDto[]> {
     try {
       const normalizedParams = params
         ? {
@@ -140,12 +205,14 @@ export const reportingService = {
               : undefined,
           }
         : undefined;
-      const res = await apiClient.get<unknown>(
-        "/statistics/trends",
-        { params: normalizedParams }
-      );
+      const res = await apiClient.get<unknown>("/statistics/trends", {
+        params: normalizedParams,
+        signal: options?.signal,
+        ...(options?.suppressToast ? { suppressToast: true } : {}),
+      } as Record<string, unknown>);
       return unwrapArray<TrendItemDto>(res);
-    } catch {
+    } catch (error) {
+      if (options?.strict) throw error;
       return [];
     }
   },
@@ -154,15 +221,18 @@ export const reportingService = {
    * GET /api/v1/statistics/by-violation
    */
   async getViolationDistribution(
-    params?: ReportingFilterParams
+    params?: ReportingFilterParams,
+    options?: { signal?: AbortSignal; suppressToast?: boolean; strict?: boolean },
   ): Promise<ViolationTypeStatDto[]> {
     try {
-      const res = await apiClient.get<unknown>(
-        "/statistics/by-violation",
-        { params }
-      );
+      const res = await apiClient.get<unknown>("/statistics/by-violation", {
+        params,
+        signal: options?.signal,
+        ...(options?.suppressToast ? { suppressToast: true } : {}),
+      } as Record<string, unknown>);
       return unwrapArray<ViolationTypeStatDto>(res);
-    } catch {
+    } catch (error) {
+      if (options?.strict) throw error;
       return [];
     }
   },
@@ -171,14 +241,41 @@ export const reportingService = {
    * GET /api/v1/statistics/by-camera
    */
   async getCameraRankings(
-    params?: ReportingFilterParams & { limit?: number }
+    params?: ReportingFilterParams & { limit?: number },
+    options?: { signal?: AbortSignal; suppressToast?: boolean; strict?: boolean },
   ): Promise<CameraStatDto[]> {
     try {
-      const res = await apiClient.get<unknown>(
-        "/statistics/by-camera",
-        { params }
-      );
+      const res = await apiClient.get<unknown>("/statistics/by-camera", {
+        params,
+        signal: options?.signal,
+        ...(options?.suppressToast ? { suppressToast: true } : {}),
+      } as Record<string, unknown>);
       return unwrapArray<CameraStatDto>(res);
+    } catch (error) {
+      if (options?.strict) throw error;
+      return [];
+    }
+  },
+
+  /**
+   * GET /api/v1/statistics/ai-performance
+   * Lấy thống kê hiệu năng suy luận thực tế (FPS & Latency) của AI theo ngày/camera.
+   */
+  async getAiPerformance(
+    params?: {
+      cameraId?: string;
+      startDate?: string;
+      endDate?: string;
+    },
+    options?: { signal?: AbortSignal; suppressToast?: boolean },
+  ): Promise<AiPerformanceStatDto[]> {
+    try {
+      const res = await apiClient.get<unknown>("/statistics/ai-performance", {
+        params,
+        signal: options?.signal,
+        suppressToast: options?.suppressToast ?? true,
+      } as Record<string, unknown>);
+      return unwrapArray<AiPerformanceStatDto>(res);
     } catch {
       return [];
     }

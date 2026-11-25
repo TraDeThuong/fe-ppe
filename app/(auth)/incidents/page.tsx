@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { PageSkeleton } from "@/components/features/app-shell/page-skeleton";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
+import { resolveIncidentListScope } from "@/lib/incident-list-scope";
+import { parseIncidentPeriodFromUrl, resolveIncidentPeriod } from "@/lib/incident-period";
 import {
   createServerQueryClient,
   readSearchParam,
@@ -19,20 +21,26 @@ async function IncidentsServerWrapper({
 }) {
   const resolved = await searchParams;
   const queryClient = createServerQueryClient();
+  const get = (key: string) => readSearchParam(resolved, key);
+  const hasExplicitSite = Object.hasOwn(resolved, "siteId");
 
-  const statParam = readSearchParam(resolved, "stat");
-  const status =
-    readSearchParam(resolved, "status") ||
-    (statParam === "pending-review" || statParam === "pendingReview"
-      ? "PENDING_REVIEW"
-      : statParam === "resolved"
-        ? "RESOLVED"
-        : undefined);
+  const statParam = get("stat");
+  const { status, requiresRole } = resolveIncidentListScope((key) =>
+    key === "siteId" && hasExplicitSite ? get(key) ?? "" : get(key),
+  );
   const severity = statParam === "critical" ? "CRITICAL" : undefined;
-  const siteId = readSearchParam(resolved, "siteId");
-  const cameraId = readSearchParam(resolved, "cameraId");
-  const fromDate = readSearchParam(resolved, "fromDate");
-  const toDate = readSearchParam(resolved, "toDate");
+  const siteId = get("siteId");
+  const cameraId = get("cameraId");
+  const { fromDate, toDate } = resolveIncidentPeriod(
+    parseIncidentPeriodFromUrl(
+      {
+        period: get("period"),
+        fromDate: get("fromDate"),
+        toDate: get("toDate"),
+      },
+      "",
+    ),
+  );
 
   const listParams: IncidentQueryParams = {
     page: 1,
@@ -47,27 +55,13 @@ async function IncidentsServerWrapper({
     toDate,
     sortBy: "detectedAt",
     sortOrder: "desc",
+    includeAssignments: true,
   };
 
+  // Without a site parameter, the client may use a persisted global site filter.
   const [listRaw, countsRaw] = await Promise.all([
-    serverApiGet("/incidents", {
-      page: listParams.page,
-      limit: listParams.limit,
-      status: listParams.status,
-      severity: listParams.severity,
-      siteId: listParams.siteId,
-      cameraId: listParams.cameraId,
-      fromDate: listParams.fromDate,
-      toDate: listParams.toDate,
-      sortBy: listParams.sortBy,
-      sortOrder: listParams.sortOrder,
-    }),
-    serverApiGet("/incidents/status-counts", {
-      siteId,
-      cameraId,
-      fromDate,
-      toDate,
-    }),
+    hasExplicitSite && !requiresRole ? serverApiGet("/incidents", { ...listParams }) : null,
+    hasExplicitSite ? serverApiGet("/incidents/status-counts", { siteId, cameraId, fromDate, toDate }) : null,
   ]);
 
   const list = serverUnwrapPaginated<IncidentItem>(listRaw);

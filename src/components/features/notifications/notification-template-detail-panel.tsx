@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { usePublicConfig } from "@/hooks/auth";
 import {
   useCreateNotificationTemplate,
   usePreviewNotificationTemplate,
@@ -31,6 +32,11 @@ import {
 } from "@/hooks/notifications/use-notification-templates";
 import { useNotificationSound } from "@/hooks/notifications/use-notification-sound";
 import { sanitizeHtml } from "@/lib/sanitize-html";
+import {
+  getConfig,
+  isFeatureFlagEnabled,
+  SYSTEM_CONFIG_KEYS,
+} from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 import { getChannelDisplay } from "./notification-meta-badges";
 import { TEMPLATE_CATEGORY_LABELS } from "./notification-predefined-data";
@@ -115,6 +121,10 @@ export function NotificationTemplateDetailPanel({
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const { playPreset } = useNotificationSound();
+  const { data: publicConfig } = usePublicConfig();
+  const notificationsEnabled = isFeatureFlagEnabled(
+    getConfig(publicConfig, SYSTEM_CONFIG_KEYS.notificationsEnabled, true),
+  );
 
   // View sub-tab state
   const [viewTab, setViewTab] = useState<"rendered" | "source" | "variables">(
@@ -549,8 +559,19 @@ export function NotificationTemplateDetailPanel({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => onTestSend(template)}
-                  className="h-9 gap-1.5 rounded-xl bg-surface px-3.5 text-xs font-extrabold text-primary shadow-nm-sm transition-all hover:bg-primary/10 active:scale-95 active:shadow-nm-inset"
+                  disabled={!notificationsEnabled}
+                  onClick={() => {
+                    if (!notificationsEnabled) return;
+                    onTestSend(template);
+                  }}
+                  title={
+                    !notificationsEnabled
+                      ? isVietnamese
+                        ? "Hệ thống gửi thông báo đang tạm tắt"
+                        : "Notifications are currently disabled"
+                      : undefined
+                  }
+                  className="h-9 gap-1.5 rounded-xl bg-surface px-3.5 text-xs font-extrabold text-primary shadow-nm-sm transition-all hover:bg-primary/10 active:scale-95 active:shadow-nm-inset disabled:opacity-50"
                 >
                   <Send className="size-3.5" />
                   <span>{isVietnamese ? "Gửi thử nghiệm" : "Test Send"}</span>

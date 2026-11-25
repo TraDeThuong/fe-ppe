@@ -43,6 +43,7 @@ export interface DashboardLiveIncidentsProps {
   totalPendingCount?: number | null;
   totalConfirmedCount?: number | null;
   groupingMode?: IncidentAggregationMode;
+  onChangeGroupingMode?: (mode: IncidentAggregationMode) => void;
   loading?: boolean;
   error?: boolean;
   viewAllHref?: string;
@@ -154,6 +155,7 @@ export function DashboardLiveIncidents({
   totalPendingCount,
   totalConfirmedCount,
   groupingMode = "clustered",
+  onChangeGroupingMode,
   loading = false,
   error = false,
   viewAllHref = "/incidents",
@@ -490,19 +492,57 @@ export function DashboardLiveIncidents({
           })}
         </div>
 
-        {/* Urgent Action Pill: Dập nổi nhẹ trên nền */}
-        <div className="flex items-center gap-2 rounded-full bg-background px-3 py-1.5 text-[11px] shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)]">
-          <AlertTriangle className="size-3.5 shrink-0 text-danger" />
-          <span className="font-semibold text-danger">
-            {t("dashboard.liveIncidents.urgentBanner")}:{" "}
-            <strong className="font-black">{totalUnresolvedDisplay}</strong>
-          </span>
-          {unresolvedIncidents.length > unresolvedClusters.length &&
-            groupingMode === "clustered" && (
-              <span className="font-mono text-[10px] text-muted-foreground">
-                ({unresolvedIncidents.length} {isVietnamese ? "lỗi gốc" : "raw"})
-              </span>
-            )}
+        {/* Grouping Mode Switcher + Urgent Action Pill */}
+        <div className="flex flex-wrap items-center gap-2">
+          {onChangeGroupingMode && (
+            <div
+              role="group"
+              aria-label={
+                isVietnamese
+                  ? "Chế độ gom nhóm sự cố"
+                  : "Incident grouping mode"
+              }
+              className={`inline-flex items-center gap-1 rounded-[13px] bg-background p-1 shadow-[inset_2.5px_2.5px_5px_var(--shadow-dark),inset_-2.5px_-2.5px_5px_var(--shadow-light)] ${NM.recessed}`}
+            >
+              <button
+                type="button"
+                onClick={() => onChangeGroupingMode("clustered")}
+                className={`inline-flex cursor-pointer items-center gap-1 rounded-[9px] px-2.5 py-1 text-[10.5px] font-bold transition-all ${
+                  groupingMode === "clustered"
+                    ? `bg-background text-primary shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] ${NM.extruded}`
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Layers className="size-3" />
+                <span>{isVietnamese ? "Gom đa sự cố" : "Clustered"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeGroupingMode("raw")}
+                className={`inline-flex cursor-pointer items-center rounded-[9px] px-2.5 py-1 text-[10.5px] font-bold transition-all ${
+                  groupingMode === "raw"
+                    ? `bg-background text-primary shadow-[2px_2px_4px_var(--shadow-dark),-2px_-2px_4px_var(--shadow-light)] ${NM.extruded}`
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>{isVietnamese ? "Bản ghi gốc" : "Raw"}</span>
+              </button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 rounded-full bg-background px-3 py-1.5 text-[11px] shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)]">
+            <AlertTriangle className="size-3.5 shrink-0 text-danger" />
+            <span className="font-semibold text-danger">
+              {t("dashboard.liveIncidents.urgentBanner")}:{" "}
+              <strong className="font-black">{totalUnresolvedDisplay}</strong>
+            </span>
+            {unresolvedIncidents.length > unresolvedClusters.length &&
+              groupingMode === "clustered" && (
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  ({unresolvedIncidents.length} {isVietnamese ? "lỗi gốc" : "raw"})
+                </span>
+              )}
+          </div>
         </div>
       </div>
     )}

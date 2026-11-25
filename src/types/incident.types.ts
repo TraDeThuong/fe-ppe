@@ -201,6 +201,8 @@ export interface IncidentQueryParams {
   siteId?: string;
   zoneId?: string;
   cameraId?: string;
+  assignedTo?: string;
+  assignedToMe?: boolean;
   violationType?: ViolationType | string;
   severity?: IncidentSeverity | string;
   status?: IncidentStatus | string;
