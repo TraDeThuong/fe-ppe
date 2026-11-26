@@ -79,19 +79,74 @@ function ModelLoader() {
    HELMET SHOWCASE
 ========================================================= */
 
+export interface HelmetShowcasePpeStats {
+  noHelmetCount: number | null;
+  noVestCount: number | null;
+  complianceRate: number | null;
+  periodLabel?: string | null;
+}
+
 export interface HelmetShowcaseProps {
   className?: string;
   title?: string;
   subtitle?: string;
+  /**
+   * Chỉ số PPE thực tế lấy từ /api/v1/statistics/*.
+   * - `undefined`: ẩn dải chỉ số (người dùng không có quyền PPE_REPORTING_READ).
+   * - `null`: có quyền nhưng chưa có dữ liệu → hiển thị "—".
+   */
+  ppeStats?: HelmetShowcasePpeStats | null;
+  ppeStatsLoading?: boolean;
 }
 
 export function HelmetShowcase({
   className = "",
   title = "Safety First",
   subtitle = "Personal Protective Equipment",
+  ppeStats,
+  ppeStatsLoading = false,
 }: HelmetShowcaseProps) {
-  const { locale } = useLocale();
+  const { t, number, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+
+  const formatCount = (value: number | null | undefined) =>
+    typeof value === "number" && Number.isFinite(value)
+      ? number.format(value)
+      : "—";
+  const formatPercent = (value: number | null | undefined) =>
+    typeof value === "number" && Number.isFinite(value)
+      ? `${number.format(Math.round(value * 10) / 10)}%`
+      : "—";
+
+  const statTiles =
+    ppeStats === undefined
+      ? []
+      : [
+          {
+            key: "noHelmet",
+            label: t("dashboard.helmet.noHelmet"),
+            value: formatCount(ppeStats?.noHelmetCount),
+            tone:
+              (ppeStats?.noHelmetCount ?? 0) > 0
+                ? "text-danger"
+                : "text-foreground",
+          },
+          {
+            key: "noVest",
+            label: t("dashboard.helmet.noVest"),
+            value: formatCount(ppeStats?.noVestCount),
+            tone:
+              (ppeStats?.noVestCount ?? 0) > 0
+                ? "text-warning"
+                : "text-foreground",
+          },
+          {
+            key: "compliance",
+            label: t("dashboard.helmet.compliance"),
+            value: formatPercent(ppeStats?.complianceRate),
+            tone: "text-primary",
+          },
+        ];
   return (
     <section
       className={[
@@ -315,6 +370,44 @@ export function HelmetShowcase({
         {/* Bottom accent line */}
         <div className="pointer-events-none absolute bottom-0 left-[20%] right-[20%] h-[2px] rounded-full bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
       </div>
+
+      {/* =================================================
+          LIVE PPE STATS (from /api/v1/statistics/*)
+      ================================================= */}
+      {statTiles.length > 0 && (
+        <div
+          aria-label={t("dashboard.helmet.liveStats")}
+          className="relative mt-3 rounded-[18px] border border-border/30 bg-background/70 p-2.5 dark:border-white/[0.05] dark:bg-background/30"
+        >
+          <div className="mb-2 flex items-center justify-between gap-2 px-1">
+            <span className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+              {t("dashboard.helmet.liveStats")}
+            </span>
+            {ppeStats?.periodLabel && (
+              <span className="truncate font-mono text-[10px] font-bold text-primary/80">
+                {ppeStats.periodLabel}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {statTiles.map((tile) => (
+              <div
+                key={tile.key}
+                className="min-w-0 rounded-xl border border-border/40 bg-surface px-2.5 py-2 shadow-[2px_2px_6px_rgba(0,0,0,0.04)] dark:border-white/[0.08] dark:bg-card/60 dark:shadow-none"
+              >
+                <p className="text-[9px] font-bold uppercase leading-tight tracking-wider text-muted-foreground">
+                  {tile.label}
+                </p>
+                <p
+                  className={`mt-1 font-mono text-base font-black tabular-nums sm:text-lg ${tile.tone}`}
+                >
+                  {ppeStatsLoading ? "…" : tile.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

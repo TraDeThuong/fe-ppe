@@ -134,13 +134,11 @@ export function DeployModelDialog({
           </div>
         </div>
 
-        {/* Hot-swap Notice */}
+        {/* Registry update notice */}
         <div className="flex items-start gap-2.5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs leading-relaxed text-emerald-600 dark:text-emerald-400">
           <Zap className="mt-0.5 h-4 w-4 shrink-0" />
           <span className="min-w-0 flex-1 break-words">
-            {isVietnamese
-              ? "Hệ thống sẽ nạp nóng trọng số (Zero-downtime hot-swap) vào GPU worker mà không làm ngắt quãng luồng hình ảnh camera."
-              : "The system will hot-swap weights (zero downtime) into GPU workers without interrupting camera video streams."}
+            {t("aiMetrics.deploy.registryNotice")}
           </span>
         </div>
       </div>

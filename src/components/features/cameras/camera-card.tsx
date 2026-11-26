@@ -8,8 +8,6 @@ import {
   Building2,
   Edit2,
   Layers,
-  Play,
-  Square,
   Trash2,
 } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
@@ -48,7 +46,70 @@ export const CameraCard = memo(function CameraCard({
   const isVietnamese = locale === "vi-VN";
   const canManage = useCan()("PPE_CAMERA_MANAGE");
   const isOnline = camera.status === "ONLINE";
+  const isError = camera.status === "ERROR";
+  const isMaintenance =
+    camera.status === "MAINTENANCE" || camera.status === "CONNECTING";
   const isLiveRunning = liveSession?.status === "running";
+  const isLiveStarting =
+    liveSession?.status === "initializing" ||
+    liveSession?.status === "reconnecting";
+
+  const statusBadge = isLiveRunning
+    ? {
+        label: "AI LIVE",
+        pillClass: "bg-accent/15 text-accent",
+        dotClass: "animate-pulse bg-accent",
+        title: isVietnamese
+          ? "Đang phân tích AI thời gian thực"
+          : "Real-time AI tracking active",
+      }
+    : isLiveStarting
+      ? {
+          label: isVietnamese ? "ĐANG KẾT NỐI AI" : "AI CONNECTING",
+          pillClass: "bg-warning/15 text-warning",
+          dotClass: "animate-pulse bg-warning",
+          title: isVietnamese
+            ? "Đang khởi tạo hoặc kết nối lại phiên AI"
+            : "Initializing or reconnecting AI session",
+        }
+      : isOnline
+        ? {
+            label: isVietnamese ? "SẴN SÀNG (ONLINE)" : "READY (ONLINE)",
+            pillClass: "bg-primary/15 text-primary",
+            dotClass: "bg-primary",
+            title: isVietnamese
+              ? "Thiết bị trực tuyến, chờ bật AI Live"
+              : "Device online, AI Live on standby",
+          }
+        : isError
+          ? {
+              label: isVietnamese ? "LỖI TÍN HIỆU" : "ERROR",
+              pillClass: "bg-danger/15 text-danger",
+              dotClass: "bg-danger",
+              title: isVietnamese
+                ? "Lỗi tín hiệu kết nối thiết bị"
+                : "Device connection fault",
+            }
+          : isMaintenance
+            ? {
+                label:
+                  camera.status === "MAINTENANCE"
+                    ? isVietnamese
+                      ? "BẢO TRÌ"
+                      : "MAINTENANCE"
+                    : isVietnamese
+                      ? "ĐANG KẾT NỐI"
+                      : "CONNECTING",
+                pillClass: "bg-warning/15 text-warning",
+                dotClass: "bg-warning",
+                title: camera.status,
+              }
+            : {
+                label: isVietnamese ? "NGOẠI TUYẾN (OFFLINE)" : "OFFLINE",
+                pillClass: "bg-foreground/10 text-muted-foreground",
+                dotClass: "bg-muted-foreground/50",
+                title: isVietnamese ? "Thiết bị ngoại tuyến" : "Device offline",
+              };
 
   const metrics = liveSession?.metrics;
   const fpsDisplay =
@@ -72,32 +133,11 @@ export const CameraCard = memo(function CameraCard({
               {camera.code}
             </span>
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-extrabold ${
-                isOnline
-                  ? "bg-primary/15 text-primary"
-                  : "bg-foreground/10 text-muted-foreground"
-              }`}
+              title={statusBadge.title}
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-mono text-[10px] font-extrabold ${statusBadge.pillClass}`}
             >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  isOnline ? "bg-primary" : "bg-muted-foreground/50"
-                }`}
-              />
-              {camera.status}
-            </span>
-            <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-extrabold ${
-                isLiveRunning
-                  ? "bg-accent/15 text-accent"
-                  : "bg-foreground/[0.06] text-muted-foreground"
-              }`}
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  isLiveRunning ? "animate-pulse bg-accent" : "bg-muted-foreground/40"
-                }`}
-              />
-              {isLiveRunning ? "AI LIVE" : "IDLE"}
+              <span className={`h-1.5 w-1.5 rounded-full ${statusBadge.dotClass}`} />
+              {statusBadge.label}
             </span>
           </div>
 
@@ -187,51 +227,41 @@ export const CameraCard = memo(function CameraCard({
 
       {/* Footer Actions */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-foreground/[0.06] pt-3">
-        <div className="flex items-center gap-1.5">
-          {isLiveRunning ? (
-            <button
-              type="button"
-              disabled={isBusy}
-              onClick={() => onStopLive?.(camera)}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-accent disabled:opacity-50 ${NM.tactileBtn}`}
-            >
-              <Square className="size-3 fill-current" />
-              <span>{isVietnamese ? "Dừng AI" : "Stop AI"}</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={isBusy}
-              onClick={() => onStartLive?.(camera)}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-xs font-extrabold text-primary-foreground shadow-sm transition hover:brightness-105 disabled:opacity-50"
-            >
-              <Play className="size-3 fill-current" />
-              <span>
-                {isBusy
-                  ? isVietnamese
-                    ? "Đang bật..."
-                    : "Starting..."
-                  : isVietnamese
-                    ? "Bật AI Live"
-                    : "Start AI Live"}
-              </span>
-            </button>
-          )}
-
+        <div className="flex items-center gap-2">
           <Link
             href={`/cameras/${camera.id}`}
-            className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold text-foreground hover:text-primary ${NM.tactileBtn}`}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold text-foreground hover:text-primary ${NM.tactileBtn}`}
           >
-            <span>{isVietnamese ? "Chi tiết" : "Details"}</span>
+            <span>{isVietnamese ? "Chi tiết Studio" : "Studio Details"}</span>
+            <ArrowUpRight className="size-3.5 text-primary" />
           </Link>
+          <span className="rounded-lg bg-foreground/[0.05] px-2 py-1 font-mono text-[10px] font-bold text-muted-foreground">
+            {camera.sourceType || "RTSP"}
+          </span>
         </div>
 
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => onHealthCheck(camera)}
-            title={isVietnamese ? "Kiểm tra kết nối (Ping)" : "Check connection (Ping)"}
-            aria-label={isVietnamese ? "Kiểm tra kết nối (Ping)" : "Check connection (Ping)"}
+            title={
+              canManage
+                ? isVietnamese
+                  ? "Kiểm tra kết nối (Ping)"
+                  : "Check connection (Ping)"
+                : isVietnamese
+                  ? "Xem nhật ký kết nối"
+                  : "View connection logs"
+            }
+            aria-label={
+              canManage
+                ? isVietnamese
+                  ? "Kiểm tra kết nối (Ping)"
+                  : "Check connection (Ping)"
+                : isVietnamese
+                  ? "Xem nhật ký kết nối"
+                  : "View connection logs"
+            }
             className={`inline-flex h-8 w-8 items-center justify-center rounded-xl text-primary ${NM.tactileBtn}`}
           >
             <Activity className="size-3.5" />

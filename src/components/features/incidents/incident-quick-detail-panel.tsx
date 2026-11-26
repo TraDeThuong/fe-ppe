@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Archive,
@@ -47,6 +47,11 @@ import {
   type IncidentItem,
   type NotificationSeverity,
 } from "@/types";
+import {
+  isVideoEvidence,
+  resolveIncidentTelemetry,
+} from "./viewer/evidence-media-utils";
+import { EvidenceVideoPlayer } from "./viewer/evidence-video-player";
 
 export interface IncidentQuickDetailPanelProps {
   incident: IncidentItem | null;
@@ -92,10 +97,11 @@ export function IncidentQuickDetailPanel({
   const { getSiteName, getZoneName, getCameraCode, getCameraName, getCamera } =
     useEntityLookup();
 
-  const [evidenceTab, setEvidenceTab] = useState<"violation" | "compare">("violation");
+  const [evidenceTab, setEvidenceTab] = useState<"violation" | "compare" | "video">("violation");
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [signedSnapshotUrl, setSignedSnapshotUrl] = useState<string | null>(null);
   const [imgError, setImgError] = useState(false);
+  const snapshotRequest = useRef<AbortController | null>(null);
   const [isNotifying, setIsNotifying] = useState(false);
 
   const incidentId = incident?.id ?? "";
@@ -113,6 +119,10 @@ export function IncidentQuickDetailPanel({
     setLightboxOpen(false);
     setSignedSnapshotUrl(null);
     setImgError(false);
+    return () => {
+      snapshotRequest.current?.abort();
+      snapshotRequest.current = null;
+    };
   }, [incidentId]);
 
   const current = useMemo<IncidentItem | null>(() => {
@@ -150,44 +160,41 @@ export function IncidentQuickDetailPanel({
     [current?.cameraId, getCamera],
   );
 
-  const { primaryEvidence, primaryEvidenceUrl, referenceEvidenceUrl } = useMemo(() => {
+  const {
+    primaryEvidence,
+    primaryEvidenceUrl,
+    referenceEvidenceUrl,
+    videoEvidence,
+  } = useMemo(() => {
     if (!current) {
       return {
         primaryEvidence: null as EvidenceItem | null,
         primaryEvidenceUrl: "",
         referenceEvidenceUrl: "",
+        videoEvidence: null as EvidenceItem | null,
       };
     }
 
     const evidences = current.evidences ?? [];
+    const vid = evidences.find((e) => isVideoEvidence(e)) || null;
+    const imageEvidences = evidences.filter((e) => !isVideoEvidence(e));
     const snap =
-      evidences.find((e) => e.evidenceType === EVIDENCE_TYPE.SNAPSHOT) ||
-      evidences.find((e) => !isReferenceEvidenceItem(e)) ||
-      evidences[0] ||
+      imageEvidences.find((e) => e.evidenceType === EVIDENCE_TYPE.SNAPSHOT) ||
+      imageEvidences.find((e) => !isReferenceEvidenceItem(e)) ||
       null;
-    const ref = evidences.find((e) => isReferenceEvidenceItem(e)) || null;
+    const ref = imageEvidences.find((e) => isReferenceEvidenceItem(e)) || null;
 
     let cachedIncidentImg = "";
     let cachedRefImg = "";
     if (typeof window !== "undefined") {
-      cachedIncidentImg =
-        sessionStorage.getItem(`ppe_incident_evidence_${current.id}`) ||
-        (current.cameraId
-          ? sessionStorage.getItem(`ppe_camera_evidence_${current.cameraId.toLowerCase()}`) || ""
-          : "");
-      cachedRefImg =
-        sessionStorage.getItem(`ppe_incident_ref_evidence_${current.id}`) ||
-        (current.cameraId
-          ? sessionStorage.getItem(`ppe_camera_ref_evidence_${current.cameraId.toLowerCase()}`) || ""
-          : "");
+      cachedIncidentImg = sessionStorage.getItem(`ppe_incident_evidence_${current.id}`) || "";
+      cachedRefImg = sessionStorage.getItem(`ppe_incident_ref_evidence_${current.id}`) || "";
     }
 
     const resolvedPrimary =
-      (cachedIncidentImg ? resolveEvidenceUrl(cachedIncidentImg) : "") ||
-      (snap?.url ? resolveEvidenceUrl(snap.url) : "") ||
-      (snap?.storageKey ? resolveEvidenceUrl(snap.storageKey) : "") ||
-      (current.snapshotUrl ? resolveEvidenceUrl(current.snapshotUrl) : "") ||
-      (targetCamera?.snapshotUrl ? resolveEvidenceUrl(targetCamera.snapshotUrl) : "");
+      resolveEvidenceUrl(snap?.url || snap?.storageKey) ||
+      (!isVideoEvidence(null, current.snapshotUrl) ? resolveEvidenceUrl(current.snapshotUrl) : "") ||
+      (!isVideoEvidence(null, cachedIncidentImg) ? resolveEvidenceUrl(cachedIncidentImg) : "");
 
     const resolvedRef =
       (ref?.url ? resolveEvidenceUrl(ref.url) : "") ||
@@ -198,27 +205,33 @@ export function IncidentQuickDetailPanel({
       primaryEvidence: snap,
       primaryEvidenceUrl: resolvedPrimary,
       referenceEvidenceUrl: resolvedRef && resolvedRef !== resolvedPrimary ? resolvedRef : "",
+      videoEvidence: vid,
     };
-  }, [current, targetCamera]);
+  }, [current]);
 
   const effectivePrimaryUrl = signedSnapshotUrl || primaryEvidenceUrl;
 
   const handleImageError = async () => {
+    if (snapshotRequest.current) return;
     if (!signedSnapshotUrl && primaryEvidence?.id) {
+      const controller = new AbortController();
+      snapshotRequest.current = controller;
       try {
-        const res = await incidentService.getEvidenceDownloadUrl(primaryEvidence.id, {
-          action: "VIEW",
-        });
-        const nextUrl =
-          isDockerInternalMinioUrl(res.downloadUrl) && primaryEvidence.storageKey
-            ? resolveEvidenceUrl(primaryEvidence.storageKey)
-            : res.downloadUrl;
+        const { downloadUrl } = await incidentService.getEvidenceDownloadUrl(
+          primaryEvidence.id,
+          { action: "VIEW" },
+          { signal: controller.signal, suppressToast: true },
+        );
+        if (controller.signal.aborted) return;
+        const nextUrl = isDockerInternalMinioUrl(downloadUrl) ? "" : downloadUrl;
         if (nextUrl && nextUrl !== primaryEvidenceUrl) {
           setSignedSnapshotUrl(nextUrl);
           return;
         }
       } catch {
-        // Fallback below
+        if (controller.signal.aborted) return;
+      } finally {
+        if (snapshotRequest.current === controller) snapshotRequest.current = null;
       }
     }
     setImgError(true);
@@ -250,9 +263,9 @@ export function IncidentQuickDetailPanel({
     );
   }
 
-  // Permissions & Role Logic (aligned 100% with /incidents/[id])
+  // Permissions & Role Logic (aligned 100% with /incidents/[id] & D08 RBAC)
   const isOfficerRole = (user?.role || "").toUpperCase() === "SAFETY_OFFICER";
-  const canReview = !isOfficerRole && Boolean(onReview) && can("PPE_INCIDENT_REVIEW");
+  const canReview = Boolean(onReview) && can("PPE_INCIDENT_REVIEW");
   const canAssign = !isOfficerRole && Boolean(onAssign) && can("PPE_INCIDENT_MANAGE");
   const canResolve = Boolean(onResolve) && can("PPE_INCIDENT_UPDATE");
   const canClose = !isOfficerRole && Boolean(onCloseIncident) && can("PPE_INCIDENT_MANAGE");
@@ -275,8 +288,13 @@ export function IncidentQuickDetailPanel({
     canResolve && (!isOfficerRole || isOfficerAssigned);
 
   const siteName = current.siteName || getSiteName(current.siteId);
+  const resolvedZoneId = current.zoneId || targetCamera?.zoneId;
   const zoneName =
-    current.zoneName || getZoneName(current.siteId, current.zoneId) || "—";
+    current.zoneName || getZoneName(current.siteId, resolvedZoneId) || "—";
+  const telemetry = resolveIncidentTelemetry(current);
+  const showVideoPlayer =
+    Boolean(videoEvidence) &&
+    (evidenceTab === "video" || (!effectivePrimaryUrl && evidenceTab === "violation"));
   const cameraCode = current.cameraCode || getCameraCode(current.cameraId);
   const cameraName = current.cameraName || getCameraName(current.cameraId);
   const detectedDate = new Date(current.detectedAt).toLocaleString(locale, {
@@ -692,9 +710,14 @@ export function IncidentQuickDetailPanel({
                 <span className="font-extrabold tracking-tight text-foreground">
                   {isVietnamese ? "Bằng chứng AI" : "AI Evidence"}
                 </span>
-                {typeof current.confidence === "number" && (
+                {telemetry.trackId !== null && (
+                  <span className="rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-black text-primary">
+                    Track #{telemetry.trackId}
+                  </span>
+                )}
+                {telemetry.confidencePct !== null && (
                   <span className="rounded-lg border border-danger/25 bg-danger/10 px-2 py-0.5 font-mono text-[10px] font-black text-danger">
-                    AI {(current.confidence * 100).toFixed(0)}%
+                    AI {telemetry.confidencePct}%
                   </span>
                 )}
                 {evidenceCount > 0 && (
@@ -705,7 +728,7 @@ export function IncidentQuickDetailPanel({
               </div>
 
               <div className="flex items-center gap-1.5">
-                {referenceEvidenceUrl && (
+                {(referenceEvidenceUrl || videoEvidence) && (
                   <div className="inline-flex items-center rounded-xl border border-border/30 bg-background/85 p-0.5 text-[10px] shadow-nm-inset">
                     <button
                       type="button"
@@ -717,21 +740,36 @@ export function IncidentQuickDetailPanel({
                     >
                       {isVietnamese ? "Vi phạm" : "Violation"}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setEvidenceTab("compare")}
-                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-0.5 font-extrabold transition-all ${evidenceTab === "compare"
-                          ? "bg-primary text-primary-foreground shadow-xs"
-                          : "text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                      <Columns2 className="h-3 w-3" />
-                      <span>{isVietnamese ? "Đối chứng" : "Compare"}</span>
-                    </button>
+                    {videoEvidence && (
+                      <button
+                        type="button"
+                        onClick={() => setEvidenceTab("video")}
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-0.5 font-extrabold transition-all ${evidenceTab === "video"
+                            ? "bg-primary text-primary-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground"
+                          }`}
+                      >
+                        <Video className="h-3 w-3" />
+                        <span>Video</span>
+                      </button>
+                    )}
+                    {referenceEvidenceUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setEvidenceTab("compare")}
+                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-0.5 font-extrabold transition-all ${evidenceTab === "compare"
+                            ? "bg-primary text-primary-foreground shadow-xs"
+                            : "text-muted-foreground hover:text-foreground"
+                          }`}
+                      >
+                        <Columns2 className="h-3 w-3" />
+                        <span>{isVietnamese ? "Đối chứng" : "Compare"}</span>
+                      </button>
+                    )}
                   </div>
                 )}
 
-                {effectivePrimaryUrl && !imgError && (
+                {effectivePrimaryUrl && !imgError && !showVideoPlayer && (
                   <button
                     type="button"
                     onClick={() => setLightboxOpen(true)}
@@ -756,7 +794,16 @@ export function IncidentQuickDetailPanel({
               <span className="pointer-events-none absolute bottom-2.5 left-2.5 z-10 h-3.5 w-3.5 border-b-2 border-l-2 border-primary/75" />
               <span className="pointer-events-none absolute bottom-2.5 right-2.5 z-10 h-3.5 w-3.5 border-b-2 border-r-2 border-primary/75" />
 
-              {evidenceTab === "compare" && referenceEvidenceUrl ? (
+              {showVideoPlayer && videoEvidence ? (
+                <div className="relative flex aspect-[16/10] w-full items-center justify-center">
+                  <EvidenceVideoPlayer
+                    evidence={videoEvidence}
+                    poster={effectivePrimaryUrl || undefined}
+                    title={`Video #${current.id.slice(0, 8)}`}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              ) : evidenceTab === "compare" && referenceEvidenceUrl ? (
                 <div className="grid h-full min-h-[260px] grid-cols-2 gap-1.5 p-1.5 sm:min-h-[320px]">
                   <div className="relative overflow-hidden rounded-lg bg-slate-900">
                     <span className="absolute left-2 top-2 z-10 rounded-md bg-danger/90 px-1.5 py-0.5 font-mono text-[9px] font-black tracking-wider text-white shadow">

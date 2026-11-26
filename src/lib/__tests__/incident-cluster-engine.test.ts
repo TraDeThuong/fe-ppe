@@ -210,7 +210,7 @@ describe("incident-cluster-engine", () => {
     const clusters = clusterIncidentsByPerson([
       makeIncident({ id: "1", violationType: "NO_HELMET", severity: "CRITICAL", status: "PENDING_REVIEW", trackId: 1 }),
       makeIncident({ id: "2", violationType: "NO_VEST", severity: "MEDIUM", status: "CONFIRMED", trackId: 1 }),
-      makeIncident({ id: "3", violationType: "NO_HELMET", severity: "LOW", status: "RESOLVED", trackId: 2 }),
+      makeIncident({ id: "3", violationType: "NO_HELMET", severity: "HIGH", status: "RESOLVED", trackId: 2 }),
     ]);
 
     const counts = computeClusterStatusCounts(clusters);

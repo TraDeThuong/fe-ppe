@@ -1,12 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertOctagon,
-  Edit3,
   Layers,
-  Plus,
-  Radio,
   RotateCcw,
   Save,
   ShieldCheck,
@@ -15,52 +12,36 @@ import {
 } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { ResourceAuditTrailCard } from "@/components/features/audit-logs";
+import { extractPlottedBoundaryPoints } from "@/components/features/sites/restricted-area-drawer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
-import { Input, Switch, Textarea } from "@/components/ui/form";
+import { ConfirmDialog } from "@/components/ui/dialog";
+import { Input, Switch } from "@/components/ui/form";
 import {
-  Select,
-  type SelectOption,
-} from "@/components/ui/form/selection-controls/select";
-import {
-  useCameraStreamMutations,
-  useCameraStreams,
   useClearCameraConfig,
   useResetCameraConfig,
   useUpdateCameraConfig,
 } from "@/hooks/cameras";
 import { useEffectiveSafetyConfig } from "@/hooks/sites/use-site-safety-config";
 import { useCan } from "@/hooks/use-can";
-import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
 import type {
   CameraConfigItem,
   CameraItem,
-  CameraStreamItem,
-  RoiPoint,
+  EffectiveSafetyConfigResponse,
 } from "@/types";
 
 export interface CameraDeviceAdvancedPanelsProps {
   camera: CameraItem;
   config?: CameraConfigItem | null;
+  effectiveSafety?: EffectiveSafetyConfigResponse | null;
   onOpenRestrictedAreaModal?: () => void;
 }
-
-const STREAM_PROTOCOL_OPTIONS: SelectOption[] = [
-  { value: "RTSP", label: "RTSP" },
-  { value: "HLS", label: "HLS" },
-  { value: "WEBRTC", label: "WEBRTC" },
-];
-
-const STREAM_STATUS_OPTIONS: SelectOption[] = [
-  { value: "ACTIVE", label: "ACTIVE" },
-  { value: "INACTIVE", label: "INACTIVE" },
-];
 
 export function CameraDeviceAdvancedPanels({
   camera,
   config,
+  effectiveSafety: providedEffectiveSafety,
   onOpenRestrictedAreaModal,
 }: CameraDeviceAdvancedPanelsProps) {
   const { locale } = useLocale();
@@ -69,7 +50,7 @@ export function CameraDeviceAdvancedPanels({
   const canManageCamera = can("PPE_CAMERA_MANAGE");
   const canReadSafety = can("PPE_SAFETY_CONFIG_READ");
 
-  // 1. Camera DB Config Editor + Reset / Clear
+  // 1. Camera DB Hardware Config Editor + Reset / Clear (ROI managed visually via RestrictedAreaDrawer)
   const updateConfigMutation = useUpdateCameraConfig();
   const resetConfigMutation = useResetCameraConfig();
   const clearConfigMutation = useClearCameraConfig();
@@ -80,7 +61,6 @@ export function CameraDeviceAdvancedPanels({
   const [captureFps, setCaptureFps] = useState(10);
   const [resolution, setResolution] = useState("1920x1080");
   const [motionSensitivity, setMotionSensitivity] = useState(75);
-  const [roiText, setRoiText] = useState("[]");
 
   useEffect(() => {
     if (config) {
@@ -89,34 +69,17 @@ export function CameraDeviceAdvancedPanels({
       setCaptureFps(config.captureFps ?? 10);
       setResolution(config.resolution || "1920x1080");
       setMotionSensitivity(config.motionSensitivity ?? 75);
-      setRoiText(JSON.stringify(config.roiPolygon ?? [], null, 2));
     }
   }, [config]);
 
+  const roiPointsCount = useMemo(
+    () => extractPlottedBoundaryPoints(config?.roiPolygon).length,
+    [config?.roiPolygon],
+  );
+
   const handleSaveDbConfig = async (e: React.FormEvent) => {
     e.preventDefault();
-    let parsedRoi: RoiPoint[] | null = null;
-    try {
-      const trimmed = roiText.trim();
-      if (trimmed && trimmed !== "null") {
-        const parsed = JSON.parse(trimmed);
-        if (!Array.isArray(parsed)) {
-          throw new Error("ROI Polygon must be a JSON array of {x, y} points");
-        }
-        if (parsed.length > 0 && parsed.length < 3) {
-          throw new Error(
-            isVi
-              ? "ROI Polygon cần 0 điểm hoặc từ 3 đến 50 điểm {x, y}"
-              : "ROI Polygon requires 0 or 3 to 50 {x, y} points",
-          );
-        }
-        parsedRoi = parsed.length === 0 ? null : parsed;
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Invalid ROI JSON");
-      return;
-    }
-
+    if (!canManageCamera) return;
     await updateConfigMutation.mutateAsync({
       cameraId: camera.id,
       payload: {
@@ -124,83 +87,26 @@ export function CameraDeviceAdvancedPanels({
         processingEnabled,
         captureFps: Math.max(1, Math.min(30, Number(captureFps) || 10)),
         resolution: resolution.trim() || "1920x1080",
-        motionSensitivity: Math.max(1, Math.min(100, Number(motionSensitivity) || 75)),
-        roiPolygon: parsedRoi,
+        motionSensitivity: Math.max(
+          1,
+          Math.min(100, Number(motionSensitivity) || 75),
+        ),
       },
     });
   };
 
-  // 2. Camera Streams Manager
-  const { data: streams = [], isLoading: streamsLoading } = useCameraStreams(
-    camera.id,
-    Boolean(camera.id),
-  );
-  const streamMutations = useCameraStreamMutations(camera.id);
-  const [streamModalOpen, setStreamModalOpen] = useState(false);
-  const [editingStream, setEditingStream] = useState<CameraStreamItem | null>(null);
-  const [protocol, setProtocol] = useState("RTSP");
-  const [streamUrl, setStreamUrl] = useState("");
-  const [streamResolution, setStreamResolution] = useState("1920x1080");
-  const [streamFps, setStreamFps] = useState("25");
-  const [streamStatus, setStreamStatus] = useState("ACTIVE");
-  const [deleteStreamTarget, setDeleteStreamTarget] =
-    useState<CameraStreamItem | null>(null);
-
-  const openCreateStream = () => {
-    setEditingStream(null);
-    setProtocol("RTSP");
-    setStreamUrl("");
-    setStreamResolution("1920x1080");
-    setStreamFps("25");
-    setStreamStatus("ACTIVE");
-    setStreamModalOpen(true);
-  };
-
-  const openEditStream = (s: CameraStreamItem) => {
-    setEditingStream(s);
-    setProtocol(s.protocol);
-    setStreamUrl(s.streamUrl);
-    setStreamResolution(s.resolution || "1920x1080");
-    setStreamFps(String(s.fps ?? 25));
-    setStreamStatus(s.status || "ACTIVE");
-    setStreamModalOpen(true);
-  };
-
-  const handleSaveStream = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingStream) {
-      await streamMutations.updateStream.mutateAsync({
-        streamId: editingStream.id,
-        payload: {
-          protocol: protocol as "RTSP" | "HLS" | "WEBRTC",
-          streamUrl: streamUrl.trim(),
-          resolution: streamResolution.trim() || undefined,
-          fps: Number(streamFps) || undefined,
-          status: streamStatus as "ACTIVE" | "INACTIVE",
-        },
-      });
-    } else {
-      await streamMutations.createStream.mutateAsync({
-        protocol: protocol as "RTSP" | "HLS" | "WEBRTC",
-        streamUrl: streamUrl.trim(),
-        resolution: streamResolution.trim() || undefined,
-        fps: Number(streamFps) || undefined,
-        status: streamStatus as "ACTIVE" | "INACTIVE",
-      });
-    }
-    setStreamModalOpen(false);
-  };
-
-  // 3. Effective Safety Config Preview
-  const { data: effectiveSafety } = useEffectiveSafetyConfig(
+  // 2. Effective Safety Config Preview (reuses parent query when provided)
+  const { data: fetchedEffectiveSafety } = useEffectiveSafetyConfig(
     { siteId: camera.siteId, cameraId: camera.id },
-    Boolean(camera.siteId && camera.id && canReadSafety),
+    providedEffectiveSafety === undefined &&
+      Boolean(camera.siteId && camera.id && canReadSafety),
   );
+  const effectiveSafety = providedEffectiveSafety ?? fetchedEffectiveSafety;
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        {/* Card A: Camera DB Config + ROI + Reset/Clear */}
+        {/* Card A: Camera DB Hardware Config + Visual ROI Trigger */}
         <section
           className={`space-y-4 rounded-[28px] p-5 sm:p-6 xl:col-span-6 ${NM.chassis}`}
         >
@@ -214,11 +120,13 @@ export function CameraDeviceAdvancedPanels({
               <div>
                 <h3 className="text-sm font-extrabold text-foreground">
                   {isVi
-                    ? "Cấu hình Camera DB & ROI Polygon"
-                    : "Camera DB Config & ROI Polygon"}
+                    ? "Cấu hình Phần cứng Camera DB"
+                    : "Camera DB Hardware Config"}
                 </h3>
                 <p className="text-[11px] text-muted-foreground">
-                  PUT / Reset / Clear CameraConfig
+                  {isVi
+                    ? "Thông số thu nhận khung hình & trạng thái xử lý"
+                    : "Frame capture settings & processing state"}
                 </p>
               </div>
             </div>
@@ -249,8 +157,8 @@ export function CameraDeviceAdvancedPanels({
             )}
           </div>
 
-          <form onSubmit={handleSaveDbConfig} className="space-y-3 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <form onSubmit={handleSaveDbConfig} className="space-y-3.5 text-xs">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex items-center justify-between rounded-xl px-3 py-2 shadow-nm-inset">
                 <span className="font-semibold text-foreground">
                   {isVi ? "Bật Camera" : "Enabled"}
@@ -273,7 +181,7 @@ export function CameraDeviceAdvancedPanels({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold text-muted-foreground">
                   Capture FPS (1–30)
@@ -314,34 +222,53 @@ export function CameraDeviceAdvancedPanels({
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <label className="text-[11px] font-bold text-muted-foreground">
-                  ROI Polygon JSON (0 hoặc 3–50 điểm {"{x, y}"})
-                </label>
-                {canManageCamera && onOpenRestrictedAreaModal && (
-                  <button
-                    type="button"
-                    onClick={onOpenRestrictedAreaModal}
-                    className="inline-flex items-center gap-1 rounded-lg border border-danger/30 bg-danger/10 px-2.5 py-1 text-[11px] font-bold text-danger hover:bg-danger/15 transition"
+            {/* Clean Visual ROI Summary (replaces error-prone raw JSON textarea) */}
+            <div
+              className={`flex flex-wrap items-center justify-between gap-2.5 rounded-2xl p-3 ${NM.recessed}`}
+            >
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <AlertOctagon className="h-3.5 w-3.5 text-danger" />
+                  <span className="font-bold text-foreground">
+                    {isVi
+                      ? "Vùng cấm nguy hiểm (ROI Polygon)"
+                      : "Restricted Danger Zone (ROI)"}
+                  </span>
+                  <span
+                    className={`rounded-md px-1.5 py-0.5 font-mono text-[10px] font-extrabold ${
+                      roiPointsCount >= 3
+                        ? "bg-danger/15 text-danger"
+                        : "bg-foreground/10 text-muted-foreground"
+                    }`}
                   >
-                    <AlertOctagon className="h-3 w-3" />
-                    <span>
-                      {isVi
-                        ? "Vẽ Vùng cấm trực quan trên Camera"
-                        : "Plot ROI visually on Camera"}
-                    </span>
-                  </button>
-                )}
+                    {roiPointsCount >= 3
+                      ? isVi
+                        ? `${roiPointsCount} điểm`
+                        : `${roiPointsCount} pts`
+                      : isVi
+                        ? "Chưa vẽ"
+                        : "Unplotted"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {isVi
+                    ? "Sử dụng công cụ vẽ trực quan trên khung hình camera để đồng bộ chính xác."
+                    : "Use the visual canvas drawer to plot and sync camera ROI boundaries."}
+                </p>
               </div>
-              <Textarea
-                rows={4}
-                disabled={!canManageCamera}
-                value={roiText}
-                onChange={(e) => setRoiText(e.target.value)}
-                className="font-mono text-[11px]"
-                placeholder='[{"x": 0.25, "y": 0.25}, {"x": 0.75, "y": 0.25}, {"x": 0.75, "y": 0.75}]'
-              />
+
+              {onOpenRestrictedAreaModal && (
+                <button
+                  type="button"
+                  onClick={onOpenRestrictedAreaModal}
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-xl border border-danger/30 bg-danger/10 px-3 py-1.5 text-[11px] font-bold text-danger transition hover:bg-danger/15"
+                >
+                  <AlertOctagon className="h-3 w-3" />
+                  <span>
+                    {isVi ? "Vẽ Vùng cấm trực quan" : "Plot ROI Visually"}
+                  </span>
+                </button>
+              )}
             </div>
 
             {canManageCamera && (
@@ -359,93 +286,8 @@ export function CameraDeviceAdvancedPanels({
           </form>
         </section>
 
-        {/* Card B: Camera Streams Manager + Effective Safety Config */}
+        {/* Card B: Effective Safety Config + Resource Audit Trail */}
         <div className="space-y-6 xl:col-span-6">
-          <section className={`space-y-4 rounded-[28px] p-5 sm:p-6 ${NM.chassis}`}>
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-foreground/[0.06] pb-3">
-              <div className="flex items-center gap-2.5">
-                <div
-                  className={`flex h-9 w-9 items-center justify-center rounded-xl text-primary ${NM.recessed}`}
-                >
-                  <Radio className="size-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-extrabold text-foreground">
-                    {isVi
-                      ? `Luồng Video Streams (${streams.length})`
-                      : `Camera Streams (${streams.length})`}
-                  </h3>
-                  <p className="text-[11px] text-muted-foreground">
-                    RTSP / HLS / WebRTC Sub-streams
-                  </p>
-                </div>
-              </div>
-              {canManageCamera && (
-                <Button size="sm" variant="outline" onClick={openCreateStream} className="gap-1">
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>{isVi ? "Thêm Stream" : "Add Stream"}</span>
-                </Button>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              {streamsLoading ? (
-                <div className="h-20 animate-pulse rounded-xl bg-surface-elevated/40" />
-              ) : streams.length === 0 ? (
-                <p className="rounded-xl p-4 text-center text-xs text-muted-foreground shadow-nm-inset">
-                  {isVi ? "Chưa có luồng stream nào." : "No streams configured."}
-                </p>
-              ) : (
-                streams.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/20 bg-background/60 px-3 py-2 text-xs"
-                  >
-                    <div className="min-w-0 flex-1 space-y-0.5">
-                      <div className="flex items-center gap-1.5">
-                        <Badge variant={s.status === "ACTIVE" ? "success" : "default"}>
-                          {s.status}
-                        </Badge>
-                        <Badge variant="info" className="font-mono text-[10px]">
-                          {s.protocol}
-                        </Badge>
-                        <span className="font-mono text-[11px] text-muted-foreground">
-                          {s.resolution || "--"} · {s.fps ?? "--"} fps
-                        </span>
-                      </div>
-                      <p className="truncate font-mono text-[11px] text-foreground">
-                        {s.streamUrl}
-                      </p>
-                    </div>
-                    {canManageCamera && (
-                      <div className="flex items-center gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => openEditStream(s)}>
-                          <Edit3 className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={streams.length <= 1}
-                          title={
-                            streams.length <= 1
-                              ? isVi
-                                ? "Không thể xóa luồng cuối cùng"
-                                : "Cannot delete the last remaining stream"
-                              : undefined
-                          }
-                          className="text-danger hover:text-danger disabled:opacity-35"
-                          onClick={() => setDeleteStreamTarget(s)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-
           {effectiveSafety && (
             <section className={`space-y-3 rounded-[28px] p-5 sm:p-6 ${NM.chassis}`}>
               <div className="flex items-center justify-between">
@@ -461,17 +303,24 @@ export function CameraDeviceAdvancedPanels({
                   {effectiveSafety.source}
                 </Badge>
               </div>
-              <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-2 text-center text-xs">
+              <div className="grid grid-cols-1 gap-2 text-center text-xs min-[420px]:grid-cols-3">
                 <div className={`rounded-xl p-2 ${NM.recessed}`}>
-                  <span className="text-[10px] text-muted-foreground">Confidence</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Confidence
+                  </span>
                   <p className="font-mono font-bold text-foreground">
                     {Math.round((effectiveSafety.confidenceThreshold ?? 0.8) * 100)}%
                   </p>
                 </div>
                 <div className={`rounded-xl p-2 ${NM.recessed}`}>
-                  <span className="text-[10px] text-muted-foreground">Confirm / Cooldown</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {isVi ? "Mũ · Áo / Cooldown" : "Helmet · Vest / Cooldown"}
+                  </span>
                   <p className="font-mono font-bold text-foreground">
-                    {effectiveSafety.confirmationDuration}s / {effectiveSafety.cooldownDuration}s
+                    {effectiveSafety.helmetConfirmationDuration ??
+                      effectiveSafety.confirmationDuration}
+                    s · {effectiveSafety.vestConfirmationDuration ?? 4}s /{" "}
+                    {effectiveSafety.cooldownDuration}s
                   </p>
                 </div>
                 <div className={`rounded-xl p-2 ${NM.recessed}`}>
@@ -503,93 +352,6 @@ export function CameraDeviceAdvancedPanels({
         </div>
       </div>
 
-      {/* Stream Add/Edit Modal */}
-      <Dialog
-        open={streamModalOpen}
-        onOpenChange={setStreamModalOpen}
-        title={
-          editingStream
-            ? isVi
-              ? "Cập nhật Camera Stream"
-              : "Update Camera Stream"
-            : isVi
-              ? "Thêm Camera Stream mới"
-              : "Add Camera Stream"
-        }
-        size="md"
-      >
-        <form onSubmit={handleSaveStream} className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-foreground">Protocol</label>
-              <Select
-                size="sm"
-                options={STREAM_PROTOCOL_OPTIONS}
-                value={protocol}
-                onValueChange={setProtocol}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-foreground">Status</label>
-              <Select
-                size="sm"
-                options={STREAM_STATUS_OPTIONS}
-                value={streamStatus}
-                onValueChange={setStreamStatus}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground">Stream URL *</label>
-            <Input
-              required
-              value={streamUrl}
-              onChange={(e) => setStreamUrl(e.target.value)}
-              placeholder="rtsp://user:pass@192.168.1.10:554/stream2"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-foreground">Resolution</label>
-              <Input
-                pattern="^\d+x\d+$"
-                value={streamResolution}
-                onChange={(e) => setStreamResolution(e.target.value)}
-                placeholder="1920x1080"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-foreground">FPS (1–60)</label>
-              <Input
-                type="number"
-                min={1}
-                max={60}
-                value={streamFps}
-                onChange={(e) => setStreamFps(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="ghost" onClick={() => setStreamModalOpen(false)}>
-              {isVi ? "Hủy" : "Cancel"}
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={
-                streamMutations.createStream.isPending ||
-                streamMutations.updateStream.isPending
-              }
-            >
-              {isVi ? "Lưu Stream" : "Save Stream"}
-            </Button>
-          </div>
-        </form>
-      </Dialog>
-
       <ConfirmDialog
         open={clearDialogOpen}
         onClose={() => setClearDialogOpen(false)}
@@ -607,22 +369,6 @@ export function CameraDeviceAdvancedPanels({
         }
         confirmText={isVi ? "Xóa" : "Clear"}
       />
-
-      <ConfirmDialog
-        open={Boolean(deleteStreamTarget)}
-        onClose={() => setDeleteStreamTarget(null)}
-        onConfirm={async () => {
-          if (!deleteStreamTarget) return;
-          await streamMutations.deleteStream.mutateAsync(deleteStreamTarget.id);
-          setDeleteStreamTarget(null);
-        }}
-        variant="danger"
-        loading={streamMutations.deleteStream.isPending}
-        title={isVi ? "Xóa luồng Stream?" : "Delete Camera Stream?"}
-        description={deleteStreamTarget?.streamUrl || ""}
-        confirmText={isVi ? "Xóa" : "Delete"}
-      />
     </div>
   );
 }
-

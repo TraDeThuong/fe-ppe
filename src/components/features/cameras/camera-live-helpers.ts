@@ -117,6 +117,37 @@ export function hasMaskedCredentials(raw?: string | null): boolean {
   return raw.includes(":***@") || raw.includes("***") || raw.toUpperCase().includes("%2A%2A%2A");
 }
 
+export interface EditedStreamUrlResolution {
+  ok: boolean;
+  /** `undefined` nghĩa là giữ nguyên URL gốc trong DB (không gửi đè chuỗi `***` lên Backend). */
+  streamUrl?: string;
+  errorCode?: "EMPTY_URL" | "MASKED_PASSWORD_CHANGED";
+}
+
+/**
+ * Chuẩn hóa `streamUrl` khi cập nhật Camera (`EditCameraModal`):
+ * - Nếu không đổi so với URL hiện tại: trả `streamUrl: undefined` để giữ nguyên mật khẩu thật trong DB.
+ * - Nếu user đã sửa URL nhưng vẫn còn ký tự che mật khẩu `***`: chặn sớm trên form yêu cầu nhập mật khẩu thật.
+ */
+export function resolveEditedStreamUrl(
+  nextUrl: string,
+  originalUrl?: string | null,
+): EditedStreamUrlResolution {
+  const trimmedNext = nextUrl.trim();
+  const trimmedOriginal = (originalUrl ?? "").trim();
+
+  if (!trimmedNext) {
+    return { ok: false, errorCode: "EMPTY_URL" };
+  }
+  if (trimmedNext === trimmedOriginal) {
+    return { ok: true, streamUrl: undefined };
+  }
+  if (hasMaskedCredentials(trimmedNext)) {
+    return { ok: false, errorCode: "MASKED_PASSWORD_CHANGED" };
+  }
+  return { ok: true, streamUrl: trimmedNext };
+}
+
 export interface LiveSourceModeOptions {
   /** Production 24/7 AI server (`app/server.py`) hỗ trợ tra cứu M2M RTSP gốc khi URL bị mask `:***@`. */
   productionMode?: boolean;
@@ -180,9 +211,6 @@ export function canAutoStartCameraSource(
   if (hasMaskedCredentials(dbUrl)) {
     return Boolean(options.productionMode) && isSupportedLiveSource(dbUrl, uploadedVideos);
   }
-  if (String(camera.sourceType).toUpperCase() === "WEBCAM") {
-    return !dbUrl || /^[0-9]$/.test(dbUrl);
-  }
   return isSupportedLiveSource(dbUrl, uploadedVideos);
 }
 
@@ -195,11 +223,6 @@ export function resolveCameraSourceIssue(
   options: LiveSourceModeOptions = {},
 ): string | null {
   const dbUrl = (camera.streamUrl ?? "").trim();
-  const isWebcamType = String(camera.sourceType).toUpperCase() === "WEBCAM";
-
-  if (isWebcamType && (!dbUrl || /^[0-9]$/.test(dbUrl))) {
-    return null;
-  }
 
   if (!dbUrl) {
     return pickLocaleText(
@@ -222,9 +245,16 @@ export function resolveCameraSourceIssue(
     return null;
   }
 
+  if (isHtml5VideoUrl(dbUrl)) {
+    return pickLocaleText(
+      `Nguồn MP4/HTTP (${dbUrl}) hiện dùng để Xem thử (HTML5 Preview). Để chạy nhận diện AI Live trực tiếp, hãy dùng luồng RTSP, YouTube hoặc chọn Video trên AI Server ở phần Override (Tab 03).`,
+      `MP4/HTTP source (${dbUrl}) is used for HTML5 Preview. To run live AI detection, use RTSP, YouTube, or select a server video in Override (Tab 03).`,
+    );
+  }
+
   return pickLocaleText(
-    `Nguồn DB (${dbUrl}) không thuộc RTSP / YouTube / Webcam / Server Video mà Live AI Engine hỗ trợ trực tiếp. Mở Tab 03 → Nguồn chạy thử AI (Override) để test AI.`,
-    `DB source (${dbUrl}) is not directly supported by Live AI Engine (RTSP / YouTube / Webcam / Server Video). Open Tab 03 → AI Test Source (Override).`,
+    `Nguồn DB (${dbUrl}) không thuộc RTSP / YouTube / Server Video mà Live AI Engine hỗ trợ trực tiếp. Mở Tab 03 → Nguồn chạy thử AI (Override) để test AI.`,
+    `DB source (${dbUrl}) is not directly supported by Live AI Engine (RTSP / YouTube / Server Video). Open Tab 03 → AI Test Source (Override).`,
   );
 }
 
@@ -244,16 +274,6 @@ export function resolveInitialCameraSource(
   options: LiveSourceModeOptions = {},
 ): InitialCameraSourceResolution {
   const dbUrl = (camera.streamUrl ?? "").trim();
-  const isWebcamType = String(camera.sourceType).toUpperCase() === "WEBCAM";
-
-  if (isWebcamType) {
-    const webcamSrc = /^[0-9]$/.test(dbUrl) ? dbUrl : "0";
-    return {
-      source: webcamSrc,
-      usesFallbackServerVideo: false,
-      cameraSourceNote: null,
-    };
-  }
 
   if (
     (!hasMaskedCredentials(dbUrl) || options.productionMode) &&
@@ -420,15 +440,18 @@ export function deriveLiveDefaultsFromConfig(
   const aiFps = clampFps(Math.min(targetFps, 15), 15);
   const processingEnabled = config?.processingEnabled ?? true;
 
+  const rawHelmetConfirm =
+    effectiveSafety?.helmetConfirmationDuration ??
+    effectiveSafety?.confirmationDuration;
   const confirmHelmetSec =
-    effectiveSafety?.confirmationDuration != null
-      ? clampConfirmSec(effectiveSafety.confirmationDuration, 2.0)
+    rawHelmetConfirm != null
+      ? clampConfirmSec(Number(rawHelmetConfirm), 2.0)
       : 2.0;
 
-  // Áp dụng đồng nhất confirmationDuration của Site/Camera cho cả Mũ và Áo (chỉ giữ 4.0s khi chưa có effectiveSafety)
+  // Đọc độc lập vestConfirmationDuration (mặc định 4.0s, không ép theo confirmationDuration của Mũ)
   const confirmVestSec =
-    effectiveSafety?.confirmationDuration != null
-      ? clampConfirmSec(effectiveSafety.confirmationDuration, 2.0)
+    effectiveSafety?.vestConfirmationDuration != null
+      ? clampConfirmSec(Number(effectiveSafety.vestConfirmationDuration), 4.0)
       : 4.0;
 
   const confidenceThreshold =
@@ -634,41 +657,63 @@ function extractTrackLabel(incident: IncidentItem): string {
   return `DB-${incident.id.slice(0, 6)}`;
 }
 
+export interface ExtractedIncidentEvidencePair {
+  beforeUrl: string | null;
+  afterUrl: string | null;
+  primaryUrl: string;
+  isPair: boolean;
+  lightboxItem: EvidenceItem | null;
+}
+
 /**
- * Normalizes Incident DB records (`SNAPSHOT` & `REFERENCE_SNAPSHOT`) into shared `EvidenceItem[]`
- * so Tab 02 Evidence Gallery preserves historical evidence across Live Engine restarts.
+ * Extracts Before (`REFERENCE_SNAPSHOT`) and After (`SNAPSHOT`) URLs plus a Lightbox-ready `EvidenceItem`
+ * from an `IncidentItem` so both List rows and Before/After Grid cards share one normalized contract.
+ */
+export function extractIncidentEvidencePair(
+  incident: IncidentItem,
+  cameraCode = "",
+): ExtractedIncidentEvidencePair {
+  const afterUrl = getDbIncidentSnapshotUrl(incident) || null;
+  const refEv = incident.evidences?.find(
+    (ev) => ev.evidenceType === EVIDENCE_TYPE.REFERENCE_SNAPSHOT,
+  );
+  const beforeUrl = refEv
+    ? resolveEvidenceUrl(refEv.url || refEv.storageKey) || null
+    : null;
+  const primaryUrl = afterUrl || beforeUrl || "";
+  const isPair = Boolean(beforeUrl && afterUrl);
+  const lightboxItem: EvidenceItem | null = primaryUrl
+    ? {
+        id: `db-${incident.id}`,
+        source: "live",
+        sourceId: cameraCode ? `${cameraCode} (DB)` : "Incident DB",
+        type: incident.violationType,
+        trackId:
+          incident.trackId != null
+            ? String(incident.trackId)
+            : extractTrackLabel(incident),
+        timestamp: incident.detectedAt || incident.createdAt,
+        beforeUrl,
+        afterUrl,
+        primaryUrl,
+      }
+    : null;
+
+  return { beforeUrl, afterUrl, primaryUrl, isPair, lightboxItem };
+}
+
+/**
+ * Normalizes Incident DB records (`SNAPSHOT` & `REFERENCE_SNAPSHOT`) into shared `EvidenceItem[]`.
  */
 export function normalizeIncidentEvidences(
   cameraCode: string,
   incidents: IncidentItem[],
 ): EvidenceItem[] {
   const out: EvidenceItem[] = [];
-
   for (const inc of incidents) {
-    const afterUrl = getDbIncidentSnapshotUrl(inc) || null;
-    const refEv = inc.evidences?.find(
-      (ev) => ev.evidenceType === EVIDENCE_TYPE.REFERENCE_SNAPSHOT,
-    );
-    const beforeUrl = refEv
-      ? resolveEvidenceUrl(refEv.url || refEv.storageKey) || null
-      : null;
-
-    const primaryUrl = afterUrl || beforeUrl || "";
-    if (!primaryUrl) continue;
-
-    out.push({
-      id: `db-${inc.id}`,
-      source: "live",
-      sourceId: cameraCode ? `${cameraCode} (DB)` : "Incident DB",
-      type: inc.violationType,
-      trackId: extractTrackLabel(inc),
-      timestamp: inc.detectedAt || inc.createdAt,
-      beforeUrl,
-      afterUrl,
-      primaryUrl,
-    });
+    const { lightboxItem } = extractIncidentEvidencePair(inc, cameraCode);
+    if (lightboxItem) out.push(lightboxItem);
   }
-
   return out;
 }
 

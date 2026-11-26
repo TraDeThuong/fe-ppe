@@ -32,6 +32,7 @@ const basePermissionsByRole: Record<string, string[]> = {
   ],
   SAFETY_OFFICER: [
     "PPE_INCIDENT_READ",
+    "PPE_INCIDENT_REVIEW",
     "PPE_INCIDENT_UPDATE",
     "PPE_SITE_READ",
     "PPE_CAMERA_READ",
@@ -217,6 +218,21 @@ describe("IncidentSplitView & IncidentQuickDetailPanel", () => {
     );
 
     assert.match(unassignedHtml, /Đã giao cán bộ khác/);
+
+    // SAFETY_OFFICER with PPE_INCIDENT_REVIEW CAN review PENDING_REVIEW incidents (Mục 3.6 & 4.3 D08)
+    const pendingOfficerHtml = renderWithProviders(
+      <IncidentQuickDetailPanel
+        incident={sampleIncidents[0]}
+        onReview={noop}
+        onAssign={noop}
+        onResolve={noop}
+        onCloseIncident={noop}
+      />,
+      "SAFETY_OFFICER",
+      "off-1",
+    );
+    assert.match(pendingOfficerHtml, /Thẩm duyệt|Duyệt|Review/);
+    assert.doesNotMatch(pendingOfficerHtml, /Chờ Quản lý duyệt/);
   });
 
   it("shows Close CTA for RESOLVED incidents and hides Edit button when CLOSED", () => {

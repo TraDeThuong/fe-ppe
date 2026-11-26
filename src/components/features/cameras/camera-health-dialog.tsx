@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { Activity, AlertTriangle, CheckCircle, Clock, Loader2, Wifi, Zap } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { useCan } from "@/hooks/use-can";
 import { useCameraHealthLogs, usePingCamera } from "@/hooks/cameras";
 import { useLocale } from "@/providers/locale-provider";
 import type { CameraItem } from "@/types";
@@ -21,6 +22,7 @@ export function CameraHealthDialog({
 }: CameraHealthDialogProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const canManage = useCan()("PPE_CAMERA_MANAGE");
 
   const pingMutation = usePingCamera();
   const resetPing = pingMutation.reset;
@@ -131,22 +133,24 @@ export function CameraHealthDialog({
             </div>
           </div>
 
-          {/* Trigger Ping Button */}
-          <div className="mt-4 flex justify-center">
-            <Button
-              variant="primary"
-              onClick={handlePing}
-              disabled={pingMutation.isPending}
-              className="flex items-center gap-2"
-            >
-              {pingMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Zap className="h-4 w-4" />
-              )}
-              <span>{isVietnamese ? "Gửi tín hiệu Ping ngay" : "Send Ping Probe"}</span>
-            </Button>
-          </div>
+          {/* Trigger Ping Button (requires PPE_CAMERA_MANAGE) */}
+          {canManage && (
+            <div className="mt-4 flex justify-center">
+              <Button
+                variant="primary"
+                onClick={handlePing}
+                disabled={pingMutation.isPending}
+                className="flex items-center gap-2"
+              >
+                {pingMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4" />
+                )}
+                <span>{isVietnamese ? "Gửi tín hiệu Ping ngay" : "Send Ping Probe"}</span>
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Health History List */}

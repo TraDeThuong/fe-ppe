@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
+import { useCan } from "@/hooks/use-can";
 import {
   aiTestService,
   isAiEndpointNotFoundError,
@@ -38,9 +39,14 @@ export const liveEngineKeys = {
 export function useCameraLiveSessions(options?: {
   enabled?: boolean;
   pollIntervalMs?: number;
+  includeVideos?: boolean;
 }) {
-  const enabled = options?.enabled ?? true;
-  const pollIntervalMs = options?.pollIntervalMs ?? 2500;
+  const can = useCan();
+  const canReadCamera = can("PPE_CAMERA_READ");
+  const canManageCamera = can("PPE_CAMERA_MANAGE");
+  const enabled = (options?.enabled ?? true) && canReadCamera;
+  const includeVideos = (options?.includeVideos ?? true) && enabled;
+  const pollIntervalMs = options?.pollIntervalMs ?? 5000;
   const queryClient = useQueryClient();
 
   const modelsQuery = useQuery<ModelInfo[]>({
@@ -48,16 +54,16 @@ export function useCameraLiveSessions(options?: {
     queryFn: () => aiTestService.getModels(),
     enabled,
     staleTime: 60_000,
-    retry: 1,
+    retry: false,
     meta: { suppressErrorToast: true },
   });
 
   const videosQuery = useQuery<LiveVideoItem[]>({
     queryKey: liveEngineKeys.videos(),
     queryFn: () => aiTestService.listLiveVideos(),
-    enabled,
-    staleTime: 15_000,
-    retry: 1,
+    enabled: includeVideos,
+    staleTime: 30_000,
+    retry: false,
     meta: { suppressErrorToast: true },
   });
 
@@ -74,8 +80,7 @@ export function useCameraLiveSessions(options?: {
       }
     },
     enabled,
-    staleTime: 15_000,
-    refetchInterval: (query) => (enabled && query.state.data !== null ? 15_000 : false),
+    staleTime: 60_000,
     retry: false,
     meta: { suppressErrorToast: true },
   });
@@ -87,8 +92,13 @@ export function useCameraLiveSessions(options?: {
     queryKey: liveEngineKeys.sessions(),
     queryFn: () => aiTestService.listLiveSessionsWithMeta(),
     enabled,
-    refetchInterval: enabled ? pollIntervalMs : false,
-    retry: 1,
+    // Giãn tự động lên 30s khi AI Engine đang tắt để tránh spam lỗi mạng ngầm liên tục
+    refetchInterval: (query) => {
+      if (!enabled) return false;
+      return query.state.status === "error" ? 30_000 : pollIntervalMs;
+    },
+    refetchIntervalInBackground: false,
+    retry: false,
     meta: { suppressErrorToast: true },
   });
 
@@ -113,10 +123,16 @@ export function useCameraLiveSessions(options?: {
       const models = modelsQuery.data ?? [];
       const defaultModel =
         models.find((m) => m.is_default)?.path ?? models[0]?.path;
-      const videos = videosQuery.data ?? [];
-      const resolved = resolveInitialCameraSource(camera, videos, {
+      let videos = videosQuery.data ?? [];
+      let resolved = resolveInitialCameraSource(camera, videos, {
         productionMode,
       });
+      if (!overrides?.source && !resolved.source && !productionMode && videos.length === 0) {
+        videos = await aiTestService.listLiveVideos().catch(() => []);
+        resolved = resolveInitialCameraSource(camera, videos, {
+          productionMode,
+        });
+      }
       const effectiveConfig = camera.config
         ? { ...camera.config, processingEnabled: true }
         : camera.config;
@@ -128,6 +144,15 @@ export function useCameraLiveSessions(options?: {
           pickLocaleText(
             `Camera ${camera.code} chưa có nguồn video hợp lệ. Mở Studio chi tiết để chọn video hoặc Upload & Stream.`,
             `Camera ${camera.code} has no valid video source. Open Camera Studio to select a video or Upload & Stream.`,
+          ),
+        );
+      }
+
+      if (!canManageCamera) {
+        throw new Error(
+          pickLocaleText(
+            "Bạn không có quyền điều khiển phiên AI Live của camera.",
+            "You do not have permission to control camera AI Live sessions.",
           ),
         );
       }
@@ -199,6 +224,15 @@ export function useCameraLiveSessions(options?: {
           : (sessionsQuery.data?.sessions.find((s) => s.camera_id === liveId)
               ?.camera_uuid ?? null);
 
+      if (!canManageCamera) {
+        throw new Error(
+          pickLocaleText(
+            "Bạn không có quyền dừng phiên AI Live của camera.",
+            "You do not have permission to stop camera AI Live sessions.",
+          ),
+        );
+      }
+
       // Persist processingEnabled=false BEFORE stopping RAM session so 24/7 CameraSyncManager does not auto-restart it
       if (dbCameraId) {
         const disableProcessing = cameraService.updateCameraConfig(dbCameraId, {
@@ -256,7 +290,17 @@ export function useCameraLiveSessions(options?: {
   });
 
   const triggerSyncMutation = useMutation({
-    mutationFn: () => aiTestService.triggerLiveSync(),
+    mutationFn: async () => {
+      if (!canManageCamera) {
+        throw new Error(
+          pickLocaleText(
+            "Bạn không có quyền đồng bộ phiên AI Live.",
+            "You do not have permission to sync AI Live sessions.",
+          ),
+        );
+      }
+      return aiTestService.triggerLiveSync();
+    },
     onSuccess: (res) => {
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.sessions() });
       void queryClient.invalidateQueries({ queryKey: liveEngineKeys.runtimeConfig() });
@@ -331,11 +375,11 @@ export function useCameraLiveSessions(options?: {
   const refreshAll = useCallback(async () => {
     await Promise.all([
       modelsQuery.refetch(),
-      videosQuery.refetch(),
+      includeVideos ? videosQuery.refetch() : Promise.resolve(),
       runtimeConfigQuery.refetch(),
       sessionsQuery.refetch(),
     ]);
-  }, [modelsQuery, runtimeConfigQuery, videosQuery, sessionsQuery]);
+  }, [includeVideos, modelsQuery, runtimeConfigQuery, videosQuery, sessionsQuery]);
 
   const engineOnline =
     !sessionsQuery.isError && (!modelsQuery.isError || Boolean(sessionsQuery.data));

@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Play, Radio, Square } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
+import { useCan } from "@/hooks/use-can";
 import { aiTestService } from "@/services/ai-test.service";
 import { useLocale } from "@/providers/locale-provider";
 import {
@@ -42,6 +43,9 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
 }: CameraVideoPlayerProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const canManage = useCan()("PPE_CAMERA_MANAGE");
+  const effectiveStartLive = canManage ? onStartLive : undefined;
+  const effectiveStopLive = canManage ? onStopLive : undefined;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [streamError, setStreamError] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -183,14 +187,14 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
             </span>
           </div>
 
-          {/* Nút dừng nhanh góc dưới phải */}
-          {onStopLive && (
+          {/* Nút dừng nhanh góc dưới phải (chỉ hiển thị khi có PPE_CAMERA_MANAGE) */}
+          {effectiveStopLive && (
             <button
               type="button"
               disabled={isBusy}
               onClick={(e) => {
                 e.stopPropagation();
-                onStopLive(camera);
+                effectiveStopLive(camera);
               }}
               title={isVietnamese ? "Tạm dừng phiên AI Live" : "Pause AI Live session"}
               className="absolute bottom-2.5 right-2.5 inline-flex cursor-pointer items-center gap-1 rounded-lg bg-background/90 px-2 py-1 font-mono text-[10px] font-bold text-accent shadow-sm backdrop-blur-md transition hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
@@ -213,14 +217,14 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
           <span className="pointer-events-none absolute left-2.5 top-2.5 rounded-lg bg-background/85 px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-foreground backdrop-blur-md">
             PREVIEW
           </span>
-          {onStartLive && !isInitializing && (
+          {effectiveStartLive && !isInitializing && (
             <button
               type="button"
               disabled={isBusy}
               onClick={(e) => {
                 e.stopPropagation();
                 setStreamError(false);
-                onStartLive(camera);
+                effectiveStartLive(camera);
               }}
               className="absolute bottom-2.5 right-2.5 inline-flex cursor-pointer items-center gap-1 rounded-xl bg-primary px-2.5 py-1 text-[10px] font-extrabold text-primary-foreground shadow-sm transition hover:brightness-105 disabled:opacity-50"
             >
@@ -245,14 +249,14 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
             allow="autoplay; encrypted-media"
             className="h-full w-full border-0"
           />
-          {onStartLive && !isInitializing && (
+          {effectiveStartLive && !isInitializing && (
             <button
               type="button"
               disabled={isBusy}
               onClick={(e) => {
                 e.stopPropagation();
                 setStreamError(false);
-                onStartLive(camera);
+                effectiveStartLive(camera);
               }}
               className="absolute bottom-2.5 right-2.5 inline-flex cursor-pointer items-center gap-1 rounded-xl bg-primary px-2.5 py-1 text-[10px] font-extrabold text-primary-foreground shadow-sm transition hover:brightness-105 disabled:opacity-50"
             >
@@ -302,14 +306,14 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-2">
-            {onStartLive && !isInitializing && isDbOnline && (
+            {effectiveStartLive && !isInitializing && isDbOnline && (
               <button
                 type="button"
                 disabled={isBusy}
                 onClick={(e) => {
                   e.stopPropagation();
                   setStreamError(false);
-                  onStartLive(camera);
+                  effectiveStartLive(camera);
                 }}
                 className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-[11px] font-extrabold text-primary-foreground shadow-[4px_4px_10px_rgba(0,0,0,0.16)] transition hover:brightness-105 disabled:opacity-50"
               >

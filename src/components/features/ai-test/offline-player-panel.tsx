@@ -25,7 +25,7 @@ import {
   type SegmentedControlOption,
 } from "@/components/ui/segmented-control";
 import { useLocale } from "@/providers/locale-provider";
-import { aiTestService } from "@/services/ai-test.service";
+import { aiSandboxService } from "@/services/ai-test.service";
 import {
   buildFrameLookupMap,
   computePersonTracks,
@@ -35,6 +35,7 @@ import {
   formatTimeSec,
   formatViolationLabel,
   normalizeJobEvidences,
+  routeSandboxEvidence,
   parseNdjsonLog,
 } from "./ai-test-utils";
 import { EvidencePairCard } from "./evidence-pair-card";
@@ -125,8 +126,8 @@ export function OfflinePlayerPanel({
       setIsLoadingArtifacts(true);
       try {
         const [meta, logText] = await Promise.all([
-          aiTestService.getJobMeta(jobId).catch(() => null),
-          aiTestService.getJobLogText(jobId).catch(() => ""),
+          aiSandboxService.getJobMeta(jobId).catch(() => null),
+          aiSandboxService.getJobLogText(jobId).catch(() => ""),
         ]);
         const parsedEntries = parseNdjsonLog(logText);
         setJobMeta(meta);
@@ -135,7 +136,7 @@ export function OfflinePlayerPanel({
         setCurrentTimeSec(0);
         onActiveJobChange(jobId);
 
-        const evidences = normalizeJobEvidences(jobId, meta, parsedEntries);
+        const evidences = normalizeJobEvidences(jobId, meta, parsedEntries).map(routeSandboxEvidence);
         onJobEvidencesChange(evidences);
       } catch (error) {
         toast.error(
@@ -175,7 +176,7 @@ export function OfflinePlayerPanel({
 
     const poll = async () => {
       try {
-        const statusRes = await aiTestService.getJobStatus(selectedJobId);
+        const statusRes = await aiSandboxService.getJobStatus(selectedJobId);
         if (cancelled) return;
         setRunningJobStatus(statusRes);
         if (statusRes.status === "done") {
@@ -208,7 +209,7 @@ export function OfflinePlayerPanel({
   const handleUploadFile = async (file: File) => {
     setIsUploading(true);
     try {
-      const res = await aiTestService.uploadVideo(file);
+      const res = await aiSandboxService.uploadVideo(file);
       toast.success(t("aiTest.player.toasts.uploaded", { jobId: res.job_id.slice(0, 8) }));
       setSelectedJobId(res.job_id);
       await onRefreshJobs();
@@ -226,7 +227,7 @@ export function OfflinePlayerPanel({
     }
     setIsStartingJob(true);
     try {
-      await aiTestService.startJob(selectedJobId, model || undefined);
+      await aiSandboxService.startJob(selectedJobId, model || undefined);
       toast.success(t("aiTest.player.toasts.started", { jobId: selectedJobId.slice(0, 8) }));
       setRunningJobStatus({
         job_id: selectedJobId,
@@ -292,7 +293,7 @@ export function OfflinePlayerPanel({
 
   const jobEvidences = useMemo(
     () =>
-      activeJobId ? normalizeJobEvidences(activeJobId, jobMeta, logEntries) : [],
+      activeJobId ? normalizeJobEvidences(activeJobId, jobMeta, logEntries).map(routeSandboxEvidence) : [],
     [activeJobId, jobMeta, logEntries],
   );
 
@@ -722,7 +723,7 @@ export function OfflinePlayerPanel({
                   <video
                     key={`${activeJobId}-${videoNonce}`}
                     ref={videoRef}
-                    src={aiTestService.getJobVideoUrl(activeJobId, videoNonce)}
+                    src={aiSandboxService.getJobVideoUrl(activeJobId, videoNonce)}
                     controls
                     playsInline
                     className="max-h-[460px] w-full rounded-xl bg-black"

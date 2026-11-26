@@ -42,8 +42,8 @@ import type { CameraItem } from "@/types";
 export interface CameraTableProps {
   cameras: CameraItem[];
   getSessionForCamera: (camera: CameraItem) => LiveSessionInfo | undefined;
-  onStartLive: (camera: CameraItem) => void;
-  onStopLive: (camera: CameraItem) => void;
+  onStartLive?: (camera: CameraItem) => void;
+  onStopLive?: (camera: CameraItem) => void;
   onPing: (camera: CameraItem) => void;
   onEdit: (camera: CameraItem) => void;
   onDelete: (camera: CameraItem) => void;
@@ -128,6 +128,7 @@ export function CameraTable({
       return [
         {
           id: "toggle-live",
+          hidden: !canManage || (!onStartLive && !onStopLive),
           label: isLive
             ? isVietnamese
               ? "Dừng AI Live"
@@ -140,7 +141,7 @@ export function CameraTable({
           ) : (
             <Play size={14} className="text-primary" />
           ),
-          onClick: (c) => (isLive ? onStopLive(c) : onStartLive(c)),
+          onClick: (c) => (isLive ? onStopLive?.(c) : onStartLive?.(c)),
         },
         {
           id: "ping",
@@ -171,13 +172,17 @@ export function CameraTable({
 
   const columns = useMemo<ColumnDef<TableFeatureSet, CameraItem, unknown>[]>(
     () => [
-      {
-        id: "select",
-        header: () => <TableSelectionHeader />,
-        cell: ({ row }) => <TableSelectionRow row={row} />,
-        enableSorting: false,
-        size: 40,
-      },
+      ...(canManage
+        ? ([
+            {
+              id: "select",
+              header: () => <TableSelectionHeader />,
+              cell: ({ row }) => <TableSelectionRow row={row} />,
+              enableSorting: false,
+              size: 40,
+            },
+          ] as ColumnDef<TableFeatureSet, CameraItem, unknown>[])
+        : []),
       {
         id: "name",
         accessorKey: "name",
@@ -307,23 +312,27 @@ export function CameraTable({
           </Link>
         ),
       },
-      {
-        id: "actions",
-        header: "",
-        enableSorting: false,
-        cell: ({ row }) => (
-          <TableRowActions row={row} actions={getRowActions(row.original)} />
-        ),
-        size: 56,
-      },
+      ...(canManage
+        ? ([
+            {
+              id: "actions",
+              header: "",
+              enableSorting: false,
+              cell: ({ row }) => (
+                <TableRowActions row={row} actions={getRowActions(row.original)} />
+              ),
+              size: 56,
+            },
+          ] as ColumnDef<TableFeatureSet, CameraItem, unknown>[])
+        : []),
     ],
-    [getRowActions, getSessionForCamera, isVietnamese],
+    [canManage, getRowActions, getSessionForCamera, isVietnamese],
   );
 
   const features: TableFeatures = {
     pagination: true,
     sorting: true,
-    rowSelection: true,
+    rowSelection: canManage,
     globalFilter: false,
   };
 

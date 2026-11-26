@@ -13,6 +13,7 @@ import {
   sanitizeManualCode,
 } from "@/lib/code-generator";
 import { useLocale } from "@/providers/locale-provider";
+import { hasMaskedCredentials } from "./camera-live-helpers";
 import type { CameraSourceType, CreateCameraPayload } from "@/types";
 
 export interface CreateCameraModalProps {
@@ -40,7 +41,7 @@ export function CreateCameraModal({
   const canReadCameras = can("PPE_CAMERA_READ");
 
   // Chỉ tải danh sách site khi modal mở và có quyền PPE_SITE_READ
-  const { data: sitesData } = useSitesCatalog({
+  const { data: sitesData, isLoading: sitesLoading } = useSitesCatalog({
     enabled: open && canReadSites,
   });
   const sites = sitesData ?? [];
@@ -152,21 +153,24 @@ export function CreateCameraModal({
       return;
     }
 
-    const finalSiteId = siteId || (sites.length > 0 ? sites[0].id : "");
-    if (!finalSiteId) {
+    if (hasMaskedCredentials(streamUrl)) {
       setError(
         isVietnamese
-          ? "Vui lòng tạo hoặc chọn công trường trước khi thêm camera."
-          : "Please select or create a site before adding a camera."
+          ? "Địa chỉ URL không được chứa mật khẩu che giấu (***). Vui lòng nhập mật khẩu thực tế."
+          : "Stream URL cannot contain masked credentials (***). Please enter the actual password.",
       );
       return;
     }
 
-    const isDirectStream =
-      streamUrl.toLowerCase().includes("webcam") ||
-      streamUrl.includes("youtube.com") ||
-      streamUrl.includes("youtu.be") ||
-      streamUrl.startsWith("http");
+    const finalSiteId = siteId || defaultSiteId || (sites.length > 0 ? sites[0].id : "");
+    if (!finalSiteId) {
+      setError(
+        isVietnamese
+          ? "Vui lòng tạo hoặc chọn công trường hợp lệ trước khi thêm camera."
+          : "Please select or create a valid site before adding a camera.",
+      );
+      return;
+    }
 
     try {
       await onSubmit({
@@ -176,7 +180,7 @@ export function CreateCameraModal({
         zoneId: zoneId.trim() ? zoneId.trim() : null,
         sourceType,
         streamUrl: streamUrl.trim(),
-        status: isDirectStream ? "ONLINE" : "OFFLINE",
+        status: "ONLINE",
         location: location.trim() || undefined,
         description: description.trim() || undefined,
       });
@@ -292,20 +296,49 @@ export function CreateCameraModal({
                 setSiteId(e.target.value);
                 setZoneId("");
               }}
-              className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-              disabled={loading}
+              className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-60"
+              disabled={
+                loading ||
+                sitesLoading ||
+                (sites.length === 0 && !defaultSiteId)
+              }
               required
             >
               {sites.length === 0 ? (
-                <option value="0192d6e3-8f0a-7bb1-8c4d-91b53f608a11">
-                  {isVietnamese ? "Công trường Landmark 81" : "Landmark 81 Site"}
-                </option>
-              ) : (
-                sites.map((site) => (
-                  <option key={site.id} value={site.id}>
-                    {site.name} ({site.code})
+                defaultSiteId ? (
+                  <option value={defaultSiteId}>{defaultSiteId}</option>
+                ) : !canReadSites ? (
+                  <option value="">
+                    {isVietnamese
+                      ? "-- Không có quyền đọc danh sách công trường --"
+                      : "-- No permission to read sites --"}
                   </option>
-                ))
+                ) : sitesLoading ? (
+                  <option value="">
+                    {isVietnamese
+                      ? "Đang tải danh sách công trường..."
+                      : "Loading sites..."}
+                  </option>
+                ) : (
+                  <option value="">
+                    {isVietnamese
+                      ? "-- Chưa có công trường khả dụng --"
+                      : "-- No sites available --"}
+                  </option>
+                )
+              ) : (
+                <>
+                  {!siteId && (
+                    <option value="" disabled>
+                      {isVietnamese ? "-- Chọn công trường --" : "-- Select a site --"}
+                    </option>
+                  )}
+                  {sites.map((site) => (
+                    <option key={site.id} value={site.id}>
+                      {site.name} ({site.code})
+                    </option>
+                  ))}
+                </>
               )}
             </select>
           </div>
@@ -395,7 +428,7 @@ export function CreateCameraModal({
               type="button"
               onClick={() => {
                 setStreamUrl("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
-                setSourceType("HLS");
+                setSourceType("FILE");
                 const nextName = name.trim() || (isVietnamese ? "Camera Giàn Giáo Test" : "Scaffolding Test Camera");
                 if (!name.trim()) setName(nextName);
                 if (!isCodeManual || !code.trim() || isCodeTaken(code, existingCameraCodes)) {
@@ -404,13 +437,13 @@ export function CreateCameraModal({
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              {isVietnamese ? "Mẫu MP4" : "Sample MP4"}
+              {isVietnamese ? "Mẫu MP4 (Preview HTML5)" : "Sample MP4 (HTML5 Preview)"}
             </button>
             <button
               type="button"
               onClick={() => {
                 setStreamUrl("https://www.youtube.com/watch?v=1-iS7LArMPA");
-                setSourceType("HLS");
+                setSourceType("HTTP");
                 const nextName = name.trim() || (isVietnamese ? "Camera Công Trường YouTube Live" : "Construction Site YouTube Live");
                 if (!name.trim()) setName(nextName);
                 if (!isCodeManual || !code.trim() || isCodeTaken(code, existingCameraCodes)) {
@@ -419,12 +452,12 @@ export function CreateCameraModal({
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              YouTube Live
+              YouTube Live (HTTP)
             </button>
             <button
               type="button"
               onClick={() => {
-                setStreamUrl("rtsp://admin:Pass@123@192.168.1.100:554/stream1");
+                setStreamUrl("rtsp://admin:Pass1234@192.168.1.100:554/stream1");
                 setSourceType("RTSP");
                 const nextName = name.trim() || (isVietnamese ? "Camera Cổng Chính RTSP" : "Main Gate RTSP Camera");
                 if (!name.trim()) setName(nextName);
@@ -467,7 +500,11 @@ export function CreateCameraModal({
           <Button
             type="submit"
             variant="primary"
-            disabled={loading}
+            disabled={
+              loading ||
+              sitesLoading ||
+              (!siteId && !defaultSiteId && sites.length === 0)
+            }
             className="flex items-center gap-2"
           >
             {loading ? (

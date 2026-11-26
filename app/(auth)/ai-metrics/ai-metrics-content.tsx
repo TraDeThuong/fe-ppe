@@ -7,6 +7,9 @@ import { PageHeader } from "@/components/features/app-shell/page-header";
 import { Button } from "@/components/ui/button";
 import { RefreshButton } from "@/components/ui/refresh-action";
 import { useLocale } from "@/providers/locale-provider";
+import { useAuth } from "@/contexts/AuthContext";
+import { canAccessAiSandbox } from "@/config/navigation";
+import { resolveAiPerformance } from "@/lib/ai-performance";
 import { useCan } from "@/hooks/use-can";
 import {
   AiMetricsKpiSummary,
@@ -75,7 +78,14 @@ export default function AiMetricsContent() {
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  const canManageModels = useCan()("PPE_MODEL_MANAGE");
+  const { status, user } = useAuth();
+  const can = useCan();
+  const authenticated = status === "authenticated";
+  const canReadMetrics = authenticated && can("PPE_AI_METRICS_READ");
+  const canReadModels = canReadMetrics && can("PPE_MODEL_READ");
+  const canReadCameras = canReadMetrics && can("PPE_CAMERA_READ");
+  const canManageModels = canReadMetrics && can("PPE_MODEL_MANAGE");
+  const canTestModel = authenticated && canAccessAiSandbox(user?.permissions, user?.role);
 
   // Filters
   const [selectedModelId, setSelectedModelId] = useState("");
@@ -108,36 +118,52 @@ export default function AiMetricsContent() {
   }, [period]);
 
   const filter: AiPerformanceFilter = {
-    modelId: selectedModelId || undefined,
-    cameraId: selectedCameraId || undefined,
+    modelId: canReadModels ? selectedModelId || undefined : undefined,
+    cameraId: canReadCameras ? selectedCameraId || undefined : undefined,
     startDate: dateRange.startDate,
     endDate: dateRange.endDate,
   };
 
   // Queries
-  const { data: camerasData } = useCameras({ limit: 100 });
-  const cameras = camerasData?.items ?? [];
+  const camerasQuery = useCameras({ limit: 100 }, { enabled: canReadCameras });
+  const cameras = canReadCameras ? (camerasQuery.data?.items ?? []) : [];
 
   const {
-    data: performance,
+    data: performanceResponse,
     isLoading: isPerfLoading,
+    isError: isPerfError,
     refetch: refetchPerf,
     isRefetching: isPerfRefetching,
-  } = useAiPerformance(filter);
+  } = useAiPerformance(filter, canReadMetrics);
 
   const {
-    data: activeVersion,
+    data: activeVersionData,
+    isError: isActiveError,
     isLoading: isActiveLoading,
     isFetching: isActiveFetching,
     refetch: refetchActive,
-  } = useActiveModelVersion();
+  } = useActiveModelVersion({ enabled: canReadModels });
 
   const {
-    data: models = [],
+    data: modelsData,
+    isError: isModelsError,
     isLoading: isModelsLoading,
     isFetching: isModelsFetching,
     refetch: refetchModels,
-  } = useAiModels();
+  } = useAiModels({ enabled: canReadModels });
+
+  const models = useMemo(
+    () => canReadModels ? (modelsData ?? []) : [],
+    [canReadModels, modelsData],
+  );
+  const activeVersion = canReadModels ? activeVersionData : undefined;
+  const modelId = filter.modelId;
+  const performance = useMemo(
+    () => canReadMetrics
+      ? resolveAiPerformance(performanceResponse, { modelId }, models, activeVersion)
+      : null,
+    [canReadMetrics, performanceResponse, modelId, models, activeVersion],
+  );
 
   // Mutations
   const deployMutation = useDeployModelVersion();
@@ -160,11 +186,16 @@ export default function AiMetricsContent() {
     setIsDeployOpen(true);
   };
 
-  const handleRefreshAll = () => {
-    void Promise.all([refetchPerf(), refetchActive(), refetchModels()]);
-  };
+  const handleRefreshAll = () => Promise.all([
+    ...(canReadMetrics ? [refetchPerf()] : []),
+    ...(canReadCameras ? [camerasQuery.refetch()] : []),
+    ...(canReadModels ? [refetchActive(), refetchModels()] : []),
+  ]);
 
-  const isRefetching = isPerfRefetching || isActiveFetching || isModelsFetching;
+  const isRefetching =
+    (canReadMetrics && isPerfRefetching) ||
+    (canReadCameras && camerasQuery.isFetching) ||
+    (canReadModels && (isActiveFetching || isModelsFetching));
 
   const activeModel = activeVersion
     ? models.find((m) => m.id === activeVersion.modelId)
@@ -174,7 +205,8 @@ export default function AiMetricsContent() {
       (typeof activeVersion.metrics?.modelName === "string"
         ? activeVersion.metrics.modelName
         : undefined) ||
-      performance?.modelName ||
+      activeVersion.modelName ||
+      activeVersion.model?.name ||
       undefined
     : undefined;
 
@@ -185,7 +217,7 @@ export default function AiMetricsContent() {
         icon={Cpu}
         title={t("aiMetrics.title")}
         description={t("aiMetrics.description")}
-        badge={activeModelName ? `${activeModelName} Engine` : undefined}
+        badge={activeModelName}
         badgeIcon={Zap}
         actions={
           <div className="flex flex-wrap items-center gap-2">
@@ -221,10 +253,10 @@ export default function AiMetricsContent() {
                 </Button>
               </>
             )}
-            {selectedModelId && (
+            {filter.modelId && (
               <Button
                 variant="outline"
-                onClick={() => setDetailModelId(selectedModelId)}
+                onClick={() => setDetailModelId(filter.modelId ?? null)}
                 className="gap-1.5 text-xs sm:text-sm h-8 sm:h-9"
               >
                 <Eye className="h-3.5 w-3.5" />
@@ -236,6 +268,11 @@ export default function AiMetricsContent() {
               variant="ghost"
               onRefresh={handleRefreshAll}
               isRefreshing={isRefetching}
+              hasError={
+                (canReadMetrics && isPerfError) ||
+                (canReadCameras && camerasQuery.isError) ||
+                (canReadModels && (isActiveError || isModelsError))
+              }
               iconClassName="h-3.5 w-3.5 sm:h-4 sm:w-4"
               className="gap-2 text-xs sm:text-sm h-8 sm:h-9"
             />
@@ -243,11 +280,20 @@ export default function AiMetricsContent() {
         }
       />
 
-      {/* Active Serving Model Banner */}
+      {isPerfError && canReadMetrics && (
+        <p role="alert" className="rounded-xl border border-border/60 bg-surface p-3 text-sm text-foreground">
+          {t("aiMetrics.performanceError")}
+        </p>
+      )}
+
+      {/* Registry version banner */}
       <ActiveModelBanner
         activeVersion={activeVersion}
         modelName={activeModelName}
-        loading={isActiveLoading}
+        loading={canReadModels && isActiveLoading}
+        canReadModels={canReadModels}
+        canTestModel={canTestModel}
+        error={canReadModels && isActiveError}
         onOpenGuide={() => setGuideKey("active-model")}
       />
 
@@ -257,24 +303,23 @@ export default function AiMetricsContent() {
         loading={isPerfLoading}
         selectedStat={selectedStat}
         onSelectStat={handleSelectStat}
-        onOpenStatGuide={(stat) => setGuideKey(stat)}
       />
 
       {/* Filter Toolbar */}
       <AiMetricsToolbar
         models={models}
-        selectedModelId={selectedModelId}
+        selectedModelId={filter.modelId ?? ""}
+        canReadModels={canReadModels}
         onModelChange={(nextModelId) => {
           setSelectedModelId(nextModelId);
           setSelectedClass(null);
         }}
         cameras={cameras}
-        selectedCameraId={selectedCameraId}
+        selectedCameraId={filter.cameraId ?? ""}
+        canReadCameras={canReadCameras}
         onCameraChange={setSelectedCameraId}
         period={period}
         onPeriodChange={setPeriod}
-        onRefresh={handleRefreshAll}
-        loading={isRefetching}
       />
 
       {/* 2-Column: Per-Class Breakdown (Left) & Confusion Matrix Heatmap (Right) */}
@@ -282,6 +327,7 @@ export default function AiMetricsContent() {
         <div id="per-class-breakdown" className="scroll-mt-20 h-full">
           <PerClassMetricsCard
             metrics={performance?.perClassMetrics}
+            canTestModel={canTestModel}
             loading={isPerfLoading}
             selectedClass={selectedClass}
             onSelectClass={setSelectedClass}
@@ -320,17 +366,19 @@ export default function AiMetricsContent() {
             setVersionModalModelId(modelId);
             setIsCreateVersionOpen(true);
           }}
-          onRefresh={refetchModels}
+          onRefresh={canReadModels ? refetchModels : undefined}
+          canReadModels={canReadModels}
+          error={canReadModels && isModelsError}
           onOpenGuide={() => setGuideKey("governance")}
           canDeploy={canManageModels}
-          loading={isModelsLoading}
-          fetching={isModelsFetching}
+          loading={canReadModels && isModelsLoading}
+          fetching={canReadModels && isModelsFetching}
         />
       </div>
 
-      {/* Deploy Hot-Swap Confirmation Dialog */}
+      {/* Registry update confirmation */}
       <DeployModelDialog
-        open={isDeployOpen}
+        open={canManageModels && canReadModels && isDeployOpen}
         onOpenChange={setIsDeployOpen}
         activeVersion={activeVersion}
         candidateVersion={selectedCandidate}
@@ -341,14 +389,15 @@ export default function AiMetricsContent() {
       />
 
       <CreateAiModelModal
-        open={isCreateModelOpen}
+        open={canManageModels && isCreateModelOpen}
+        models={models}
         onOpenChange={setIsCreateModelOpen}
         loading={createModelMutation.isPending}
         onSubmit={(dto) => createModelMutation.mutateAsync(dto)}
       />
 
       <CreateModelVersionModal
-        open={isCreateVersionOpen}
+        open={canManageModels && canReadModels && isCreateVersionOpen}
         onOpenChange={(open) => {
           setIsCreateVersionOpen(open);
           if (!open) setVersionModalModelId(undefined);
@@ -362,7 +411,9 @@ export default function AiMetricsContent() {
       />
 
       <RecordAiBenchmarkModal
-        open={isRecordTelemetryOpen}
+        open={canManageModels && isRecordTelemetryOpen}
+        cameras={cameras}
+        loadingCameras={canReadCameras && camerasQuery.isLoading}
         onOpenChange={setIsRecordTelemetryOpen}
         models={models}
         loading={recordTelemetryMutation.isPending}
@@ -370,14 +421,13 @@ export default function AiMetricsContent() {
       />
 
       <ModelDetailModal
-        modelId={detailModelId}
+        modelId={canReadModels ? detailModelId : null}
         onClose={() => setDetailModelId(null)}
       />
 
       <AiMetricsGuideModal
         openKey={guideKey}
         onClose={() => setGuideKey(null)}
-        performance={performance}
         activeVersion={activeVersion}
         activeModelName={activeModelName}
       />

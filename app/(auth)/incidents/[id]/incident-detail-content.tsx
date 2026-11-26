@@ -47,6 +47,7 @@ import {
   type IncidentAssignmentItem,
   type IncidentStatusHistoryItem,
   type NotificationSeverity,
+  type ReviewIncidentPayload,
 } from "@/types";
 import {
   IncidentDetailHeader,
@@ -282,7 +283,7 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
 
   // Mutations & Permissions
   const isOfficerRole = (user?.role || "").toUpperCase() === "SAFETY_OFFICER";
-  const canReview = !isOfficerRole && can("PPE_INCIDENT_REVIEW");
+  const canReview = can("PPE_INCIDENT_REVIEW");
   const canAssign = !isOfficerRole && can("PPE_INCIDENT_MANAGE");
   const canResolve = can("PPE_INCIDENT_UPDATE");
   const canClose = !isOfficerRole && can("PPE_INCIDENT_MANAGE");
@@ -328,14 +329,8 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
     await addCommentMutation.mutateAsync({ incidentId: incident.id, comment });
   };
 
-  const handleReview = async (reviewId: string, payload: any) => {
-    try {
-      await reviewMutation.mutateAsync({ id: reviewId, payload });
-      refreshDetailAndLists();
-      setIsReviewOpen(false);
-    } catch (err) {
-      console.error("Failed to review incident:", err);
-    }
+  const handleReview = async (reviewId: string, payload: ReviewIncidentPayload) => {
+    await reviewMutation.mutateAsync({ id: reviewId, payload });
   };
 
   const handleAssign = async (_incidentId: string, payload: any) => {
@@ -705,6 +700,7 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
             snapshotUrl={effectiveSnapshotUrl || undefined}
             violationType={incident.violationType}
             confidence={incident.confidence}
+            trackId={incident.trackId}
             cameraId={incident.cameraId}
             incidentId={incident.id}
             defaultViewMode={searchParams.get("focus") === "compare" ? "split" : "single"}

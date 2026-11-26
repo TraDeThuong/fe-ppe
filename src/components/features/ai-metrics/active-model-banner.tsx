@@ -18,6 +18,9 @@ export interface ActiveModelBannerProps {
   activeVersion?: AiModelVersionDto | null;
   modelName?: string;
   loading?: boolean;
+  canReadModels?: boolean;
+  canTestModel?: boolean;
+  error?: boolean;
   onOpenGuide?: () => void;
 }
 
@@ -25,6 +28,9 @@ export function ActiveModelBanner({
   activeVersion,
   modelName,
   loading = false,
+  canReadModels = true,
+  canTestModel = false,
+  error = false,
   onOpenGuide,
 }: ActiveModelBannerProps) {
   const { t, locale } = useLocale();
@@ -156,11 +162,15 @@ export function ActiveModelBanner({
                 `}
               >
                 <CheckCircle2 className="h-3 w-3" />
-                {activeVersion
-                  ? t("aiMetrics.governance.activeBadge")
-                  : locale === "vi-VN"
-                    ? "Chưa triển khai"
-                    : "Not Deployed"}
+                {!canReadModels
+                  ? t("aiMetrics.modelReadRequired")
+                  : error
+                    ? t("aiMetrics.activeBanner.loadError")
+                    : loading
+                      ? t("aiMetrics.activeBanner.loading")
+                      : activeVersion
+                        ? t("aiMetrics.governance.activeBadge")
+                        : t("aiMetrics.activeBanner.empty")}
               </span>
 
               <span className="text-[10px] font-medium tracking-wide text-muted-foreground">
@@ -234,24 +244,26 @@ export function ActiveModelBanner({
             </div>
           ))}
 
-          <Link
-            href="/ai-metrics/test"
-            className="
-              group relative flex min-w-0 items-center justify-center gap-2
-              rounded-[14px] border border-primary/30
-              bg-primary/10 px-3.5 py-2.5
-              text-xs font-bold text-primary
-              shadow-[4px_5px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]
-              transition-all duration-200
-              hover:-translate-y-0.5 hover:bg-primary/15
-              hover:shadow-[5px_6px_10px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]
-            "
-          >
-            <FlaskConical className="h-4 w-4 shrink-0" />
-            <span className="truncate">
-              {locale === "vi-VN" ? "Test Model Với Video" : "Test Model on Video"}
-            </span>
-          </Link>
+          {canTestModel && (
+            <Link
+              href="/ai-metrics/test"
+              className="
+                group relative flex min-w-0 items-center justify-center gap-2
+                rounded-[14px] border border-primary/30
+                bg-primary/10 px-3.5 py-2.5
+                text-xs font-bold text-primary
+                shadow-[4px_5px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]
+                transition-all duration-200
+                hover:-translate-y-0.5 hover:bg-primary/15
+                hover:shadow-[5px_6px_10px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]
+              "
+            >
+              <FlaskConical className="h-4 w-4 shrink-0" />
+              <span className="truncate">
+                {locale === "vi-VN" ? "Test Model Với Video" : "Test Model on Video"}
+              </span>
+            </Link>
+          )}
           {onOpenGuide && <AiCardHelpButton onClick={onOpenGuide} />}
         </div>
       </div>

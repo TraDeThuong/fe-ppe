@@ -5,6 +5,7 @@ import React from "react";
 import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LocaleProvider } from "@/providers/locale-provider";
+import { SystemHealthCards } from "@/components/features/system/system-health-cards";
 import { HelmetShowcase } from "../helmet-showcase";
 import {
   DashboardHeroHeader,
@@ -20,12 +21,11 @@ import {
   DashboardZoneRiskChart,
   DashboardViolationTrendsChart,
   DashboardNavTabs,
-  DashboardExecutiveKpi,
-  DashboardSystemStatusCard,
-  DashboardUsersOverviewCard,
-  DashboardAuditMiniFeed,
-  DashboardCronMiniCard,
 } from "../index";
+import { DashboardExecutiveKpi } from "../dashboard-executive-kpi";
+import { DashboardUsersOverviewCard } from "../dashboard-users-overview-card";
+import { DashboardAuditMiniFeed } from "../dashboard-audit-mini-feed";
+import { DashboardCronMiniCard } from "../dashboard-cron-mini-card";
 import { DashboardChartExplainButton } from "../charts/dashboard-chart-explain-modal";
 import {
   aggregateDashboard,
@@ -123,8 +123,6 @@ describe("Dashboard Components", () => {
           onChangeTab={() => {}}
           onlineCameras={8}
           totalCameras={10}
-          healthyServices={11}
-          totalServices={12}
           showFilterBar={true}
           sites={[{ id: "site-1", name: "Công trường Landmark 81" }]}
           siteId="site-1"
@@ -153,7 +151,6 @@ describe("Dashboard Components", () => {
       assert.ok(!html.includes("Video Wall"));
       assert.ok(!html.includes("Duyệt sự cố") && !html.includes("Review incidents"));
       assert.ok(html.includes("8/10"));
-      assert.ok(html.includes("11/12"));
       assert.ok(html.includes("2026-11-10"));
       assert.ok(html.includes("2026-11-16"));
       assert.ok(html.includes("role=\"tablist\""));
@@ -468,6 +465,44 @@ describe("Dashboard Components", () => {
       assert.ok(html.includes("Mũ bảo hộ tiêu chuẩn ANSI Z89.1"));
       assert.ok(html.includes("ANSI Z89.1 Type 1 / Class E"));
     });
+
+    it("hides the live PPE stats strip when ppeStats is undefined (no reporting permission)", () => {
+      const html = renderWithProviders(
+        <HelmetShowcase title="Mô Hình PPE 3D" subtitle="Mũ bảo hộ" />,
+      );
+      assert.ok(!html.includes("Số liệu giám sát PPE"));
+      assert.ok(!html.includes("Tuân thủ PPE"));
+    });
+
+    it("Step 4 (4B): keeps the 3D helmet and shows real No-Helmet, No-Vest and PPE compliance stats", () => {
+      const html = renderWithProviders(
+        <HelmetShowcase
+          title="Mô Hình PPE 3D"
+          subtitle="Mũ bảo hộ"
+          ppeStats={{
+            noHelmetCount: 7,
+            noVestCount: 3,
+            complianceRate: 93.4,
+            periodLabel: "Hôm nay",
+          }}
+        />,
+      );
+      assert.ok(html.includes("PPE 3D MODEL"));
+      assert.ok(html.includes("Số liệu giám sát PPE"));
+      assert.ok(html.includes("Không đội mũ"));
+      assert.ok(html.includes("Không áo phản quang"));
+      assert.ok(html.includes("Tuân thủ PPE"));
+      assert.ok(html.includes("93,4%"));
+      assert.ok(html.includes("Hôm nay"));
+      assert.ok(html.includes("text-danger"));
+
+      const emptyHtml = renderWithProviders(
+        <HelmetShowcase title="Mô Hình PPE 3D" ppeStats={null} />,
+      );
+      assert.ok(emptyHtml.includes("Tuân thủ PPE"));
+      assert.ok(emptyHtml.includes("—"));
+      assert.ok(!/>0%</.test(emptyHtml));
+    });
   });
 
   describe("Operational Suite & Charts", () => {
@@ -699,7 +734,7 @@ describe("Dashboard Components", () => {
   });
 
   describe("Dashboard Navigation & Multi-Domain Executive Widgets", () => {
-    it("renders sub-navigation tabs with correct badges", () => {
+    it("renders the three PPE sub-navigation tabs with incident and camera badges", () => {
       const html = renderWithProviders(
         <DashboardNavTabs
           activeTab="overview"
@@ -707,18 +742,15 @@ describe("Dashboard Components", () => {
           pendingCount={7}
           onlineCameras={4}
           totalCameras={4}
-          healthyServices={12}
-          totalServices={12}
         />,
       );
 
       assert.ok(html.includes("Tổng quan") || html.includes("Overview"));
       assert.ok(html.includes("An toàn &amp; Sự cố") || html.includes("Safety &amp; Incidents") || html.includes("An toàn"));
       assert.ok(html.includes("Thiết bị &amp; AI") || html.includes("Cameras &amp; AI") || html.includes("Thiết bị"));
-      assert.ok(html.includes("Người dùng &amp; Hệ thống") || html.includes("Users &amp; System") || html.includes("Người dùng"));
+      assert.equal([...html.matchAll(/role="tab"/g)].length, 3);
       assert.ok(html.includes("7"));
       assert.ok(html.includes("4/4"));
-      assert.ok(html.includes("12/12"));
     });
 
     it("renders 4 executive KPI pillars with real metrics", () => {
@@ -749,20 +781,21 @@ describe("Dashboard Components", () => {
       assert.ok(html.includes("18ms"));
     });
 
-    it("renders system status card with title and view details link", () => {
-      const html = renderWithProviders(<DashboardSystemStatusCard />);
+    it("renders the service health card without a link back to its own page", () => {
+      const html = renderWithProviders(<SystemHealthCards onRefresh={() => {}} />);
       assert.ok(
         html.includes("Trạng thái Dịch vụ &amp; Hạ tầng") ||
           html.includes("Services &amp; Infrastructure Status") ||
           html.includes("Dịch vụ"),
       );
-      assert.ok(html.includes("/system"));
+      assert.ok(!html.includes("/system?tab=health"));
     });
 
     it("renders clear status badges, filter pills, and recheck control for health report", () => {
       const html = renderWithProviders(
-        <DashboardSystemStatusCard
-          healthOverride={{
+        <SystemHealthCards
+          onRefresh={() => {}}
+          healthReport={{
             overallStatus: "DEGRADED",
             healthyCount: 1,
             totalServices: 3,
@@ -858,9 +891,9 @@ describe("Dashboard Components", () => {
       };
 
       const userHtml = renderWithProviders(
-        <DashboardSystemStatusCard
-          healthOverride={report}
-          isAdminOverride={false}
+        <SystemHealthCards
+          onRefresh={() => {}}
+          healthReport={report}
         />,
       );
       assert.ok(!userHtml.includes(">7ms<"));
@@ -868,9 +901,10 @@ describe("Dashboard Components", () => {
       assert.ok(userHtml.includes("Sao chép báo cáo gửi IT"));
 
       const adminHtml = renderWithProviders(
-        <DashboardSystemStatusCard
-          healthOverride={report}
-          isAdminOverride={true}
+        <SystemHealthCards
+          onRefresh={() => {}}
+          healthReport={report}
+          isAdmin
         />,
       );
       assert.ok(adminHtml.includes("Mở Kiểm thử AI"));
@@ -1109,6 +1143,7 @@ describe("Dashboard Components", () => {
     });
 
     it("renders existing operational charts directly from buildDashboardAnalyticsFromReporting", () => {
+      const emptySev = { LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 };
       const reportingAnalytics = buildDashboardAnalyticsFromReporting({
         summary: {
           totalIncidents: 14,
@@ -1134,40 +1169,97 @@ describe("Dashboard Components", () => {
               targetSlaMinutes: 30,
               actualMttrMinutes: 26,
             },
+            MEDIUM: {
+              count: 0,
+              resolved: 0,
+              targetSlaMinutes: 60,
+              actualMttrMinutes: 0,
+            },
+            LOW: {
+              count: 0,
+              resolved: 0,
+              targetSlaMinutes: 120,
+              actualMttrMinutes: 0,
+            },
           },
         },
         violations: [
-          { violationType: "TOTAL_AGGREGATED", count: 0, percentage: 0 },
-          { violationType: "NO_HELMET", count: 10, percentage: 71.4 },
-          { violationType: "NO_VEST", count: 4, percentage: 28.6 },
+          {
+            violationType: "TOTAL_AGGREGATED",
+            count: 0,
+            percentage: 0,
+            severityBreakdown: emptySev,
+          },
+          {
+            violationType: "NO_HELMET",
+            count: 10,
+            percentage: 71.4,
+            severityBreakdown: emptySev,
+          },
+          {
+            violationType: "NO_VEST",
+            count: 4,
+            percentage: 28.6,
+            severityBreakdown: emptySev,
+          },
         ],
         hourlyRisk: {
           date: "2026-11-25",
-          totalIncidents: 14,
-          peakHour: { hour: 8, label: "08:00", count: 9 },
           hourly: [
-            { hour: 8, label: "08:00", count: 9 },
-            { hour: 16, label: "16:00", count: 5 },
+            {
+              hour: 8,
+              label: "08:00",
+              shift: "MORNING",
+              count: 9,
+              riskLevel: "HIGH",
+              severityBreakdown: emptySev,
+            },
+            {
+              hour: 16,
+              label: "16:00",
+              shift: "AFTERNOON",
+              count: 5,
+              riskLevel: "MEDIUM",
+              severityBreakdown: emptySev,
+            },
           ],
           shifts: {
             morning: {
               name: "Ca sáng",
               timeRange: "06:00 - 14:00",
               totalIncidents: 9,
-              percentage: 64.3,
+              criticalCount: 2,
+              highCount: 7,
+              mediumCount: 0,
+              lowCount: 0,
+              riskLevel: "HIGH",
             },
             afternoon: {
               name: "Ca chiều",
               timeRange: "14:00 - 22:00",
               totalIncidents: 5,
-              percentage: 35.7,
+              criticalCount: 2,
+              highCount: 3,
+              mediumCount: 0,
+              lowCount: 0,
+              riskLevel: "MEDIUM",
             },
             night: {
               name: "Ca đêm",
               timeRange: "22:00 - 06:00",
               totalIncidents: 0,
-              percentage: 0,
+              criticalCount: 0,
+              highCount: 0,
+              mediumCount: 0,
+              lowCount: 0,
+              riskLevel: "LOW",
             },
+          },
+          summary: {
+            totalIncidents: 14,
+            peakHour: 8,
+            peakShift: "MORNING",
+            riskLevel: "HIGH",
           },
         },
         cameraRankings: [
@@ -1175,6 +1267,7 @@ describe("Dashboard Components", () => {
             cameraId: "cam-1",
             cameraName: "CCTV Cổng Số 1",
             totalViolations: 14,
+            confirmedCount: 2,
             resolvedCount: 8,
             falseAlarmCount: 1,
           },
@@ -1192,6 +1285,148 @@ describe("Dashboard Components", () => {
       assert.ok(suiteHtml.includes("24 phút")); // 0.4h * 60
       assert.ok(radarHtml.includes("Không đội mũ"));
       assert.ok(!radarHtml.includes("TOTAL_AGGREGATED"));
+    });
+  });
+
+  describe("Step 3: D08 KPI Ribbon & Severity SLA Target Comparison", () => {
+    it("displays resolved + MTTR, confirmed awaiting resolution, offline cameras, False Alert Rate, True Violations & Compliance Rate on DashboardKpiRibbon", () => {
+      const reportingAnalytics = buildDashboardAnalyticsFromReporting({
+        summary: {
+          totalIncidents: 20,
+          openIncidents: 4,
+          resolvedIncidents: 10,
+          trueViolations: 4,
+          falseAlarms: 2,
+          falseAlarmRate: 12.5,
+          complianceRate: 93.4,
+          meanTimeToResolveHours: 0.5,
+          periodStart: "2026-11-25",
+          periodEnd: "2026-11-25",
+        },
+      });
+
+      const html = renderWithProviders(
+        <DashboardKpiRibbon
+          total={20}
+          pendingCount={4}
+          confirmedCount={4}
+          onlineCamerasCount={8}
+          totalCamerasCount={10}
+          analytics={reportingAnalytics}
+          canViewReports
+          canViewIncidents
+          canViewCameras
+        />,
+      );
+
+      assert.ok(html.includes("Đã xử lý 10 ca · MTTR: 30 phút"));
+      assert.ok(html.includes("4 ca xác nhận chờ khắc phục"));
+      assert.ok(html.includes("2 ngoại tuyến · 80% hoạt động"));
+      assert.ok(html.includes("Tỷ lệ cảnh báo sai"));
+      assert.ok(html.includes("12,5%"));
+      assert.ok(html.includes("14 vi phạm thực · Tuân thủ 93,4%"));
+    });
+
+    it("compares actual MTTR against target SLA thresholds (15p/30p/60p/120p) and flags overdue tiers on DashboardSeveritySlaChart", () => {
+      const reportingAnalytics = buildDashboardAnalyticsFromReporting({
+        summary: {
+          totalIncidents: 10,
+          openIncidents: 2,
+          resolvedIncidents: 6,
+          trueViolations: 1,
+          falseAlarms: 1,
+          falseAlarmRate: 12.5,
+          complianceRate: 95,
+          meanTimeToResolveHours: 0.35,
+          periodStart: "2026-11-25",
+          periodEnd: "2026-11-25",
+          severityBreakdown: {
+            CRITICAL: {
+              count: 4,
+              resolved: 3,
+              targetSlaMinutes: 15,
+              actualMttrMinutes: 22, // Breached 15m SLA
+            },
+            HIGH: {
+              count: 6,
+              resolved: 3,
+              targetSlaMinutes: 30,
+              actualMttrMinutes: 20, // Within 30m SLA
+            },
+            MEDIUM: {
+              count: 0,
+              resolved: 0,
+              targetSlaMinutes: 60,
+              actualMttrMinutes: 0,
+            },
+            LOW: {
+              count: 0,
+              resolved: 0,
+              targetSlaMinutes: 120,
+              actualMttrMinutes: 0,
+            },
+          },
+        },
+      });
+
+      const html = renderWithProviders(
+        <DashboardSeveritySlaChart analytics={reportingAnalytics} />,
+      );
+
+      assert.ok(html.includes("Ngưỡng SLA mục tiêu"));
+      assert.ok(html.includes("15p · 30p · 60p · 120p"));
+      assert.ok(html.includes("SLA 15p"));
+      assert.ok(html.includes("SLA 30p"));
+      assert.ok(html.includes("Quá SLA"));
+    });
+
+    it("Step 6: renders Active AI Model, FPS & Latency inside Tile 03 of DashboardKpiRibbon and supports 4-column DashboardQuickActions", () => {
+      const reportingAnalytics = buildDashboardAnalyticsFromReporting({
+        summary: {
+          totalIncidents: 8,
+          openIncidents: 1,
+          resolvedIncidents: 5,
+          trueViolations: 1,
+          falseAlarms: 1,
+          falseAlarmRate: 14.28,
+          complianceRate: 96,
+          meanTimeToResolveHours: 0.25,
+          periodStart: "2026-11-25",
+          periodEnd: "2026-11-25",
+        },
+      });
+
+      const kpiHtml = renderWithProviders(
+        <DashboardKpiRibbon
+          total={8}
+          pendingCount={1}
+          onlineCamerasCount={10}
+          totalCamerasCount={10}
+          aiSummary={{
+            modelLabel: "YOLOv11-PPE v2.1.0",
+            avgFps: 28.5,
+            avgLatencyMs: 14.2,
+          }}
+          analytics={reportingAnalytics}
+          canViewReports
+          canViewIncidents
+          canViewCameras
+        />,
+      );
+
+      assert.ok(kpiHtml.includes("10/10"));
+      assert.ok(kpiHtml.includes("YOLOv11-PPE v2.1.0"));
+      assert.ok(kpiHtml.includes("28,5 FPS"));
+      assert.ok(kpiHtml.includes("14,2ms"));
+
+      const actionsHtml = renderWithProviders(
+        <DashboardQuickActions
+          columns={4}
+          canExportReports={true}
+          canReviewIncidents={true}
+        />,
+      );
+      assert.ok(actionsHtml.includes("xl:grid-cols-4"));
     });
   });
 });

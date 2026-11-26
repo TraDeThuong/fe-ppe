@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ScrollText, Settings2, ShieldAlert, Wrench } from "lucide-react";
+import { LayoutGrid, ScrollText, Settings2, ShieldAlert, Table2, Wrench } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { RefreshButton } from "@/components/ui/refresh-action";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { PageHeader } from "@/components/features/app-shell/page-header";
+import { SystemHealthCards } from "@/components/features/system/system-health-cards";
 import {
   CreateConfigModal,
   DeleteConfigDialog,
@@ -36,6 +38,7 @@ import { toast } from "@/lib/toast";
 import type { SystemConfigItem } from "@/types";
 
 const VALID_TABS: SystemTabKey[] = ["flags", "configs", "health", "platform"];
+type HealthView = "table" | "cards";
 
 const STAT_TO_URL: Record<SystemStatKey, string> = {
   flags: "flags",
@@ -73,10 +76,21 @@ export default function SystemContent() {
   // URL state synchronization for active tab
   const tabFromUrl = searchParams.get("tab") as SystemTabKey | null;
   const activeTab = tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : "flags";
+  const healthView: HealthView = searchParams.get("view") === "cards" ? "cards" : "table";
 
   const handleTabChange = (nextTab: SystemTabKey) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", nextTab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const handleHealthViewChange = (view: HealthView) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (view === "cards") {
+      params.set("view", view);
+    } else {
+      params.delete("view");
+    }
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
@@ -153,6 +167,7 @@ export default function SystemContent() {
   const {
     data: healthReport,
     isLoading: isLoadingHealth,
+    isError: isHealthError,
     refetch: refetchHealth,
     isFetching: isRefreshingHealth,
   } = useSystemHealth(30000);
@@ -430,11 +445,36 @@ export default function SystemContent() {
 
       {/* Tab 3: Service Health */}
       {activeTab === "health" && (
-        <SystemHealthMatrix
-          healthReport={healthReport}
-          onRefresh={() => refetchHealth()}
-          isRefreshing={isRefreshingHealth}
-        />
+        <div className="space-y-4">
+          <div className="flex sm:justify-end">
+            <SegmentedControl<HealthView>
+              aria-label={t("system.health.viewMode")}
+              size="sm"
+              options={[
+                { value: "table", label: t("system.health.viewTable"), icon: <Table2 /> },
+                { value: "cards", label: t("system.health.viewCards"), icon: <LayoutGrid /> },
+              ]}
+              value={healthView}
+              onValueChange={handleHealthViewChange}
+            />
+          </div>
+          {healthView === "cards" ? (
+            <SystemHealthCards
+              healthReport={healthReport}
+              isLoading={isLoadingHealth}
+              isError={isHealthError}
+              isRefreshing={isRefreshingHealth}
+              onRefresh={() => refetchHealth()}
+              isAdmin={canManage}
+            />
+          ) : (
+            <SystemHealthMatrix
+              healthReport={healthReport}
+              onRefresh={() => refetchHealth()}
+              isRefreshing={isRefreshingHealth}
+            />
+          )}
+        </div>
       )}
 
       {/* Tab 4: Platform & Build Info */}

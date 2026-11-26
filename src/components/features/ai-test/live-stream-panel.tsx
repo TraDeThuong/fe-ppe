@@ -22,13 +22,14 @@ import { Select, type SelectOption } from "@/components/ui/form/selection-contro
 import { Loader } from "@/components/ui/loader";
 import { useLocale } from "@/providers/locale-provider";
 import {
-  aiTestService,
+  aiSandboxService,
   isAiEndpointNotFoundError,
 } from "@/services/ai-test.service";
 import {
   formatTimeSec,
   formatViolationLabel,
   normalizeLiveEvidences,
+  routeSandboxEvidence,
   normalizeViolationType,
 } from "./ai-test-utils";
 import { EvidencePairCard } from "./evidence-pair-card";
@@ -105,8 +106,8 @@ export function LiveStreamPanel({
     setIsRefreshingSessions(true);
     try {
       const [videos, sessList] = await Promise.all([
-        aiTestService.listLiveVideos(),
-        aiTestService.listLiveSessions(),
+        aiSandboxService.listLiveVideos(),
+        aiSandboxService.listLiveSessions(),
       ]);
       setLiveVideos(videos);
       if (videos.length > 0) {
@@ -144,10 +145,10 @@ export function LiveStreamPanel({
     let cancelled = false;
     const poll = async () => {
       try {
-        const data = await aiTestService.getLiveStats(activeCameraId);
+        const data = await aiSandboxService.getLiveStats(activeCameraId);
         if (cancelled) return;
         setStats(data);
-        onLiveEvidencesChange(normalizeLiveEvidences(activeCameraId, data));
+        onLiveEvidencesChange(normalizeLiveEvidences(activeCameraId, data).map(routeSandboxEvidence));
       } catch {
         // Keep last stats cleanly
       }
@@ -206,7 +207,7 @@ export function LiveStreamPanel({
 
     setIsStarting(true);
     try {
-      const started = await aiTestService.startLiveStream({
+      const started = await aiSandboxService.startLiveStream({
         camera_id: cleanCamId,
         source: targetSource,
         model: selectedModel || null,
@@ -236,7 +237,7 @@ export function LiveStreamPanel({
     if (!targetId) return;
     setIsApplyingConfig(true);
     try {
-      await aiTestService.updateLiveConfig(targetId, {
+      await aiSandboxService.updateLiveConfig(targetId, {
         target_fps: targetFps,
         ai_fps: aiFps,
         confirmation_duration_s: confirmHelmetSec,
@@ -259,11 +260,11 @@ export function LiveStreamPanel({
     if (!targetId) return;
     setIsStopping(true);
     try {
-      await aiTestService.stopLiveStream(targetId);
+      await aiSandboxService.stopLiveStream(targetId);
       toast.success(t("aiTest.live.toasts.stopped", { cameraId: targetId }));
       await loadVideosAndSessions();
       if (targetId === activeCameraId) {
-        const refreshed = await aiTestService.getLiveStats(targetId).catch(() => null);
+        const refreshed = await aiSandboxService.getLiveStats(targetId).catch(() => null);
         if (refreshed) setStats(refreshed);
       }
     } catch (error) {
@@ -276,7 +277,7 @@ export function LiveStreamPanel({
   const handleUploadAndStream = async (file: File) => {
     setIsUploading(true);
     try {
-      const uploaded = await aiTestService.uploadVideo(file);
+      const uploaded = await aiSandboxService.uploadVideo(file);
       const uploadedSource =
         uploaded.job_id ||
         uploaded.path ||
@@ -307,7 +308,7 @@ export function LiveStreamPanel({
   const metrics = stats?.metrics;
   const recentViolations = stats?.recent_violations ?? [];
   const liveEvidences = useMemo(
-    () => (activeCameraId ? normalizeLiveEvidences(activeCameraId, stats ?? undefined) : []),
+    () => (activeCameraId ? normalizeLiveEvidences(activeCameraId, stats ?? undefined).map(routeSandboxEvidence) : []),
     [activeCameraId, stats],
   );
   const activeModelName =
@@ -975,7 +976,7 @@ export function LiveStreamPanel({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   key={`${activeCameraId}-${streamNonce}`}
-                  src={aiTestService.getLiveStreamUrl(activeCameraId, streamNonce)}
+                  src={aiSandboxService.getLiveStreamUrl(activeCameraId, streamNonce)}
                   alt={`AI Live MJPEG Stream ${activeCameraId}`}
                   className="h-full w-full rounded-xl object-contain"
                 />

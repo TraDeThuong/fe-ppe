@@ -7,25 +7,19 @@ import {
   BarChart3,
   CheckCircle2,
   Cpu,
-  Gauge,
   Grid,
   HelpCircle,
   Layers,
   Lightbulb,
   Sparkles,
-  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { useLocale } from "@/providers/locale-provider";
-import type { AiModelVersionDto, AiPerformanceDto } from "@/types";
+import type { AiModelVersionDto } from "@/types";
 
 export type AiCardGuideKey =
   | "active-model"
-  | "map50"
-  | "latency"
-  | "fps"
-  | "samples"
   | "per-class"
   | "confusion-matrix"
   | "latency-chart"
@@ -87,184 +81,36 @@ interface GuideContent {
 function buildGuideContent(
   key: AiCardGuideKey,
   isVi: boolean,
-  performance?: AiPerformanceDto | null,
   activeVersion?: AiModelVersionDto | null,
   activeModelName?: string,
 ): GuideContent {
-  const mapPct = performance ? `${(performance.mAP50 * 100).toFixed(1)}%` : "--";
-  const latencyStr = performance ? `${performance.averageLatencyMs.toFixed(1)} ms` : "--";
-  const fpsStr = performance ? `${performance.averageFps.toFixed(1)} FPS` : "--";
-  const framesStr = performance
-    ? performance.totalFramesProcessed.toLocaleString(isVi ? "vi-VN" : "en-US")
-    : "0";
-  const modelLabel = activeModelName || performance?.modelName || "YOLO PPE";
-  const versionLabel = activeVersion?.version || performance?.version || "--";
-
   switch (key) {
     case "active-model":
       return {
         icon: Cpu,
-        title: isVi ? "Mô hình Phục vụ Trực tiếp là gì?" : "What is the Live Serving Model?",
-        subtitle: isVi
-          ? "Giải thích phiên bản AI đang chạy trên các camera công trường"
-          : "Plain-language guide to the active production AI engine",
-        simpleSummary: isVi
-          ? `Đây là "bộ não AI" (${modelLabel} v${versionLabel}) đang trực tiếp xem toàn bộ camera và phát hiện công nhân thiếu mũ bảo hộ hoặc áo phản quang.`
-          : `This is the active AI brain (${modelLabel} v${versionLabel}) currently inspecting live camera feeds for PPE violations.`,
+        title: isVi ? "Phiên bản được chọn trong Registry" : "Selected Registry Version",
+        subtitle: isVi ? "Thông tin phiên bản đã đăng ký" : "Registered version details",
+        simpleSummary: activeVersion
+          ? (isVi
+            ? `Registry đã chọn ${activeModelName ?? "mô hình"} phiên bản ${activeVersion.version}.`
+            : `The Registry selected version ${activeVersion.version} of ${activeModelName ?? "the model"}.`)
+          : (isVi ? "Banner hiển thị phiên bản được chọn khi có dữ liệu Registry." : "The banner shows the selected version when Registry data is available."),
         howToRead: [
           {
-            term: isVi ? "Phiên bản (Version)" : "Version",
-            meaning: isVi
-              ? "Mã bản cập nhật của AI (ví dụ v3.0.0) kèm đường dẫn file trọng số đang nạp vào máy chủ GPU."
-              : "The deployed release tag (e.g., v3.0.0) and weight file currently loaded in GPU memory.",
+            term: isVi ? "Phiên bản và trọng số" : "Version and weights",
+            meaning: isVi ? "Nhãn phiên bản và đường dẫn trọng số đã đăng ký." : "The registered version label and weights path.",
           },
           {
-            term: isVi ? "Kiến trúc (Framework)" : "Framework",
-            meaning: isVi
-              ? "Công nghệ giúp AI chạy (ví dụ PyTorch FP16). Đây là định dạng giúp AI tính toán nhanh mà vẫn nhẹ bộ nhớ."
-              : "The inference runtime (e.g., PyTorch FP16) controlling execution speed and memory footprint.",
+            term: isVi ? "Kiến trúc và kích thước đầu vào" : "Framework and input resolution",
+            meaning: isVi ? "Định dạng mô hình và độ phân giải được lưu trong Registry." : "The model format and resolution recorded in the Registry.",
           },
           {
-            term: isVi ? "Kích thước đầu vào (Input Size)" : "Input Resolution",
-            meaning: isVi
-              ? "Ví dụ 640x640 nghĩa là mỗi khung hình camera sẽ được co giãn về cỡ 640×640 pixel trước khi AI soi lỗi."
-              : "Every video frame is resized to this dimension (e.g., 640×640 px) before detection runs.",
-          },
-          {
-            term: isVi ? "Triển khai lúc" : "Deployed At",
-            meaning: isVi
-              ? "Ngày phiên bản AI này chính thức được bật để giám sát công trường."
-              : "The date this version went live in production monitoring.",
+            term: isVi ? "Ngày chọn" : "Selected at",
+            meaning: isVi ? "Thời điểm Registry ghi nhận lựa chọn." : "When the Registry recorded the selection.",
           },
         ],
-        realExample: isVi
-          ? "Giống như một ca trực bảo vệ: chỉ có 1 phiên bản AI giữ trạng thái \"Đang phục vụ\" tại một thời điểm để tránh các camera nhận diện không đồng nhất."
-          : "Think of it as the active shift supervisor: one deployed version serves live cameras consistently at any time.",
-        watchOut: isVi
-          ? "Nếu hiển thị \"--\" ở hầu hết các ô, nghĩa là chưa có phiên bản nào được bấm Triển khai (Deploy) lên hệ thống."
-          : "If fields show \"--\", no model version is currently deployed.",
-      };
-
-    case "map50":
-      return {
-        icon: Zap,
-        title: isVi ? "mAP@50 — Độ chính xác tổng thể của AI" : "mAP@50 — Overall Detection Accuracy",
-        subtitle: isVi
-          ? "AI nhận diện đúng trang bị bảo hộ đến mức nào?"
-          : "How accurately the AI detects workers and PPE gear",
-        simpleSummary: isVi
-          ? `Hiện tại mô hình đạt ${mapPct}. Nói đơn giản, đây là "điểm tổng kết" đo xem AI vẽ khung nhận diện người, mũ và áo phản quang có chuẩn xác hay không.`
-          : `The model currently scores ${mapPct}. Simply put, this is the overall accuracy grade for detecting workers, helmets, and vests.`,
-        howToRead: [
-          {
-            term: "mAP (Mean Average Precision)",
-            meaning: isVi
-              ? "Điểm trung bình độ chính xác trên tất cả các loại đối tượng (Người, Mũ bảo hộ, Không mũ, Áo phản quang, Không áo)."
-              : "Average accuracy across all object classes (Person, Hard Hat, No Helmet, Safety Vest, No Vest).",
-          },
-          {
-            term: "@50",
-            meaning: isVi
-              ? "Khung mà AI khoanh quanh công nhân/mũ chỉ cần trùng khớp từ 50% diện tích thật trở lên là được tính nhận diện đúng."
-              : "A predicted bounding box counts as correct when it overlaps at least 50% with the true object.",
-          },
-        ],
-        realExample: isVi
-          ? "Nếu mAP@50 đạt ~88–92%, AI phân biệt rất tốt giữa người đội mũ bảo hộ thật với bóng râm, xô nhựa hay vật liệu xây dựng gần giống mũ."
-          : "At ~88–92%, the AI reliably tells real helmets apart from shadows, buckets, or similarly shaped site objects.",
-        watchOut: isVi
-          ? "Từ 90% trở lên là Xuất sắc; 80–89% là Đạt chuẩn; dưới 80% dễ gây báo nhầm hoặc sót vi phạm, nên cân nhắc huấn luyện thêm dữ liệu công trường."
-          : "≥ 90% is Excellent; 80–89% is Good; below 80% risks false alarms or missed violations and needs retraining.",
-      };
-
-    case "latency":
-      return {
-        icon: Gauge,
-        title: isVi ? "Độ trễ Suy luận (Inference Latency)" : "Inference Latency",
-        subtitle: isVi
-          ? "AI mất bao lâu để kiểm tra xong 1 tấm ảnh từ camera?"
-          : "How fast the AI inspects a single camera frame",
-        simpleSummary: isVi
-          ? `Độ trễ hiện tại là ${latencyStr}. Con số này càng NHỎ càng tốt — nghĩa là AI phản ứng càng nhanh khi phát hiện công nhân vi phạm.`
-          : `Current latency is ${latencyStr}. Lower is better — it means faster reaction time when a worker violates safety rules.`,
-        howToRead: [
-          {
-            term: isVi ? "Đơn vị ms (mili-giây)" : "Unit: ms (milliseconds)",
-            meaning: isVi
-              ? "1 giây = 1.000 ms. Một cái chớp mắt của con người mất khoảng 300 ms, còn 18–25 ms nhanh gấp hơn 10 lần một cái chớp mắt."
-              : "1 second = 1,000 ms. A human blink takes ~300 ms, so 18–25 ms is over 10× faster than a blink.",
-          },
-          {
-            term: isVi ? "Vì sao có thể hiện 0.0 ms?" : "Why might it show 0.0 ms?",
-            meaning: isVi
-              ? "Khi bạn lọc theo một camera hoặc khoảng ngày (như 24h / 7 ngày qua) mà chưa có dữ liệu đo được gửi về, hệ thống hiển thị 0.0 ms thay vì đoán bừa."
-              : "When filtering by a camera or date window with zero recorded telemetry, it accurately reports 0.0 ms.",
-          },
-        ],
-        realExample: isVi
-          ? "Công nhân vừa bước qua cổng mà quên đội mũ: chỉ sau khoảng 0.02 giây AI đã nhận ra ngay lập tức để kích hoạt cảnh báo."
-          : "As soon as an unhelmeted worker enters a zone, AI spots the violation in roughly 0.02 seconds.",
-        watchOut: isVi
-          ? "≤ 40 ms: Thời gian thực mượt mà. Trên 100 ms (vượt ngưỡng SLA): Camera bắt đầu có độ trễ, cảnh báo đến chậm hơn bình thường."
-          : "≤ 40 ms: Real-time smooth. Above 100 ms (SLA limit): Alerting becomes noticeably delayed.",
-      };
-
-    case "fps":
-      return {
-        icon: Activity,
-        title: isVi ? "Tốc độ Khung hình (FPS)" : "Processing Frame Rate (FPS)",
-        subtitle: isVi
-          ? "Mỗi giây AI xem được bao nhiêu khung hình video?"
-          : "How many video frames the AI analyzes every second",
-        simpleSummary: isVi
-          ? `Tốc độ hiện tại là ${fpsStr}. Con số này càng CAO càng tốt — giúp theo dõi công nhân di chuyển liên tục mà không bị "giật" hay bỏ sót khoảnh khắc.`
-          : `Current throughput is ${fpsStr}. Higher is better — tracking moving workers smoothly without skipping moments.`,
-        howToRead: [
-          {
-            term: "FPS (Frames Per Second)",
-            meaning: isVi
-              ? "Số tấm ảnh trích từ video camera mà AI kiểm tra xong trong 1 giây. Camera an ninh tiêu chuẩn thường chạy 25–30 FPS."
-              : "Number of video frames inspected per second. Standard security video runs at 25–30 FPS.",
-          },
-        ],
-        realExample: isVi
-          ? "Nếu xe nâng chạy ngang qua hoặc công nhân đi nhanh qua vùng cấm ở 28.5 FPS, AI xem gần như trọn vẹn từng bước di chuyển mà không bị nhảy cóc."
-          : "At ~28.5 FPS, fast-moving forklifts or workers crossing restricted zones are tracked frame-by-frame without gaps.",
-        watchOut: isVi
-          ? "≥ 25 FPS: Mượt mà thời gian thực; 15–24 FPS: Chấp nhận được; < 15 FPS: Dễ sót đối tượng chuyển động nhanh."
-          : "≥ 25 FPS: Smooth real-time; 15–24 FPS: Acceptable; < 15 FPS: Risk of missing fast motion.",
-      };
-
-    case "samples":
-      return {
-        icon: Layers,
-        title: isVi ? "Tổng Lượt Suy luận (Total Inferences)" : "Total Inferences",
-        subtitle: isVi
-          ? "Tổng số khung hình đã được AI kiểm tra an toàn"
-          : "Cumulative camera frames inspected by the AI",
-        simpleSummary: isVi
-          ? `Hệ thống đã kiểm tra ${framesStr} khung hình trong phạm vi bộ lọc hiện tại. Mỗi khung hình là 1 lần AI quét tìm vi phạm bảo hộ.`
-          : `${framesStr} frames have been analyzed in the selected scope. Each frame represents one automated PPE check.`,
-        howToRead: [
-          {
-            term: isVi ? "Đơn vị K / M" : "Units K / M",
-            meaning: isVi
-              ? "K là Nghìn khung hình (ví dụ 148.5K = 148.500 ảnh), M là Triệu khung hình."
-              : "K stands for Thousands (e.g., 148.5K = 148,500 frames) and M stands for Millions.",
-          },
-          {
-            term: isVi ? "Thay đổi theo bộ lọc" : "Sensitive to filters",
-            meaning: isVi
-              ? "Khi bạn đổi khoảng thời gian (24h, 7 ngày, 30 ngày, Tất cả) hoặc chọn từng Camera, con số này cập nhật theo đúng dữ liệu đo được trong phạm vi đó."
-              : "Updates dynamically according to the selected time range, model, or specific camera.",
-          },
-        ],
-        realExample: isVi
-          ? "Với tốc độ ~28.5 FPS, 148.520 khung hình tương đương khoảng 87 phút video được AI soi liên tục từng khung hình không nghỉ."
-          : "At ~28.5 FPS, 148,520 frames equals roughly 87 minutes of continuous frame-by-frame safety inspection.",
-        watchOut: isVi
-          ? "Nếu bằng 0 khi chọn 7 ngày qua, nghĩa là tuần vừa rồi chưa có bản ghi benchmark nào được đẩy lên hệ thống Reporting."
-          : "A value of 0 for a narrow window means no telemetry benchmarks were recorded during that timeframe.",
+        realExample: isVi ? "Bảng quản trị lưu các phiên bản cũ để đối chiếu." : "The governance table keeps prior versions for comparison.",
+        watchOut: isVi ? "Trạng thái chạy trên camera cần xác nhận riêng từ AI Engine." : "Camera runtime status requires a separate confirmation from the AI Engine.",
       };
 
     case "per-class":
@@ -393,17 +239,17 @@ function buildGuideContent(
           ? "Quản trị & Danh sách Phiên bản Mô hình AI"
           : "AI Model Governance & Registered Versions",
         subtitle: isVi
-          ? "Quản lý lịch sử các bản nâng cấp AI và chuyển đổi nóng (Hot-swap)"
-          : "Manage model releases and zero-downtime hot-swaps",
+          ? "Quản lý phiên bản và lựa chọn trong Registry"
+          : "Manage model releases and selection in the Registry",
         simpleSummary: isVi
           ? "Bảng này giống như \"kho lưu trữ các phiên bản AI\" (v1.0.0, v3.0.0...). Bạn có thể so sánh độ chính xác (mAP@50), tốc độ (Độ trễ TB) giữa bản cũ và bản mới trước khi bấm Triển khai."
           : "An inventory of all registered AI model versions so you can compare accuracy and latency before deploying an upgrade.",
         howToRead: [
           {
-            term: isVi ? "Đang phục vụ (DEPLOYED)" : "Serving Live (DEPLOYED)",
+            term: isVi ? "Đã chọn trong Registry (DEPLOYED)" : "Selected in Registry (DEPLOYED)",
             meaning: isVi
-              ? "Phiên bản đang chạy thực tế trên camera công trường."
-              : "The version actively inspecting live streams.",
+              ? "Phiên bản được chọn trong Registry cho mô hình tương ứng."
+              : "The version selected in the Registry for that model.",
           },
           {
             term: "STAGING / CANDIDATE (DEVELOPMENT)",
@@ -419,11 +265,11 @@ function buildGuideContent(
           },
         ],
         realExample: isVi
-          ? "Khi huấn luyện xong bản v3.1.0 có mAP@50 cao hơn bản v3.0.0, bạn chỉ cần bấm \"Triển khai\" — hệ thống thực hiện Hot-swap thay não AI mới mà không làm tắt camera."
-          : "Once v3.1.0 proves more accurate than v3.0.0, click \"Deploy\" to hot-swap weights without stopping camera streams.",
+          ? "Sau khi so sánh hai phiên bản, bạn có thể chọn v3.1.0 trong Registry."
+          : "After comparing the two versions, you can select v3.1.0 in the Registry.",
         watchOut: isVi
-          ? "Trước khi bấm Triển khai bản mới, hãy xem hộp thoại so sánh để chắc chắn mAP@50 tăng hoặc độ trễ không bị chậm đi quá mức."
-          : "Always check the comparison dialog before deploying to verify mAP@50 and latency improvements.",
+          ? "Hãy đối chiếu kết quả kiểm thử trong hộp so sánh trước khi cập nhật Registry."
+          : "Review the benchmark comparison before updating the Registry.",
       };
   }
 }
@@ -431,7 +277,6 @@ function buildGuideContent(
 export interface AiMetricsGuideModalProps {
   openKey: AiCardGuideKey | null;
   onClose: () => void;
-  performance?: AiPerformanceDto | null;
   activeVersion?: AiModelVersionDto | null;
   activeModelName?: string;
 }
@@ -439,7 +284,6 @@ export interface AiMetricsGuideModalProps {
 export function AiMetricsGuideModal({
   openKey,
   onClose,
-  performance,
   activeVersion,
   activeModelName,
 }: AiMetricsGuideModalProps) {
@@ -447,7 +291,7 @@ export function AiMetricsGuideModal({
   const isVi = locale === "vi-VN";
 
   const guide = openKey
-    ? buildGuideContent(openKey, isVi, performance, activeVersion, activeModelName)
+    ? buildGuideContent(openKey, isVi, activeVersion, activeModelName)
     : null;
 
   const Icon = guide?.icon ?? HelpCircle;

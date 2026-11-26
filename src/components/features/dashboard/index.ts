@@ -11,10 +11,4 @@ export * from "./charts/dashboard-severity-sla-chart";
 export * from "./charts/dashboard-zone-risk-chart";
 export * from "./charts/dashboard-violation-trends-chart";
 export * from "./dashboard-nav-tabs";
-export * from "./dashboard-executive-kpi";
-export * from "./dashboard-system-status-card";
-export * from "./dashboard-users-overview-card";
-export * from "./dashboard-audit-mini-feed";
-export * from "./dashboard-cron-mini-card";
-
 

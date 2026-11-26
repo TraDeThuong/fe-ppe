@@ -75,7 +75,11 @@ describe("per-class-metrics-card", () => {
       const html = renderWithProviders(
         React.createElement(PerClassMetricsCard, { metrics: [] }),
       );
-      assert.ok(html.includes("Kiểm thử mô hình"));
+      assert.ok(!html.includes("Kiểm thử mô hình"));
+      const allowed = renderWithProviders(
+        React.createElement(PerClassMetricsCard, { metrics: [], canTestModel: true }),
+      );
+      assert.ok(allowed.includes("Kiểm thử mô hình"));
     });
 
     it("renders with DEFAULT_PER_CLASS_MOCK_METRICS when useMockFallback = true", () => {

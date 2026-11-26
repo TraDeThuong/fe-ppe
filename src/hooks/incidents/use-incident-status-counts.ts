@@ -8,17 +8,13 @@ import {
 } from "@tanstack/react-query";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { incidentService } from "@/services/incident.service";
+import type { IncidentStatusCounts } from "@/types";
 import {
   incidentKeys,
   type IncidentStatusCountsQueryParams,
 } from "./incident.query-keys";
 
-export interface IncidentStatusCountsResult {
-  total: number;
-  pendingReview: number;
-  critical: number;
-  resolved: number;
-}
+export type IncidentStatusCountsResult = IncidentStatusCounts;
 
 export type UseIncidentStatusCountsOptions = Omit<
   UseQueryOptions<IncidentStatusCountsResult, Error>,
@@ -43,6 +39,7 @@ function normalizeStatusCountsParams(
   return {
     siteId: siteIdOrParams.siteId || undefined,
     cameraId: siteIdOrParams.cameraId || undefined,
+    cameraIds: siteIdOrParams.cameraIds || undefined,
     fromDate: siteIdOrParams.fromDate || undefined,
     toDate: siteIdOrParams.toDate || undefined,
   };
@@ -56,6 +53,7 @@ async function fetchIncidentStatusCounts(
     const query = {
       ...(params.siteId ? { siteId: params.siteId } : {}),
       ...(params.cameraId ? { cameraId: params.cameraId } : {}),
+      ...(params.cameraIds ? { cameraIds: params.cameraIds } : {}),
       ...(params.fromDate ? { fromDate: params.fromDate } : {}),
       ...(params.toDate ? { toDate: params.toDate } : {}),
     };
@@ -78,6 +76,7 @@ async function fetchIncidentStatusCounts(
       {
         siteId: params.siteId || undefined,
         cameraId: params.cameraId || undefined,
+        cameraIds: params.cameraIds || undefined,
         fromDate: params.fromDate || undefined,
         toDate: params.toDate || undefined,
         status: "PENDING_REVIEW",
@@ -90,8 +89,11 @@ async function fetchIncidentStatusCounts(
     return {
       total: pendingReview,
       pendingReview,
+      confirmed: 0,
       critical: 0,
       resolved: 0,
+      closed: 0,
+      dismissed: 0,
     };
   }
 }

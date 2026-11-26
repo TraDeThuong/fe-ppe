@@ -1,3 +1,4 @@
+import { AI_SANDBOX_API_PATH } from "@/lib/ai-sandbox-path";
 import type { Locale } from "@/providers/locale-provider";
 import type {
   EvidenceItem,
@@ -498,6 +499,20 @@ function fromLiveViolationEvent(ev: LiveViolationEvent): EvidenceItem | null {
     beforeUrl,
     afterUrl,
     primaryUrl,
+  };
+}
+
+export function routeSandboxEvidence(evidence: EvidenceItem): EvidenceItem {
+  const studioUrl = (url: string) =>
+    url.startsWith("/api/live/") || url.startsWith("/api/jobs/")
+      ? `${AI_SANDBOX_API_PATH}${url.slice("/api".length)}`
+      : url;
+
+  return {
+    ...evidence,
+    beforeUrl: evidence.beforeUrl ? studioUrl(evidence.beforeUrl) : evidence.beforeUrl,
+    afterUrl: evidence.afterUrl ? studioUrl(evidence.afterUrl) : evidence.afterUrl,
+    primaryUrl: studioUrl(evidence.primaryUrl),
   };
 }
 

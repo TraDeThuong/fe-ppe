@@ -3,8 +3,20 @@ import type { IncidentQueryParams } from "@/types";
 export interface IncidentStatusCountsQueryParams {
   siteId?: string | null;
   cameraId?: string;
+  cameraIds?: string[] | string;
   fromDate?: string;
   toDate?: string;
+}
+
+function normalizeCameraIdsKey(cameraIds?: string[] | string): string | null | undefined {
+  if (cameraIds === undefined) return undefined;
+  const list = Array.isArray(cameraIds)
+    ? cameraIds
+    : cameraIds.split(",");
+  const cleaned = Array.from(new Set(list.map((id) => id.trim()).filter(Boolean))).sort();
+  if (cleaned.length > 0) return cleaned.join(",");
+  // The API client resolves an empty camera set locally; never share its cache with unfiltered counts.
+  return Array.isArray(cameraIds) ? null : undefined;
 }
 
 export const incidentKeys = {
@@ -17,7 +29,8 @@ export const incidentKeys = {
       return [...incidentKeys.all, "status-counts", params || "all"] as const;
     }
     const siteSegment = params.siteId || "all";
-    if (!params.cameraId && !params.fromDate && !params.toDate) {
+    const normalizedCameraIds = normalizeCameraIdsKey(params.cameraIds);
+    if (!params.cameraId && normalizedCameraIds === undefined && !params.fromDate && !params.toDate) {
       return [...incidentKeys.all, "status-counts", siteSegment] as const;
     }
     return [
@@ -26,6 +39,7 @@ export const incidentKeys = {
       siteSegment,
       {
         cameraId: params.cameraId || undefined,
+        cameraIds: normalizedCameraIds,
         fromDate: params.fromDate || undefined,
         toDate: params.toDate || undefined,
       },

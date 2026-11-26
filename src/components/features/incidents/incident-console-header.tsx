@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import {
   Building2,
+  Database,
   Images,
   Plus,
   ShieldAlert,
@@ -25,6 +26,8 @@ export interface IncidentConsoleHeaderProps {
   onRefresh: () => void;
   canCreateIncident: boolean;
   onCreateIncident: () => void;
+  canExportFeedback?: boolean;
+  onExportFeedback?: () => void;
   siteName?: string | null;
   userRole?: string | null;
   criticalCount: number;
@@ -40,6 +43,8 @@ export function IncidentConsoleHeader({
   onRefresh,
   canCreateIncident,
   onCreateIncident,
+  canExportFeedback = false,
+  onExportFeedback,
   siteName,
   userRole,
   criticalCount,
@@ -75,8 +80,9 @@ export function IncidentConsoleHeader({
 
       <div className="relative space-y-5">
         {/* Layer 1: Identity & Right Action Modules */}
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex items-start gap-4">
+        <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-center 2xl:justify-between">
+          {/* Left Identity Block */}
+          <div className="flex min-w-0 items-start gap-4">
             {/* 3D Extruded Emblem */}
             <div
               className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${NM.extruded}`}
@@ -86,21 +92,20 @@ export function IncidentConsoleHeader({
               </div>
               <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-background shadow-sm">
                 <span
-                  className={`h-2 w-2 rounded-full ${
-                    isConnected
+                  className={`h-2 w-2 rounded-full ${isConnected
                       ? "bg-primary shadow-[0_0_8px_hsl(var(--primary))]"
                       : "bg-accent/60"
-                  }`}
+                    }`}
                 />
               </span>
             </div>
 
-            <div className="min-w-0 space-y-2">
+            <div className="min-w-0 flex-1 space-y-2">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
                   {t("incidents.title")}
                 </h1>
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+                <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                   {isVietnamese
                     ? "Giám sát An toàn PPE"
                     : "PPE Safety Monitoring"}
@@ -109,7 +114,7 @@ export function IncidentConsoleHeader({
 
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {roleDisplay && (
-                  <span className="inline-flex items-center gap-1 rounded-xl bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary">
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary">
                     <ShieldCheck className="size-3.5" />
                     {roleDisplay}
                   </span>
@@ -125,18 +130,16 @@ export function IncidentConsoleHeader({
                         ? "Đang duy trì kiểm tra định kỳ (15s)"
                         : "Maintaining polling (15s)"
                   }
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-[11px] font-semibold ${
-                    isConnected ? "text-primary" : "text-accent"
-                  } ${NM.recessed}`}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-[11px] font-semibold ${isConnected ? "text-primary" : "text-accent"
+                    } ${NM.recessed}`}
                 >
                   <span className="relative flex h-2 w-2">
                     {isConnected && (
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-40" />
                     )}
                     <span
-                      className={`relative h-2 w-2 rounded-full ${
-                        isConnected ? "bg-primary" : "bg-accent"
-                      }`}
+                      className={`relative h-2 w-2 rounded-full ${isConnected ? "bg-primary" : "bg-accent"
+                        }`}
                     />
                   </span>
                   {isConnected ? "Realtime Active" : "Polling (15s)"}
@@ -144,23 +147,21 @@ export function IncidentConsoleHeader({
 
                 <span
                   title={resolvedSiteLabel}
-                  className={`inline-flex max-w-[240px] items-center gap-1.5 rounded-xl px-3 py-1 text-[11px] font-semibold text-foreground ${NM.recessed}`}
+                  className={`inline-flex max-w-[220px] items-center gap-1.5 rounded-xl px-3 py-1 text-[11px] font-semibold text-foreground ${NM.recessed}`}
                 >
                   <Building2 className="size-3.5 shrink-0 text-primary" />
                   <span className="truncate">{resolvedSiteLabel}</span>
                 </span>
 
                 <span
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-[11px] font-semibold ${
-                    criticalCount > 0 ? "text-accent" : "text-muted-foreground"
-                  } ${NM.recessed}`}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-[11px] font-semibold ${criticalCount > 0 ? "text-accent" : "text-muted-foreground"
+                    } ${NM.recessed}`}
                 >
                   <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      criticalCount > 0
+                    className={`h-1.5 w-1.5 rounded-full ${criticalCount > 0
                         ? "animate-pulse bg-accent"
                         : "bg-muted-foreground/40"
-                    }`}
+                      }`}
                   />
                   {criticalCount > 0
                     ? isVietnamese
@@ -174,40 +175,66 @@ export function IncidentConsoleHeader({
             </div>
           </div>
 
-          {/* Right Action Controls (đồng bộ /cameras & /dashboard) */}
-          <div className="flex flex-wrap items-center gap-3 self-start xl:self-center">
-            <Link
-              href="/evidences"
-              className={`group inline-flex shrink-0 items-center gap-2.5 sm:gap-3 rounded-2xl px-3.5 py-2 sm:px-4 sm:py-2.5 text-xs font-bold uppercase tracking-wider text-foreground transition-all duration-200 hover:text-primary active:scale-[0.98] ${NM.tactileBtn}`}
+          {/* Right Action Dock: Khóa 1 hàng duy nhất, chiều cao đồng nhất (h-12), không rớt dòng lẻ */}
+          <div className="flex w-full items-center gap-2.5 overflow-x-auto pb-1 sm:w-auto sm:overflow-visible sm:pb-0 2xl:shrink-0">
+            {/* Cụm nút tác vụ phụ nằm chung 1 khay khắc lõm (Neumorphic Dock) */}
+            <div
+              className={`flex shrink-0 items-center gap-2 rounded-2xl p-1.5 ${NM.recessed}`}
             >
-              <span
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-primary transition-all duration-200 group-hover:scale-105 ${NM.recessed}`}
+              <Link
+                href="/evidences"
+                className={`group inline-flex h-10 shrink-0 items-center gap-2.5 whitespace-nowrap rounded-xl px-3 text-xs font-bold text-foreground transition-all duration-200 hover:text-primary active:scale-[0.98] ${NM.tactileBtn}`}
               >
-                <Images className="size-4" />
-              </span>
-              <span className="text-left leading-tight">
-                <span className="block font-extrabold">
-                  {t("nav.evidences")}
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-transform duration-200 group-hover:scale-105">
+                  <Images className="size-3.5" />
                 </span>
-                <span className="mt-0.5 block text-[10px] font-medium normal-case tracking-normal text-muted-foreground">
-                  {isVietnamese ? "Ảnh & video vi phạm" : "Violation media"}
+                <span className="text-left leading-none">
+                  <span className="block text-[11px] font-extrabold uppercase tracking-wider">
+                    {t("nav.evidences")}
+                  </span>
+                  <span className="mt-0.5 hidden text-[10px] font-medium text-muted-foreground md:block">
+                    {isVietnamese ? "Ảnh & video" : "Media"}
+                  </span>
                 </span>
-              </span>
-            </Link>
+              </Link>
 
-            <ConsoleRefreshButton
-              onRefresh={onRefresh}
-              isRefreshing={isRefreshing}
-              subtitle={isVietnamese ? "Dữ liệu sự cố" : "Incident feed"}
-            />
+              {canExportFeedback && onExportFeedback && (
+                <button
+                  type="button"
+                  onClick={onExportFeedback}
+                  className={`group inline-flex h-10 shrink-0 cursor-pointer items-center gap-2.5 whitespace-nowrap rounded-xl px-3 text-xs font-bold text-foreground transition-all duration-200 hover:text-primary active:scale-[0.98] ${NM.tactileBtn}`}
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent/15 text-accent transition-transform duration-200 group-hover:scale-105">
+                    <Database className="size-3.5" />
+                  </span>
+                  <span className="text-left leading-none">
+                    <span className="block text-[11px] font-extrabold uppercase tracking-wider">
+                      {isVietnamese ? "Feedback AI" : "AI Feedback"}
+                    </span>
+                    <span className="mt-0.5 hidden text-[10px] font-medium text-muted-foreground md:block">
+                      {isVietnamese ? "Xuất dataset" : "Export CSV"}
+                    </span>
+                  </span>
+                </button>
+              )}
 
+              <div className="shrink-0">
+                <ConsoleRefreshButton
+                  onRefresh={onRefresh}
+                  isRefreshing={isRefreshing}
+                  subtitle={isVietnamese ? "Dữ liệu" : "Feed"}
+                />
+              </div>
+            </div>
+
+            {/* Nút CTA chính tách biệt, chiều cao khớp tuyệt đối với khay bên cạnh */}
             {canCreateIncident && (
               <button
                 type="button"
                 onClick={onCreateIncident}
-                className="inline-flex h-11 sm:h-14 shrink-0 cursor-pointer items-center gap-2 rounded-2xl bg-primary px-4 sm:px-5 text-xs font-extrabold uppercase tracking-wider text-primary-foreground shadow-[6px_6px_14px_rgba(0,0,0,0.16),-4px_-4px_10px_rgba(255,255,255,0.7),inset_1px_1px_1px_rgba(255,255,255,0.35)] transition-all hover:brightness-105 active:scale-[0.98] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.5)]"
+                className="inline-flex h-[52px] shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-2xl bg-primary px-4 text-xs font-extrabold uppercase tracking-wider text-primary-foreground shadow-[6px_6px_14px_rgba(0,0,0,0.16),-4px_-4px_10px_rgba(255,255,255,0.7),inset_1px_1px_1px_rgba(255,255,255,0.35)] transition-all hover:brightness-105 active:scale-[0.98] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.5)] sm:px-5"
               >
-                <Plus className="size-4" />
+                <Plus className="size-4 shrink-0" />
                 <span>
                   {isVietnamese ? "Báo cáo Sự cố" : "Report Incident"}
                 </span>

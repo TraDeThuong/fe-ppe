@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useContext, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -20,8 +20,6 @@ import {
   XCircle,
 } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
-import { AuthContext } from "@/contexts/AuthContext";
-import { useSystemHealth } from "@/hooks/system/use-system-health";
 import { useMaintenanceStatus } from "@/hooks/maintenance";
 import { useRefreshFeedback } from "@/hooks/use-refresh-feedback";
 import {
@@ -43,13 +41,15 @@ import type {
   SystemHealthReport,
 } from "@/types";
 
-export type SystemStatusFilter = "ALL" | "SERVICE" | "INFRASTRUCTURE" | "ISSUES";
+type SystemStatusFilter = "ALL" | "SERVICE" | "INFRASTRUCTURE" | "ISSUES";
 
-export interface DashboardSystemStatusCardProps {
-  className?: string;
-  maxDisplayServices?: number;
-  healthOverride?: SystemHealthReport;
-  isAdminOverride?: boolean;
+interface SystemHealthCardsProps {
+  healthReport?: SystemHealthReport;
+  isLoading?: boolean;
+  isRefreshing?: boolean;
+  isError?: boolean;
+  isAdmin?: boolean;
+  onRefresh: () => unknown;
 }
 
 const STATUS_META: Record<
@@ -94,36 +94,17 @@ function getLatencyWidthPercent(svc: ServiceHealthItem): number {
   return Math.min(100, Math.max(10, Math.round((svc.latencyMs / 350) * 100)));
 }
 
-export function DashboardSystemStatusCard({
-  className = "",
-  maxDisplayServices,
-  healthOverride,
-  isAdminOverride,
-}: DashboardSystemStatusCardProps) {
+export function SystemHealthCards({
+  healthReport: health,
+  isLoading = false,
+  isRefreshing = false,
+  isError = false,
+  isAdmin = false,
+  onRefresh,
+}: SystemHealthCardsProps) {
   const { t, locale } = useLocale();
   const isVi = locale === "vi-VN";
-  const authCtx = useContext(AuthContext);
-  const currentUser = authCtx?.user;
-  const isAdmin =
-    isAdminOverride ??
-    Boolean(
-      currentUser?.role === "ADMIN" ||
-        currentUser?.permissions?.includes("SYSTEM_CONFIG_MANAGE"),
-    );
-
-  const {
-    data: queriedHealth,
-    isLoading: queryLoading,
-    isFetching: queryFetching,
-    isError: queryError,
-    refetch,
-  } = useSystemHealth(healthOverride ? false : 30000);
   const { data: maintenance } = useMaintenanceStatus();
-
-  const health = healthOverride ?? queriedHealth;
-  const isLoading = !healthOverride && queryLoading;
-  const isFetching = !healthOverride && queryFetching;
-  const isError = !healthOverride && queryError;
 
   const [filter, setFilter] = useState<SystemStatusFilter>("ALL");
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
@@ -135,8 +116,9 @@ export function DashboardSystemStatusCard({
     lastSyncedLabel: recheckSyncedLabel,
     trigger: triggerRecheck,
   } = useRefreshFeedback({
-    onRefresh: () => refetch(),
-    isRefreshing: isFetching,
+    onRefresh,
+    isRefreshing,
+    hasError: isError,
   });
 
   const isMaintenanceActive = Boolean(maintenance?.enabled);
@@ -159,17 +141,15 @@ export function DashboardSystemStatusCard({
     };
   }, [services]);
 
-  const filteredServices = useMemo(() => {
-    const matching = services.filter((svc) => {
+  const filteredServices = useMemo(
+    () => services.filter((svc) => {
       if (filter === "SERVICE") return (svc.type ?? "SERVICE") === "SERVICE";
       if (filter === "INFRASTRUCTURE") return svc.type === "INFRASTRUCTURE";
       if (filter === "ISSUES") return svc.status !== "HEALTHY";
       return true;
-    });
-    return typeof maxDisplayServices === "number"
-      ? matching.slice(0, maxDisplayServices)
-      : matching;
-  }, [services, filter, maxDisplayServices]);
+    }),
+    [services, filter],
+  );
 
   const selectedService = useMemo(
     () =>
@@ -263,7 +243,7 @@ export function DashboardSystemStatusCard({
   return (
 <section
   aria-label={t("dashboard.systemCard.title")}
-  className={`flex flex-col justify-between rounded-[26px] bg-background p-4 sm:p-5 transition-all duration-300 ${NM.chassis} ${className}`}
+  className={`flex flex-col justify-between rounded-[26px] bg-background p-4 sm:p-5 transition-all duration-300 ${NM.chassis}`}
 >
   <div className="space-y-4">
     {/* Header: Không đường kẻ ngang, tách bạch bằng hình khối lồi/lõm */}
@@ -307,7 +287,7 @@ export function DashboardSystemStatusCard({
         <button
           type="button"
           onClick={triggerRecheck}
-          disabled={isRechecking || Boolean(healthOverride)}
+          disabled={isRechecking}
           aria-label={t("dashboard.systemCard.recheck")}
           title={
             recheckSyncedLabel
@@ -507,7 +487,7 @@ export function DashboardSystemStatusCard({
         }`}
       >
         {isLoading ? (
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {[0, 1, 2, 3, 4, 5].map((i) => (
               <div
                 key={i}
@@ -528,7 +508,8 @@ export function DashboardSystemStatusCard({
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => void refetch()}
+              onClick={triggerRecheck}
+              disabled={isRechecking}
               className={`rounded-full bg-background px-4 text-xs font-bold text-primary ${NM.tactileBtn}`}
             >
               {t("dashboard.data.retry")}
@@ -542,10 +523,10 @@ export function DashboardSystemStatusCard({
           </div>
         ) : (
           <div
-            className={`grid max-h-[340px] grid-cols-1 gap-2.5 overflow-y-auto p-1 ${
+            className={`grid grid-cols-1 gap-2.5 p-1 ${
               selectedService && selectedGuidance
                 ? "sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2"
-                : "sm:grid-cols-2"
+                : "sm:grid-cols-2 lg:grid-cols-3"
             }`}
           >
             {filteredServices.map((svc) => {
@@ -787,7 +768,7 @@ export function DashboardSystemStatusCard({
     </div>
   </div>
 
-  {/* Card Footer: Không đường kẻ ngang, nút View Details dạng phím bấm nổi */}
+  {/* Card Footer */}
   <div className="mt-4 flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
     <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
       <div
@@ -818,17 +799,6 @@ export function DashboardSystemStatusCard({
         </span>
       )}
     </div>
-
-    <Link
-      href="/system?tab=health"
-      className={`group inline-flex items-center gap-1.5 rounded-full bg-background px-3.5 py-1.5 text-[11px] font-bold text-primary transition-all ${NM.tactileBtn}`}
-    >
-      <span>{t("dashboard.systemCard.viewDetails")}</span>
-      <ArrowRight
-        className="size-3 transition-transform duration-200 group-hover:translate-x-0.5"
-        strokeWidth={2.4}
-      />
-    </Link>
   </div>
 </section>
   );

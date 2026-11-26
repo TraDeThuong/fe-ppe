@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
+import { useCan } from "@/hooks/use-can";
 import { aiTestService } from "@/services/ai-test.service";
 import { siteService } from "@/services/site.service";
 import { siteKeys } from "./site.query-keys";
@@ -27,6 +28,7 @@ export function useSiteSafetyConfig(siteId: string, enabled = true) {
 
 export function useUpdateSiteSafetyConfig() {
   const queryClient = useQueryClient();
+  const canSyncCameras = useCan()("PPE_CAMERA_MANAGE");
 
   return useMutation({
     mutationFn: ({
@@ -41,7 +43,9 @@ export function useUpdateSiteSafetyConfig() {
       queryClient.invalidateQueries({ queryKey: siteKeys.detail(siteId) });
       queryClient.invalidateQueries({ queryKey: siteKeys.lists() });
       queryClient.invalidateQueries({ queryKey: [...siteKeys.all, "effective-safety-config"] });
-      void aiTestService.triggerLiveSync().catch(() => undefined);
+      if (canSyncCameras) {
+        void aiTestService.triggerLiveSync().catch(() => undefined);
+      }
       toast.success(
         pickLocaleText(
           "Tiêu chuẩn trang bị bảo hộ PPE của công trường đã được cập nhật.",
@@ -94,6 +98,7 @@ export function useCameraSafetyConfig(cameraId: string, enabled = true) {
 
 export function useUpdateCameraSafetyConfig() {
   const queryClient = useQueryClient();
+  const canSyncCameras = useCan()("PPE_CAMERA_MANAGE");
 
   return useMutation({
     mutationFn: ({
@@ -106,7 +111,9 @@ export function useUpdateCameraSafetyConfig() {
     onSuccess: (updated, { cameraId }) => {
       queryClient.setQueryData(siteKeys.cameraSafetyConfig(cameraId), updated);
       queryClient.invalidateQueries({ queryKey: [...siteKeys.all, "effective-safety-config"] });
-      void aiTestService.triggerLiveSync().catch(() => undefined);
+      if (canSyncCameras) {
+        void aiTestService.triggerLiveSync().catch(() => undefined);
+      }
       toast.success(
         pickLocaleText(
           "Đã lưu cấu hình quy tắc an toàn riêng cho camera.",
@@ -129,13 +136,16 @@ export function useUpdateCameraSafetyConfig() {
 
 export function useDeleteCameraSafetyConfig() {
   const queryClient = useQueryClient();
+  const canSyncCameras = useCan()("PPE_CAMERA_MANAGE");
 
   return useMutation({
     mutationFn: (cameraId: string) => siteService.deleteCameraSafetyConfig(cameraId),
     onSuccess: (_, cameraId) => {
       queryClient.invalidateQueries({ queryKey: siteKeys.cameraSafetyConfig(cameraId) });
       queryClient.invalidateQueries({ queryKey: [...siteKeys.all, "effective-safety-config"] });
-      void aiTestService.triggerLiveSync().catch(() => undefined);
+      if (canSyncCameras) {
+        void aiTestService.triggerLiveSync().catch(() => undefined);
+      }
       toast.success(
         pickLocaleText(
           "Đã khôi phục camera về cấu hình kế thừa từ công trường.",
@@ -158,13 +168,16 @@ export function useDeleteCameraSafetyConfig() {
 
 export function useInvalidateSafetyRuleCache() {
   const queryClient = useQueryClient();
+  const canSyncCameras = useCan()("PPE_CAMERA_MANAGE");
 
   return useMutation({
     mutationFn: (payload: InvalidateSafetyRuleCachePayload) =>
       siteService.invalidateSafetyRuleCache(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [...siteKeys.all, "effective-safety-config"] });
-      void aiTestService.triggerLiveSync().catch(() => undefined);
+      if (canSyncCameras) {
+        void aiTestService.triggerLiveSync().catch(() => undefined);
+      }
       toast.success(
         pickLocaleText(
           "Đã làm mới bộ nhớ đệm quy tắc an toàn AI.",

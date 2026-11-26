@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { useCan } from "@/hooks/use-can";
 import { useSitesCatalog, useSiteZones } from "@/hooks/sites";
 import { useLocale } from "@/providers/locale-provider";
+import {
+  hasMaskedCredentials,
+  resolveEditedStreamUrl,
+} from "./camera-live-helpers";
 import type { CameraItem, CameraSourceType, CameraStatus, UpdateCameraPayload } from "@/types";
 
 export interface EditCameraModalProps {
@@ -81,6 +85,24 @@ export function EditCameraModal({
       return;
     }
 
+    const streamResolution = resolveEditedStreamUrl(streamUrl, camera.streamUrl);
+    if (!streamResolution.ok) {
+      if (streamResolution.errorCode === "MASKED_PASSWORD_CHANGED") {
+        setError(
+          isVietnamese
+            ? "Địa chỉ URL vẫn đang chứa mật khẩu che giấu (***). Vui lòng nhập mật khẩu thực tế khi thay đổi URL stream."
+            : "Stream URL still contains masked credentials (***). Please enter the actual password when changing the stream URL.",
+        );
+      } else {
+        setError(
+          isVietnamese
+            ? "Vui lòng nhập địa chỉ URL luồng video (hoặc giữ nguyên URL hiện tại)."
+            : "Please enter a valid video stream URL (or keep the current URL).",
+        );
+      }
+      return;
+    }
+
     try {
       await onSubmit(camera.id, {
         name: name.trim(),
@@ -88,7 +110,9 @@ export function EditCameraModal({
         zoneId: zoneId.trim() ? zoneId.trim() : null,
         sourceType,
         status,
-        streamUrl: streamUrl.trim() || undefined,
+        ...(streamResolution.streamUrl !== undefined
+          ? { streamUrl: streamResolution.streamUrl }
+          : {}),
         location: location.trim() || null,
         description: description.trim() || null,
       });
@@ -164,9 +188,11 @@ export function EditCameraModal({
               disabled
               required
             >
-              {sites.length === 0 ? (
-                <option value={camera?.siteId || "0192d6e3-8f0a-7bb1-8c4d-91b53f608a11"}>
-                  {camera?.siteName || (isVietnamese ? "Công trường Landmark 81" : "Landmark 81 Site")}
+              {sites.length === 0 || !sites.some((s) => s.id === siteId) ? (
+                <option value={camera?.siteId || ""}>
+                  {camera?.siteName ||
+                    camera?.siteId ||
+                    (isVietnamese ? "-- Chưa gán công trường --" : "-- Unassigned site --")}
                 </option>
               ) : (
                 sites.map((site) => (
@@ -251,10 +277,21 @@ export function EditCameraModal({
           <input
             type="text"
             value={streamUrl}
-            onChange={(e) => setStreamUrl(e.target.value)}
+            onChange={(e) => {
+              setStreamUrl(e.target.value);
+              if (error) setError(null);
+            }}
             className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 font-mono text-xs shadow-nm-inset focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             disabled={loading}
           />
+          {hasMaskedCredentials(streamUrl) &&
+            streamUrl.trim() === (camera?.streamUrl ?? "").trim() && (
+              <p className="text-[11px] text-muted-foreground">
+                {isVietnamese
+                  ? "Mật khẩu RTSP đang được ẩn bảo mật (***). Giữ nguyên ô này nếu bạn chỉ đổi tên/vị trí camera."
+                  : "RTSP password is masked (***). Leave unchanged if only updating camera metadata."}
+              </p>
+            )}
 
           {/* Quick presets for testing */}
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
@@ -265,27 +302,30 @@ export function EditCameraModal({
               type="button"
               onClick={() => {
                 setStreamUrl("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
-                setSourceType("HLS");
+                setSourceType("FILE");
+                if (error) setError(null);
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              {isVietnamese ? "Mẫu MP4" : "Sample MP4"}
+              {isVietnamese ? "Mẫu MP4 (Preview HTML5)" : "Sample MP4 (HTML5 Preview)"}
             </button>
             <button
               type="button"
               onClick={() => {
                 setStreamUrl("https://www.youtube.com/watch?v=1-iS7LArMPA");
-                setSourceType("HLS");
+                setSourceType("HTTP");
+                if (error) setError(null);
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >
-              YouTube Live
+              YouTube Live (HTTP)
             </button>
             <button
               type="button"
               onClick={() => {
-                setStreamUrl("rtsp://admin:Pass@123@192.168.1.100:554/stream1");
+                setStreamUrl("rtsp://admin:Pass1234@192.168.1.100:554/stream1");
                 setSourceType("RTSP");
+                if (error) setError(null);
               }}
               className="rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] text-foreground/80 hover:bg-surface-elevated transition"
             >

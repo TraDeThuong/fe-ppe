@@ -15,8 +15,8 @@ export interface CameraVideoWallProps {
   getSessionForCamera: (camera: CameraItem) => LiveSessionInfo | undefined;
   productionMode?: boolean;
   startingCameraId?: string | null;
-  onStartLive: (camera: CameraItem) => void;
-  onStopLive: (camera: CameraItem) => void;
+  onStartLive?: (camera: CameraItem) => void;
+  onStopLive?: (camera: CameraItem) => void;
 }
 
 export const CameraVideoWall = memo(function CameraVideoWall({

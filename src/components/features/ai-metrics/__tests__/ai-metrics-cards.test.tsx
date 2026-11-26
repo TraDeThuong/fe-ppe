@@ -133,13 +133,13 @@ describe("ai-metrics cards", () => {
     assert.ok(!html.includes("Archived"));
   });
 
-  it("renders guide help buttons on every AI metrics card when handlers are provided", () => {
+  it("keeps guide buttons on the cards outside the KPI summary", () => {
     const noop = () => {};
     const bannerHtml = renderWithProviders(
       React.createElement(ActiveModelBanner, { onOpenGuide: noop }),
     );
     const kpiHtml = renderWithProviders(
-      React.createElement(AiMetricsKpiSummary, { onOpenStatGuide: noop }),
+      React.createElement(AiMetricsKpiSummary),
     );
     const perClassHtml = renderWithProviders(
       React.createElement(PerClassMetricsCard, { metrics: [], onOpenGuide: noop }),
@@ -154,17 +154,30 @@ describe("ai-metrics cards", () => {
       React.createElement(ModelGovernanceTable, { models: [], onOpenGuide: noop }),
     );
 
-    for (const html of [bannerHtml, kpiHtml, perClassHtml, matrixHtml, chartHtml, tableHtml]) {
+    for (const html of [bannerHtml, perClassHtml, matrixHtml, chartHtml, tableHtml]) {
       assert.ok(html.includes("Giải thích"));
     }
-    assert.equal(kpiHtml.match(/aria-label="Giải thích"/g)?.length, 4);
+    assert.equal(kpiHtml.match(/aria-label="Giải thích"/g), null);
+    assert.ok(kpiHtml.includes("—"));
   });
 
-  it("ActiveModelBanner renders Not Deployed state when activeVersion is null", () => {
+  it("keeps Sandbox access separate from model read permission in the banner", () => {
+    const readOnly = renderWithProviders(
+      React.createElement(ActiveModelBanner, { canReadModels: false }),
+    );
+    assert.ok(readOnly.includes("Cần quyền đọc mô hình"));
+    assert.ok(!readOnly.includes('href="/ai-metrics/test"'));
+    const sandbox = renderWithProviders(
+      React.createElement(ActiveModelBanner, { canReadModels: false, canTestModel: true }),
+    );
+    assert.ok(sandbox.includes('href="/ai-metrics/test"'));
+  });
+
+  it("ActiveModelBanner renders an empty Registry state when activeVersion is null", () => {
     const html = renderWithProviders(
       React.createElement(ActiveModelBanner, { activeVersion: null }),
     );
-    assert.ok(html.includes("Chưa triển khai"));
+    assert.ok(html.includes("Registry chưa chọn phiên bản"));
     assert.ok(html.includes("bg-amber-500"));
   });
 

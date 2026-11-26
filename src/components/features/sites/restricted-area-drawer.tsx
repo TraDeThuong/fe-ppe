@@ -20,6 +20,7 @@ import {
   useRestrictedAreas,
   useUpdateRestrictedArea,
 } from "@/hooks/sites/use-restricted-areas";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import type {
   RestrictedAreaItem,
@@ -115,12 +116,18 @@ export function RestrictedAreaDrawer({
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const isCameraMode = mode === "camera-polygon";
+  const can = useCan();
+  const canReadZones = can("PPE_ZONE_READ");
+  const canReadAreas = can("PPE_RESTRICTED_AREA_READ");
 
   // Data queries
-  const { data: zones = [] } = useSiteZones(siteId, open && Boolean(siteId));
+  const { data: zones = [] } = useSiteZones(
+    siteId,
+    open && Boolean(siteId) && canReadZones,
+  );
   const { data: siteAreas = [] } = useRestrictedAreas(
     siteId,
-    open && isCameraMode && Boolean(siteId),
+    open && isCameraMode && Boolean(siteId) && canReadAreas,
   );
 
   // Mutations

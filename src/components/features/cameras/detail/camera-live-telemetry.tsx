@@ -208,7 +208,7 @@ export function CameraLiveTelemetry({
             >
               <Images className="size-3.5" />
               <span>
-                {isVietnamese ? "Thư viện" : "Gallery"} ({galleryCount})
+                {isVietnamese ? "Sự cố & Ảnh" : "Incidents"} ({galleryCount})
               </span>
               <ArrowUpRight className="size-3.5" />
             </button>
@@ -219,25 +219,25 @@ export function CameraLiveTelemetry({
           <div className={`rounded-2xl px-4 py-8 text-center text-xs font-medium text-muted-foreground ${NM.recessed}`}>
             {isVietnamese ? (
               <>
-                Chưa ghi nhận vi phạm nào trong session hiện tại. Các bằng chứng Before / After lịch sử vẫn xem được trong{" "}
+                Chưa ghi nhận vi phạm nào trong session hiện tại. Lịch sử sự cố & ảnh bằng chứng Before / After vẫn xem được trong{" "}
                 <button
                   type="button"
                   onClick={onOpenGallery}
                   className="font-bold text-primary underline-offset-2 hover:underline cursor-pointer"
                 >
-                  Tab 02 · Thư Viện Bằng Chứng
+                  Tab 02 · Sự Cố & Bằng Chứng
                 </button>
                 .
               </>
             ) : (
               <>
-                No violations recorded in the current session. Historical Before / After evidence can still be inspected in{" "}
+                No violations recorded in the current session. Historical incidents & Before / After evidence can still be inspected in{" "}
                 <button
                   type="button"
                   onClick={onOpenGallery}
                   className="font-bold text-primary underline-offset-2 hover:underline cursor-pointer"
                 >
-                  Tab 02 · Evidence Gallery
+                  Tab 02 · Incidents & Evidence
                 </button>
                 .
               </>

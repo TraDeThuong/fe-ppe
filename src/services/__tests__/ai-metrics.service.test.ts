@@ -2,6 +2,8 @@ import "@/hooks/auth/__tests__/setup";
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { apiClient } from "@/lib/axios";
+import { AxiosError } from "axios";
+import { resolveAiPerformance } from "@/lib/ai-performance";
 import { aiMetricsService } from "../ai-metrics.service";
 
 const originalAdapter = apiClient.defaults.adapter;
@@ -77,174 +79,92 @@ const SAMPLE_MODELS = [
   },
 ];
 
-describe("aiMetricsService.getAiPerformance", () => {
-  it("aggregates multiple cameras on the same statDate into a single daily point", async () => {
-    apiClient.defaults.adapter = async (config) => {
-      if (config.url === "/statistics/ai-performance") {
-        return {
-          status: 200,
-          statusText: "OK",
-          headers: {},
-          config,
-          data: {
-            success: true,
-            data: [
-              {
-                id: "s1",
-                cameraId: "cam-1",
-                modelVersionId: "ver-1",
-                statDate: "2026-11-01",
-                avgFps: 30,
-                avgLatencyMs: 20,
-                maxLatencyMs: 25,
-                totalFrames: "1000",
-              },
-              {
-                id: "s2",
-                cameraId: "cam-2",
-                modelVersionId: "ver-1",
-                statDate: "2026-11-01",
-                avgFps: 24,
-                avgLatencyMs: 30,
-                maxLatencyMs: 35,
-                totalFrames: "3000",
-              },
-              {
-                id: "s3",
-                cameraId: "cam-1",
-                modelVersionId: "ver-1",
-                statDate: "2026-10-31",
-                avgFps: 28,
-                avgLatencyMs: 18,
-                maxLatencyMs: 22,
-                totalFrames: "2000",
-              },
-            ],
-          },
-        };
-      }
-      if (config.url === "/ai-models") {
-        return {
-          status: 200,
-          statusText: "OK",
-          headers: {},
-          config,
-          data: { success: true, data: SAMPLE_MODELS },
-        };
-      }
-      return {
-        status: 200,
-        statusText: "OK",
-        headers: {},
-        config,
-        data: { success: true, data: SAMPLE_MODELS[0].versions[0] },
-      };
-    };
+const version = SAMPLE_MODELS[0].versions[0];
 
-    const result = await aiMetricsService.getAiPerformance();
+function mockStatistics(data: unknown) {
+  const requests: string[] = [];
+  apiClient.defaults.adapter = async (config) => {
+    requests.push(config.url ?? "");
+    assert.equal(config.url, "/statistics/ai-performance");
+    return {
+      status: 200,
+      statusText: "OK",
+      headers: {},
+      config,
+      data: { success: true, data },
+    };
+  };
+  return requests;
+}
+
+describe("aiMetricsService.getAiPerformance", () => {
+  it("only requests statistics and combines same-day camera rows with supplied registry data", async () => {
+    const requests = mockStatistics([
+      { cameraId: "cam-1", modelVersionId: "ver-1", statDate: "2026-11-01", avgFps: 30, avgLatencyMs: 20, totalFrames: "1000" },
+      { cameraId: "cam-2", modelVersionId: "ver-1", statDate: "2026-11-01", avgFps: 24, avgLatencyMs: 30, totalFrames: "3000" },
+      { cameraId: "cam-1", modelVersionId: "ver-1", statDate: "2026-10-31", avgFps: 28, avgLatencyMs: 18, totalFrames: "2000" },
+    ]);
+
+    const response = await aiMetricsService.getAiPerformance();
+    assert.deepEqual(requests, ["/statistics/ai-performance"]);
+    const result = resolveAiPerformance(response, {}, SAMPLE_MODELS, version);
     assert.ok(result);
-    assert.equal(result.latencyHistory.length, 2);
-    assert.equal(result.latencyHistory[0].timestamp, "10-31");
-    assert.equal(result.latencyHistory[1].timestamp, "11-01");
-    // Weighted average for 11-01: (20*1000 + 30*3000)/4000 = 27.5ms; (30*1000 + 24*3000)/4000 = 25.5fps
-    assert.equal(result.latencyHistory[1].latencyMs, 27.5);
-    assert.equal(result.latencyHistory[1].fps, 25.5);
+    assert.deepEqual(result.latencyHistory, [
+      { timestamp: "10-31", latencyMs: 18, fps: 28 },
+      { timestamp: "11-01", latencyMs: 27.5, fps: 25.5 },
+    ]);
     assert.equal(result.totalFramesProcessed, 6000);
   });
 
-  it("returns 0 latency/fps/frames when scoped by cameraId or date range with empty telemetry", async () => {
-    apiClient.defaults.adapter = async (config) => {
-      if (config.url === "/statistics/ai-performance") {
-        return {
-          status: 200,
-          statusText: "OK",
-          headers: {},
-          config,
-          data: { success: true, data: [] },
-        };
-      }
-      if (config.url === "/ai-models") {
-        return {
-          status: 200,
-          statusText: "OK",
-          headers: {},
-          config,
-          data: { success: true, data: SAMPLE_MODELS },
-        };
-      }
-      return {
-        status: 200,
-        statusText: "OK",
-        headers: {},
-        config,
-        data: { success: true, data: SAMPLE_MODELS[0].versions[0] },
-      };
-    };
-
-    const result = await aiMetricsService.getAiPerformance({
+  it("distinguishes empty telemetry from a measured zero", async () => {
+    const requests = mockStatistics([]);
+    const response = await aiMetricsService.getAiPerformance({
+      cameraId: "cam-99",
       startDate: "2026-11-14",
       endDate: "2026-11-21",
-      cameraId: "cam-99",
     });
-
+    const result = resolveAiPerformance(response, {}, SAMPLE_MODELS, version);
+    assert.deepEqual(requests, ["/statistics/ai-performance"]);
     assert.ok(result);
     assert.equal(result.mAP50, 0.8791);
-    assert.equal(result.averageLatencyMs, 0);
-    assert.equal(result.averageFps, 0);
-    assert.equal(result.totalFramesProcessed, 0);
+    assert.equal(result.averageLatencyMs, null);
+    assert.equal(result.averageFps, null);
+    assert.equal(result.totalFramesProcessed, null);
     assert.deepEqual(result.latencyHistory, []);
+
+    mockStatistics([{ statDate: "2026-11-21", avgFps: 0, avgLatencyMs: 0, totalFrames: "0" }]);
+    const zero = resolveAiPerformance(await aiMetricsService.getAiPerformance(), {}, []);
+    assert.ok(zero);
+    assert.equal(zero.averageLatencyMs, 0);
+    assert.equal(zero.averageFps, 0);
+    assert.equal(zero.totalFramesProcessed, 0);
+    assert.equal(zero.mAP50, null);
   });
 
-  it("does not leak telemetry or default mock matrices when selecting a model without telemetry", async () => {
-    apiClient.defaults.adapter = async (config) => {
-      if (config.url === "/statistics/ai-performance") {
-        return {
-          status: 200,
-          statusText: "OK",
-          headers: {},
-          config,
-          data: {
-            success: true,
-            data: [
-              {
-                id: "s1",
-                cameraId: "cam-1",
-                modelVersionId: "ver-1",
-                statDate: "2026-11-01",
-                avgFps: 28,
-                avgLatencyMs: 18,
-                maxLatencyMs: 22,
-                totalFrames: "2000",
-              },
-            ],
-          },
-        };
-      }
-      if (config.url === "/ai-models") {
-        return {
-          status: 200,
-          statusText: "OK",
-          headers: {},
-          config,
-          data: { success: true, data: SAMPLE_MODELS },
-        };
-      }
-      return {
-        status: 200,
-        statusText: "OK",
-        headers: {},
-        config,
-        data: { success: true, data: SAMPLE_MODELS[0].versions[0] },
-      };
-    };
-
-    const result = await aiMetricsService.getAiPerformance({ modelId: "model-2" });
+  it("reuses the same rows when switching models", async () => {
+    const requests = mockStatistics([
+      { cameraId: "cam-1", modelVersionId: "ver-1", statDate: "2026-11-01", avgFps: 28, avgLatencyMs: 18, totalFrames: "2000" },
+    ]);
+    const response = await aiMetricsService.getAiPerformance();
+    const result = resolveAiPerformance(response, { modelId: "model-2" }, SAMPLE_MODELS, version);
     assert.ok(result);
     assert.equal(result.modelName, "RT-DETR-PPE");
     assert.equal(result.mAP50, 0.91);
-    assert.equal(result.totalFramesProcessed, 0);
+    assert.equal(result.totalFramesProcessed, null);
     assert.deepEqual(result.latencyHistory, []);
     assert.deepEqual(result.perClassMetrics, []);
     assert.deepEqual(result.confusionMatrix, { classes: [], matrix: [] });
+    assert.deepEqual(requests, ["/statistics/ai-performance"]);
+  });
+
+  it("supports a legacy summary and surfaces request failures", async () => {
+    const summary = { mAP50: 0, averageLatencyMs: 0, latencyHistory: [] };
+    mockStatistics(summary);
+    assert.deepEqual(resolveAiPerformance(await aiMetricsService.getAiPerformance(), {}, []), summary);
+
+    apiClient.defaults.adapter = async () => {
+      throw new AxiosError("Request failed");
+    };
+    await assert.rejects(aiMetricsService.getAiPerformance());
   });
 });

@@ -22,6 +22,7 @@ export interface CameraLiveViewportProps {
   streamNonce: number;
   isStarting: boolean;
   canStart: boolean;
+  canManageCamera?: boolean;
   onStartStream: () => void;
   onReloadStream: () => void;
   onOpenDeviceTab?: () => void;
@@ -36,6 +37,7 @@ export function CameraLiveViewport({
   streamNonce,
   isStarting,
   canStart,
+  canManageCamera = false,
   onStartStream,
   onReloadStream,
   onOpenDeviceTab,
@@ -283,33 +285,35 @@ export function CameraLiveViewport({
               </span>
             </div>
 
-            <div className="absolute right-3 top-3 flex flex-wrap items-center gap-2">
-              {canStart ? (
-                <button
-                  type="button"
-                  onClick={onStartStream}
-                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-[11px] font-extrabold text-primary-foreground shadow-md transition hover:brightness-105"
-                >
-                  <Play className="size-3 fill-current" />
-                  <span>{isVietnamese ? "Bật AI Tracking" : "Start AI Tracking"}</span>
-                </button>
-              ) : (
-                onOpenDeviceTab && (
+            {canManageCamera && (
+              <div className="absolute right-3 top-3 flex flex-wrap items-center gap-2">
+                {canStart ? (
                   <button
                     type="button"
-                    onClick={onOpenDeviceTab}
-                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/40 bg-background/95 px-3 py-1.5 text-[11px] font-bold text-primary shadow-md backdrop-blur-md transition hover:brightness-105"
+                    onClick={onStartStream}
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-3 py-1.5 text-[11px] font-extrabold text-primary-foreground shadow-md transition hover:brightness-105"
                   >
-                    <Wrench className="size-3" />
-                    <span>
-                      {isVietnamese
-                        ? "Gắn Nguồn AI Override (Tab 03)"
-                        : "Set AI Override Source (Tab 03)"}
-                    </span>
+                    <Play className="size-3 fill-current" />
+                    <span>{isVietnamese ? "Bật AI Tracking" : "Start AI Tracking"}</span>
                   </button>
-                )
-              )}
-            </div>
+                ) : (
+                  onOpenDeviceTab && (
+                    <button
+                      type="button"
+                      onClick={onOpenDeviceTab}
+                      className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-white/40 bg-background/95 px-3 py-1.5 text-[11px] font-bold text-primary shadow-md backdrop-blur-md transition hover:brightness-105"
+                    >
+                      <Wrench className="size-3" />
+                      <span>
+                        {isVietnamese
+                          ? "Gắn Nguồn AI Override (Tab 03)"
+                          : "Set AI Override Source (Tab 03)"}
+                      </span>
+                    </button>
+                  )
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="mx-auto max-w-md space-y-4 p-6 text-center">
@@ -328,56 +332,62 @@ export function CameraLiveViewport({
                   : `Camera ${liveCameraId} is ${stats?.status ?? "standby"}`}
               </p>
               <p className="text-xs leading-relaxed text-muted-foreground">
-                {sourceErrorReason ??
-                  (isVietnamese ? (
-                    <>
-                      Nhấn{" "}
-                      <strong className="font-bold text-primary">
-                        Bắt đầu Tracking
-                      </strong>{" "}
-                      để xem MJPEG bounding box real-time.
-                    </>
-                  ) : (
-                    <>
-                      Click{" "}
-                      <strong className="font-bold text-primary">
-                        Start Tracking
-                      </strong>{" "}
-                      to view real-time MJPEG bounding boxes.
-                    </>
-                  ))}
+                {!canManageCamera
+                  ? isVietnamese
+                    ? "Phiên AI Live hiện chưa kích hoạt. Khi Quản lý An toàn bật luồng phân tích, hình ảnh MJPEG trực tiếp sẽ tự động hiển thị tại đây."
+                    : "AI Live session is currently inactive. Live MJPEG frames will appear automatically once started by a Safety Manager."
+                  : sourceErrorReason ??
+                    (isVietnamese ? (
+                      <>
+                        Nhấn{" "}
+                        <strong className="font-bold text-primary">
+                          Bắt đầu Tracking
+                        </strong>{" "}
+                        để xem MJPEG bounding box real-time.
+                      </>
+                    ) : (
+                      <>
+                        Click{" "}
+                        <strong className="font-bold text-primary">
+                          Start Tracking
+                        </strong>{" "}
+                        to view real-time MJPEG bounding boxes.
+                      </>
+                    ))}
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-2.5">
-              {canStart && (
-                <button
-                  type="button"
-                  onClick={onStartStream}
-                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground shadow-[4px_4px_10px_rgba(0,0,0,0.16)] transition hover:brightness-105"
-                >
-                  <Play className="size-3.5 fill-current" />
-                  <span>
-                    {isVietnamese ? "Bắt đầu Tracking Ngay" : "Start Tracking Now"}
-                  </span>
-                </button>
-              )}
+            {canManageCamera && (
+              <div className="flex flex-wrap items-center justify-center gap-2.5">
+                {canStart && (
+                  <button
+                    type="button"
+                    onClick={onStartStream}
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground shadow-[4px_4px_10px_rgba(0,0,0,0.16)] transition hover:brightness-105"
+                  >
+                    <Play className="size-3.5 fill-current" />
+                    <span>
+                      {isVietnamese ? "Bắt đầu Tracking Ngay" : "Start Tracking Now"}
+                    </span>
+                  </button>
+                )}
 
-              {!canStart && onOpenDeviceTab && (
-                <button
-                  type="button"
-                  onClick={onOpenDeviceTab}
-                  className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold text-primary ${NM.tactileBtn}`}
-                >
-                  <Wrench className="size-3.5" />
-                  <span>
-                    {isVietnamese
-                      ? "Mở Tab 03 gắn Nguồn Override"
-                      : "Open Tab 03 to Set Override Source"}
-                  </span>
-                </button>
-              )}
-            </div>
+                {!canStart && onOpenDeviceTab && (
+                  <button
+                    type="button"
+                    onClick={onOpenDeviceTab}
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold text-primary ${NM.tactileBtn}`}
+                  >
+                    <Wrench className="size-3.5" />
+                    <span>
+                      {isVietnamese
+                        ? "Mở Tab 03 gắn Nguồn Override"
+                        : "Open Tab 03 to Set Override Source"}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
 
             {stats?.error && (
               <div className="mx-auto inline-block rounded-xl border border-accent/25 bg-accent/15 px-3.5 py-2 text-xs font-bold text-accent">

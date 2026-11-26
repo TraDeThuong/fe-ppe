@@ -80,14 +80,14 @@ export interface LatencyDataPoint {
 export interface AiPerformanceDto {
   modelName: string;
   version: string;
-  mAP50: number;
-  mAP50_95: number;
-  precision: number;
-  recall: number;
-  f1Score: number;
-  averageLatencyMs: number;
-  averageFps: number;
-  totalFramesProcessed: number;
+  mAP50: number | null;
+  mAP50_95: number | null;
+  precision: number | null;
+  recall: number | null;
+  f1Score: number | null;
+  averageLatencyMs: number | null;
+  averageFps: number | null;
+  totalFramesProcessed: number | null;
   perClassMetrics: PerClassMetric[];
   confusionMatrix: ConfusionMatrixDto;
   latencyHistory: LatencyDataPoint[];
@@ -103,6 +103,10 @@ export interface AiPerformanceStatDto {
   maxLatencyMs: number;
   totalFrames: string;
 }
+
+export type AiPerformanceResponse =
+  | { kind: "rows"; rows: AiPerformanceStatDto[] }
+  | { kind: "summary"; summary: AiPerformanceDto };
 
 export interface RecordAiPerformanceDto {
   cameraId: string;

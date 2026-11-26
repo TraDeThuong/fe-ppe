@@ -8,7 +8,7 @@ import {
   ArrowLeft,
   Building2,
   Camera,
-  Database,
+  Cpu,
   Edit2,
   Images,
   Layers,
@@ -22,7 +22,7 @@ import { useLocale } from "@/providers/locale-provider";
 import type { ModelInfo } from "@/types/ai-test.types";
 import type { CameraItem } from "@/types";
 
-export type CameraStudioTab = "live" | "gallery" | "incidents";
+export type CameraStudioTab = "live" | "incidents" | "device";
 
 export interface CameraStudioHeaderProps {
   camera: CameraItem;
@@ -34,7 +34,6 @@ export interface CameraStudioHeaderProps {
   liveStatus?: string;
   models: ModelInfo[];
   activeModelName: string;
-  galleryCount: number;
   incidentsCount: number;
   isRefreshing: boolean;
   canManage: boolean;
@@ -53,7 +52,6 @@ export function CameraStudioHeader({
   liveStatus,
   models,
   activeModelName,
-  galleryCount,
   incidentsCount,
   isRefreshing,
   canManage,
@@ -87,26 +85,26 @@ export function CameraStudioHeader({
       useAccent: isLiveRunning,
     },
     {
-      value: "gallery",
+      value: "incidents",
       index: "02",
-      label: isVietnamese ? "Thư Viện Bằng Chứng" : "Evidence Gallery",
+      label: isVietnamese ? "Sự Cố & Bằng Chứng" : "Incidents & Evidence",
       caption: isVietnamese
-        ? "Kiểm tra Before / After & Lọc theo Track"
-        : "Before / After Inspection & Track Filter",
+        ? "Phân trang sự cố DB & Ảnh Before / After"
+        : "Paginated Incidents & Before / After Snapshots",
       icon: <Images className="size-4" />,
-      badge: galleryCount > 0 ? String(galleryCount) : undefined,
+      badge: incidentsCount > 0 ? String(incidentsCount) : undefined,
       useAccent: true,
     },
     {
-      value: "incidents",
+      value: "device",
       index: "03",
-      label: isVietnamese ? "Sự Cố DB & Thiết Bị" : "DB Incidents & Device",
+      label: isVietnamese ? "Thiết Bị & Chẩn Đoán" : "Device & Diagnostics",
       caption: isVietnamese
-        ? "Lịch sử Incident Service & Thông số mạng"
-        : "Incident Service History & Network Diagnostics",
-      icon: <Database className="size-4" />,
-      badge: incidentsCount > 0 ? String(incidentsCount) : undefined,
-      useAccent: false,
+        ? "Hồ sơ phần cứng, Ping & Cấu hình DB"
+        : "Hardware Profile, Ping & DB Config",
+      icon: <Cpu className="size-4" />,
+      badge: camera.status,
+      useAccent: !isDbOnline,
     },
   ];
 
@@ -219,12 +217,30 @@ export function CameraStudioHeader({
             <button
               type="button"
               onClick={onOpenPing}
-              title={isVietnamese ? "Kiểm tra kết nối mạng Camera (Ping)" : "Check Camera Network (Ping)"}
-              aria-label={isVietnamese ? "Kiểm tra kết nối mạng Camera (Ping)" : "Check Camera Network (Ping)"}
+              title={
+                canManage
+                  ? isVietnamese
+                    ? "Kiểm tra kết nối mạng Camera (Ping)"
+                    : "Check Camera Network (Ping)"
+                  : isVietnamese
+                    ? "Xem nhật ký kết nối Camera"
+                    : "View Camera Health Logs"
+              }
+              aria-label={
+                canManage
+                  ? isVietnamese
+                    ? "Kiểm tra kết nối mạng Camera (Ping)"
+                    : "Check Camera Network (Ping)"
+                  : isVietnamese
+                    ? "Xem nhật ký kết nối Camera"
+                    : "View Camera Health Logs"
+              }
               className={`inline-flex h-11 sm:h-12 items-center gap-2 rounded-2xl px-3.5 text-xs font-bold text-primary ${NM.tactileBtn}`}
             >
               <Activity className="size-4" />
-              <span className="hidden sm:inline">Ping</span>
+              <span className="hidden sm:inline">
+                {canManage ? "Ping" : isVietnamese ? "Nhật ký mạng" : "Health"}
+              </span>
             </button>
 
             {canManage && (
@@ -289,7 +305,7 @@ export function CameraStudioHeader({
           </div>
         )}
 
-        {/* Layer 2: Recessed Mechanical Switch Track */}
+        {/* Layer 2: Recessed Mechanical Switch Track (3 Balanced Studio Tabs) */}
         <div
           role="tablist"
           aria-label={isVietnamese ? "Chuyển tab Camera Studio" : "Switch Camera Studio tab"}

@@ -14,6 +14,8 @@ export interface ModelGovernanceTableProps {
   onRefresh?: () => void;
   onOpenGuide?: () => void;
   canDeploy?: boolean;
+  canReadModels?: boolean;
+  error?: boolean;
   loading?: boolean;
   fetching?: boolean;
 }
@@ -25,6 +27,8 @@ export function ModelGovernanceTable({
   onRefresh,
   onOpenGuide,
   canDeploy = true,
+  canReadModels = true,
+  error = false,
   loading = false,
   fetching = false,
 }: ModelGovernanceTableProps) {
@@ -88,15 +92,17 @@ export function ModelGovernanceTable({
           </h4>
         </div>
         <div className="flex items-center gap-2.5">
-          <span className="text-xs text-muted-foreground">
-            {t("aiMetrics.governance.versionsRegistered", { count: allVersions.length })}
-          </span>
+          {canReadModels && (
+            <span className="text-xs text-muted-foreground">
+              {t("aiMetrics.governance.versionsRegistered", { count: allVersions.length })}
+            </span>
+          )}
           {onOpenGuide && <AiCardHelpButton onClick={onOpenGuide} />}
         </div>
       </div>
 
       {/* Registered models that do not have any versions yet */}
-      {modelsWithoutVersions.length > 0 && (
+      {canReadModels && modelsWithoutVersions.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/30 bg-surface-elevated/40 px-3 py-2.5 text-xs">
           <span className="font-semibold text-muted-foreground">
             {isVi
@@ -129,7 +135,13 @@ export function ModelGovernanceTable({
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <Table
+        {!canReadModels && (
+          <p className="py-5 text-center text-sm text-muted-foreground">{t("aiMetrics.modelReadRequired")}</p>
+        )}
+        {canReadModels && error && (
+          <p role="alert" className="pb-3 text-sm">{t("aiMetrics.governance.loadError")}</p>
+        )}
+        {canReadModels && <Table
           surface="embedded"
           data={allVersions}
           columns={[{
@@ -240,9 +252,7 @@ export function ModelGovernanceTable({
                 ) : (
                   <span className="text-muted-foreground text-xs italic">
                     {isActive
-                      ? locale === "vi-VN"
-                        ? "Đang chạy"
-                        : "Active"
+                      ? t("aiMetrics.governance.activeBadge")
                       : isModelInactive || isVersionRetired
                         ? locale === "vi-VN"
                           ? "Ngưng sử dụng"
@@ -269,7 +279,7 @@ export function ModelGovernanceTable({
           <TableToolbar showSearch={true} actions={<TableRefresh />} />
           <TableContent />
           <TablePagination />
-        </Table>
+        </Table>}
       </div>
     </div>
   );

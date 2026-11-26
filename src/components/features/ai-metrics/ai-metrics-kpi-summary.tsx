@@ -6,14 +6,12 @@ import { StatsCard } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
 import type { AiPerformanceDto } from "@/types";
 import { AiMetricsStatsDetailPanel, type AiMetricStatKey } from "./ai-metrics-stats-detail-panel";
-import { AiCardHelpButton } from "./ai-metrics-guide-modal";
 
 export interface AiMetricsKpiSummaryProps {
   performance?: AiPerformanceDto | null;
   loading?: boolean;
   selectedStat?: AiMetricStatKey | null;
   onSelectStat?: (stat: AiMetricStatKey | null) => void;
-  onOpenStatGuide?: (stat: AiMetricStatKey) => void;
 }
 
 function formatFramesCount(total: number): string {
@@ -28,7 +26,6 @@ export function AiMetricsKpiSummary({
   loading = false,
   selectedStat: propSelectedStat,
   onSelectStat,
-  onOpenStatGuide,
 }: AiMetricsKpiSummaryProps) {
   const { t } = useLocale();
 
@@ -45,18 +42,18 @@ export function AiMetricsKpiSummary({
     }
   };
 
-  const mapFormatted = performance
+  const mapFormatted = performance?.mAP50 != null
     ? `${(performance.mAP50 * 100).toFixed(1)}%`
-    : "--";
-  const latencyFormatted = performance
+    : "—";
+  const latencyFormatted = performance?.averageLatencyMs != null
     ? `${performance.averageLatencyMs.toFixed(1)} ms`
-    : "--";
-  const fpsFormatted = performance
+    : "—";
+  const fpsFormatted = performance?.averageFps != null
     ? `${performance.averageFps.toFixed(1)} FPS`
-    : "--";
-  const samplesFormatted = performance
+    : "—";
+  const samplesFormatted = performance?.totalFramesProcessed != null
     ? formatFramesCount(performance.totalFramesProcessed)
-    : "--";
+    : "—";
 
   // Hiệu ứng chìm sâu (neumorphic sunken) khi card được chọn:
   // - Chìm xuống dưới (translate-y-1.5)
@@ -96,9 +93,6 @@ export function AiMetricsKpiSummary({
                   </span>
                 )}
               </span>
-              {onOpenStatGuide && (
-                <AiCardHelpButton compact onClick={() => onOpenStatGuide("map50")} />
-              )}
             </div>
           }
         />
@@ -129,9 +123,6 @@ export function AiMetricsKpiSummary({
                   </span>
                 )}
               </span>
-              {onOpenStatGuide && (
-                <AiCardHelpButton compact onClick={() => onOpenStatGuide("latency")} />
-              )}
             </div>
           }
         />
@@ -162,9 +153,6 @@ export function AiMetricsKpiSummary({
                   </span>
                 )}
               </span>
-              {onOpenStatGuide && (
-                <AiCardHelpButton compact onClick={() => onOpenStatGuide("fps")} />
-              )}
             </div>
           }
         />
@@ -195,9 +183,6 @@ export function AiMetricsKpiSummary({
                   </span>
                 )}
               </span>
-              {onOpenStatGuide && (
-                <AiCardHelpButton compact onClick={() => onOpenStatGuide("samples")} />
-              )}
             </div>
           }
         />

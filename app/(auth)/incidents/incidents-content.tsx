@@ -1,74 +1,64 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { mapTableSort } from "@/lib/table-utils";
-import { useTableState } from "@/hooks/use-table-state";
-import { useDebounce } from "@/hooks/use-debounce";
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, ClipboardList, List, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
-import { SegmentedControl } from "@/components/ui/segmented-control";
 import { PageSkeleton } from "@/components/features/app-shell/page-skeleton";
-import { useLocale } from "@/providers/locale-provider";
+import {
+  IncidentActionModals,
+  IncidentAssignmentOverviewCard,
+  IncidentConsoleHeader,
+  IncidentListControlCard,
+  IncidentKpiSummary,
+  IncidentTable,
+  type IncidentStatKey,
+  type IncidentViewMode,
+} from "@/components/features/incidents";
+import { IncidentDispatchResultPanel } from "@/components/features/incidents/incident-dispatch-result-panel";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
+import { useSite } from "@/contexts/SiteContext";
+import {
+  useBatchReviewIncidents,
+  useCloseIncident,
+  useCreateIncident,
+  useDeleteIncident,
+  useHydratedIncidents,
+  useIncidents,
+  useIncidentStatusCounts,
+  useReviewIncident,
+  useUpdateIncident,
+} from "@/hooks";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
-import { toast } from "@/lib/toast";
-import { incidentService } from "@/services/incident.service";
+import { useCan } from "@/hooks/use-can";
+import { useDebounce } from "@/hooks/use-debounce";
+import { useEntityLookup } from "@/hooks/use-entity-lookup";
+import { useTableState } from "@/hooks/use-table-state";
+import { vietnamToday } from "@/lib/dashboard-data";
 import {
   dispatchIncidentsWithSignal,
   resolveIncidentsWithReport,
   type DispatchIncidentsResult,
 } from "@/lib/incident-actions";
-import { IncidentDispatchResultPanel } from "@/components/features/incidents/incident-dispatch-result-panel";
-import { vietnamToday } from "@/lib/dashboard-data";
+import {
+  incidentWorkStatuses,
+  resolveIncidentListScope,
+  resolveZoneCameraIds,
+  type IncidentListScope,
+  type IncidentWorkStatus,
+} from "@/lib/incident-list-scope";
 import {
   createDefaultIncidentPeriodFilter,
-  filterItemsByDateRange,
   parseIncidentPeriodFromUrl,
   resolveIncidentPeriod,
   type IncidentPeriodFilter,
 } from "@/lib/incident-period";
 import { runInBatches } from "@/lib/incident-workflow";
-import { incidentWorkStatuses, resolveIncidentListScope, type IncidentListScope, type IncidentWorkStatus } from "@/lib/incident-list-scope";
-import {
-  IncidentConsoleHeader,
-  IncidentKpiSummary,
-  IncidentAssignmentOverviewCard,
-  IncidentFilterToolbar,
-  IncidentTable,
-  ReviewIncidentModal,
-  AssignIncidentModal,
-  ResolveIncidentModal,
-  CloseIncidentDialog,
-  CreateIncidentModal,
-  EditIncidentModal,
-  BatchDispatchModal,
-  BatchResolveModal,
-  type IncidentStatKey,
-  type IncidentViewMode,
-} from "@/components/features/incidents";
-import {
-  useAssignmentIncidents,
-  useIncidents,
-  useHydratedIncidents,
-  useIncidentStatusCounts,
-  useNotifications,
-  useCreateIncident,
-  useUpdateIncident,
-  useReviewIncident,
-  useBatchReviewIncidents,
-  useAssignOfficer,
-  useResolveIncident,
-  useCloseIncident,
-  useDeleteIncident,
-} from "@/hooks";
-import { useCan } from "@/hooks/use-can";
-import { useEntityLookup } from "@/hooks/use-entity-lookup";
-import { useSite } from "@/contexts/SiteContext";
+import { mapTableSort } from "@/lib/table-utils";
+import { toast } from "@/lib/toast";
+import { useLocale } from "@/providers/locale-provider";
+import { incidentService } from "@/services/incident.service";
 import type { IncidentItem, IncidentQueryParams } from "@/types";
 
 const STAT_TO_URL: Record<IncidentStatKey, string> = {
@@ -94,17 +84,19 @@ export default function IncidentsContent() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { siteId: globalSiteId, setSiteId: setGlobalSiteId } = useSite();
-  const { getSiteName } = useEntityLookup();
+  const { cameras, getSiteName, camerasLoading, camerasError, refetchCameras } = useEntityLookup();
   const { user, status: authStatus } = useAuth();
   const can = useCan();
   const canReadIncidents = authStatus === "authenticated" && can("PPE_INCIDENT_READ");
   const { lastAlert, isConnected } = useRealtime();
   const isOfficerRole = (user?.role || "").toUpperCase() === "SAFETY_OFFICER";
-  const { scope, status: listStatus } = resolveIncidentListScope((key) => searchParams.get(key), user?.role);
+  const { scope, status: listStatus } = resolveIncidentListScope(
+    (key) => searchParams.get(key),
+    user?.role,
+  );
   const isHistory = scope === "history";
   const listScopeKey = `${scope}:${listStatus ?? ""}`;
 
-  // Mark the current scope explicitly when filters add URL parameters to a direct visit.
   const listSearchParams = () => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("scope", scope);
@@ -120,13 +112,8 @@ export default function IncidentsContent() {
     return params;
   };
 
-  const changeListScope = (next: IncidentListScope, queue?: IncidentWorkStatus) => {
-    setPage(1);
-    router.replace(`${pathname}?${scopeSearchParams(next, queue)}`, { scroll: false });
-  };
-  const closedHistoryAction = { label: t("incidents.scope.openHistory"), href: `${pathname}?${scopeSearchParams("history")}` };
-
   const urlCameraId = searchParams.get("cameraId") || "";
+  const urlZoneId = searchParams.get("zoneId") || "";
   const hasUrlSiteId = searchParams.has("siteId");
   const urlSiteId = searchParams.get("siteId") || "";
   const urlView = searchParams.get("view");
@@ -159,7 +146,6 @@ export default function IncidentsContent() {
     ),
   );
 
-  // Đồng bộ bộ lọc thời gian khi URL thay đổi (Back / Forward hoặc điều hướng từ Dashboard)
   useEffect(() => {
     const parsed = parseIncidentPeriodFromUrl(
       { period: urlPeriod, fromDate: urlFromDate, toDate: urlToDate },
@@ -192,6 +178,41 @@ export default function IncidentsContent() {
       ? resolvedPeriod.toDate
       : undefined;
 
+  const statParam = searchParams.get("stat");
+  const selectedStat =
+    statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
+  const [viewMode, setViewMode] = useState<IncidentViewMode>(
+    urlView === "grouped" || urlView === "split" || urlView === "camera"
+      ? urlView
+      : "table",
+  );
+
+  const [pagination, setPagination] = useState({ scopeKey: listScopeKey, page: 1 });
+  const page = pagination.scopeKey === listScopeKey ? pagination.page : 1;
+  const setPage = (next: number) => setPagination({ scopeKey: listScopeKey, page: next });
+  const [limit, setLimit] = useState(10);
+  const [search, setSearch] = useState("");
+  const [severityFilter, setSeverityFilter] = useState(
+    selectedStat === "critical" ? "CRITICAL" : "",
+  );
+  const [violationFilter, setViolationFilter] = useState("");
+  const [siteIdFilter, setSiteIdFilter] = useState(
+    hasUrlSiteId ? urlSiteId : globalSiteId || "",
+  );
+  const [zoneIdFilter, setZoneIdFilter] = useState(urlZoneId);
+  const [cameraIdFilter, setCameraIdFilter] = useState(urlCameraId);
+  const [assignedToMeFilter, setAssignedToMeFilter] = useState(urlAssignedToMe);
+  const [highlightedIncidentId, setHighlightedIncidentId] = useState<string | null>(null);
+
+  const changeListScope = (next: IncidentListScope, queue?: IncidentWorkStatus) => {
+    setPage(1);
+    router.replace(`${pathname}?${scopeSearchParams(next, queue)}`, { scroll: false });
+  };
+  const closedHistoryAction = {
+    label: t("incidents.scope.openHistory"),
+    href: `${pathname}?${scopeSearchParams("history")}`,
+  };
+
   const handlePeriodFilterChange = (next: IncidentPeriodFilter) => {
     setPeriodFilter(next);
     setPage(1);
@@ -214,74 +235,63 @@ export default function IncidentsContent() {
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   };
 
-  // URL state synchronization for stats & view mode (default: table)
-  const statParam = searchParams.get("stat");
-  const selectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
-  const [viewMode, setViewMode] = useState<IncidentViewMode>(
-    urlView === "grouped" || urlView === "split" || urlView === "camera"
-      ? urlView
-      : "table",
-  );
-
   const handleViewModeChange = (mode: IncidentViewMode) => {
     setViewMode(mode);
     const params = listSearchParams();
-    if (mode === "table") {
-      params.delete("view");
-    } else {
-      params.set("view", mode);
-    }
+    if (mode === "table") params.delete("view");
+    else params.set("view", mode);
     const q = params.toString();
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   };
 
-  // Filter States: Ưu tiên giá trị từ URL, nếu không có URL thì lấy từ Header globalSiteId
-  const [pagination, setPagination] = useState({ scopeKey: listScopeKey, page: 1 });
-  const page = pagination.scopeKey === listScopeKey ? pagination.page : 1;
-  const setPage = (next: number) => setPagination({ scopeKey: listScopeKey, page: next });
-  const [limit, setLimit] = useState(10);
-  const [search, setSearch] = useState("");
-  const [severityFilter, setSeverityFilter] = useState(
-    selectedStat === "critical" ? "CRITICAL" : ""
-  );
-  const [violationFilter, setViolationFilter] = useState("");
-  const [cameraIdFilter, setCameraIdFilter] = useState(urlCameraId);
-  const [siteIdFilter, setSiteIdFilter] = useState(searchParams.has("siteId") ? urlSiteId : globalSiteId || "");
-  const [assignedToMeFilter, setAssignedToMeFilter] = useState(urlAssignedToMe);
-  const [highlightedIncidentId, setHighlightedIncidentId] = useState<string | null>(null);
-
-  // Đồng bộ chọn thẻ KPI với bộ lọc bảng
   const handleSelectStat = (stat: IncidentStatKey | null) => {
     const nextScope = stat === "pendingReview" || stat === "resolved" ? "work" : "all";
     const params = scopeSearchParams(stat ? nextScope : scope);
     if (stat) params.set("stat", STAT_TO_URL[stat]);
-    else if (scope === "work" && listStatus && listStatus !== "CLOSED") params.set("status", listStatus);
+    else if (scope === "work" && listStatus && listStatus !== "CLOSED") {
+      params.set("status", listStatus);
+    }
     setPage(1);
     setSeverityFilter(stat === "critical" ? "CRITICAL" : "");
     router.replace(`${pathname}?${params}`, { scroll: false });
   };
 
-  // Chuyển đổi công trường: đồng bộ cả state, URL lẫn Header Global SiteContext
   const handleSiteFilterChange = (val: string) => {
     setSiteIdFilter(val);
+    setZoneIdFilter("");
     setCameraIdFilter("");
     setPage(1);
-
-    // Đồng bộ đồng thời với Header (nếu val rỗng thì chọn Tất cả công trường)
     setGlobalSiteId(val || null);
 
     const params = listSearchParams();
-    if (val) {
-      params.set("siteId", val);
-    } else {
-      params.set("siteId", "");
-    }
+    if (val) params.set("siteId", val);
+    else params.set("siteId", "");
+    params.delete("zoneId");
     params.delete("cameraId");
     const q = params.toString();
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   };
 
-  // Sync viewMode khi URL ?view= thay đổi (Back / Forward navigation)
+  const handleZoneFilterChange = (val: string) => {
+    setZoneIdFilter(val);
+    if (val && cameraIdFilter) {
+      const cam = cameras.find((c) => c.id === cameraIdFilter);
+      if (cam && cam.zoneId !== val) {
+        setCameraIdFilter("");
+      }
+    }
+    setPage(1);
+    const params = listSearchParams();
+    if (val) params.set("zoneId", val);
+    else params.delete("zoneId");
+    if (val && cameraIdFilter) {
+      const cam = cameras.find((c) => c.id === cameraIdFilter);
+      if (cam && cam.zoneId !== val) params.delete("cameraId");
+    }
+    const q = params.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  };
+
   useEffect(() => {
     const nextMode: IncidentViewMode =
       urlView === "grouped" || urlView === "split" || urlView === "camera"
@@ -290,11 +300,14 @@ export default function IncidentsContent() {
     setViewMode((prev) => (prev === nextMode ? prev : nextMode));
   }, [urlView]);
 
-  // Sync filter state khi siteId / cameraId / assignedToMe trên URL thay đổi (không reset trang khi chỉ đổi ?view=)
   useEffect(() => {
     let changed = false;
     if (urlCameraId !== cameraIdFilter) {
       setCameraIdFilter(urlCameraId);
+      changed = true;
+    }
+    if (urlZoneId !== zoneIdFilter) {
+      setZoneIdFilter(urlZoneId);
       changed = true;
     }
     const paramSite = hasUrlSiteId ? urlSiteId : globalSiteId || "";
@@ -306,28 +319,46 @@ export default function IncidentsContent() {
       setAssignedToMeFilter(urlAssignedToMe);
       changed = true;
     }
-    if (changed) {
-      setPage(1);
-    }
-  }, [urlCameraId, hasUrlSiteId, urlSiteId, urlAssignedToMe]);
+    if (changed) setPage(1);
+  }, [urlCameraId, urlZoneId, hasUrlSiteId, urlSiteId, urlAssignedToMe]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setSeverityFilter(statParam === "critical" ? "CRITICAL" : "");
   }, [statParam]);
 
-  // Đồng bộ với Global Site Selector khi người dùng đổi site từ Header
   useEffect(() => {
     if (!searchParams.has("siteId") && (globalSiteId || "") !== siteIdFilter) {
       setSiteIdFilter(globalSiteId || "");
+      setZoneIdFilter("");
       setCameraIdFilter("");
       setPage(1);
     }
   }, [globalSiteId, searchParams, siteIdFilter]);
 
-  const tableState = useTableState([{ id: "detectedAt", desc: true }], `${listScopeKey}:${search}:${severityFilter}:${violationFilter}:${siteIdFilter}:${cameraIdFilter}:${fromDate}:${toDate}:${assignedToMeFilter}:${urlAssignedTo}`);
-  const apiSorting = mapTableSort(tableState.sorting, { detectedAt: "detectedAt", createdAt: "createdAt", severity: "severity", status: "status" }, { sortBy: "detectedAt", order: "desc" });
+  const zoneCameraIds = useMemo(() => {
+    const ids = resolveZoneCameraIds(zoneIdFilter || undefined, cameras, siteIdFilter || undefined);
+    return cameraIdFilter ? ids?.filter((id) => id === cameraIdFilter) : ids;
+  }, [zoneIdFilter, cameras, siteIdFilter, cameraIdFilter]);
+  const isZoneLoading = Boolean(zoneIdFilter && camerasLoading && cameras.length === 0);
+  const zoneError = zoneIdFilter && cameras.length === 0 ? camerasError : null;
+  const isZoneReady = !isZoneLoading && !zoneError;
+
+  const tableState = useTableState(
+    [{ id: "detectedAt", desc: true }],
+    `${listScopeKey}:${search}:${severityFilter}:${violationFilter}:${siteIdFilter}:${zoneIdFilter}:${cameraIdFilter}:${fromDate}:${toDate}:${assignedToMeFilter}:${urlAssignedTo}`,
+  );
+  const apiSorting = mapTableSort(
+    tableState.sorting,
+    {
+      detectedAt: "detectedAt",
+      createdAt: "createdAt",
+      severity: "severity",
+      status: "status",
+    },
+    { sortBy: "detectedAt", order: "desc" },
+  );
   const debouncedSearch = useDebounce(search, 350);
-  // Query Params
+
   const queryParams: IncidentQueryParams = {
     page,
     limit,
@@ -337,6 +368,7 @@ export default function IncidentsContent() {
     violationType: violationFilter || undefined,
     siteId: siteIdFilter || undefined,
     cameraId: cameraIdFilter || undefined,
+    cameraIds: zoneCameraIds,
     assignedTo: urlAssignedTo || undefined,
     assignedToMe: assignedToMeFilter || undefined,
     fromDate,
@@ -344,17 +376,35 @@ export default function IncidentsContent() {
     sortBy: apiSorting.sortBy,
     sortOrder: apiSorting.order,
     includeAssignments: true,
+    ...(isHistory || listStatus === "RESOLVED" ? { includeAllAssignments: true } : {}),
   };
 
-  const { data: incidentData, isLoading, isPlaceholderData, refetch, isRefetching, error } = useIncidents(queryParams, { enabled: canReadIncidents });
+  // 1. Chỉ phát request lấy trang hiện tại của bảng (kèm assignments sẵn từ BE)
+  const {
+    data: incidentData,
+    isLoading,
+    isPlaceholderData,
+    refetch,
+    isRefetching,
+    error,
+  } = useIncidents(queryParams, { enabled: canReadIncidents && isZoneReady });
+  const isListLoading = isZoneLoading || (isZoneReady && (isLoading || isPlaceholderData));
+
   const rawIncidents = useMemo(() => {
-    if (isPlaceholderData) return [];
+    if (!isZoneReady || isPlaceholderData) return [];
     const rows = incidentData?.items ?? [];
     return listStatus ? rows.filter((incident) => incident.status === listStatus) : rows;
-  }, [incidentData?.items, isPlaceholderData, listStatus]);
-  const meta = isPlaceholderData ? undefined : incidentData?.meta;
+  }, [incidentData?.items, isZoneReady, isPlaceholderData, listStatus]);
+
+  const meta = !isZoneReady || isPlaceholderData ? undefined : incidentData?.meta;
   const lastPage = Math.max(1, meta?.totalPages ?? 1);
-  const isUnfilteredList = !listStatus && !queryParams.search && !queryParams.severity && !queryParams.violationType && !queryParams.assignedToMe && !queryParams.assignedTo;
+  const isUnfilteredList =
+    !listStatus &&
+    !queryParams.search &&
+    !queryParams.severity &&
+    !queryParams.violationType &&
+    !queryParams.assignedToMe &&
+    !queryParams.assignedTo;
 
   useEffect(() => {
     if (pagination.scopeKey !== listScopeKey || (meta && page > lastPage)) {
@@ -362,7 +412,7 @@ export default function IncidentsContent() {
     }
   }, [lastPage, listScopeKey, meta, page, pagination.scopeKey]);
 
-  // Tự động làm mới dữ liệu thời gian thực (debounce 1.5s để tránh bão request khi AI bắn nhiều cảnh báo liên tiếp)
+  // Debounce 1.5s cho SSE realtime
   useEffect(() => {
     if (!lastAlert) return;
     if (
@@ -388,104 +438,38 @@ export default function IncidentsContent() {
     }
   }, [lastAlert, queryClient]);
 
-  // KPI summary nhẹ từ /incidents/status-counts
+  // 2. Chỉ phát 1 request đếm nhanh /incidents/status-counts (7 trường từ BE, không còn 5-7 request limit=100)
   const {
-    data: statusCounts,
-    isLoading: statusCountsLoading,
+    data: rawStatusCounts,
+    isLoading: isStatusCountsLoading,
     isFetching: statusCountsFetching,
     refetch: refetchStatusCounts,
-  } = useIncidentStatusCounts({
-    siteId: siteIdFilter || undefined,
-    cameraId: cameraIdFilter || undefined,
-    fromDate,
-    toDate,
-  }, { enabled: canReadIncidents });
+  } = useIncidentStatusCounts(
+    {
+      siteId: siteIdFilter || undefined,
+      cameraId: cameraIdFilter || undefined,
+      cameraIds: zoneCameraIds,
+      fromDate,
+      toDate,
+    },
+    { enabled: canReadIncidents && isZoneReady },
+  );
+  const statusCounts = isZoneReady ? rawStatusCounts : undefined;
+  const statusCountsLoading = isZoneLoading || isStatusCountsLoading;
 
-  // Tải sự cố tách theo từng trạng thái cho Card Điều phối & KPI Breakdown (chia sẻ cache với /incidents/assignments)
-  const {
-    items: overviewBucketItems,
-    totals: overviewStatusTotals,
-    isLoading: overviewLoading,
-    isRefetching: overviewRefetching,
-    isError: overviewIsError,
-    refetch: refetchOverview,
-  } = useAssignmentIncidents({
-    siteId: siteIdFilter || undefined,
-    cameraId: cameraIdFilter || undefined,
-    fromDate,
-    toDate,
-    includeAssignments: true,
-    includeClosedAssignments: isOfficerRole,
-    staleTime: 60 * 1000,
-    refetchInterval: false,
-    enabled: canReadIncidents,
-  });
-  const rawOverviewIncidents = useMemo(
-    () => (overviewIsError && isUnfilteredList ? rawIncidents : overviewBucketItems),
-    [isUnfilteredList, overviewIsError, overviewBucketItems, rawIncidents],
+  // Enrich assignedToName trên client từ usersById (0 request N+1 /assignments vì BE đã trả mảng assignments)
+  const { incidents, usersById, siteManagersBySiteId } = useHydratedIncidents(
+    rawIncidents,
+    { enabled: canReadIncidents, fetchMissingAssignments: false },
   );
 
-  // Gom 1 lần hydrate duy nhất (ưu tiên các dòng đang hiện trên bảng trước, sau đó đến danh sách tổng quan)
-  const combinedRawIncidents = useMemo(() => {
-    const seen = new Set<string>();
-    const merged: IncidentItem[] = [];
-    for (const item of rawIncidents) {
-      if (!seen.has(item.id)) {
-        seen.add(item.id);
-        merged.push(item);
-      }
-    }
-    for (const item of rawOverviewIncidents) {
-      if (!seen.has(item.id)) {
-        seen.add(item.id);
-        merged.push(item);
-      }
-    }
-    return merged;
-  }, [rawIncidents, rawOverviewIncidents]);
-
-  const {
-    incidents: hydratedCombinedIncidents,
-    isHydratingAssignments: overviewHydrating,
-    usersById,
-    siteManagersBySiteId,
-  } = useHydratedIncidents(combinedRawIncidents, {
-    includeClosed: isOfficerRole,
-  });
-
-  const hydratedById = useMemo(
-    () => new Map(hydratedCombinedIncidents.map((item) => [item.id, item])),
-    [hydratedCombinedIncidents],
-  );
-
-  const incidents = useMemo(
-    () => rawIncidents.map((item) => hydratedById.get(item.id) ?? item),
-    [rawIncidents, hydratedById],
-  );
-
-  const overviewIncidents = useMemo(
-    () => rawOverviewIncidents.map((item) => hydratedById.get(item.id) ?? item),
-    [rawOverviewIncidents, hydratedById],
-  );
-
-  // Mutations
-  const canReadNotifications = can("NOTIFICATION_READ");
-  const { data: notificationsData, refetch: refetchNotifications } = useNotifications(
-    { page: 1, limit: 100, channel: "IN_APP" },
-    { enabled: isOfficerRole && canReadNotifications },
-  );
-  const filteredNotifications = useMemo(
-    () =>
-      filterItemsByDateRange(
-        notificationsData?.data,
-        (item) => item.createdAt,
-        fromDate,
-        toDate,
-      ),
-    [notificationsData?.data, fromDate, toDate],
-  );
+  // RBAC chuẩn D08: SAFETY_OFFICER có PPE_INCIDENT_REVIEW được phép duyệt đơn lẻ & hàng loạt
+  const canReviewIncident = can("PPE_INCIDENT_REVIEW");
   const canCreateIncident = can("PPE_INCIDENT_MANAGE");
   const canCloseIncident = can("PPE_INCIDENT_MANAGE");
+  const canExportFeedback =
+    !isOfficerRole && (can("PPE_AI_METRICS_READ") || can("PPE_INCIDENT_MANAGE"));
+
   const createMutation = useCreateIncident();
   const updateMutation = useUpdateIncident();
   const reviewMutation = useReviewIncident();
@@ -502,6 +486,7 @@ export default function IncidentsContent() {
   const [isResolveOpen, setIsResolveOpen] = useState(false);
   const [isCloseOpen, setIsCloseOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isExportFeedbackOpen, setIsExportFeedbackOpen] = useState(false);
   const [batchRejectIds, setBatchRejectIds] = useState<string[] | null>(null);
   const [batchRejectNote, setBatchRejectNote] = useState("");
   const [batchRejectError, setBatchRejectError] = useState<string | null>(null);
@@ -513,18 +498,16 @@ export default function IncidentsContent() {
   const [batchActionPending, setBatchActionPending] = useState(false);
   const [singleActionPending, setSingleActionPending] = useState(false);
 
-  const isRefreshingAll = isRefetching || statusCountsFetching || overviewRefetching;
+  const isRefreshingAll = isRefetching || statusCountsFetching;
 
   const handleRefreshAll = () => {
-    void Promise.all([
-      refetch(),
-      refetchStatusCounts(),
-      refetchOverview(),
-      isOfficerRole && canReadNotifications ? refetchNotifications() : Promise.resolve(),
-    ]);
+    if (!isZoneReady) {
+      if (zoneError) void refetchCameras();
+      return;
+    }
+    void Promise.all([refetch(), refetchStatusCounts()]);
   };
 
-  // Chỉ invalidate danh sách, bộ đếm & đúng các incidentId vừa bị tác động (không xóa sạch cache assignments của 100 hồ sơ khác)
   const invalidateAllIncidentQueries = (affectedIds?: readonly string[]) => {
     void queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
     void queryClient.invalidateQueries({ queryKey: incidentKeys.statusCountsRoot() });
@@ -537,16 +520,12 @@ export default function IncidentsContent() {
     }
   };
 
-  // Actions
   const handleOpenReview = (incident: IncidentItem) => {
     setSelectedIncident(incident);
     setIsReviewOpen(true);
   };
 
-  const handleBatchReview = async (
-    ids: string[],
-    action: "CONFIRM" | "REJECT"
-  ) => {
+  const handleBatchReview = async (ids: string[], action: "CONFIRM" | "REJECT") => {
     if (action === "REJECT") {
       setBatchRejectIds(ids);
       setBatchRejectNote("");
@@ -556,7 +535,7 @@ export default function IncidentsContent() {
     try {
       await batchReviewMutation.mutateAsync({ ids, action });
     } catch {
-      // Handled by onError in hook
+      // Handled by hook
     }
   };
 
@@ -582,23 +561,8 @@ export default function IncidentsContent() {
       setBatchRejectNote("");
       setBatchRejectError(null);
     } catch {
-      // Handled by onError in hook
+      // Handled by hook
     }
-  };
-
-  const handleOpenAssign = (incident: IncidentItem) => {
-    setSelectedIncident(incident);
-    setIsAssignOpen(true);
-  };
-
-  const handleOpenResolve = (incident: IncidentItem) => {
-    setSelectedIncident(incident);
-    setIsResolveOpen(true);
-  };
-
-  const handleOpenClose = (incident: IncidentItem) => {
-    setSelectedIncident(incident);
-    setIsCloseOpen(true);
   };
 
   const handleConfirmBatchDispatch = async (payload: {
@@ -622,7 +586,7 @@ export default function IncidentsContent() {
         toast.success(
           isVietnamese
             ? `Đã duyệt & giao ${res.assignedCount} sự cố cho cán bộ${res.signalSent ? " (đã gửi 1 tín hiệu điều phối)" : ""}.`
-            : `Confirmed & dispatched ${res.assignedCount} incidents${res.signalSent ? " (1 signal sent)" : ""}.`,
+            : `Confirmed & dispatched ${res.assignedCount} incidents.`,
         );
       }
       if (res.failedCount > 0) {
@@ -679,12 +643,6 @@ export default function IncidentsContent() {
     }
   };
 
-  const handleBatchClose = (items: IncidentItem[]) => {
-    if (items.length === 0) return;
-    setBatchCloseItems(items);
-    setBatchCloseNote("");
-  };
-
   const handleConfirmBatchClose = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!batchCloseItems || batchCloseItems.length === 0) return;
@@ -722,133 +680,129 @@ export default function IncidentsContent() {
     }
   };
 
-  const handleOpenEdit = (incident: IncidentItem) => {
-    setSelectedIncident(incident);
-    setIsEditOpen(true);
-  };
-
-  const handleOpenDelete = (incident: IncidentItem) => {
-    setSelectedIncident(incident);
-    setIsDeleteOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!selectedIncident) return;
-    try {
-      await deleteMutation.mutateAsync(selectedIncident.id);
-      setIsDeleteOpen(false);
-      setSelectedIncident(null);
-    } catch {
-      // Handled by onError in hook
-    }
-  };
-
-  const toolbar = (<IncidentFilterToolbar
-
-    search={search}
-
-    onSearchChange={(val) => {
-      setSearch(val);
-      setPage(1);
-    }}
-
-    siteFilter={siteIdFilter}
-
-    onSiteFilterChange={handleSiteFilterChange}
-
-    cameraIdFilter={cameraIdFilter}
-
-    onCameraIdFilterChange={(val) => {
-      setCameraIdFilter(val);
-      setPage(1);
-      const params = listSearchParams();
-      if (val) {
-        params.set("cameraId", val);
-      } else {
-        params.delete("cameraId");
-      }
-      const q = params.toString();
-      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-    }}
-
-    severityFilter={severityFilter}
-
-    onSeverityFilterChange={(val) => {
-      setSeverityFilter(val);
-      setPage(1);
-    }}
-
-    violationFilter={violationFilter}
-
-    onViolationFilterChange={(val) => {
-      setViolationFilter(val);
-      setPage(1);
-    }}
-
-    assignedToMe={assignedToMeFilter}
-
-    onAssignedToMeChange={(val) => {
-      setAssignedToMeFilter(val);
-      setPage(1);
-      const params = listSearchParams();
-      if (val) {
-        params.set("assignedToMe", "true");
-      } else {
-        params.delete("assignedToMe");
-      }
-      const q = params.toString();
-      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-    }}
-
-    onRefresh={handleRefreshAll}
-
-    isRefreshing={isRefreshingAll}
-
-    onResetFilters={() => {
-      setPage(1);
-      setSearch("");
-      setSeverityFilter("");
-      setViolationFilter("");
-      setCameraIdFilter("");
-      setSiteIdFilter("");
-      setAssignedToMeFilter(false);
-      setGlobalSiteId(null);
-      setPeriodFilter(createDefaultIncidentPeriodFilter(today));
-      const params = new URLSearchParams({ scope, siteId: "" });
-      if (scope === "work" && listStatus) params.set("status", listStatus);
-      if (urlView) params.set("view", urlView);
-      router.replace(`${pathname}?${params}`, { scroll: false });
-    }}
-
-  />);
+  const renderListControls = (quickSelect: ReactNode) => (
+    <IncidentListControlCard
+      scope={scope}
+      queue={listStatus}
+      onScopeChange={changeListScope}
+      search={search}
+      onSearchChange={(val) => {
+        setSearch(val);
+        setPage(1);
+      }}
+      siteFilter={siteIdFilter}
+      onSiteFilterChange={handleSiteFilterChange}
+      zoneFilter={zoneIdFilter}
+      onZoneFilterChange={handleZoneFilterChange}
+      cameraIdFilter={cameraIdFilter}
+      onCameraIdFilterChange={(val) => {
+        setCameraIdFilter(val);
+        setPage(1);
+        const params = listSearchParams();
+        if (val) params.set("cameraId", val);
+        else params.delete("cameraId");
+        const q = params.toString();
+        router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+      }}
+      severityFilter={severityFilter}
+      onSeverityFilterChange={(val) => {
+        setSeverityFilter(val);
+        setPage(1);
+      }}
+      violationFilter={violationFilter}
+      onViolationFilterChange={(val) => {
+        setViolationFilter(val);
+        setPage(1);
+      }}
+      assignedToMe={assignedToMeFilter}
+      onAssignedToMeChange={(val) => {
+        setAssignedToMeFilter(val);
+        setPage(1);
+        const params = listSearchParams();
+        if (val) params.set("assignedToMe", "true");
+        else params.delete("assignedToMe");
+        const q = params.toString();
+        router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+      }}
+      onRefresh={handleRefreshAll}
+      isRefreshing={isRefreshingAll}
+      onResetFilters={() => {
+        setPage(1);
+        setSearch("");
+        setSeverityFilter("");
+        setViolationFilter("");
+        setZoneIdFilter("");
+        setCameraIdFilter("");
+        setSiteIdFilter("");
+        setAssignedToMeFilter(false);
+        setGlobalSiteId(null);
+        setPeriodFilter(createDefaultIncidentPeriodFilter(today));
+        const params = new URLSearchParams({ scope, siteId: "" });
+        if (scope === "work" && listStatus) params.set("status", listStatus);
+        if (urlView) params.set("view", urlView);
+        router.replace(`${pathname}?${params}`, { scroll: false });
+      }}
+    >
+      {quickSelect}
+    </IncidentListControlCard>
+  );
 
   if (!canReadIncidents) {
     return authStatus === "authenticated" ? (
-      <p role="alert" className="rounded-2xl border border-border bg-surface p-4 text-sm">{t("incidents.scope.forbidden")}</p>
-    ) : <PageSkeleton variant="table" />;
+      <p role="alert" className="rounded-2xl border border-border bg-surface p-4 text-sm">
+        {t("incidents.scope.forbidden")}
+      </p>
+    ) : (
+      <PageSkeleton variant="table" />
+    );
   }
 
   return (
-    <div className="space-y-6">
-      {dispatchResult && <IncidentDispatchResultPanel result={dispatchResult} onChange={setDispatchResult} onRetryFailed={async (ids) => {
-        const fetched = await runInBatches(ids, 4, (id) => incidentService.getIncidentById(id));
-        const eligible = fetched.succeeded.filter((incident) => incident.status === "PENDING_REVIEW" || incident.status === "CONFIRMED");
-        if (!eligible.length) throw new Error(isVietnamese ? "Không còn hồ sơ đủ điều kiện để giao lại." : "No records remain eligible for assignment.");
-        if (fetched.failed.length) toast.error(isVietnamese ? `${fetched.failed.length} hồ sơ chưa tải được; chưa đưa vào lần thử lại.` : `${fetched.failed.length} records could not be loaded and are excluded from this retry.`);
-        setBatchDispatchItems(eligible);
-      }} />}
-      {/* Console Header (đồng bộ /cameras và /dashboard) */}
+    <div className="space-y-5">
+      {dispatchResult && (
+        <IncidentDispatchResultPanel
+          result={dispatchResult}
+          onChange={setDispatchResult}
+          onRetryFailed={async (ids) => {
+            const fetched = await runInBatches(ids, 4, (id) =>
+              incidentService.getIncidentById(id),
+            );
+            const eligible = fetched.succeeded.filter(
+              (incident) =>
+                incident.status === "PENDING_REVIEW" || incident.status === "CONFIRMED",
+            );
+            if (!eligible.length) {
+              throw new Error(
+                isVietnamese
+                  ? "Không còn hồ sơ đủ điều kiện để giao lại."
+                  : "No records remain eligible for assignment.",
+              );
+            }
+            if (fetched.failed.length) {
+              toast.error(
+                isVietnamese
+                  ? `${fetched.failed.length} hồ sơ chưa tải được; chưa đưa vào lần thử lại.`
+                  : `${fetched.failed.length} records could not be loaded and are excluded from this retry.`,
+              );
+            }
+            setBatchDispatchItems(eligible);
+          }}
+        />
+      )}
+
       <IncidentConsoleHeader
         isConnected={isConnected}
         isRefreshing={isLoading || isRefreshingAll}
         onRefresh={handleRefreshAll}
         canCreateIncident={canCreateIncident}
         onCreateIncident={() => setIsCreateOpen(true)}
+        canExportFeedback={canExportFeedback}
+        onExportFeedback={() => setIsExportFeedbackOpen(true)}
         siteName={siteIdFilter ? getSiteName(siteIdFilter) : null}
         userRole={user?.role}
         criticalCount={
           statusCounts?.critical ??
-          overviewIncidents.filter((i) => i.severity === "CRITICAL").length
+          incidents.filter((i) => i.severity === "CRITICAL").length
         }
         periodFilter={periodFilter}
         resolvedPeriod={resolvedPeriod}
@@ -856,128 +810,122 @@ export default function IncidentsContent() {
         onPeriodFilterChange={handlePeriodFilterChange}
       />
 
-      {/* KPI Overview (Chuẩn Bento, click mở rộng khung chi tiết & tự động lọc bảng) */}
       <IncidentKpiSummary
-
-        incidents={overviewIncidents}
-
-        totalIncidentsCount={statusCounts?.total ?? (isUnfilteredList ? meta?.total : undefined) ?? overviewIncidents.length}
-
+        incidents={incidents}
+        totalIncidentsCount={
+          statusCounts?.total ??
+          (isUnfilteredList ? meta?.total : undefined) ??
+          incidents.length
+        }
         statusCounts={statusCounts}
-
-        statusTotals={overviewStatusTotals}
-
         loading={statusCountsLoading}
-
-        detailLoading={overviewLoading}
-
+        detailLoading={isLoading}
         selectedStat={selectedStat}
-
         onSelectStat={handleSelectStat}
-
-        onReview={isOfficerRole ? undefined : handleOpenReview}
-
-        onAssign={isOfficerRole ? undefined : handleOpenAssign}
-
-        onResolve={handleOpenResolve}
-
+        onReview={canReviewIncident ? handleOpenReview : undefined}
+        onAssign={isOfficerRole ? undefined : (inc) => {
+          setSelectedIncident(inc);
+          setIsAssignOpen(true);
+        }}
+        onResolve={(inc) => {
+          setSelectedIncident(inc);
+          setIsResolveOpen(true);
+        }}
         onFilterStatus={(val) => {
           if (val === "CLOSED") changeListScope("history");
-          else if (Object.hasOwn(incidentWorkStatuses, val)) changeListScope("work", val as IncidentWorkStatus);
-          else changeListScope("all");
+          else if (Object.hasOwn(incidentWorkStatuses, val)) {
+            changeListScope("work", val as IncidentWorkStatus);
+          } else changeListScope("all");
         }}
-
         onFilterSeverity={(val) => {
           setSeverityFilter(val);
           setPage(1);
         }}
-
         onFilterViolation={(val) => {
           setViolationFilter(val);
           setPage(1);
         }}
-
         onFilterSite={handleSiteFilterChange}
-
       />
 
-      {/* Card Tổng quan Điều phối & Công việc (Hiển thị chuyên biệt cho 3 phân quyền, click dẫn tới /incidents/assignments) */}
+      {/* Thanh liên kết nhanh tới /incidents/assignments (tinh gọn từ Card 3 cột, dùng trực tiếp statusCounts) */}
       <IncidentAssignmentOverviewCard
-        incidents={overviewIncidents}
-        statusTotals={overviewStatusTotals}
-        loading={overviewLoading || (isOfficerRole && overviewHydrating)}
+        variant="compact"
+        incidents={incidents}
+        statusCounts={statusCounts}
+        loading={statusCountsLoading}
         userRole={user?.role}
         userId={user?.id}
         usersById={usersById}
         siteManagersBySiteId={siteManagersBySiteId}
-        notifications={filteredNotifications}
       />
 
-      {/* Filter Toolbar (Thiết kế lại chuẩn Neumorphic, phân tầng Site -> Camera, có Chip lọc hoạt động) */}
-
-      {/* Main Table */}
       <div className="min-w-0 space-y-3">
-        <SegmentedControl<IncidentListScope>
-          aria-label={t("incidents.scope.label")}
-          value={scope}
-          onValueChange={changeListScope}
-          options={[
-            { value: "work", label: t("incidents.scope.work"), icon: <ClipboardList className="size-4" /> },
-            { value: "history", label: t("incidents.scope.history"), icon: <Archive className="size-4" /> },
-            { value: "all", label: t("incidents.scope.all"), icon: <List className="size-4" /> },
-          ]}
-        />
-        {scope === "work" && listStatus && listStatus !== "CLOSED" && (
-          <SegmentedControl<IncidentWorkStatus>
-            aria-label={t("incidents.scope.queueLabel")}
-            value={listStatus}
-            onValueChange={(queue) => changeListScope("work", queue)}
-            size="sm"
-            options={(Object.keys(incidentWorkStatuses) as IncidentWorkStatus[]).map((value) => ({
-              value, label: t(incidentWorkStatuses[value]),
-            }))}
-          />
-        )}
         <IncidentTable
           key={`${user?.id}:${listScopeKey}`}
-
           incidents={incidents}
-
+          renderListControls={renderListControls}
           viewMode={isHistory ? "table" : viewMode}
           history={isHistory}
-
           onViewModeChange={handleViewModeChange}
-
-          loading={isLoading || isPlaceholderData}
-
+          loading={isListLoading}
           highlightedId={highlightedIncidentId}
-
-          onReview={isOfficerRole || isHistory ? undefined : handleOpenReview}
-
-          onBatchReview={isOfficerRole || isHistory ? undefined : handleBatchReview}
-
+          onReview={canReviewIncident && !isHistory ? handleOpenReview : undefined}
+          onBatchReview={canReviewIncident && !isHistory ? handleBatchReview : undefined}
           onBatchDispatch={isOfficerRole || isHistory ? undefined : setBatchDispatchItems}
-
           onBatchResolve={isHistory ? undefined : setBatchResolveItems}
-
-          onBatchClose={isOfficerRole || isHistory ? undefined : handleBatchClose}
-
+          onBatchClose={
+            isOfficerRole || isHistory
+              ? undefined
+              : (items) => {
+                  if (!items.length) return;
+                  setBatchCloseItems(items);
+                  setBatchCloseNote("");
+                }
+          }
           batchReviewPending={batchReviewMutation.isPending}
-
           batchActionPending={batchActionPending}
-
-          onAssign={isHistory ? undefined : handleOpenAssign}
-
-          onResolve={isHistory ? undefined : handleOpenResolve}
-
-          onClose={isHistory ? undefined : handleOpenClose}
-
-          onEdit={isHistory ? undefined : handleOpenEdit}
-
-          onDelete={isHistory ? undefined : handleOpenDelete}
-
+          onAssign={
+            isHistory
+              ? undefined
+              : (inc) => {
+                  setSelectedIncident(inc);
+                  setIsAssignOpen(true);
+                }
+          }
+          onResolve={
+            isHistory
+              ? undefined
+              : (inc) => {
+                  setSelectedIncident(inc);
+                  setIsResolveOpen(true);
+                }
+          }
+          onClose={
+            isHistory
+              ? undefined
+              : (inc) => {
+                  setSelectedIncident(inc);
+                  setIsCloseOpen(true);
+                }
+          }
+          onEdit={
+            isHistory
+              ? undefined
+              : (inc) => {
+                  setSelectedIncident(inc);
+                  setIsEditOpen(true);
+                }
+          }
+          onDelete={
+            isHistory
+              ? undefined
+              : (inc) => {
+                  setSelectedIncident(inc);
+                  setIsDeleteOpen(true);
+                }
+          }
           onFilterSite={handleSiteFilterChange}
-
           tableState={{
             ...tableState,
             manualPagination: true,
@@ -986,60 +934,56 @@ export default function IncidentsContent() {
             features: {
               sorting: true,
               globalFilter: false,
-              rowSelection: !isHistory
+              rowSelection: !isHistory,
             },
             onSortingChange: (updater) => {
               tableState.onSortingChange(updater);
               setPage(1);
             },
             pagination: { pageIndex: page - 1, pageSize: limit },
-            onPaginationChange: update => {
-              const next = typeof update === "function" ? update({ pageIndex: page - 1, pageSize: limit }) : update;
+            onPaginationChange: (update) => {
+              const next =
+                typeof update === "function"
+                  ? update({ pageIndex: page - 1, pageSize: limit })
+                  : update;
               setPage(next.pageIndex + 1);
               setLimit(next.pageSize);
             },
             rowCount: meta?.total ?? incidents.length,
             pageCount: meta ? lastPage : page,
             fetching: isRefreshingAll || isPlaceholderData,
-            error,
+            error: zoneError || error,
             onRetry: handleRefreshAll,
-            toolbar
           }}
-
         />
-
-        {/* Pagination */}
-
       </div>
 
-      {/* Modals & Dialogs */}
-      <ReviewIncidentModal
-
-        open={isReviewOpen}
-
-        onOpenChange={setIsReviewOpen}
-
-        incident={selectedIncident}
-
-        loading={reviewMutation.isPending}
-
-        onSubmit={async (id, payload) => {
+      <IncidentActionModals
+        selectedIncident={selectedIncident}
+        defaultSiteId={siteIdFilter}
+        canCloseIncident={canCloseIncident}
+        isCreateOpen={isCreateOpen}
+        onCreateOpenChange={setIsCreateOpen}
+        createPending={createMutation.isPending}
+        onSubmitCreate={async (payload) => {
+          await createMutation.mutateAsync(payload);
+        }}
+        isEditOpen={isEditOpen}
+        onEditOpenChange={setIsEditOpen}
+        updatePending={updateMutation.isPending}
+        onSubmitEdit={async (id, payload) => {
+          await updateMutation.mutateAsync({ id, payload });
+        }}
+        isReviewOpen={isReviewOpen}
+        onReviewOpenChange={setIsReviewOpen}
+        reviewPending={reviewMutation.isPending}
+        onSubmitReview={async (id, payload) => {
           await reviewMutation.mutateAsync({ id, payload });
         }}
-
-      />
-
-      <AssignIncidentModal
-
-        open={isAssignOpen}
-
-        onOpenChange={setIsAssignOpen}
-
-        incident={selectedIncident}
-
-        loading={singleActionPending}
-
-        onSubmit={async (_incidentId, payload) => {
+        isAssignOpen={isAssignOpen}
+        onAssignOpenChange={setIsAssignOpen}
+        singleActionPending={singleActionPending}
+        onSubmitAssign={async (_incidentId, payload) => {
           if (!selectedIncident) return;
           const targetId = payload.assignedTo || payload.assignedToUserId || "";
           setSingleActionPending(true);
@@ -1070,22 +1014,9 @@ export default function IncidentsContent() {
             setSingleActionPending(false);
           }
         }}
-
-      />
-
-      <ResolveIncidentModal
-
-        open={isResolveOpen}
-
-        onOpenChange={setIsResolveOpen}
-
-        incident={selectedIncident}
-
-        loading={singleActionPending}
-
-        canClose={canCloseIncident}
-
-        onSubmit={async (_id, payload) => {
+        isResolveOpen={isResolveOpen}
+        onResolveOpenChange={setIsResolveOpen}
+        onSubmitResolve={async (_id, payload) => {
           if (!selectedIncident) return;
           setSingleActionPending(true);
           try {
@@ -1118,222 +1049,60 @@ export default function IncidentsContent() {
             setSingleActionPending(false);
           }
         }}
-
-      />
-
-      <BatchDispatchModal
-        open={Boolean(batchDispatchItems?.length)}
-        onOpenChange={(open) => {
-          if (!open) setBatchDispatchItems(null);
-        }}
-        incidents={batchDispatchItems || []}
-        loading={batchActionPending}
-        onSubmit={handleConfirmBatchDispatch}
-      />
-
-      <BatchResolveModal
-        open={Boolean(batchResolveItems?.length)}
-        onOpenChange={(open) => {
-          if (!open) setBatchResolveItems(null);
-        }}
-        incidents={batchResolveItems || []}
-        loading={batchActionPending}
-        canClose={canCloseIncident}
-        onSubmit={handleConfirmBatchResolve}
-      />
-
-      <CloseIncidentDialog
-
-        open={isCloseOpen}
-
-        onOpenChange={setIsCloseOpen}
-
-        incident={selectedIncident}
-
-        loading={closeMutation.isPending}
-
-        onConfirm={async (id, payload) => {
+        isCloseOpen={isCloseOpen}
+        onCloseOpenChange={setIsCloseOpen}
+        closePending={closeMutation.isPending}
+        onSubmitClose={async (id, payload) => {
           await closeMutation.mutateAsync({ id, payload });
         }}
-
-      />
-
-      <Dialog
-        open={Boolean(batchRejectIds?.length)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setBatchRejectIds(null);
-            setBatchRejectNote("");
-            setBatchRejectError(null);
+        isDeleteOpen={isDeleteOpen}
+        onDeleteOpenChange={setIsDeleteOpen}
+        deletePending={deleteMutation.isPending}
+        onConfirmDelete={async () => {
+          if (!selectedIncident) return;
+          try {
+            await deleteMutation.mutateAsync(selectedIncident.id);
+            setIsDeleteOpen(false);
+            setSelectedIncident(null);
+          } catch {
+            // Handled by hook
           }
         }}
-        title={
-          isVietnamese
-            ? `Bác bỏ hàng loạt (${batchRejectIds?.length ?? 0} sự cố)`
-            : `Batch Dismiss (${batchRejectIds?.length ?? 0} incidents)`
-        }
-        description={
-          isVietnamese
-            ? "Bắt buộc nhập lý do bác bỏ (tối thiểu 3 ký tự) theo quy chuẩn kiểm toán an toàn."
-            : "A dismissal reason (minimum 3 characters) is required for safety audit compliance."
-        }
-      >
-        <form onSubmit={handleConfirmBatchReject} className="space-y-4 pt-2">
-          {batchRejectError && (
-            <p className="rounded-xl border border-danger/30 bg-danger/10 p-2.5 text-xs text-danger">
-              {batchRejectError}
-            </p>
-          )}
-          <textarea
-            rows={3}
-            value={batchRejectNote}
-            onChange={(e) => setBatchRejectNote(e.target.value)}
-            placeholder={
-              isVietnamese
-                ? "Ví dụ: Ánh sáng phản chiếu / nhận diện nhầm vật thể..."
-                : "Example: Light reflection / false object detection..."
-            }
-            className="w-full rounded-xl border border-border/50 bg-background p-3 text-xs text-foreground focus:border-primary focus:outline-none"
-          />
-          <div className="flex items-center justify-end gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setBatchRejectIds(null)}
-              disabled={batchReviewMutation.isPending}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              variant="danger"
-              disabled={batchReviewMutation.isPending}
-            >
-              {isVietnamese ? "Xác nhận bác bỏ" : "Confirm Dismiss"}
-            </Button>
-          </div>
-        </form>
-      </Dialog>
-
-      <Dialog
-        open={Boolean(batchCloseItems?.length)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setBatchCloseItems(null);
-            setBatchCloseNote("");
-          }
+        batchDispatchItems={batchDispatchItems}
+        onClearBatchDispatch={() => setBatchDispatchItems(null)}
+        onSubmitBatchDispatch={handleConfirmBatchDispatch}
+        batchResolveItems={batchResolveItems}
+        onClearBatchResolve={() => setBatchResolveItems(null)}
+        onSubmitBatchResolve={handleConfirmBatchResolve}
+        batchRejectIds={batchRejectIds}
+        batchRejectNote={batchRejectNote}
+        batchRejectError={batchRejectError}
+        batchReviewPending={batchReviewMutation.isPending}
+        onBatchRejectNoteChange={setBatchRejectNote}
+        onClearBatchReject={() => {
+          setBatchRejectIds(null);
+          setBatchRejectNote("");
+          setBatchRejectError(null);
         }}
-        title={
-          isVietnamese
-            ? `Nghiệm thu & Đóng hàng loạt (${batchCloseItems?.length ?? 0} hồ sơ)`
-            : `Batch Accept & Close (${batchCloseItems?.length ?? 0} records)`
-        }
-        description={
-          isVietnamese
-            ? "Sau khi đóng, hồ sơ sự cố sẽ được khóa vĩnh viễn để lưu trữ kiểm toán an toàn."
-            : "Once closed, incident records are permanently locked for safety audit archiving."
-        }
-      >
-        <form onSubmit={handleConfirmBatchClose} className="space-y-4 pt-2">
-          <textarea
-            rows={3}
-            value={batchCloseNote}
-            onChange={(e) => setBatchCloseNote(e.target.value)}
-            placeholder={
-              isVietnamese
-                ? "Ghi chú nghiệm thu (tùy chọn): Đã kiểm tra ảnh hiện trường sau khắc phục đạt yêu cầu..."
-                : "Acceptance note (optional): Verified field remediation evidence..."
-            }
-            className="w-full rounded-xl border border-border/50 bg-background p-3 text-xs text-foreground focus:border-primary focus:outline-none"
-          />
-          <div className="flex items-center justify-end gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setBatchCloseItems(null)}
-              disabled={batchActionPending}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={batchActionPending}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              {isVietnamese
-                ? `Xác nhận Đóng (${batchCloseItems?.length ?? 0})`
-                : `Confirm Close (${batchCloseItems?.length ?? 0})`}
-            </Button>
-          </div>
-        </form>
-      </Dialog>
-
-      <Dialog
-
-        open={isDeleteOpen}
-
-        onOpenChange={setIsDeleteOpen}
-
-        title={t("incidents.actions.delete")}
-
-        description={
-          isVietnamese
-            ? `Bạn có chắc chắn muốn xóa vĩnh viễn sự cố vi phạm #${selectedIncident?.id.slice(0, 8)}? Hành động này không thể hoàn tác.`
-            : `Are you sure you want to permanently delete incident #${selectedIncident?.id.slice(0, 8)}? This action cannot be undone.`
-        }
-
-      >
-        <div className="flex items-center justify-end gap-3 pt-4">
-          <Button
-
-            type="button"
-
-            variant="ghost"
-
-            onClick={() => setIsDeleteOpen(false)}
-
-            disabled={deleteMutation.isPending}
-
-          >
-            {t("common.cancel")}
-          </Button>
-          <Button
-
-            type="button"
-
-            variant="danger"
-
-            onClick={handleDeleteConfirm}
-
-            disabled={deleteMutation.isPending}
-
-            className="gap-2"
-
-          >
-            <Trash2 className="h-4 w-4" />
-            {t("common.delete")}
-          </Button>
-        </div>
-      </Dialog>
-
-      <CreateIncidentModal
-        open={isCreateOpen}
-        onOpenChange={setIsCreateOpen}
-        defaultSiteId={siteIdFilter}
-        loading={createMutation.isPending}
-        onSubmit={async (payload) => {
-          await createMutation.mutateAsync(payload);
+        onConfirmBatchReject={handleConfirmBatchReject}
+        batchCloseItems={batchCloseItems}
+        batchCloseNote={batchCloseNote}
+        batchActionPending={batchActionPending}
+        onBatchCloseNoteChange={setBatchCloseNote}
+        onClearBatchClose={() => {
+          setBatchCloseItems(null);
+          setBatchCloseNote("");
         }}
-      />
-
-      <EditIncidentModal
-        open={isEditOpen}
-        onOpenChange={setIsEditOpen}
-        incident={selectedIncident}
-        loading={updateMutation.isPending}
-        onSubmit={async (id, payload) => {
-          await updateMutation.mutateAsync({ id, payload });
+        onConfirmBatchClose={handleConfirmBatchClose}
+        isExportFeedbackOpen={isExportFeedbackOpen}
+        onExportFeedbackOpenChange={setIsExportFeedbackOpen}
+        exportFilterScope={{
+          siteId: siteIdFilter || undefined,
+          cameraId: cameraIdFilter || undefined,
+          cameraIds: zoneCameraIds,
+          violationType: violationFilter || undefined,
+          fromDate,
+          toDate,
         }}
       />
     </div>

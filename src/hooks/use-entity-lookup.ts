@@ -21,7 +21,7 @@ export function useEntityLookup(options?: { enabled?: boolean }) {
   const { data: sitesData, isLoading: sitesLoading } = useSitesCatalog({
     enabled: baseEnabled && can("PPE_SITE_READ"),
   });
-  const { data: camerasData, isLoading: camerasLoading } = useCamerasCatalog({
+  const { data: camerasData, isLoading: camerasLoading, error: camerasError, refetch: refetchCameras } = useCamerasCatalog({
     enabled: baseEnabled && can("PPE_CAMERA_READ"),
   });
 
@@ -131,6 +131,9 @@ export function useEntityLookup(options?: { enabled?: boolean }) {
     getZoneName,
     getCamerasForSite,
     getZonesForSite,
+    camerasLoading,
+    camerasError,
+    refetchCameras,
     isLoading: sitesLoading || camerasLoading,
   };
 }

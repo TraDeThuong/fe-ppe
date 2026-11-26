@@ -10,10 +10,13 @@ import type {
   EvidenceQueryParams,
   EvidenceType,
   EvidenceUploadUrlResponse,
+  FeedbackDatasetItem,
+  FeedbackDatasetQueryParams,
   IncidentAssignmentItem,
   IncidentCommentItem,
   IncidentItem,
   IncidentQueryParams,
+  IncidentStatusCounts,
   PaginationMeta,
   RequestEvidenceUploadUrlPayload,
   ResolveIncidentPayload,
@@ -60,6 +63,19 @@ function unwrapPaginated<T>(res: any): { items: T[]; meta?: PaginationMeta } {
   return { items, meta };
 }
 
+function serializeCameraIdsParam(
+  cameraIds?: string[] | string,
+): { empty: true } | { empty: false; value?: string } {
+  if (cameraIds === undefined) return { empty: false, value: undefined };
+  if (Array.isArray(cameraIds)) {
+    const cleaned = cameraIds.map((id) => id.trim()).filter(Boolean);
+    if (cleaned.length === 0) return { empty: true };
+    return { empty: false, value: cleaned.join(",") };
+  }
+  const trimmed = cameraIds.trim();
+  return { empty: false, value: trimmed || undefined };
+}
+
 export const incidentService = {
   /**
    * GET /api/v1/incidents
@@ -69,8 +85,27 @@ export const incidentService = {
     params?: IncidentQueryParams,
     options?: { signal?: AbortSignal; suppressToast?: boolean },
   ): Promise<{ items: IncidentItem[]; meta?: PaginationMeta }> {
+    const camIds = serializeCameraIdsParam(params?.cameraIds);
+    if (camIds.empty) {
+      const page = params?.page ?? 1;
+      const limit = params?.limit ?? 20;
+      return {
+        items: [],
+        meta: { page, limit, total: 0, totalPages: 0 },
+      };
+    }
+
+    let sanitizedParams: Record<string, unknown> | undefined;
+    if (params) {
+      const { zoneId: _ignoredZoneId, cameraIds: _rawCamIds, ...rest } = params;
+      sanitizedParams = {
+        ...rest,
+        ...(camIds.value ? { cameraIds: camIds.value } : {}),
+      };
+    }
+
     const res = await apiClient.get<unknown, any>("/incidents", {
-      params,
+      params: sanitizedParams,
       signal: options?.signal,
       ...(options?.suppressToast ? { suppressToast: true } : {}),
     } as Record<string, unknown>);
@@ -140,35 +175,119 @@ export const incidentService = {
     params?: {
       siteId?: string;
       cameraId?: string;
+      cameraIds?: string[] | string;
       fromDate?: string;
       toDate?: string;
       startDate?: string;
       endDate?: string;
     },
     options?: { signal?: AbortSignal; suppressToast?: boolean },
-  ): Promise<{
-    total: number;
-    pendingReview: number;
-    critical: number;
-    resolved: number;
-  }> {
+  ): Promise<IncidentStatusCounts> {
+    const camIds = serializeCameraIdsParam(params?.cameraIds);
+    if (camIds.empty) {
+      return {
+        total: 0,
+        pendingReview: 0,
+        confirmed: 0,
+        critical: 0,
+        resolved: 0,
+        closed: 0,
+        dismissed: 0,
+      };
+    }
+
+    let sanitizedParams: Record<string, unknown> | undefined;
+    if (params) {
+      const { cameraIds: _rawCamIds, ...rest } = params;
+      sanitizedParams = {
+        ...rest,
+        ...(camIds.value ? { cameraIds: camIds.value } : {}),
+      };
+    }
+
     const res = await apiClient.get<unknown>("/incidents/status-counts", {
-      params,
+      params: sanitizedParams,
       signal: options?.signal,
       ...(options?.suppressToast ? { suppressToast: true } : {}),
     } as Record<string, unknown>);
-    const data = unwrapData<{
-      total?: number;
-      pendingReview?: number;
-      critical?: number;
-      resolved?: number;
-    }>(res);
+    const data = unwrapData<Partial<IncidentStatusCounts>>(res);
     return {
       total: Number(data?.total ?? 0),
       pendingReview: Number(data?.pendingReview ?? 0),
+      confirmed: Number(data?.confirmed ?? 0),
       critical: Number(data?.critical ?? 0),
       resolved: Number(data?.resolved ?? 0),
+      closed: Number(data?.closed ?? 0),
+      dismissed: Number(data?.dismissed ?? 0),
     };
+  },
+
+  /**
+   * GET /api/v1/incidents/feedback-dataset
+   * Truy xuất dữ liệu phản hồi Human Review (TRUE_VIOLATION / FALSE_ALARM) phục vụ cải tiến AI (D08).
+   */
+  async getFeedbackDataset(
+    params?: FeedbackDatasetQueryParams,
+    options?: { signal?: AbortSignal; suppressToast?: boolean },
+  ): Promise<{ items: FeedbackDatasetItem[]; meta?: PaginationMeta }> {
+    const camIds = serializeCameraIdsParam(params?.cameraIds);
+    if (camIds.empty) {
+      return {
+        items: [],
+        meta: {
+          page: params?.page ?? 1,
+          limit: params?.limit ?? 50,
+          total: 0,
+          totalPages: 0,
+        },
+      };
+    }
+
+    let sanitizedParams: Record<string, unknown> | undefined;
+    if (params) {
+      const { cameraIds: _rawCamIds, ...rest } = params;
+      sanitizedParams = {
+        ...rest,
+        ...(camIds.value ? { cameraIds: camIds.value } : {}),
+      };
+    }
+
+    const res = await apiClient.get<unknown>("/incidents/feedback-dataset", {
+      params: sanitizedParams,
+      signal: options?.signal,
+      ...(options?.suppressToast ? { suppressToast: true } : {}),
+    } as Record<string, unknown>);
+    return unwrapPaginated<FeedbackDatasetItem>(res);
+  },
+
+  /**
+   * Gom tối đa `maxPages` (mặc định 10 trang x 100 = 1.000 mẫu) từ /incidents/feedback-dataset
+   * để xuất tệp JSON / CSV phục vụ huấn luyện lại mô hình AI.
+   */
+  async exportFeedbackDatasetAll(
+    params?: Omit<FeedbackDatasetQueryParams, "page" | "limit">,
+    options?: { maxPages?: number; signal?: AbortSignal },
+  ): Promise<{ items: FeedbackDatasetItem[]; total: number }> {
+    const limit = 100;
+    const maxPages = Math.max(1, Math.min(20, options?.maxPages ?? 10));
+    const first = await incidentService.getFeedbackDataset(
+      { ...params, page: 1, limit },
+      { signal: options?.signal },
+    );
+    const collected: FeedbackDatasetItem[] = [...first.items];
+    const total = first.meta?.total ?? collected.length;
+    const totalPages = Math.min(first.meta?.totalPages ?? 1, maxPages);
+
+    for (let page = 2; page <= totalPages; page += 1) {
+      if (options?.signal?.aborted) break;
+      const next = await incidentService.getFeedbackDataset(
+        { ...params, page, limit },
+        { signal: options?.signal, suppressToast: true },
+      );
+      collected.push(...next.items);
+    }
+
+    return { items: collected, total };
   },
 
   /**
@@ -267,10 +386,11 @@ export const incidentService = {
   async getEvidenceDownloadUrl(
     evidenceId: string,
     params?: { action?: "VIEW" | "DOWNLOAD"; expiresInSeconds?: number },
+    options?: { signal?: AbortSignal; suppressToast?: boolean },
   ): Promise<{ downloadUrl: string; expiresInSeconds?: number; expiresIn?: number; fileName?: string; mimeType?: string }> {
     const res = await apiClient.get<unknown>(
       `/evidences/${evidenceId}/download-url`,
-      { params },
+      { params, ...options },
     );
     return unwrapData<{ downloadUrl: string; expiresInSeconds?: number; expiresIn?: number; fileName?: string; mimeType?: string }>(res);
   },

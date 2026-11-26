@@ -1,3 +1,4 @@
+import { hasRouteAccess } from "@/config/navigation";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -8,6 +9,20 @@ import {
   PUBLIC_AUTH_PREFIXES,
 } from "@/config/routes";
 import { config as proxyConfig, proxy } from "../../../proxy";
+
+describe("AI Sandbox route permissions", () => {
+  it("requires both permissions for the studio and leaves the metrics page available", () => {
+    const metrics = "PPE_AI_METRICS_READ";
+    const model = "PPE_MODEL_MANAGE";
+    assert.equal(hasRouteAccess("/ai-metrics", [metrics]), true);
+    assert.equal(hasRouteAccess("/ai-metrics/test", [metrics], "SAFETY_MANAGER"), false);
+    assert.equal(hasRouteAccess("/ai-metrics/test", [metrics]), false);
+    assert.equal(hasRouteAccess("/ai-metrics/test", [model]), false);
+    assert.equal(hasRouteAccess("/ai-metrics/test", [metrics, model]), true);
+    assert.equal(hasRouteAccess("/ai-metrics/test/details", [], "ADMIN"), true);
+    assert.equal(hasRouteAccess("/ai-metrics/test", []), false);
+  });
+});
 
 describe("proxy route guard (Layer 1)", () => {
   it("covers every route directory under app/(auth)/ in both PROTECTED_AUTH_PREFIXES and config.matcher", () => {

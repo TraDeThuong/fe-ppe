@@ -37,6 +37,7 @@ export interface IncidentStatsDetailPanelProps {
   activeStat: IncidentStatKey;
   incidents: IncidentItem[];
   statusTotals?: Partial<AssignmentIncidentTotals>;
+  criticalTotal?: number;
   groupingMode?: IncidentAggregationMode;
   loading?: boolean;
   onClose: () => void;
@@ -68,6 +69,7 @@ export function IncidentStatsDetailPanel({
   activeStat,
   incidents = [],
   statusTotals,
+  criticalTotal,
   groupingMode = "clustered",
   loading = false,
   onClose,
@@ -188,7 +190,7 @@ export function IncidentStatsDetailPanel({
   );
 
   const criticalIncidents = useMemo(
-    () => incidents.filter((i) => i.severity === "CRITICAL" || i.severity === "HIGH"),
+    () => incidents.filter((i) => i.severity === "CRITICAL"),
     [incidents],
   );
 
@@ -249,7 +251,7 @@ export function IncidentStatsDetailPanel({
               <Badge variant="outline" size="sm" className="font-mono text-[10px] sm:text-[11px] text-foreground px-1.5 py-0">
                 {activeStat === "total" && `${totalCount}`}
                 {activeStat === "pendingReview" && `${statusStats.pending}`}
-                {activeStat === "critical" && `${severityStats.critical + severityStats.high}`}
+                {activeStat === "critical" && `${criticalTotal ?? severityStats.critical}`}
                 {activeStat === "resolved" && `${resolvedCount}`}
               </Badge>
             </div>

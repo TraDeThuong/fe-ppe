@@ -91,7 +91,9 @@ export interface SiteSafetyConfigItem {
   id: string;
   siteId: string;
   confidenceThreshold: number;
+  helmetConfirmationDuration?: number;
   confirmationDuration: number;
+  vestConfirmationDuration?: number;
   cooldownDuration: number;
   enableNoHelmet: boolean;
   enableNoVest: boolean;
@@ -215,7 +217,9 @@ export interface CreateRestrictedAreaPayload {
 
 export interface UpdateSiteSafetyConfigPayload {
   confidenceThreshold?: number;
+  helmetConfirmationDuration?: number;
   confirmationDuration?: number;
+  vestConfirmationDuration?: number;
   cooldownDuration?: number;
   enableNoHelmet?: boolean;
   enableNoVest?: boolean;
@@ -246,7 +250,9 @@ export interface InvalidateSafetyRuleCachePayload {
 
 export interface SystemDefaultSafetyConfigResponse {
   confidenceThreshold: number;
+  helmetConfirmationDuration?: number;
   confirmationDuration: number;
+  vestConfirmationDuration?: number;
   cooldownDuration: number;
   rules?: {
     enableNoHelmet: boolean;
@@ -264,7 +270,9 @@ export interface CameraSafetyConfigItem {
   id: string;
   cameraId: string;
   confidenceThreshold: number | null;
+  helmetConfirmationDuration?: number | null;
   confirmationDuration: number | null;
+  vestConfirmationDuration?: number | null;
   cooldownDuration: number | null;
   enableNoHelmet: boolean | null;
   enableNoVest: boolean | null;
@@ -281,7 +289,9 @@ export interface ArchiveSiteResponse {
 
 export interface UpdateCameraSafetyConfigPayload {
   confidenceThreshold?: number | null;
+  helmetConfirmationDuration?: number | null;
   confirmationDuration?: number | null;
+  vestConfirmationDuration?: number | null;
   cooldownDuration?: number | null;
   enableNoHelmet?: boolean | null;
   enableNoVest?: boolean | null;
@@ -300,7 +310,9 @@ export interface EffectiveSafetyConfigResponse {
   roiPolygon?: any;
   motionSensitivity?: number;
   confidenceThreshold: number;
+  helmetConfirmationDuration?: number;
   confirmationDuration: number;
+  vestConfirmationDuration?: number;
   cooldownDuration: number;
   rules: {
     enableNoHelmet: boolean;

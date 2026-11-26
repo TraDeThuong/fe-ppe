@@ -9,16 +9,16 @@ import { AiCardHelpButton } from "./ai-metrics-guide-modal";
 
 export interface LatencyChartCardProps {
   latencyHistory?: LatencyDataPoint[];
-  avgLatencyMs?: number;
-  avgFps?: number;
+  avgLatencyMs?: number | null;
+  avgFps?: number | null;
   loading?: boolean;
   onOpenGuide?: () => void;
 }
 
 export function LatencyChartCard({
   latencyHistory = [],
-  avgLatencyMs = 0,
-  avgFps = 0,
+  avgLatencyMs = null,
+  avgFps = null,
   loading = false,
   onOpenGuide,
 }: LatencyChartCardProps) {
@@ -153,7 +153,7 @@ export function LatencyChartCard({
   const stats = [
     {
       label: t("aiMetrics.latencyChart.avgLatency"),
-      value: avgLatencyMs.toFixed(1),
+      value: avgLatencyMs,
       unit: "ms",
       icon: Clock,
       accent: false,
@@ -161,7 +161,7 @@ export function LatencyChartCard({
     },
     {
       label: t("aiMetrics.latencyChart.minLatency"),
-      value: lowestLatency.toFixed(1),
+      value: hasData ? lowestLatency : null,
       unit: "ms",
       icon: TrendingDown,
       accent: false,
@@ -169,7 +169,7 @@ export function LatencyChartCard({
     },
     {
       label: t("aiMetrics.latencyChart.maxLatency"),
-      value: highestLatency.toFixed(1),
+      value: hasData ? highestLatency : null,
       unit: "ms",
       icon: TrendingUp,
       accent: true,
@@ -177,7 +177,7 @@ export function LatencyChartCard({
     },
     {
       label: t("aiMetrics.latencyChart.throughput"),
-      value: avgFps.toFixed(1),
+      value: avgFps,
       unit: "FPS",
       icon: Gauge,
       accent: false,
@@ -523,14 +523,14 @@ export function LatencyChartCard({
         <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           {stats.map((stat, statIdx) => {
             const Icon = stat.icon;
-            const numericStat = Number(stat.value);
-            const targetWidth = !hasData && stat.unit === "ms" && stat.note !== (isVi ? "Độ trễ trung bình" : "Average latency")
+            const numericStat = stat.value;
+            const targetWidth = numericStat === null
               ? 0
               : stat.accent
                 ? (highestLatency / Math.max(maxVal, 1)) * 100
                 : stat.unit === "FPS"
-                  ? Math.min(100, (avgFps / 60) * 100)
-                  : Math.min(100, (numericStat / 100) * 100);
+                  ? Math.min(100, (numericStat / 60) * 100)
+                  : Math.min(100, numericStat);
 
             return (
               <div
@@ -563,11 +563,9 @@ export function LatencyChartCard({
 
                 <div className="mt-3 flex items-baseline gap-1">
                   <span className="text-[22px] font-extrabold leading-none tracking-[-0.055em] text-foreground tabular-nums sm:text-[25px]">
-                    <AnimatedNumber
-                      value={Number.isFinite(numericStat) ? numericStat : 0}
-                      decimals={1}
-                      delay={statIdx * 60}
-                    />
+                    {numericStat === null ? "—" : (
+                      <AnimatedNumber value={numericStat} decimals={1} delay={statIdx * 60} />
+                    )}
                   </span>
                   <span className="text-[10px] font-bold text-muted-foreground">
                     {stat.unit}

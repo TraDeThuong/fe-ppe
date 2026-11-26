@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useMemo, useRef, type KeyboardEvent } from "react";
-import { LayoutDashboard, ShieldAlert, Cctv, Server } from "lucide-react";
+import { LayoutDashboard, ShieldAlert, Cctv } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
 
-export type DashboardTabKey = "overview" | "safety" | "devices" | "system";
+export type DashboardTabKey = "overview" | "safety" | "devices";
 
 export interface DashboardNavTabsProps {
   activeTab: DashboardTabKey;
@@ -13,11 +13,8 @@ export interface DashboardNavTabsProps {
   pendingCount?: number | null;
   onlineCameras?: number | null;
   totalCameras?: number | null;
-  healthyServices?: number | null;
-  totalServices?: number | null;
   canViewSafety?: boolean;
   canViewDevices?: boolean;
-  canViewSystem?: boolean;
   className?: string;
 }
 
@@ -35,7 +32,6 @@ const GRID_COLUMNS: Record<number, string> = {
   1: "grid-cols-1",
   2: "grid-cols-1 sm:grid-cols-2",
   3: "grid-cols-1 md:grid-cols-3",
-  4: "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4",
 };
 
 export function DashboardNavTabs({
@@ -44,11 +40,8 @@ export function DashboardNavTabs({
   pendingCount,
   onlineCameras,
   totalCameras,
-  healthyServices,
-  totalServices,
   canViewSafety = true,
   canViewDevices = true,
-  canViewSystem = true,
   className = "",
 }: DashboardNavTabsProps) {
   const { t } = useLocale();
@@ -94,33 +87,14 @@ export function DashboardNavTabs({
       });
     }
 
-    if (canViewSystem) {
-      list.push({
-        value: "system",
-        index: String(list.length + 1).padStart(2, "0"),
-        label: t("dashboard.tabs.system"),
-        caption: t("dashboard.tabs.systemDesc"),
-        icon: <Server className="size-4" />,
-        badge:
-          typeof healthyServices === "number" &&
-          typeof totalServices === "number"
-            ? `${healthyServices}/${totalServices}`
-            : undefined,
-        useAccent: false,
-      });
-    }
-
     return list;
   }, [
     t,
     canViewSafety,
     canViewDevices,
-    canViewSystem,
     pendingCount,
     onlineCameras,
     totalCameras,
-    healthyServices,
-    totalServices,
   ]);
 
   const handleKeyDown = (
@@ -147,7 +121,7 @@ export function DashboardNavTabs({
     }
   };
 
-  const gridColsClass = GRID_COLUMNS[tabs.length] ?? GRID_COLUMNS[4];
+  const gridColsClass = GRID_COLUMNS[tabs.length] ?? GRID_COLUMNS[3];
 
   return (
     <div

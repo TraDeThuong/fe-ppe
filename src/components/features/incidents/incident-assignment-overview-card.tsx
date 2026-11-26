@@ -31,11 +31,17 @@ import {
   type ResponsiblePersonRef,
 } from "@/lib/incident-workflow";
 import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
-import type { IncidentItem, NotificationItemDto } from "@/types";
+import type {
+  IncidentItem,
+  IncidentStatusCounts,
+  NotificationItemDto,
+} from "@/types";
 
 export interface IncidentAssignmentOverviewCardProps {
-  incidents: readonly IncidentItem[];
+  incidents?: readonly IncidentItem[];
+  statusCounts?: Partial<IncidentStatusCounts>;
   statusTotals?: Partial<AssignmentIncidentTotals>;
+  variant?: "full" | "compact";
   loading?: boolean;
   userRole?: string | null;
   userId?: string | null;
@@ -46,8 +52,10 @@ export interface IncidentAssignmentOverviewCardProps {
 }
 
 export function IncidentAssignmentOverviewCard({
-  incidents,
+  incidents = [],
+  statusCounts,
   statusTotals,
+  variant = "full",
   loading = false,
   userRole,
   userId,
@@ -255,6 +263,88 @@ export function IncidentAssignmentOverviewCard({
           : "Open Batch Dispatch & Acceptance Board",
       };
 
+  if (variant === "compact") {
+    const pendingVal = statusCounts?.pendingReview ?? summary.pendingReviewCount;
+    const confirmedVal = statusCounts?.confirmed ?? summary.officerActiveCount;
+    const awaitingCloseVal =
+      statusCounts !== undefined
+        ? Math.max(0, (statusCounts.resolved ?? 0) - (statusCounts.closed ?? 0))
+        : summary.awaitingAcceptanceCount;
+
+    return (
+      <Link
+        href={href}
+        data-testid="incident-assignment-overview-card"
+        data-role-view={
+          isAdminRole ? "ADMIN" : isOfficerRole ? "SAFETY_OFFICER" : "SAFETY_MANAGER"
+        }
+        className="group relative flex flex-col gap-3.5 overflow-hidden rounded-[22px] border border-white/75 bg-background p-3.5 shadow-[8px_8px_18px_var(--shadow-dark),-8px_-8px_18px_var(--shadow-light)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-[10px_12px_24px_var(--shadow-dark),-10px_-10px_22px_var(--shadow-light),0_0_20px_hsl(var(--primary)/0.14)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-3.5"
+      >
+        {/* Top Specular Edge */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-10 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-primary/60 to-transparent opacity-60 transition-all duration-500 group-hover:inset-x-4 group-hover:opacity-100"
+        />
+
+        {/* Left: Machined Socket Icon + Role Info */}
+        <div className="relative flex min-w-0 items-center gap-3.5">
+          <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/80 bg-background shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)] transition-transform duration-300 group-hover:scale-105 dark:border-white/10">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 text-primary shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]">
+              <ClipboardCheck className="h-4 w-4" strokeWidth={2.2} />
+            </div>
+            <span className="absolute -right-0.5 -top-0.5 flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full border border-background bg-primary" />
+            </span>
+          </div>
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-black tracking-tight text-foreground transition-colors group-hover:text-primary sm:text-sm">
+                {roleHeader.title}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-primary">
+                <span className="h-1 w-1 rounded-full bg-primary" />
+                {isAdminRole ? "ADMIN" : isOfficerRole ? "OFFICER" : "MANAGER"}
+              </span>
+            </div>
+            <p className="mt-0.5 truncate text-[11px] font-medium text-muted-foreground">
+              {roleHeader.subtitle}
+            </p>
+          </div>
+        </div>
+
+        {/* Right: Recessed Metric Tray + Tactile CTA */}
+        <div className="relative flex flex-wrap items-center gap-2.5 sm:justify-end">
+          <div className="flex flex-wrap items-center gap-1.5 rounded-2xl border border-white/40 bg-background/80 p-1.5 shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_var(--shadow-light)] dark:border-white/5">
+            <span className="inline-flex items-center gap-1.5 rounded-xl bg-background px-2.5 py-1 font-mono text-[11px] font-bold text-amber-600 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] dark:text-amber-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              <span>{isVietnamese ? "Chờ duyệt:" : "Pending:"}</span>
+              <strong className="font-black">{loading ? "..." : pendingVal}</strong>
+            </span>
+
+            <span className="inline-flex items-center gap-1.5 rounded-xl bg-background px-2.5 py-1 font-mono text-[11px] font-bold text-primary shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+              <span>{isVietnamese ? "Đang xử lý:" : "Active:"}</span>
+              <strong className="font-black">{loading ? "..." : confirmedVal}</strong>
+            </span>
+
+            <span className="inline-flex items-center gap-1.5 rounded-xl bg-background px-2.5 py-1 font-mono text-[11px] font-bold text-emerald-600 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] dark:text-emerald-400">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span>{isVietnamese ? "Chờ đóng:" : "To close:"}</span>
+              <strong className="font-black">{loading ? "..." : awaitingCloseVal}</strong>
+            </span>
+          </div>
+
+          <span className="inline-flex items-center gap-2 rounded-xl border border-primary/30 bg-background px-3.5 py-2 text-xs font-black tracking-wide text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)] transition-all duration-300 group-hover:border-transparent group-hover:bg-gradient-to-r group-hover:from-primary group-hover:to-accent group-hover:text-primary-foreground group-hover:shadow-[0_4px_16px_hsl(var(--primary)/0.35)]">
+            <span>{isVietnamese ? "Bàn Điều phối" : "Dispatch Board"}</span>
+            <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5" />
+          </span>
+        </div>
+      </Link>
+    );
+  }
+
   return (
     <Link
       href={href}
@@ -262,46 +352,44 @@ export function IncidentAssignmentOverviewCard({
       data-role-view={
         isAdminRole ? "ADMIN" : isOfficerRole ? "SAFETY_OFFICER" : "SAFETY_MANAGER"
       }
-      className="group relative block overflow-hidden rounded-[26px] sm:rounded-[32px] border border-white/80 bg-background p-1.5 shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)] transition-all duration-500 hover:-translate-y-1.5 hover:border-primary/40 hover:shadow-[14px_20px_36px_var(--shadow-dark),-12px_-12px_28px_var(--shadow-light),0_0_32px_hsl(var(--primary)/0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 dark:border-white/10"
+      className="group relative block overflow-hidden rounded-[28px] sm:rounded-[34px] border border-white/85 bg-background p-1.5 shadow-[12px_12px_28px_var(--shadow-dark),-12px_-12px_28px_var(--shadow-light)] transition-all duration-500 hover:-translate-y-1.5 hover:border-primary/45 hover:shadow-[16px_22px_40px_var(--shadow-dark),-14px_-14px_30px_var(--shadow-light),0_0_36px_hsl(var(--primary)/0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60 dark:border-white/10"
     >
-      {/* INNER BEZEL SHELL (Creates luxury double-rim machined metal look) */}
-      <div className="relative overflow-hidden rounded-[22px] sm:rounded-[27px] border border-[var(--shadow-dark)]/15 bg-background/95 p-4 sm:p-6">
-        {/* 1. Tactical Micro-Grid Background (Fades smoothly toward edges) */}
+      {/* INNER CNC-MACHINED BEZEL */}
+      <div className="relative overflow-hidden rounded-[23px] sm:rounded-[28px] border border-[var(--shadow-dark)]/15 bg-background/95 p-4 sm:p-6">
+        {/* 1. Tactical Micro-Dot Matrix */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-[0.04] dark:opacity-[0.06] [background-image:radial-gradient(hsl(var(--primary))_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_at_top_right,black_30%,transparent_75%)]"
+          className="pointer-events-none absolute inset-0 opacity-[0.045] dark:opacity-[0.07] [background-image:radial-gradient(hsl(var(--primary))_1px,transparent_1px)] [background-size:16px_16px] [mask-image:radial-gradient(ellipse_at_top_right,black_35%,transparent_75%)]"
         />
 
-        {/* 2. Top Specular Laser Edge (Primary -> Accent) */}
+        {/* 2. Top Specular Laser Edge */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-10 top-0 h-[2px] rounded-full bg-gradient-to-r from-transparent via-primary to-accent opacity-70 transition-all duration-500 group-hover:inset-x-4 group-hover:opacity-100"
+          className="pointer-events-none absolute inset-x-12 top-0 h-[2px] rounded-full bg-gradient-to-r from-transparent via-primary to-accent opacity-75 transition-all duration-500 group-hover:inset-x-4 group-hover:opacity-100"
         />
 
-        {/* 3. Hover Light Sweep Sheen */}
+        {/* 3. Diagonal Light Sheen on Hover */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -inset-full top-0 block h-full w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-0 transition-all duration-1000 group-hover:left-[125%] group-hover:opacity-100 dark:via-white/5"
+          className="pointer-events-none absolute -inset-full top-0 block h-full w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-0 transition-all duration-1000 group-hover:left-[125%] group-hover:opacity-100 dark:via-white/5"
         />
 
-        {/* 4. Ambient Plasma Orbs (Primary + Accent) */}
+        {/* 4. Ambient Glow Orbs */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full bg-gradient-to-br from-primary/25 via-accent/20 to-transparent blur-3xl transition-transform duration-700 group-hover:scale-125"
+          className="pointer-events-none absolute -right-14 -top-14 h-52 w-52 rounded-full bg-gradient-to-br from-primary/25 via-accent/20 to-transparent blur-3xl transition-transform duration-700 group-hover:scale-125"
         />
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute -bottom-16 left-1/4 h-40 w-40 rounded-full bg-accent/15 blur-3xl opacity-50 transition-opacity duration-500 group-hover:opacity-90"
+          className="pointer-events-none absolute -bottom-16 left-1/4 h-44 w-44 rounded-full bg-accent/15 blur-3xl opacity-50 transition-opacity duration-500 group-hover:opacity-90"
         />
 
         {/* ================= HEADER DECK: IDENTITY & TELEMETRY CORE ================= */}
         <div className="relative flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          {/* Left: Machined Icon Pod + Role Identity */}
-          <div className="flex items-start gap-4 min-w-0">
-            {/* Multi-tier Neumorphic Icon Housing */}
-            <div className="relative flex h-14 w-14 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-[20px] border border-white/90 bg-background shadow-[6px_6px_12px_var(--shadow-dark),-6px_-6px_12px_var(--shadow-light)] transition-transform duration-500 group-hover:scale-105 group-hover:rotate-[2deg] dark:border-white/10">
-              {/* Recessed inner socket */}
-              <div className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 via-primary/5 to-accent/25 text-primary shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+          {/* Left: Multi-Tier Neumorphic Icon Housing + Role Identity */}
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] border border-white/90 bg-background shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)] transition-transform duration-500 group-hover:rotate-[2deg] group-hover:scale-105 dark:border-white/10 sm:h-16 sm:w-16">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 via-primary/5 to-accent/25 text-primary shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] sm:h-12 sm:w-12">
                 <ClipboardCheck className="h-6 w-6" strokeWidth={2.2} />
               </div>
 
@@ -312,18 +400,15 @@ export function IncidentAssignmentOverviewCard({
               </span>
             </div>
 
-            {/* Titles & Tactical Tags */}
             <div className="min-w-0 flex-1 space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
-                {/* Role Badge */}
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-gradient-to-r from-primary/15 via-primary/10 to-accent/20 px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-primary shadow-[0_2px_8px_hsl(var(--primary)/0.12)]">
                   <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-r from-primary to-accent" />
                   {roleHeader.badge}
                 </span>
 
-                {/* Admin Quick Telemetry Pills */}
                 {isAdminRole && (
-                  <div className="hidden md:inline-flex items-center gap-2 rounded-full border border-white/50 bg-background px-3 py-0.5 text-[11px] font-semibold text-muted-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] dark:border-white/5">
+                  <div className="hidden items-center gap-2 rounded-full border border-white/50 bg-background px-3 py-0.5 text-[11px] font-semibold text-muted-foreground shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] dark:border-white/5 md:inline-flex">
                     <span className="inline-flex items-center gap-1">
                       <Building2 className="h-3 w-3 text-primary" />
                       <strong className="font-mono font-extrabold text-foreground">
@@ -343,40 +428,38 @@ export function IncidentAssignmentOverviewCard({
                 )}
               </div>
 
-              <h2 className="text-base sm:text-xl font-black tracking-tight text-foreground transition-all duration-300 group-hover:bg-gradient-to-r group-hover:from-primary group-hover:via-primary group-hover:to-accent-foreground dark:group-hover:to-accent group-hover:bg-clip-text group-hover:text-transparent">
+              <h2 className="text-base font-black tracking-tight text-foreground transition-all duration-300 group-hover:bg-gradient-to-r group-hover:from-primary group-hover:via-primary group-hover:to-accent-foreground group-hover:bg-clip-text group-hover:text-transparent dark:group-hover:to-accent sm:text-xl">
                 {roleHeader.title}
               </h2>
 
-              <p className="text-xs sm:text-[13px] font-medium text-muted-foreground line-clamp-1">
+              <p className="line-clamp-1 text-xs font-medium text-muted-foreground sm:text-[13px]">
                 {roleHeader.subtitle}
               </p>
             </div>
           </div>
 
-          {/* Right: Cockpit Telemetry Counter Well */}
-          <div className="flex items-center justify-between lg:justify-end shrink-0">
+          {/* Right: Recessed Cockpit Telemetry Readout */}
+          <div className="flex shrink-0 items-center justify-between lg:justify-end">
             <div
-              className={`relative flex items-center gap-4 rounded-[20px] border border-white/60 bg-background px-4 py-2.5 shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)] transition-all duration-300 group-hover:border-primary/35 dark:border-white/5 ${roleHeader.heroToneClass}`}
+              className={`relative flex items-center gap-4 rounded-[22px] border border-white/65 bg-background px-4 py-2.5 shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)] transition-all duration-300 group-hover:border-primary/40 dark:border-white/5 ${roleHeader.heroToneClass}`}
             >
-              {/* Glowing Vertical Energy Strip */}
               <div className="h-9 w-1.5 rounded-full bg-gradient-to-b from-primary via-accent to-primary shadow-[0_0_10px_hsl(var(--primary)/0.5)]" />
 
               <div className="text-left lg:text-right">
                 <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-foreground/80">
                   {roleHeader.heroLabel}
                 </span>
-                <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-bold text-primary">
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                <span className="mt-0.5 inline-flex items-center gap-1.5 text-[11px] font-bold text-primary">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
                   {isVietnamese ? "Sẵn sàng điều phối" : "Live dispatch ready"}
                 </span>
               </div>
 
-              {/* Extruded Digital Readout Plate */}
-              <div className="relative flex h-12 min-w-[3.5rem] items-center justify-center rounded-2xl border border-white/80 bg-gradient-to-br from-background via-background to-primary/10 px-3 shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)] dark:border-white/10">
+              <div className="relative flex h-12 min-w-[3.75rem] items-center justify-center rounded-2xl border border-white/85 bg-gradient-to-br from-background via-background to-primary/10 px-3 shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)] dark:border-white/10">
                 {loading ? (
                   <Skeleton className="h-7 w-10 rounded-lg" />
                 ) : (
-                  <span className="bg-gradient-to-br from-primary via-primary to-accent-foreground dark:to-accent bg-clip-text font-mono text-2xl sm:text-3xl font-black tracking-tight tabular-nums text-transparent drop-shadow-sm">
+                  <span className="bg-gradient-to-br from-primary via-primary to-accent-foreground bg-clip-text font-mono text-2xl font-black tracking-tight tabular-nums text-transparent drop-shadow-sm dark:to-accent sm:text-3xl">
                     <AnimatedNumber value={roleHeader.heroValue} />
                   </span>
                 )}
@@ -537,7 +620,7 @@ export function IncidentAssignmentOverviewCard({
           );
 
           return (
-            <div className="relative mt-5 rounded-[22px] border border-white/40 bg-background/70 p-2.5 sm:p-3 shadow-[inset_4px_4px_10px_var(--shadow-dark),inset_-4px_-4px_10px_var(--shadow-light)] dark:border-white/5">
+            <div className="relative mt-5 rounded-[24px] border border-white/45 bg-background/75 p-2.5 shadow-[inset_4px_4px_10px_var(--shadow-dark),inset_-4px_-4px_10px_var(--shadow-light)] dark:border-white/5 sm:p-3">
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
                 {pillars.map((pillar) => {
                   const IconComponent = pillar.icon;
@@ -550,11 +633,11 @@ export function IncidentAssignmentOverviewCard({
                   return (
                     <div
                       key={pillar.key}
-                      className="group/card relative flex flex-col justify-between overflow-hidden rounded-2xl border border-white/75 bg-background p-3.5 shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 dark:border-white/10"
+                      className="group/card relative flex flex-col justify-between overflow-hidden rounded-2xl border border-white/80 bg-background p-3.5 shadow-[5px_5px_11px_var(--shadow-dark),-5px_-5px_11px_var(--shadow-light)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/35 dark:border-white/10"
                     >
-                      {/* Top Row: Step Tag + Icon + Digital Badge */}
+                      {/* Top Row: Step Socket + Title + Digital Readout */}
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex min-w-0 items-center gap-2">
                           <span
                             className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-background shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] ${pillar.textColor}`}
                           >
@@ -567,7 +650,6 @@ export function IncidentAssignmentOverviewCard({
                           </span>
                         </div>
 
-                        {/* Recessed Counter Well */}
                         <span
                           className={`shrink-0 rounded-xl bg-background px-2.5 py-0.5 font-mono text-sm font-black tabular-nums shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] ${pillar.textColor}`}
                         >
@@ -576,19 +658,19 @@ export function IncidentAssignmentOverviewCard({
                       </div>
 
                       {/* Description */}
-                      <p className="mt-2.5 text-[11px] font-medium leading-relaxed text-muted-foreground line-clamp-1">
+                      <p className="mt-2.5 line-clamp-1 text-[11px] font-medium leading-relaxed text-muted-foreground">
                         {pillar.desc}
                       </p>
 
                       {/* Debossed Micro-Progress Gauge */}
                       <div className="mt-3 flex items-center gap-2">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-background shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)]">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-background shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]">
                           <div
                             style={{ width: loading ? "35%" : `${ratioPercent}%` }}
                             className={`h-full rounded-full bg-gradient-to-r ${pillar.gradient} ${pillar.glowColor} transition-all duration-700`}
                           />
                         </div>
-                        <span className="font-mono text-[9px] font-bold text-muted-foreground/80 tabular-nums">
+                        <span className="font-mono text-[9px] font-bold tabular-nums text-muted-foreground/80">
                           {loading ? "--" : `${ratioPercent}%`}
                         </span>
                       </div>
@@ -600,12 +682,12 @@ export function IncidentAssignmentOverviewCard({
           );
         })()}
 
-        {/* ================= BOTTOM CONTROL DOCK: METADATA & VIP CTA ================= */}
+        {/* ================= BOTTOM CONTROL DOCK: METADATA & TACTILE CTA ================= */}
         <div className="relative mt-4 flex flex-wrap items-center justify-between gap-3 pt-1">
           <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
             {isAdminRole ? (
               <>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/60 bg-background px-3 py-1 text-[10px] font-extrabold text-foreground shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] dark:border-white/10">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/65 bg-background px-3 py-1 text-[10px] font-extrabold text-foreground shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] dark:border-white/10">
                   <Users className="h-3.5 w-3.5 text-primary" />
                   <span>
                     {summary.managerGroupsCount}{" "}
@@ -617,7 +699,7 @@ export function IncidentAssignmentOverviewCard({
                     {isVietnamese ? "nhóm Officer" : "Officer groups"}
                   </span>
                 </span>
-                <span className="hidden md:inline font-medium text-muted-foreground/90">
+                <span className="hidden font-medium text-muted-foreground/90 md:inline">
                   {isVietnamese
                     ? "Chế độ gom nhóm: Nhân sự • Công trường • Cụm Camera"
                     : "Grouping modes: Personnel • Site • Camera Cluster"}
@@ -625,14 +707,14 @@ export function IncidentAssignmentOverviewCard({
               </>
             ) : isOfficerRole ? (
               <>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/60 bg-background px-3 py-1 text-[10px] font-extrabold text-foreground shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] dark:border-white/10">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/65 bg-background px-3 py-1 text-[10px] font-extrabold text-foreground shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] dark:border-white/10">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
                   <span>{isVietnamese ? "Tiến độ cá nhân:" : "Completion:"}</span>
                   <span className="font-mono text-primary">
                     {summary.myCompletionRate}%
                   </span>
                 </span>
-                <span className="hidden md:inline font-medium text-muted-foreground/90">
+                <span className="hidden font-medium text-muted-foreground/90 md:inline">
                   {isVietnamese
                     ? "Báo cáo khắc phục hàng loạt & không gian xử lý từng bước"
                     : "Batch remediation reporting & step-by-step workspace"}
@@ -640,12 +722,12 @@ export function IncidentAssignmentOverviewCard({
               </>
             ) : (
               <>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/60 bg-background px-3 py-1 text-[10px] font-extrabold text-foreground shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] dark:border-white/10">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/65 bg-background px-3 py-1 text-[10px] font-extrabold text-foreground shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] dark:border-white/10">
                   <Camera className="h-3.5 w-3.5 text-primary" />
                   <span className="font-mono">{summary.cameraGroupsCount}</span>
                   <span>{isVietnamese ? "cụm Camera" : "Camera clusters"}</span>
                 </span>
-                <span className="hidden md:inline font-medium text-muted-foreground/90">
+                <span className="hidden font-medium text-muted-foreground/90 md:inline">
                   {isVietnamese
                     ? "Gom theo cụm Camera để duyệt, giao việc & nghiệm thu 1-click"
                     : "Grouped by Camera cluster for 1-click review, dispatch & closure"}
@@ -654,7 +736,6 @@ export function IncidentAssignmentOverviewCard({
             )}
           </div>
 
-          {/* Tactile VIP CTA Pill (Extruded -> Luminous Primary-Accent Gradient on Hover) */}
           <span className="relative inline-flex items-center gap-2 overflow-hidden rounded-full border border-primary/30 bg-background px-4 py-2 text-xs font-black tracking-wide text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)] transition-all duration-300 group-hover:border-transparent group-hover:bg-gradient-to-r group-hover:from-primary group-hover:to-accent group-hover:text-primary-foreground group-hover:shadow-[0_6px_20px_hsl(var(--primary)/0.4)]">
             <span>{roleHeader.ctaText}</span>
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 transition-colors duration-300 group-hover:bg-white/20">

@@ -20,12 +20,8 @@ import {
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { cameraKeys } from "@/hooks/cameras/camera.query-keys";
 import { aiMetricsKeys } from "@/hooks/ai-metrics/ai-metrics.query-keys";
-import { auditQueryKeys } from "@/hooks/audit/audit.query-keys";
-import { cronQueryKeys } from "@/hooks/cron/cron.query-keys";
 import { maintenanceQueryKeys } from "@/hooks/maintenance/maintenance.query-keys";
 import { siteKeys, useSites } from "@/hooks/sites";
-import { useUserSummary } from "@/hooks/users";
-import { useSystemHealth } from "@/hooks/system/use-system-health";
 import {
   useDashboardData,
   useDashboardPeriod,
@@ -43,11 +39,6 @@ import {
   DashboardPpeRadarChart,
   DashboardViolationTrendsChart,
   type DashboardTabKey,
-  DashboardExecutiveKpi,
-  DashboardSystemStatusCard,
-  DashboardUsersOverviewCard,
-  DashboardAuditMiniFeed,
-  DashboardCronMiniCard,
   DashboardZoneRiskChart,
 } from "@/components/features/dashboard";
 import {
@@ -141,11 +132,9 @@ export default function DashboardContent() {
   );
   const { period } = periodState;
 
-  // Tab navigation state synced with URL query (?tab=overview|safety|devices|system)
-  const initialTabParam = searchParams.get("tab") as DashboardTabKey | null;
+  const initialTabParam = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState<DashboardTabKey>(
-    initialTabParam &&
-      ["overview", "safety", "devices", "system"].includes(initialTabParam)
+    initialTabParam === "safety" || initialTabParam === "devices"
       ? initialTabParam
       : "overview",
   );
@@ -202,15 +191,6 @@ export default function DashboardContent() {
   const canViewAiModels =
     authenticated && (isAdmin || permissions.includes("PPE_MODEL_READ"));
   const canViewAi = canViewAiMetrics || canViewAiModels;
-  const canViewUsers =
-    authenticated && (isAdmin || permissions.includes("USER_READ"));
-  const canViewAudit =
-    authenticated && (isAdmin || permissions.includes("AUDIT_LOG_READ"));
-  const canViewSystem =
-    authenticated &&
-    (isAdmin ||
-      permissions.includes("SYSTEM_CONFIG_READ") ||
-      permissions.includes("SYSTEM_CONFIG_UPDATE"));
 
   // 100% REAL queries from existing backend endpoints
   const data = useDashboardData({
@@ -247,10 +227,6 @@ export default function DashboardContent() {
     analytics,
   } = data;
 
-  // Real microservices health and user summaries (chỉ gọi khi user có quyền tương ứng để tránh 403)
-  const { data: userSummary } = useUserSummary({ enabled: canViewUsers });
-  const { data: systemHealth } = useSystemHealth(30000);
-
   const { data: sitesData } = useSites(
     { limit: 100 },
     { enabled: canViewSites && isReady },
@@ -281,11 +257,7 @@ export default function DashboardContent() {
       queryClient.invalidateQueries({
         queryKey: aiMetricsKeys.all,
       }),
-      queryClient.invalidateQueries({ queryKey: ["users", "summary"] }),
-      queryClient.invalidateQueries({ queryKey: ["system", "health"] }),
-      queryClient.invalidateQueries({ queryKey: auditQueryKeys.all }),
       queryClient.invalidateQueries({ queryKey: siteKeys.all }),
-      queryClient.invalidateQueries({ queryKey: cronQueryKeys.all }),
       queryClient.invalidateQueries({ queryKey: maintenanceQueryKeys.all }),
     ]);
   }, [queryClient]);
@@ -377,6 +349,27 @@ export default function DashboardContent() {
       ? (analytics?.rawTotal ?? periodQuery.data?.total ?? null)
       : null;
 
+  // Chỉ số PPE thực tế gắn lên Card "Mô Hình PPE 3D" (Bước 4 — phương án 4B)
+  const helmetPpeStats = useMemo(() => {
+    if (!canViewReports) return undefined;
+    if (!analytics) return null;
+    const countOf = (key: string) =>
+      analytics.distribution.find((row) => row.key === key)?.count ?? 0;
+    return {
+      noHelmetCount: countOf("NO_HELMET"),
+      noVestCount: countOf("NO_VEST"),
+      complianceRate:
+        typeof analytics.complianceRate === "number"
+          ? analytics.complianceRate
+          : null,
+      periodLabel: period
+        ? periodState.preset === "custom"
+          ? `${period.startDate} → ${period.endDate}`
+          : t(`dashboard.period.${periodState.preset}`)
+        : null,
+    };
+  }, [canViewReports, analytics, period, periodState.preset, t]);
+
   const activeModelName = useMemo(() => {
     const activeVersion = modelQuery.data;
     if (!activeVersion) return null;
@@ -395,29 +388,32 @@ export default function DashboardContent() {
     );
   }, [modelQuery.data, modelsQuery.data]);
 
-  const executiveAiModelLabel = useMemo(() => {
+  const kpiAiSummary = useMemo(() => {
+    if (!canViewAi) return undefined;
     const activeVersion = modelQuery.data;
+    let modelLabel: string | null = null;
     if (activeVersion?.version) {
-      const normalized = activeVersion.version.replace(/^v/i, "");
-      return activeModelName
-        ? `${activeModelName} v${normalized}`
-        : `v${normalized}`;
-    }
-    if (dashboardKpiQuery.data?.activeModel) {
-      const normalized = dashboardKpiQuery.data.activeModel.version.replace(
+      const ver = activeVersion.version.replace(/^v/i, "");
+      modelLabel = activeModelName ? `${activeModelName} v${ver}` : `v${ver}`;
+    } else if (dashboardKpiQuery.data?.activeModel) {
+      const ver = dashboardKpiQuery.data.activeModel.version.replace(
         /^v/i,
         "",
       );
-      return `${dashboardKpiQuery.data.activeModel.name} v${normalized}`;
+      modelLabel = `${dashboardKpiQuery.data.activeModel.name} v${ver}`;
     }
-    if (modelQuery.isLoading) return null;
-    return t("dashboard.aiStatus.noActiveModel");
+    return {
+      modelLabel,
+      avgFps: aiTelemetry.avgFps,
+      avgLatencyMs: aiTelemetry.avgLatencyMs,
+    };
   }, [
+    canViewAi,
     modelQuery.data,
-    modelQuery.isLoading,
     activeModelName,
-    dashboardKpiQuery.data,
-    t,
+    dashboardKpiQuery.data?.activeModel,
+    aiTelemetry.avgFps,
+    aiTelemetry.avgLatencyMs,
   ]);
 
   const recentIncidents = useMemo(
@@ -502,11 +498,8 @@ export default function DashboardContent() {
         onChangeTab={handleTabChange}
         onlineCameras={onlineCamerasCount}
         totalCameras={totalCamerasCount}
-        healthyServices={systemHealth?.healthyCount}
-        totalServices={systemHealth?.totalServices}
         canViewSafety={canViewIncidents || canViewReports}
         canViewDevices={canViewCameras || canViewAi}
-        canViewSystem={canViewUsers || canViewSystem || canViewAudit}
         showFilterBar={canViewReports || canViewIncidents}
         sites={sitesData?.items ?? []}
         siteId={siteId}
@@ -515,28 +508,37 @@ export default function DashboardContent() {
         periodState={periodState}
       />
 
-      {/* TAB 1: EXECUTIVE OVERVIEW (CROSS-DOMAIN) */}
+      {(activeTab === "overview" || activeTab === "safety") && (
+        <DashboardKpiRibbon
+          total={displayPeriodTotal}
+          rawTotal={displayRawPeriodTotal}
+          pendingCount={effectivePendingCount}
+          rawPendingCount={rawPendingCount}
+          confirmedCount={
+            recentQuery.data?.totalConfirmed ??
+            analytics?.trueViolations ??
+            null
+          }
+          totalCamerasCount={totalCamerasCount}
+          onlineCamerasCount={onlineCamerasCount}
+          aiSummary={kpiAiSummary}
+          analytics={analytics}
+          canViewReports={canViewReports}
+          canViewIncidents={canViewIncidents}
+          canViewCameras={canViewCameras}
+          periodState={periodNotice}
+          pendingState={pendingNotice}
+          cameraState={cameraNotice}
+          onFilterPending={() => router.push(pendingHref)}
+          onNavigateCameras={() => router.push("/cameras")}
+          onNavigateReports={() => router.push("/reports")}
+          onNavigateIncidents={period ? () => router.push(totalHref) : undefined}
+        />
+      )}
+
+      {/* TAB 1: OVERVIEW */}
       {activeTab === "overview" && (
         <div className="space-y-6">
-          {/* Executive 4-Pillar Metric Ribbon */}
-          <DashboardExecutiveKpi
-            totalIncidents={displayPeriodTotal}
-            rawTotalIncidents={displayRawPeriodTotal}
-            pendingCount={effectivePendingCount}
-            rawPendingCount={rawPendingCount}
-            onlineCameras={onlineCamerasCount}
-            totalCameras={totalCamerasCount}
-            aiModelVersion={executiveAiModelLabel}
-            totalUsers={userSummary?.total ?? null}
-            activeUsers={userSummary?.active ?? null}
-            twoFactorCount={userSummary?.twoFactor ?? null}
-            healthyServices={systemHealth?.healthyCount ?? null}
-            totalServices={systemHealth?.totalServices ?? null}
-            avgLatencyMs={systemHealth?.averageLatencyMs ?? null}
-            systemStatus={systemHealth?.overallStatus ?? "HEALTHY"}
-            onSelectPillar={handleTabChange}
-          />
-
           {/* Row 1: Symmetrical Hero (50% 3D Helmet + 50% Live Incidents or Quick Actions) */}
           <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
             <div className="h-full">
@@ -544,6 +546,10 @@ export default function DashboardContent() {
                 className="h-full"
                 title={t("dashboard.data.model3d")}
                 subtitle={t("dashboard.data.model3dDescription")}
+                ppeStats={helmetPpeStats}
+                ppeStatsLoading={
+                  canViewReports && !analytics && periodQuery.isFetching
+                }
               />
             </div>
 
@@ -594,73 +600,7 @@ export default function DashboardContent() {
             )}
           </div>
 
-          {/* Row 2: Symmetrical AI Status & Quick Actions (50% - 50%) */}
-          {(canViewAi || canViewIncidents) && (
-            <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
-              {canViewAi && (
-                <div className="flex h-full flex-col justify-between space-y-2">
-                  <DashboardAiStatusCard
-                    activeVersion={modelQuery.data}
-                    modelName={activeModelName}
-                    telemetry={aiTelemetry}
-                    loading={
-                      modelQuery.isLoading || aiPerformanceQuery.isLoading
-                    }
-                    error={modelQuery.isError && !modelQuery.data}
-                    className="h-full"
-                  />
-                  <DashboardDataState
-                    stale={modelQuery.isRefetchError}
-                    message={modelQuery.isError ? t("dashboard.data.error") : null}
-                    updatedAt={modelQuery.dataUpdatedAt}
-                    onRetry={() => void modelQuery.refetch()}
-                  />
-                </div>
-              )}
-
-              {canViewIncidents && (
-                <div className={`h-full ${!canViewAi ? "lg:col-span-2" : ""}`}>
-                  <DashboardQuickActions
-                    onOpenGenerateReport={
-                      canExportReports ? () => setReportModalOpen(true) : undefined
-                    }
-                    canExportReports={canExportReports}
-                    canReviewIncidents={canReviewIncidents}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 2: SAFETY & INCIDENTS (DEEP-DIVE) */}
-      {activeTab === "safety" && (
-        <div className="space-y-6">
-          {/* Safety KPI Ribbon */}
-          <DashboardKpiRibbon
-            total={displayPeriodTotal}
-            rawTotal={displayRawPeriodTotal}
-            pendingCount={effectivePendingCount}
-            rawPendingCount={rawPendingCount}
-            totalCamerasCount={totalCamerasCount}
-            onlineCamerasCount={onlineCamerasCount}
-            analytics={analytics}
-            canViewReports={canViewReports}
-            canViewIncidents={canViewIncidents}
-            canViewCameras={canViewCameras}
-            periodState={periodNotice}
-            pendingState={pendingNotice}
-            cameraState={cameraNotice}
-            onFilterPending={() => router.push(pendingHref)}
-            onNavigateCameras={() => router.push("/cameras")}
-            onNavigateReports={() => router.push("/reports")}
-            onNavigateIncidents={
-              period ? () => router.push(totalHref) : undefined
-            }
-          />
-
-          {/* Violation Trends (Day / Week / Month) from /api/v1/statistics/trends */}
+          {/* Row 2: Full-width Violation Trends */}
           {canViewReports && (
             <DashboardViolationTrendsChart
               trends={trends}
@@ -670,9 +610,27 @@ export default function DashboardContent() {
               loading={trendsQuery.isLoading}
               error={trendsQuery.isError && !trendsQuery.data}
               onRetry={() => void trendsQuery.refetch()}
+              className="w-full"
             />
           )}
 
+          {/* Row 3: Quick Actions Bar (4-column horizontal deck — DashboardAiStatusCard lives exclusively in Tab 3 to avoid duplication) */}
+          {canViewIncidents && (
+            <DashboardQuickActions
+              columns={4}
+              onOpenGenerateReport={
+                canExportReports ? () => setReportModalOpen(true) : undefined
+              }
+              canExportReports={canExportReports}
+              canReviewIncidents={canReviewIncidents}
+            />
+          )}
+        </div>
+      )}
+
+      {/* TAB 2: SAFETY & INCIDENTS (DEEP-DIVE) */}
+      {activeTab === "safety" && (
+        <div className="space-y-6">
           {/* Operational Analytics Suite (Hourly & Severity & MTTR) */}
           {canViewReports &&
             (analytics ? (
@@ -694,43 +652,6 @@ export default function DashboardContent() {
                 {periodNotice}
               </DashboardPanel>
             ))}
-
-          {/* Live Incidents Review List */}
-          {canViewIncidents && (
-            <div className="space-y-2">
-              <DashboardLiveIncidents
-                incidents={recentIncidents}
-                totalPendingCount={recentQuery.data?.totalPending}
-                totalConfirmedCount={recentQuery.data?.totalConfirmed}
-                groupingMode={groupingMode}
-                onChangeGroupingMode={setGroupingMode}
-                loading={recentQuery.isLoading}
-                error={recentQuery.isError && !recentQuery.data}
-                highlightedId={highlightedId}
-                canReview={canReviewIncidents}
-                canResolve={canResolveIncidents}
-                isRealtimeConnected={isConnected}
-                batchReviewPending={batchReview.isPending}
-                dateRangeLabel={period ? `${period.startDate} → ${period.endDate}` : null}
-                onBatchReview={canReviewIncidents ? handleBatchReview : undefined}
-                viewAllHref={dashboardIncidentHref(siteId)}
-                onReview={(incident) => {
-                  setSelectedIncident(incident);
-                  setReviewModalOpen(true);
-                }}
-                onResolve={(incident) => {
-                  setResolveTarget(incident);
-                  setResolveModalOpen(true);
-                }}
-              />
-              <DashboardDataState
-                stale={recentQuery.isRefetchError}
-                message={recentQuery.isError ? t("dashboard.data.error") : null}
-                updatedAt={recentQuery.dataUpdatedAt}
-                onRetry={() => void recentQuery.refetch()}
-              />
-            </div>
-          )}
         </div>
       )}
 
@@ -787,7 +708,7 @@ export default function DashboardContent() {
 
           {/* Symmetrical AI Status & Camera Risk Rankings (50% - 50%) */}
           <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
-            <div className="h-full">
+            <div className="flex h-full flex-col justify-between space-y-2">
               <DashboardAiStatusCard
                 activeVersion={modelQuery.data}
                 modelName={activeModelName}
@@ -795,6 +716,12 @@ export default function DashboardContent() {
                 loading={modelQuery.isLoading || aiPerformanceQuery.isLoading}
                 error={modelQuery.isError && !modelQuery.data}
                 className="h-full"
+              />
+              <DashboardDataState
+                stale={modelQuery.isRefetchError}
+                message={modelQuery.isError ? t("dashboard.data.error") : null}
+                updatedAt={modelQuery.dataUpdatedAt}
+                onRetry={() => void modelQuery.refetch()}
               />
             </div>
             <div className="h-full">
@@ -834,31 +761,6 @@ export default function DashboardContent() {
                 onSelectCamera={(id) => router.push(`/cameras/${id}`)}
                 className="h-full"
               />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 4: USERS & SYSTEM INFRASTRUCTURE */}
-      {activeTab === "system" && (
-        <div className="space-y-6">
-          {/* Row 1: Users Overview & Recent Audit Activity Feed (50% - 50%) */}
-          <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
-            <div className="h-full">
-              <DashboardUsersOverviewCard className="h-full" />
-            </div>
-            <div className="h-full">
-              <DashboardAuditMiniFeed className="h-full" enabled={canViewAudit} />
-            </div>
-          </div>
-
-          {/* Row 2: System Health Status & Scheduled Cron Jobs (50% - 50%) */}
-          <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
-            <div className="h-full">
-              <DashboardSystemStatusCard className="h-full" />
-            </div>
-            <div className="h-full">
-              <DashboardCronMiniCard className="h-full" />
             </div>
           </div>
         </div>

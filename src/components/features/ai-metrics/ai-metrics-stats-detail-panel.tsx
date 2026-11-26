@@ -45,25 +45,25 @@ export function AiMetricsStatsDetailPanel({
   const { t } = useLocale();
 
   // Giá trị định dạng thực tế từ API
-  const mapFormatted = performance
+  const mapFormatted = performance?.mAP50 != null
     ? `${(performance.mAP50 * 100).toFixed(1)}%`
-    : "--";
-  const mapNum = performance ? performance.mAP50 * 100 : 0;
+    : "—";
+  const mapNum = (performance?.mAP50 ?? 0) * 100;
 
-  const latencyFormatted = performance
+  const latencyFormatted = performance?.averageLatencyMs != null
     ? `${performance.averageLatencyMs.toFixed(1)} ms`
-    : "--";
-  const latencyNum = performance ? performance.averageLatencyMs : 0;
+    : "—";
+  const latencyNum = performance?.averageLatencyMs ?? 0;
 
-  const fpsFormatted = performance
+  const fpsFormatted = performance?.averageFps != null
     ? `${performance.averageFps.toFixed(1)} FPS`
-    : "--";
-  const fpsNum = performance ? performance.averageFps : 0;
+    : "—";
+  const fpsNum = performance?.averageFps ?? 0;
 
   const samplesCount = performance?.totalFramesProcessed ?? 0;
-  const samplesFormatted = performance
+  const samplesFormatted = performance?.totalFramesProcessed != null
     ? formatFramesCount(samplesCount)
-    : "--";
+    : "—";
 
   // Cấu hình hiển thị theo từng loại stat
   const config = useMemo(() => {

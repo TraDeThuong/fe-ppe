@@ -115,7 +115,11 @@ export function SiteLiveCamerasTab({
     stopLive,
     startingCameraId,
     refreshAll: refreshLiveSessions,
-  } = useCameraLiveSessions({ enabled: true });
+  } = useCameraLiveSessions({
+    enabled: true,
+    pollIntervalMs: 5000,
+    includeVideos: false,
+  });
 
   // Mutations & dialogs
   const createCameraMutation = useCreateCamera();
@@ -462,8 +466,8 @@ export function SiteLiveCamerasTab({
                     liveSession={session}
                     productionMode={productionMode}
                     isBusy={startingCameraId === cam.id}
-                    onStartLive={(c) => void startLive({ camera: c })}
-                    onStopLive={(c) => void stopLive(c)}
+                    onStartLive={canManage ? (c) => void startLive({ camera: c }) : undefined}
+                    onStopLive={canManage ? (c) => void stopLive(c) : undefined}
                     compact
                   />
                 </div>

@@ -11,7 +11,6 @@ import {
 import { useLocale } from "@/providers/locale-provider";
 import { AnimatedMetricValue, AnimatedNumber } from "@/components/ui/animated-number";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { DashboardTabKey } from "./dashboard-nav-tabs";
 
 export interface DashboardExecutiveKpiProps {
   // Safety
@@ -33,7 +32,7 @@ export interface DashboardExecutiveKpiProps {
   avgLatencyMs?: number | null;
   systemStatus?: "HEALTHY" | "DEGRADED" | "DOWN";
   // Actions
-  onSelectPillar?: (tab: DashboardTabKey) => void;
+  onSelectPillar?: (tab: "overview" | "safety" | "devices" | "system") => void;
   className?: string;
 }
 

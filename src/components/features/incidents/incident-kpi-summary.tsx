@@ -10,7 +10,7 @@ import {
   type IncidentAggregationMode,
 } from "@/lib/incident-cluster-engine";
 import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
-import type { IncidentItem } from "@/types";
+import type { IncidentItem, IncidentStatusCounts } from "@/types";
 import {
   IncidentStatsDetailPanel,
   type IncidentStatKey,
@@ -19,12 +19,7 @@ import {
 export interface IncidentKpiSummaryProps {
   incidents: IncidentItem[];
   totalIncidentsCount?: number;
-  statusCounts?: {
-    total: number;
-    pendingReview: number;
-    critical: number;
-    resolved: number;
-  };
+  statusCounts?: Partial<IncidentStatusCounts>;
   statusTotals?: Partial<AssignmentIncidentTotals>;
   groupingMode?: IncidentAggregationMode;
   loading?: boolean;
@@ -84,12 +79,30 @@ export function IncidentKpiSummary({
   const rawPending =
     statusCounts?.pendingReview ??
     incidents.filter((i) => i.status === "PENDING_REVIEW").length;
+  // Đồng bộ 100% với BE /incidents/status-counts: chỉ đếm mức CRITICAL
   const rawCritical =
     statusCounts?.critical ??
-    incidents.filter((i) => i.severity === "CRITICAL" || i.severity === "HIGH").length;
+    incidents.filter((i) => i.severity === "CRITICAL").length;
   const rawResolved =
     statusCounts?.resolved ??
     incidents.filter((i) => i.status === "RESOLVED" || i.status === "CLOSED").length;
+
+  const derivedStatusTotals = useMemo<Partial<AssignmentIncidentTotals> | undefined>(() => {
+    if (statusTotals) return statusTotals;
+    if (!statusCounts) return undefined;
+    const closed = statusCounts.closed ?? 0;
+    const dismissed = statusCounts.dismissed ?? 0;
+    const pureResolved = Math.max(0, (statusCounts.resolved ?? 0) - closed);
+    return {
+      total: statusCounts.total,
+      pendingReview: statusCounts.pendingReview,
+      confirmed: statusCounts.confirmed,
+      resolved: pureResolved,
+      closed,
+      dismissed,
+      closedOrDismissed: closed + dismissed,
+    };
+  }, [statusCounts, statusTotals]);
 
   const canUseClusteredTotals =
     groupingMode === "clustered" &&
@@ -118,8 +131,8 @@ export function IncidentKpiSummary({
   const criticalDesc =
     canUseClusteredTotals && rawCritical > critical
       ? isVietnamese
-        ? `${rawCritical} bản ghi mức cao / khẩn cấp`
-        : `${rawCritical} raw high / critical records`
+        ? `${rawCritical} bản ghi mức khẩn cấp`
+        : `${rawCritical} raw critical records`
       : t("incidents.kpi.criticalDesc");
   const resolvedDesc =
     canUseClusteredTotals && rawResolved > resolved
@@ -258,8 +271,9 @@ export function IncidentKpiSummary({
         <IncidentStatsDetailPanel
           activeStat={activeStat}
           incidents={incidents}
-          statusTotals={statusTotals}
-          groupingMode={groupingMode}
+          statusTotals={derivedStatusTotals}
+          criticalTotal={statusCounts?.critical}
+          groupingMode={canUseClusteredTotals ? groupingMode : "raw"}
           loading={detailLoading ?? loading}
           onClose={() => handleToggle(activeStat)}
           onReview={onReview}

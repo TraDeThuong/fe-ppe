@@ -97,6 +97,22 @@ export function DashboardSeveritySlaChart({
     (criticalRow?.pending ?? 0) + (criticalRow?.confirmed ?? 0);
   const highBacklog = (highRow?.pending ?? 0) + (highRow?.confirmed ?? 0);
 
+  const slaRows = analytics.severities.filter(
+    (r): r is typeof r & { targetSlaMinutes: number } =>
+      typeof r.targetSlaMinutes === "number" && r.targetSlaMinutes > 0,
+  );
+  const anySlaTarget = slaRows.length > 0;
+  const breachedSlaRows = slaRows.filter(
+    (r) => r.mttrMinutes !== null && r.mttrMinutes > r.targetSlaMinutes,
+  );
+  const slaSummaryChips = slaRows
+    .map((r) =>
+      t("dashboard.charts.slaTargetShort", {
+        minutes: number.format(r.targetSlaMinutes),
+      }).replace(/^SLA\s+/, ""),
+    )
+    .join(" · ");
+
   const explainContent: ChartExplainContent = {
     title: t("dashboard.charts.severity"),
     subtitle: t("dashboard.charts.resolutionScope"),
@@ -114,7 +130,7 @@ export function DashboardSeveritySlaChart({
       {
         label: "MTTR",
         value: formatMttr(analytics.mttrMinutes),
-        tone: "default",
+        tone: breachedSlaRows.length > 0 ? "danger" : "default",
       },
     ],
     summary:
@@ -136,6 +152,15 @@ export function DashboardSeveritySlaChart({
               analytics.mttrMinutes !== null
                 ? `Thời gian xử lý trung bình (MTTR) hiện đạt ${formatMttr(analytics.mttrMinutes)}, tính trên ${number.format(analytics.resolutionSamples)} mẫu hợp lệ từ lúc phát hiện đến lúc xử lý xong.`
                 : "Thời gian xử lý trung bình đang hiển thị '—' vì trong kỳ chưa có sự cố nào hoàn tất (RESOLVED/CLOSED) có đầy đủ mốc thời gian hợp lệ.",
+              ...(anySlaTarget
+                ? [
+                    breachedSlaRows.length > 0
+                      ? `Cảnh báo cam kết SLA (${slaSummaryChips}): Nhóm ${breachedSlaRows
+                          .map((r) => t(`dashboard.severity.${r.key}`))
+                          .join(", ")} đang có thời gian xử lý thực tế vượt ngưỡng SLA mục tiêu.`
+                      : `Cam kết SLA theo mức độ (${slaSummaryChips}): Tất cả các nhóm đã đo MTTR đều đang nằm trong ngưỡng thời gian mục tiêu.`,
+                  ]
+                : []),
               dismissedCount > 0
                 ? `Có ${number.format(dismissedCount)} cảnh báo đã bị bác bỏ (cảnh báo sai) và không tính vào thời gian xử lý MTTR.`
                 : "Chưa ghi nhận cảnh báo nào bị bác bỏ trong kỳ.",
@@ -147,13 +172,26 @@ export function DashboardSeveritySlaChart({
               analytics.mttrMinutes !== null
                 ? `Average resolution time (MTTR) is ${formatMttr(analytics.mttrMinutes)}, measured across ${number.format(analytics.resolutionSamples)} valid resolved/closed samples.`
                 : "MTTR shows '—' because no RESOLVED/CLOSED incidents in this period have valid detection-to-resolution timestamps yet.",
+              ...(anySlaTarget
+                ? [
+                    breachedSlaRows.length > 0
+                      ? `SLA threshold alert (${slaSummaryChips}): ${breachedSlaRows
+                          .map((r) => t(`dashboard.severity.${r.key}`))
+                          .join(", ")} exceeded target SLA resolution time.`
+                      : `Target SLA thresholds (${slaSummaryChips}): All measured severity tiers are within target SLA windows.`,
+                  ]
+                : []),
               dismissedCount > 0
                 ? `${number.format(dismissedCount)} alerts were dismissed as false alarms and are excluded from MTTR.`
                 : "No dismissed alerts in this period.",
             ],
     meaning: isVi
-      ? "Card này phân loại sự cố theo 4 mức độ nguy hiểm (Nguy cấp, Nghiêm trọng, Trung bình, Nhẹ), cho biết tình trạng xử lý của từng nhóm và thời gian xử lý trung bình (MTTR) từ lúc AI phát hiện đến khi khắc phục xong."
-      : "This card groups incidents by severity level (Critical, High, Medium, Low), shows how many are pending vs. resolved in each tier, and reports Mean Time To Resolve (MTTR) from detection to resolution.",
+      ? anySlaTarget
+        ? "Card này phân loại sự cố theo 4 mức độ nguy hiểm (Nguy cấp, Nghiêm trọng, Trung bình, Nhẹ), đối chiếu trực tiếp thời gian xử lý thực tế (MTTR) với mốc cam kết SLA của từng mức để nhận diện sớm các nhóm xử lý chậm."
+        : "Card này phân loại sự cố theo 4 mức độ nguy hiểm (Nguy cấp, Nghiêm trọng, Trung bình, Nhẹ), cho biết tình trạng xử lý của từng nhóm và thời gian xử lý trung bình (MTTR) từ lúc AI phát hiện đến khi khắc phục xong."
+      : anySlaTarget
+        ? "This card groups incidents by severity tier and compares actual Mean Time To Resolve (MTTR) directly against each tier's target SLA threshold."
+        : "This card groups incidents by severity level (Critical, High, Medium, Low), shows how many are pending vs. resolved in each tier, and reports Mean Time To Resolve (MTTR) from detection to resolution.",
   };
 
   return (
@@ -255,6 +293,9 @@ export function DashboardSeveritySlaChart({
           <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
             {analytics.severities.map((row) => {
               const tone = SEVERITY_TONES[row.key] ?? SEVERITY_TONES.OTHER;
+              const hasSla =
+                typeof row.targetSlaMinutes === "number" &&
+                row.targetSlaMinutes > 0;
               return (
                 <span
                   key={row.key}
@@ -265,6 +306,14 @@ export function DashboardSeveritySlaChart({
                   <strong className="font-mono font-extrabold text-foreground">
                     0
                   </strong>
+                  {hasSla && (
+                    <span className="font-mono text-[10px] text-muted-foreground/80">
+                      ·{" "}
+                      {t("dashboard.charts.slaTargetShort", {
+                        minutes: number.format(row.targetSlaMinutes!),
+                      })}
+                    </span>
+                  )}
                 </span>
               );
             })}
@@ -285,6 +334,14 @@ export function DashboardSeveritySlaChart({
               </span>
             ))}
           </div>
+          {anySlaTarget && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/70 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground dark:border-white/[0.08]">
+              <span>{t("dashboard.charts.slaLegend")}:</span>
+              <strong className="font-bold text-foreground">
+                {slaSummaryChips}
+              </strong>
+            </span>
+          )}
         </div>
 
         {/* Clean Severity Rows */}
@@ -304,6 +361,18 @@ export function DashboardSeveritySlaChart({
                 : 0;
             const segmentPercent = (value: number) =>
               total > 0 ? (value / total) * 100 : 0;
+            const hasSlaTarget =
+              typeof row.targetSlaMinutes === "number" &&
+              row.targetSlaMinutes > 0;
+            const isSlaBreached =
+              hasSlaTarget &&
+              row.mttrMinutes !== null &&
+              row.mttrMinutes > row.targetSlaMinutes!;
+            const slaTargetLabel = hasSlaTarget
+              ? t("dashboard.charts.slaTargetShort", {
+                  minutes: number.format(row.targetSlaMinutes!),
+                })
+              : null;
 
             return (
               <div
@@ -321,7 +390,7 @@ export function DashboardSeveritySlaChart({
                 />
 
                 <div className="pl-2">
-                  {/* Top Row: Severity Label + Share | Count + MTTR */}
+                  {/* Top Row: Severity Label + Share | Count + MTTR / SLA */}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className={`size-2 rounded-full ${tone.dot}`} />
@@ -331,6 +400,11 @@ export function DashboardSeveritySlaChart({
                       {hasIncidents && (
                         <span className="rounded-md bg-background/80 px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums text-muted-foreground dark:bg-white/[0.06]">
                           <AnimatedNumber value={sharePercent} />%
+                        </span>
+                      )}
+                      {isSlaBreached && (
+                        <span className="rounded-md border border-danger/30 bg-danger/10 px-1.5 py-0.5 text-[9.5px] font-extrabold uppercase tracking-wide text-danger">
+                          {t("dashboard.charts.slaOverdue")}
                         </span>
                       )}
                     </div>
@@ -347,13 +421,26 @@ export function DashboardSeveritySlaChart({
 
                       <span
                         className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums ${
-                          row.mttrMinutes !== null
-                            ? "border-primary/25 bg-primary/10 text-primary"
-                            : "border-border/30 bg-background/60 text-muted-foreground dark:border-white/[0.06]"
+                          isSlaBreached
+                            ? "border-danger/35 bg-danger/10 text-danger"
+                            : row.mttrMinutes !== null
+                              ? "border-primary/25 bg-primary/10 text-primary"
+                              : "border-border/30 bg-background/60 text-muted-foreground dark:border-white/[0.06]"
                         }`}
                       >
                         <Clock className="size-2.5" />
                         <AnimatedMetricValue value={formatMttr(row.mttrMinutes)} />
+                        {slaTargetLabel && (
+                          <span
+                            className={
+                              isSlaBreached
+                                ? "text-danger/90"
+                                : "text-muted-foreground"
+                            }
+                          >
+                            / {slaTargetLabel}
+                          </span>
+                        )}
                       </span>
                     </div>
                   </div>

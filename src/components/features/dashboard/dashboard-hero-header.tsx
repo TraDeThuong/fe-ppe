@@ -47,11 +47,8 @@ export interface DashboardHeroHeaderProps {
   onChangeTab?: (tab: DashboardTabKey) => void;
   onlineCameras?: number | null;
   totalCameras?: number | null;
-  healthyServices?: number | null;
-  totalServices?: number | null;
   canViewSafety?: boolean;
   canViewDevices?: boolean;
-  canViewSystem?: boolean;
   // Integrated scope & period filter bar
   showFilterBar?: boolean;
   sites?: DashboardScopeSiteOption[];
@@ -84,11 +81,8 @@ export function DashboardHeroHeader({
   onChangeTab,
   onlineCameras,
   totalCameras,
-  healthyServices,
-  totalServices,
   canViewSafety = true,
   canViewDevices = true,
-  canViewSystem = true,
   showFilterBar = false,
   sites = [],
   siteId = null,
@@ -315,11 +309,8 @@ export function DashboardHeroHeader({
             pendingCount={pendingCount}
             onlineCameras={onlineCameras}
             totalCameras={totalCameras}
-            healthyServices={healthyServices}
-            totalServices={totalServices}
             canViewSafety={canViewSafety}
             canViewDevices={canViewDevices}
-            canViewSystem={canViewSystem}
           />
         )}
 

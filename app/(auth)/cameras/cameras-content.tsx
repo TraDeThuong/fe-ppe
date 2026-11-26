@@ -2,18 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Camera, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { mapTableSort } from "@/lib/table-utils";
 import { useTableState } from "@/hooks/use-table-state";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useCan } from "@/hooks/use-can";
+import { useRealtime } from "@/contexts/RealtimeContext";
 import { useSite } from "@/contexts/SiteContext";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useLocale } from "@/providers/locale-provider";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import {
   filterSessionsForCameras,
-  selectAutoStartCandidates,
 } from "@/components/features/cameras/camera-live-helpers";
 import {
   CameraCard,
@@ -30,6 +31,8 @@ import {
   type CameraKpiFilterKey,
 } from "@/components/features/cameras";
 import {
+  cameraKeys,
+  liveEngineKeys,
   useCameraLiveSessions,
   useCameras,
   useCamerasCatalog,
@@ -50,9 +53,13 @@ export default function CamerasContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const canCreate = useCan()("PPE_CAMERA_MANAGE");
+  const queryClient = useQueryClient();
+  const can = useCan();
+  const canReadCameras = can("PPE_CAMERA_READ");
+  const canCreate = can("PPE_CAMERA_MANAGE");
+  const { lastAlert } = useRealtime();
   const { siteId: globalSiteId } = useSite();
-  const { getSiteName } = useEntityLookup();
+  const { getSiteName } = useEntityLookup({ enabled: canReadCameras });
 
   const urlSearch = searchParams.get("search") || "";
   const urlSiteId = searchParams.get("siteId") || "";
@@ -142,24 +149,29 @@ export default function CamerasContent() {
     data: cameraStatusCounts,
     isLoading: statusCountsLoading,
     refetch: refetchStatusCounts,
-  } = useCameraStatusCounts(siteFilter || undefined);
+  } = useCameraStatusCounts(siteFilter || undefined, {
+    enabled: canReadCameras,
+  });
 
   const {
     data: camerasResponse,
     isLoading: camerasLoading,
     isFetching: camerasFetching,
     refetch: refetchCameras,
-  } = useCameras({
-    page: pageIndex + 1,
-    limit: pageSize,
-    search: debouncedSearch || undefined,
-    siteId: siteFilter || undefined,
-    zoneId: zoneFilter || undefined,
-    status: statusFilter || (kpiFilter === "online" ? "ONLINE" : undefined),
-    sourceType: sourceTypeFilter || undefined,
-    sortBy: sortParams.sortBy,
-    sortOrder: sortParams.order,
-  });
+  } = useCameras(
+    {
+      page: pageIndex + 1,
+      limit: pageSize,
+      search: debouncedSearch || undefined,
+      siteId: siteFilter || undefined,
+      zoneId: zoneFilter || undefined,
+      status: statusFilter || (kpiFilter === "online" ? "ONLINE" : undefined),
+      sourceType: sourceTypeFilter || undefined,
+      sortBy: sortParams.sortBy,
+      sortOrder: sortParams.order,
+    },
+    { enabled: canReadCameras },
+  );
 
   const {
     engineOnline,
@@ -168,7 +180,6 @@ export default function CamerasContent() {
     maxSessions,
     autoSyncEnabled,
     models,
-    videos,
     sessions,
     getSessionForCamera,
     isLoadingSessions,
@@ -179,7 +190,11 @@ export default function CamerasContent() {
     isSyncingLive,
     startingCameraId,
     refreshAll: refreshAiEngine,
-  } = useCameraLiveSessions({ enabled: true, pollIntervalMs: 2500 });
+  } = useCameraLiveSessions({
+    enabled: true,
+    pollIntervalMs: 5000,
+    includeVideos: false,
+  });
 
   const rawCameras = useMemo(
     () => camerasResponse?.items || [],
@@ -193,12 +208,18 @@ export default function CamerasContent() {
   const totalFleetCameras =
     cameraStatusCounts?.total ?? (!hasActiveQueryFilters ? meta?.total : undefined);
 
+  const isLiveSessionKpiFilter =
+    kpiFilter === "ai_live" || kpiFilter === "violations";
+
   const shouldLoadCatalog =
-    kpiDetailOpen ||
-    (sessions.length > 0 &&
-      (Boolean(siteFilter) ||
-        hasActiveQueryFilters ||
-        (totalFleetCameras !== undefined && totalFleetCameras > rawCameras.length)));
+    canReadCameras &&
+    (kpiDetailOpen ||
+      isLiveSessionKpiFilter ||
+      (sessions.length > 0 &&
+        (Boolean(siteFilter) ||
+          hasActiveQueryFilters ||
+          (totalFleetCameras !== undefined &&
+            totalFleetCameras > rawCameras.length))));
 
   const {
     data: rawCatalogCameras = [],
@@ -214,9 +235,7 @@ export default function CamerasContent() {
     [rawCatalogCameras, siteFilter],
   );
 
-  const autoAttemptedIdsRef = useRef<Set<string>>(new Set());
   const stoppedOrphanIdsRef = useRef<Set<string>>(new Set());
-  const autoStartRunningRef = useRef(false);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -302,6 +321,31 @@ export default function CamerasContent() {
     stopOrphanedSessions,
   ]);
 
+  // Đồng bộ qua kênh SSE khi có cảnh báo vi phạm PPE hoặc thông báo trạng thái mới
+  useEffect(() => {
+    if (!lastAlert || !canReadCameras) return;
+    if (
+      lastAlert.type !== "notification:ppe_violation" &&
+      lastAlert.type !== "notification:new" &&
+      lastAlert.type !== "notification:broadcast"
+    ) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      if (lastAlert.type === "notification:ppe_violation") {
+        void queryClient.invalidateQueries({
+          queryKey: liveEngineKeys.sessions(),
+        });
+      } else {
+        void queryClient.invalidateQueries({
+          queryKey: cameraKeys.statusCountsRoot(),
+        });
+        void queryClient.invalidateQueries({ queryKey: cameraKeys.lists() });
+      }
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [canReadCameras, lastAlert, queryClient]);
+
   const camerasWithSite = useMemo(
     () =>
       rawCameras.map((c) => ({
@@ -311,32 +355,57 @@ export default function CamerasContent() {
     [rawCameras, getSiteName],
   );
 
-  // Client filter when user clicks AI Live / Violations KPI Pod
+  // Lọc trên toàn đội camera đã biết khi người dùng chọn thẻ KPI AI Live / Vi phạm (không bị sót camera ở trang 2+)
   const visibleCameras = useMemo(() => {
-    if (kpiFilter === "ai_live") {
-      return camerasWithSite.filter(
-        (c) => getSessionForCamera(c)?.status === "running",
+    if (!isLiveSessionKpiFilter) return camerasWithSite;
+    const sourcePool = allKnownCameras.map((c) => ({
+      ...c,
+      siteName: c.siteName || getSiteName(c.siteId),
+    }));
+    const needle = debouncedSearch.trim().toLowerCase();
+    return sourcePool.filter((c) => {
+      if (zoneFilter && c.zoneId !== zoneFilter) return false;
+      if (statusFilter && c.status !== statusFilter) return false;
+      if (sourceTypeFilter && c.sourceType !== sourceTypeFilter) return false;
+      if (
+        needle &&
+        !c.name.toLowerCase().includes(needle) &&
+        !c.code.toLowerCase().includes(needle)
+      ) {
+        return false;
+      }
+      const s = getSessionForCamera(c);
+      if (kpiFilter === "ai_live") return s?.status === "running";
+      return (
+        s?.status === "running" && (s.metrics?.active_violations ?? 0) > 0
       );
-    }
-    if (kpiFilter === "violations") {
-      return camerasWithSite.filter((c) => {
-        const s = getSessionForCamera(c);
-        return s?.status === "running" && (s.metrics?.active_violations ?? 0) > 0;
-      });
-    }
-    return camerasWithSite;
-  }, [camerasWithSite, getSessionForCamera, kpiFilter]);
+    });
+  }, [
+    allKnownCameras,
+    camerasWithSite,
+    debouncedSearch,
+    getSessionForCamera,
+    getSiteName,
+    isLiveSessionKpiFilter,
+    kpiFilter,
+    sourceTypeFilter,
+    statusFilter,
+    zoneFilter,
+  ]);
 
   const runningSessionsCount = useMemo(
     () => activeFleetSessions.filter((s) => s.status === "running").length,
     [activeFleetSessions],
   );
 
-  const totalCount = meta?.total ?? visibleCameras.length;
-  const pageCount = Math.max(1, meta?.totalPages ?? Math.ceil(totalCount / pageSize));
+  const totalCount = isLiveSessionKpiFilter
+    ? visibleCameras.length
+    : (meta?.total ?? visibleCameras.length);
+  const pageCount = isLiveSessionKpiFilter
+    ? 1
+    : Math.max(1, meta?.totalPages ?? Math.ceil(totalCount / pageSize));
 
   const handleRefreshAll = () => {
-    autoAttemptedIdsRef.current.clear();
     stoppedOrphanIdsRef.current.clear();
     setIsManualRefreshing(true);
     void Promise.all([
@@ -373,66 +442,16 @@ export default function CamerasContent() {
   };
 
   const handleStartLive = useCallback((camera: CameraItem) => {
-    autoAttemptedIdsRef.current.add(camera.id);
     void startLive({ camera }).catch(() => {
       // toast handled inside mutation
     });
   }, [startLive]);
 
   const handleStopLive = useCallback((camera: CameraItem) => {
-    autoAttemptedIdsRef.current.add(camera.id);
     void stopLive(camera).catch(() => {
       // toast handled inside mutation
     });
   }, [stopLive]);
-
-  // Auto-start eligible ONLINE cameras only when BE 24/7 Auto-Sync is disabled (e.g. sandbox mode)
-  useEffect(() => {
-    if (!engineOnline || isLoadingSessions) return;
-    if (autoSyncEnabled) return;
-    if (viewMode !== "grid" && viewMode !== "wall") return;
-    if (autoStartRunningRef.current) return;
-
-    const candidates = selectAutoStartCandidates(
-      visibleCameras,
-      sessions,
-      videos,
-      {
-        maxTotalSessions: maxSessions,
-        productionMode,
-        attemptedIds: autoAttemptedIdsRef.current,
-      },
-    );
-    if (candidates.length === 0) return;
-
-    autoStartRunningRef.current = true;
-    void (async () => {
-      try {
-        for (const cam of candidates) {
-          if (!isMountedRef.current) break;
-          autoAttemptedIdsRef.current.add(cam.id);
-          try {
-            await startLive({ camera: cam, silent: true });
-          } catch {
-            break;
-          }
-        }
-      } finally {
-        autoStartRunningRef.current = false;
-      }
-    })();
-  }, [
-    autoSyncEnabled,
-    engineOnline,
-    isLoadingSessions,
-    maxSessions,
-    productionMode,
-    sessions,
-    startLive,
-    videos,
-    viewMode,
-    visibleCameras,
-  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-10">
@@ -511,15 +530,15 @@ export default function CamerasContent() {
           getSessionForCamera={getSessionForCamera}
           productionMode={productionMode}
           startingCameraId={startingCameraId}
-          onStartLive={handleStartLive}
-          onStopLive={handleStopLive}
+          onStartLive={canCreate ? handleStartLive : undefined}
+          onStopLive={canCreate ? handleStopLive : undefined}
         />
       ) : viewMode === "table" ? (
         <CameraTable
           cameras={visibleCameras}
           getSessionForCamera={getSessionForCamera}
-          onStartLive={handleStartLive}
-          onStopLive={handleStopLive}
+          onStartLive={canCreate ? handleStartLive : undefined}
+          onStopLive={canCreate ? handleStopLive : undefined}
           onPing={setHealthTarget}
           onEdit={setEditTarget}
           onDelete={setDeleteTarget}
@@ -589,8 +608,8 @@ export default function CamerasContent() {
                   liveSession={getSessionForCamera(camera)}
                   productionMode={productionMode}
                   isBusy={startingCameraId === camera.id}
-                  onStartLive={handleStartLive}
-                  onStopLive={handleStopLive}
+                  onStartLive={canCreate ? handleStartLive : undefined}
+                  onStopLive={canCreate ? handleStopLive : undefined}
                   onEdit={setEditTarget}
                   onDelete={setDeleteTarget}
                   onHealthCheck={setHealthTarget}

@@ -1,6 +1,5 @@
 "use client";
 
-import { RefreshButton } from "@/components/ui/refresh-action";
 import { useLocale } from "@/providers/locale-provider";
 import type { AiModelDto, CameraItem } from "@/types";
 
@@ -13,8 +12,8 @@ export interface AiMetricsToolbarProps {
   onCameraChange?: (cameraId: string) => void;
   period: string;
   onPeriodChange: (period: string) => void;
-  onRefresh: () => void;
-  loading?: boolean;
+  canReadModels?: boolean;
+  canReadCameras?: boolean;
 }
 
 export function AiMetricsToolbar({
@@ -26,8 +25,8 @@ export function AiMetricsToolbar({
   onCameraChange,
   period,
   onPeriodChange,
-  onRefresh,
-  loading = false,
+  canReadModels = true,
+  canReadCameras = true,
 }: AiMetricsToolbarProps) {
   const { t, locale } = useLocale();
   const isVi = locale === "vi-VN";
@@ -39,11 +38,13 @@ export function AiMetricsToolbar({
         {/* Model Selector */}
         <div className="relative flex-1 min-w-[140px] sm:flex-none">
           <select
+            aria-label={t("aiMetrics.toolbar.modelLabel")}
+            disabled={!canReadModels}
             value={selectedModelId}
             onChange={(e) => onModelChange(e.target.value)}
             className="w-full sm:w-auto rounded-xl border border-border/40 bg-surface px-3 py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
           >
-            <option value="">{t("aiMetrics.toolbar.allModels")}</option>
+            <option value="">{t(canReadModels ? "aiMetrics.toolbar.allModels" : "aiMetrics.modelReadRequired")}</option>
             {models.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
@@ -55,6 +56,7 @@ export function AiMetricsToolbar({
         {/* Time Period Filter */}
         <div className="relative flex-1 min-w-[120px] sm:flex-none">
           <select
+            aria-label={t("aiMetrics.toolbar.periodLabel")}
             value={period}
             onChange={(e) => onPeriodChange(e.target.value)}
             className="w-full sm:w-auto rounded-xl border border-border/40 bg-surface px-3 py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
@@ -70,12 +72,14 @@ export function AiMetricsToolbar({
         {onCameraChange && (
           <div className="relative flex-1 min-w-[150px] sm:flex-none">
             <select
+              aria-label={t("aiMetrics.toolbar.cameraLabel")}
+              disabled={!canReadCameras}
               value={selectedCameraId}
               onChange={(e) => onCameraChange(e.target.value)}
               className="w-full sm:w-auto rounded-xl border border-border/40 bg-surface px-3 py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"
             >
               <option value="">
-                {isVi ? "Tất cả Camera" : "All Cameras"}
+                {canReadCameras ? (isVi ? "Tất cả Camera" : "All Cameras") : t("aiMetrics.cameraReadRequired")}
               </option>
               {cameras.map((cam) => (
                 <option key={cam.id} value={cam.id}>
@@ -87,14 +91,6 @@ export function AiMetricsToolbar({
         )}
       </div>
 
-      {/* Refresh Action */}
-      <RefreshButton
-        variant="ghost"
-        size="sm"
-        onRefresh={onRefresh}
-        isRefreshing={loading}
-        className="gap-2 text-xs self-end sm:self-auto h-8 px-3"
-      />
     </div>
   );
 }

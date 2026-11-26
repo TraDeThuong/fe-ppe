@@ -26,6 +26,8 @@ export interface UseHydratedIncidentsResult {
 
 export interface UseHydratedIncidentsOptions {
   enabled?: boolean;
+  /** The list API already returns assignments, so only enrich their assignee names. */
+  fetchMissingAssignments?: boolean;
   /**
    * Có tải phân công cho hồ sơ đã CLOSED hay không (mặc định: false để tránh bão N+1
    * khi lịch sử có hàng chục hồ sơ đã đóng; chỉ bật cho SAFETY_OFFICER khi cần đếm việc đã hoàn tất).
@@ -114,6 +116,7 @@ export function useHydratedIncidents(
   options?: UseHydratedIncidentsOptions,
 ): UseHydratedIncidentsResult {
   const enabled = options?.enabled ?? true;
+  const fetchMissingAssignments = options?.fetchMissingAssignments ?? true;
   const includeClosed = options?.includeClosed ?? false;
   const maxHydrateCount = options?.maxHydrateCount ?? 30;
   const { user } = useAuth();
@@ -221,7 +224,7 @@ export function useHydratedIncidents(
 
   // Ưu tiên hydrate CONFIRMED -> RESOLVED -> CLOSED (nếu bật includeClosed), giới hạn theo maxHydrateCount
   const idsNeedingFetch = useMemo(() => {
-    if (!enabled) return [];
+    if (!enabled || !fetchMissingAssignments) return [];
     const prioritized: string[] = [];
     const secondary: string[] = [];
 
@@ -249,7 +252,7 @@ export function useHydratedIncidents(
       0,
       maxHydrateCount,
     );
-  }, [enabled, includeClosed, maxHydrateCount, rawIncidents]);
+  }, [enabled, fetchMissingAssignments, includeClosed, maxHydrateCount, rawIncidents]);
 
   const assignmentQueries = useQueries({
     queries: idsNeedingFetch.map((incidentId) => ({

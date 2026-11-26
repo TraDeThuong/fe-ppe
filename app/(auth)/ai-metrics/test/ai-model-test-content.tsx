@@ -9,9 +9,13 @@ import {
   OfflinePlayerPanel,
 } from "@/components/features/ai-test";
 import {
-  aiTestService,
+  aiSandboxService,
   isAiEndpointNotFoundError,
 } from "@/services/ai-test.service";
+import { Loader } from "@/components/ui/loader";
+import { ForbiddenView } from "@/components/features/app-shell/forbidden-view";
+import { useAuth } from "@/contexts/AuthContext";
+import { canAccessAiSandbox } from "@/config/navigation";
 import { useLocale } from "@/providers/locale-provider";
 import type {
   AiTestViewTab,
@@ -21,6 +25,19 @@ import type {
 } from "@/types/ai-test.types";
 
 export default function AiModelTestContent() {
+  const { status, user } = useAuth();
+  if (status !== "authenticated" || !user) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center text-muted-foreground">
+        <Loader showLabel />
+      </div>
+    );
+  }
+  if (!canAccessAiSandbox(user.permissions, user.role)) return <ForbiddenView />;
+  return <AiSandboxStudio />;
+}
+
+function AiSandboxStudio() {
   const { t } = useLocale();
   const [activeTab, setActiveTab] = useState<AiTestViewTab>("live");
 
@@ -59,9 +76,9 @@ export default function AiModelTestContent() {
     setIsRefreshing(true);
     try {
       const [modelsRes, jobsRes, runtimeRes] = await Promise.allSettled([
-        aiTestService.getModels(),
-        aiTestService.listJobs(),
-        aiTestService.getLiveRuntimeConfig(),
+        aiSandboxService.getModels(),
+        aiSandboxService.listJobs(),
+        aiSandboxService.getLiveRuntimeConfig(),
       ]);
 
       if (modelsRes.status === "rejected") {
@@ -100,7 +117,7 @@ export default function AiModelTestContent() {
 
   const refreshJobsOnly = useCallback(async () => {
     try {
-      const fetchedJobs = await aiTestService.listJobs();
+      const fetchedJobs = await aiSandboxService.listJobs();
       setJobs(fetchedJobs);
       setBackendOnline(true);
       setBackendError(null);

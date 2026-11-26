@@ -14,6 +14,11 @@ import { Button } from "@/components/ui/button";
 import { IncidentSeverityBadge } from "@/components/features/incidents/incident-severity-badge";
 import { IncidentStatusBadge } from "@/components/features/incidents/incident-status-badge";
 import { getIncidentEvidenceUrl } from "@/components/features/incidents/incident-table";
+import {
+  incidentHasVideoEvidence,
+  IncidentTelemetryChips,
+  IncidentThumbnail,
+} from "@/components/features/incidents/table/incident-thumbnail";
 import { useLocale } from "@/providers/locale-provider";
 import {
   isIncidentAssignedToUser,
@@ -152,26 +157,10 @@ export function AssignmentIncidentRow({
           />
         )}
 
-        <div className="relative flex h-11 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border/40 bg-slate-950/80">
-          {evidenceUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={evidenceUrl}
-              alt="Evidence"
-              className="h-full w-full object-cover"
-              onError={(e) => {
-                const target = e.currentTarget;
-                if (!target.src.includes("/images/camera-live-evidence.jpg")) {
-                  target.src = "/images/camera-live-evidence.jpg";
-                } else {
-                  target.style.display = "none";
-                }
-              }}
-            />
-          ) : (
-            <Camera className="h-4 w-4 text-muted-foreground/60" />
-          )}
-        </div>
+        <IncidentThumbnail
+          src={evidenceUrl}
+          hasVideo={incidentHasVideoEvidence(incident)}
+        />
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -184,6 +173,7 @@ export function AssignmentIncidentRow({
             <span className="text-xs font-bold text-foreground">
               {formatters.formatViolation(incident.violationType)}
             </span>
+            <IncidentTelemetryChips incident={incident} />
             <IncidentSeverityBadge severity={incident.severity} />
             <IncidentStatusBadge status={incident.status} />
             {showResponsibility && (

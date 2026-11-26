@@ -8,6 +8,7 @@ import {
   Select,
   type SelectOption,
 } from "@/components/ui/form/selection-controls/select";
+import { useCan } from "@/hooks/use-can";
 import { useSitesCatalog, useSiteZones } from "@/hooks/sites";
 import { useLocale } from "@/providers/locale-provider";
 
@@ -52,6 +53,9 @@ export function CameraToolbar({
 }: CameraToolbarProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canReadSites = can("PPE_SITE_READ");
+  const canReadZones = can("PPE_ZONE_READ");
 
   const statusOptions = useMemo<SelectOption[]>(
     () => [
@@ -59,16 +63,17 @@ export function CameraToolbar({
       { value: "ONLINE", label: isVietnamese ? "ONLINE (Đang trực tuyến)" : "ONLINE (Connected)" },
       { value: "OFFLINE", label: isVietnamese ? "OFFLINE (Mất tín hiệu)" : "OFFLINE (No signal)" },
       { value: "MAINTENANCE", label: isVietnamese ? "MAINTENANCE (Bảo trì)" : "MAINTENANCE" },
+      { value: "ERROR", label: isVietnamese ? "ERROR (Lỗi tín hiệu)" : "ERROR (Signal fault)" },
     ],
     [isVietnamese],
   );
 
-  const { data: sitesData } = useSitesCatalog();
+  const { data: sitesData } = useSitesCatalog({ enabled: canReadSites });
   const sites = useMemo(() => sitesData || [], [sitesData]);
 
   const { data: zonesData = [] } = useSiteZones(
     siteFilter,
-    Boolean(siteFilter),
+    Boolean(siteFilter) && canReadZones,
   );
 
   const siteOptions = useMemo<SelectOption[]>(
@@ -160,6 +165,7 @@ export function CameraToolbar({
             size="sm"
             options={siteOptions}
             value={siteFilter}
+            disabled={!canReadSites}
             onValueChange={(val) => {
               onSiteFilterChange?.(val);
               onZoneFilterChange?.("");
@@ -171,7 +177,7 @@ export function CameraToolbar({
             size="sm"
             options={zoneOptions}
             value={zoneFilter}
-            disabled={!siteFilter}
+            disabled={!siteFilter || !canReadZones}
             onValueChange={(val) => onZoneFilterChange?.(val)}
             placeholder={isVietnamese ? "Khu vực (Zone)" : "Zone"}
           />

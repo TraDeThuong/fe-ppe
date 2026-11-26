@@ -15,12 +15,14 @@ export interface DashboardQuickActionsProps {
   onOpenGenerateReport?: () => void;
   canExportReports?: boolean;
   canReviewIncidents?: boolean;
+  columns?: 2 | 4;
 }
 
 export function DashboardQuickActions({
   onOpenGenerateReport,
   canExportReports = true,
   canReviewIncidents = true,
+  columns = 2,
 }: DashboardQuickActionsProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -144,7 +146,11 @@ export function DashboardQuickActions({
           "dark:shadow-[inset_5px_5px_11px_rgba(0,0,0,0.5),inset_-3px_-3px_8px_rgba(255,255,255,0.03)]",
         ].join(" ")}
       >
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <div
+          className={`grid grid-cols-1 gap-2.5 sm:grid-cols-2 ${
+            columns === 4 ? "xl:grid-cols-4" : ""
+          }`}
+        >
           {actions.map((act, index) => {
             const isPrimary = act.variant === "primary";
 

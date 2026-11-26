@@ -186,7 +186,8 @@ export interface IncidentItem {
     comments?: number;
     assignments?: number;
   };
-  confidence?: number;
+  confidence?: number | null;
+  trackId?: number | null;
   snapshotUrl?: string;
 }
 
@@ -199,8 +200,10 @@ export interface IncidentQueryParams {
   limit?: number;
   search?: string;
   siteId?: string;
+  /** Bộ lọc phân khu tầng UI — được ánh xạ sang `cameraIds` trước khi gọi BE */
   zoneId?: string;
   cameraId?: string;
+  cameraIds?: string[] | string;
   assignedTo?: string;
   assignedToMe?: boolean;
   violationType?: ViolationType | string;
@@ -211,6 +214,50 @@ export interface IncidentQueryParams {
   sortBy?: "detectedAt" | "createdAt" | "severity" | "status";
   sortOrder?: "asc" | "desc";
   includeAssignments?: boolean;
+  includeAllAssignments?: boolean;
+}
+
+export interface IncidentStatusCounts {
+  total: number;
+  pendingReview: number;
+  confirmed: number;
+  critical: number;
+  resolved: number;
+  closed: number;
+  dismissed: number;
+}
+
+export type FeedbackDatasetLabel = "TRUE_VIOLATION" | "FALSE_ALARM";
+
+export interface FeedbackDatasetQueryParams {
+  page?: number;
+  limit?: number;
+  siteId?: string;
+  cameraId?: string;
+  cameraIds?: string[] | string;
+  violationType?: ViolationType | string;
+  label?: FeedbackDatasetLabel;
+  fromDate?: string;
+  toDate?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface FeedbackDatasetItem {
+  incidentId: string;
+  label: FeedbackDatasetLabel;
+  status: IncidentStatus | string;
+  reviewReason: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  violationType: ViolationType | string;
+  confidence: number | null;
+  trackId: number | null;
+  cameraId: string;
+  siteId: string;
+  detectedAt: string;
+  snapshotStorageKey: string | null;
+  aiDetections: Record<string, unknown> | null;
 }
 
 export interface InitialEvidencePayload {

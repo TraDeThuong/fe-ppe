@@ -1,14 +1,11 @@
 "use client";
 
 import {
-  AlertTriangle,
   Building2,
   Camera,
   ChevronLeft,
   ChevronRight,
   Clock,
-  Inbox,
-  RefreshCw,
   UserCheck,
 } from "lucide-react";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
@@ -17,8 +14,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { isIncidentAssignedToUser } from "@/lib/incident-workflow";
 import { useLocale } from "@/providers/locale-provider";
-import { EVIDENCE_TYPE, type IncidentItem } from "@/types";
-import { resolveEvidenceUrl } from "@/lib/evidence-url";
+import type { IncidentItem } from "@/types";
+import { IncidentListStatus } from "./table/incident-list-status";
+import { getIncidentEvidenceUrl } from "./viewer/evidence-media-utils";
+import { IncidentTelemetryChips } from "./table/incident-thumbnail";
 
 export interface IncidentCardListProps {
   incidents: IncidentItem[];
@@ -39,24 +38,6 @@ export interface IncidentCardListProps {
   onPageChange: (page: number) => void;
   onLimitChange: (limit: number) => void;
   limitOptions?: number[];
-}
-
-function getCardEvidenceUrl(incident: IncidentItem): string {
-  if (typeof window !== "undefined") {
-    const cachedByIncident = sessionStorage.getItem(`ppe_incident_evidence_${incident.id}`);
-    if (cachedByIncident) return resolveEvidenceUrl(cachedByIncident);
-    if (incident.cameraId) {
-      const cachedByCamera = sessionStorage.getItem(`ppe_camera_evidence_${incident.cameraId}`);
-      if (cachedByCamera) return resolveEvidenceUrl(cachedByCamera);
-    }
-  }
-  if (incident.snapshotUrl) return resolveEvidenceUrl(incident.snapshotUrl);
-  const ev =
-    incident.evidences?.find((e) => e.evidenceType === EVIDENCE_TYPE.SNAPSHOT) ||
-    incident.evidences?.[0];
-  if (ev?.url) return resolveEvidenceUrl(ev.url);
-  if (ev?.storageKey) return resolveEvidenceUrl(ev.storageKey);
-  return "";
 }
 
 function getSeverityAccentClass(severity: string): string {
@@ -114,78 +95,8 @@ export function IncidentCardList({
     }
   };
 
-  if (loading && incidents.length === 0) {
-    return (
-      <div className="space-y-2.5" aria-busy="true">
-        {[0, 1, 2, 3, 4].map((idx) => (
-          <div
-            key={idx}
-            className="flex items-center gap-3 rounded-2xl border border-border/30 bg-surface p-3.5 shadow-nm-sm"
-          >
-            <div className="h-14 w-20 shrink-0 animate-pulse rounded-xl bg-muted/40" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="h-3.5 w-20 animate-pulse rounded bg-muted/40" />
-                <div className="h-3 w-24 animate-pulse rounded bg-muted/30" />
-              </div>
-              <div className="h-4 w-3/4 animate-pulse rounded bg-muted/40" />
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-16 animate-pulse rounded-full bg-muted/30" />
-                <div className="h-4 w-20 animate-pulse rounded-full bg-muted/30" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (error && incidents.length === 0) {
-    const errMsg =
-      error instanceof Error
-        ? error.message
-        : isVietnamese
-          ? "Không thể tải danh sách sự cố."
-          : "Unable to load incidents.";
-    return (
-      <div
-        role="alert"
-        className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-danger/30 bg-surface p-8 text-center shadow-nm-sm"
-      >
-        <AlertTriangle className="h-8 w-8 text-danger" />
-        <p className="text-sm font-semibold text-foreground">{errMsg}</p>
-        {onRetry && (
-          <button
-            type="button"
-            onClick={onRetry}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 transition"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            <span>{isVietnamese ? "Thử lại" : "Retry"}</span>
-          </button>
-        )}
-      </div>
-    );
-  }
-
   if (incidents.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-border/30 bg-surface p-10 text-center shadow-nm-sm">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/40 text-muted-foreground shadow-nm-inset">
-          <Inbox className="h-6 w-6" />
-        </div>
-        <div className="space-y-1">
-          <p className="text-sm font-bold text-foreground">
-            {t("incidents.table.empty")}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {isVietnamese
-              ? "Thử thay đổi hoặc đặt lại bộ lọc để xem thêm sự cố."
-              : "Try adjusting or resetting filters to see more incidents."}
-          </p>
-        </div>
-      </div>
-    );
+    return <IncidentListStatus loading={loading} error={error} onRetry={onRetry} />;
   }
 
   const effectiveTotal = Math.max(total, incidents.length);
@@ -306,14 +217,15 @@ export function IncidentCardList({
                 )}
 
                 <div className="min-w-0 flex-1 space-y-1.5">
-                  {/* Top: ID + Violation Name */}
-                  <div className="flex items-center gap-2">
+                  {/* Top: ID + Violation Name + AI Telemetry */}
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-primary">
                       #{incident.id.slice(0, 6)}
                     </span>
                     <h4 className="truncate text-[13px] font-extrabold tracking-tight text-foreground">
                       {formatViolation(incident.violationType)}
                     </h4>
+                    <IncidentTelemetryChips incident={incident} />
                   </div>
 
                   {/* Bottom: Site · Camera · Assignee */}

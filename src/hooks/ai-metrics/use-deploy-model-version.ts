@@ -45,8 +45,8 @@ export function useDeployModelVersion() {
       const versionLabel = formatVersionLabel(data.version);
       toast.success(
         pickLocaleText(
-          `Đã kích hoạt chuyển đổi nóng phiên bản ${versionLabel} vào môi trường giám sát thành công!`,
-          `Hot-swapped model version ${versionLabel} into production monitoring!`,
+          `Đã cập nhật phiên bản ${versionLabel} trong Registry.`,
+          `Updated version ${versionLabel} in the Registry.`,
         ),
       );
     },

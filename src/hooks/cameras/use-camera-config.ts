@@ -27,20 +27,23 @@ export function useUpdateCameraConfig() {
     }: {
       cameraId: string;
       payload: UpdateCameraConfigPayload;
+      silent?: boolean;
     }) => cameraService.updateCameraConfig(cameraId, payload),
-    onSuccess: (updatedConfig, { cameraId }) => {
+    onSuccess: (updatedConfig, { cameraId, silent }) => {
       queryClient.setQueryData(cameraKeys.config(cameraId), updatedConfig);
       queryClient.invalidateQueries({ queryKey: cameraKeys.detail(cameraId) });
       queryClient.invalidateQueries({ queryKey: cameraKeys.lists() });
       queryClient.invalidateQueries({
         queryKey: siteKeys.effectiveSafetyConfigs(),
       });
-      toast.success(
-        pickLocaleText(
-          "Cấu hình AI ROI camera đã được lưu thành công.",
-          "Camera AI ROI configuration saved successfully.",
-        ),
-      );
+      if (!silent) {
+        toast.success(
+          pickLocaleText(
+            "Đã lưu cấu hình thiết bị camera.",
+            "Camera device configuration saved.",
+          ),
+        );
+      }
     },
     onError: (err: unknown) => {
       const msg =

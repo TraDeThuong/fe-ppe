@@ -503,7 +503,7 @@ export function computeClusterStatusCounts(
     else if (status === "DISMISSED") dismissed += 1;
 
     const sev = (cl.effectiveSeverity || "").toUpperCase();
-    if (sev === "CRITICAL" || sev === "HIGH") critical += 1;
+    if (sev === "CRITICAL") critical += 1;
     if (cl.isMultiViolation) multiViolation += 1;
   }
 

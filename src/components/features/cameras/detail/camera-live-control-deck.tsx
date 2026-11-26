@@ -14,12 +14,13 @@ import {
   Wrench,
 } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
-import { Input, Switch } from "@/components/ui/form";
+import { Input } from "@/components/ui/form";
 import {
   Select,
   type SelectOption,
 } from "@/components/ui/form/selection-controls/select";
 import { useLocale } from "@/providers/locale-provider";
+import { CameraLiveRulesTray } from "./camera-live-rules-tray";
 import type { LiveActiveConfig, ModelInfo } from "@/types/ai-test.types";
 
 export interface CameraLiveControlDeckProps {
@@ -58,6 +59,8 @@ export interface CameraLiveControlDeckProps {
   isStopping: boolean;
   isSavingDb: boolean;
   canManageCamera: boolean;
+  canManageSafety?: boolean;
+  canPlotRoi?: boolean;
   onStartStream: () => void;
   onStopStream: () => void;
   onSaveToDb: () => void;
@@ -105,6 +108,8 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
   isStopping,
   isSavingDb,
   canManageCamera,
+  canManageSafety = false,
+  canPlotRoi = false,
   onStartStream,
   onStopStream,
   onSaveToDb,
@@ -118,6 +123,8 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const [isExpanded, setIsExpanded] = useState(false);
+  const canSaveDb = canManageCamera || canManageSafety;
+  const canEditRules = canManageSafety;
 
   const modelOptions = useMemo<SelectOption[]>(
     () =>
@@ -245,8 +252,12 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                     }
                     className="rounded-lg bg-emerald-500/12 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400"
                   >
-                    AI: {Number(activeAiConfig.confidence_threshold ?? confidenceThreshold).toFixed(2)} /{" "}
-                    {activeAiConfig.confirmation_duration_s ?? confirmHelmetSec}s /{" "}
+                    AI:{" "}
+                    {Number(
+                      activeAiConfig.confidence_threshold ?? confidenceThreshold,
+                    ).toFixed(2)}{" "}
+                    / {activeAiConfig.confirmation_duration_s ?? confirmHelmetSec}s·
+                    {activeAiConfig.confirmation_duration_vest_s ?? confirmVestSec}s /{" "}
                     {activeAiConfig.cooldown_s ?? cooldownSec}s
                   </span>
                 )}
@@ -276,47 +287,59 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
           <div
             className={`flex flex-wrap items-center gap-2 self-start rounded-2xl p-2 xl:self-center ${NM.recessed}`}
           >
-            <button
-              type="button"
-              disabled={isStarting || !canStart}
-              onClick={onStartStream}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground shadow-[4px_4px_10px_rgba(0,0,0,0.16)] transition hover:brightness-105 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45"
-            >
-              <Play className="size-3.5 fill-current" />
-              <span>
-                {isStarting
-                  ? isVietnamese
-                    ? "Đang khởi tạo..."
-                    : "Starting..."
-                  : isRunning
-                    ? isVietnamese
-                      ? "Khởi chạy lại"
-                      : "Restart"
-                    : isVietnamese
-                      ? "Bắt đầu Tracking"
-                      : "Start Tracking"}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              disabled={!isRunning || isStopping}
-              onClick={onStopStream}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-accent disabled:pointer-events-none disabled:opacity-40 ${NM.tactileBtn}`}
-            >
-              <Square className="size-3.5 fill-current" />
-              <span>{isVietnamese ? "Dừng Tracking" : "Stop Tracking"}</span>
-            </button>
-
             {canManageCamera && (
+              <>
+                <button
+                  type="button"
+                  disabled={isStarting || !canStart}
+                  onClick={onStartStream}
+                  className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground shadow-[4px_4px_10px_rgba(0,0,0,0.16)] transition hover:brightness-105 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45"
+                >
+                  <Play className="size-3.5 fill-current" />
+                  <span>
+                    {isStarting
+                      ? isVietnamese
+                        ? "Đang khởi tạo..."
+                        : "Starting..."
+                      : isRunning
+                        ? isVietnamese
+                          ? "Khởi chạy lại"
+                          : "Restart"
+                        : isVietnamese
+                          ? "Bắt đầu Tracking"
+                          : "Start Tracking"}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!isRunning || isStopping}
+                  onClick={onStopStream}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-accent disabled:pointer-events-none disabled:opacity-40 ${NM.tactileBtn}`}
+                >
+                  <Square className="size-3.5 fill-current" />
+                  <span>{isVietnamese ? "Dừng Tracking" : "Stop Tracking"}</span>
+                </button>
+              </>
+            )}
+
+            {canSaveDb && (
               <button
                 type="button"
                 disabled={isSavingDb}
                 onClick={onSaveToDb}
                 title={
-                  isVietnamese
-                    ? "Lưu cấu hình FPS & Quy tắc an toàn riêng cho Camera này vào Database"
-                    : "Save FPS & Camera-specific Safety Rule overrides to Database"
+                  canManageCamera && canManageSafety
+                    ? isVietnamese
+                      ? "Lưu cấu hình FPS & Quy tắc an toàn riêng cho Camera này vào Database"
+                      : "Save FPS & Camera-specific Safety Rule overrides to Database"
+                    : canManageSafety
+                      ? isVietnamese
+                        ? "Lưu quy tắc an toàn riêng cho Camera này vào Database"
+                        : "Save Camera-specific Safety Rule overrides to Database"
+                      : isVietnamese
+                        ? "Lưu cấu hình FPS xử lý của Camera vào Database"
+                        : "Save Camera capture FPS config to Database"
                 }
                 className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-foreground hover:text-primary disabled:pointer-events-none disabled:opacity-40 ${NM.tactileBtn}`}
               >
@@ -333,32 +356,36 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
               </button>
             )}
 
-            {canManageCamera && safetySource === "CAMERA_OVERRIDE" && onResetToSiteRules && (
-              <button
-                type="button"
-                disabled={isResettingRules}
-                onClick={onResetToSiteRules}
-                title={
-                  isVietnamese
-                    ? "Xoá cấu hình riêng của camera này để khôi phục kế thừa quy tắc an toàn từ công trường"
-                    : "Reset camera overrides and restore inherited site safety rules"
-                }
-                className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 disabled:pointer-events-none disabled:opacity-40 ${NM.tactileBtn}`}
-              >
-                <RotateCcw className={`size-3.5 ${isResettingRules ? "animate-spin" : ""}`} />
-                <span>
-                  {isResettingRules
-                    ? isVietnamese
-                      ? "Đang đặt lại..."
-                      : "Resetting..."
-                    : isVietnamese
-                      ? "Khôi phục theo Site"
-                      : "Reset to Site"}
-                </span>
-              </button>
-            )}
+            {canManageSafety &&
+              safetySource === "CAMERA_OVERRIDE" &&
+              onResetToSiteRules && (
+                <button
+                  type="button"
+                  disabled={isResettingRules}
+                  onClick={onResetToSiteRules}
+                  title={
+                    isVietnamese
+                      ? "Xoá cấu hình riêng của camera này để khôi phục kế thừa quy tắc an toàn từ công trường"
+                      : "Reset camera overrides and restore inherited site safety rules"
+                  }
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 disabled:pointer-events-none disabled:opacity-40 ${NM.tactileBtn}`}
+                >
+                  <RotateCcw
+                    className={`size-3.5 ${isResettingRules ? "animate-spin" : ""}`}
+                  />
+                  <span>
+                    {isResettingRules
+                      ? isVietnamese
+                        ? "Đang đặt lại..."
+                        : "Resetting..."
+                      : isVietnamese
+                        ? "Khôi phục theo Site"
+                        : "Reset to Site"}
+                  </span>
+                </button>
+              )}
 
-            {canManageCamera && onOpenRestrictedAreaModal && (
+            {canPlotRoi && onOpenRestrictedAreaModal && (
               <button
                 type="button"
                 onClick={onOpenRestrictedAreaModal}
@@ -381,6 +408,13 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                       : "None"}
                 </span>
               </button>
+            )}
+
+            {!canManageCamera && !canManageSafety && (
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-foreground/[0.05] px-3 py-1.5 text-[11px] font-bold text-muted-foreground">
+                <ShieldCheck className="size-3.5 text-primary" />
+                <span>{isVietnamese ? "Chỉ xem (Read-only)" : "Read-only"}</span>
+              </span>
             )}
 
             <button
@@ -424,7 +458,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                 className={`flex flex-wrap items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-xs font-medium text-accent ${NM.recessed}`}
               >
                 <span>{sourceNote}</span>
-                {onOpenDeviceTab && (
+                {canManageCamera && onOpenDeviceTab && (
                   <button
                     type="button"
                     onClick={onOpenDeviceTab}
@@ -432,7 +466,9 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                   >
                     <Wrench className="size-3" />
                     <span>
-                      {isVietnamese ? "Gắn Override ở Tab 03" : "Set Override in Tab 03"}
+                      {isVietnamese
+                        ? "Gắn Override ở Tab 03"
+                        : "Set Override in Tab 03"}
                     </span>
                   </button>
                 )}
@@ -473,7 +509,9 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                     <div
                       title={
                         activeSource ||
-                        (isVietnamese ? "Chưa có luồng khả dụng" : "No available stream")
+                        (isVietnamese
+                          ? "Chưa có luồng khả dụng"
+                          : "No available stream")
                       }
                       className={`flex min-h-[38px] items-center gap-2 rounded-xl px-3 py-1.5 font-mono text-[11px] text-foreground ${NM.recessed}`}
                     >
@@ -495,6 +533,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                       size="sm"
                       options={modelOptions}
                       value={selectedModel}
+                      disabled={!canManageCamera}
                       onValueChange={onModelChange}
                       placeholder={isVietnamese ? "Chọn model" : "Select model"}
                     />
@@ -524,6 +563,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                       min={1}
                       max={30}
                       step={1}
+                      disabled={!canManageCamera}
                       value={targetFps}
                       onChange={(e) =>
                         onTargetFpsChange(
@@ -543,6 +583,7 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
                       min={1}
                       max={30}
                       step={1}
+                      disabled={!canManageCamera}
                       value={aiFps}
                       onChange={(e) =>
                         onAiFpsChange(
@@ -555,270 +596,30 @@ export const CameraLiveControlDeck = memo(function CameraLiveControlDeck({
               </div>
             </div>
 
-            {/* Tray 03: Hot Config Rules & Sustain Timers */}
-            <div className={`rounded-[22px] p-4 ${NM.recessed}`}>
-              <div className={`space-y-3.5 rounded-2xl p-4 ${NM.extruded}`}>
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-foreground/[0.06] pb-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary">
-                      {isVietnamese
-                        ? "03. Luật & Ngưỡng Sustain"
-                        : "03. Rules & Sustain Thresholds"}
-                    </span>
-                    {safetySource && (
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          safetySource === "CAMERA_OVERRIDE"
-                            ? "border border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                            : "border border-primary/20 bg-primary/10 text-primary"
-                        }`}
-                      >
-                        <ShieldCheck className="size-3" />
-                        {safetySource === "CAMERA_OVERRIDE"
-                          ? isVietnamese
-                            ? "Cấu hình riêng Camera"
-                            : "Camera Override"
-                          : isVietnamese
-                            ? "Kế thừa từ Công trường"
-                            : "Inherited from Site"}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {canManageCamera && safetySource === "CAMERA_OVERRIDE" && onResetToSiteRules && (
-                      <button
-                        type="button"
-                        disabled={isResettingRules}
-                        onClick={onResetToSiteRules}
-                        className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 disabled:opacity-50 ${NM.tactileBtn}`}
-                      >
-                        <RotateCcw className={`size-3 ${isResettingRules ? "animate-spin" : ""}`} />
-                        <span>
-                          {isResettingRules
-                            ? isVietnamese
-                              ? "Đang đặt lại..."
-                              : "Resetting..."
-                            : isVietnamese
-                              ? "Khôi phục theo Site"
-                              : "Reset to Site"}
-                        </span>
-                      </button>
-                    )}
-                    <span className="rounded-full bg-accent/15 px-2.5 py-0.5 text-[10px] font-bold text-accent">
-                      {isVietnamese
-                        ? "Áp dụng khi bắt đầu hoặc khởi chạy lại"
-                        : "Applied on start or restart"}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Sustain Timers + Confidence & Cooldown */}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  {[
-                    {
-                      key: "helmet",
-                      label: isVietnamese ? "Sustain Mũ (s)" : "Helmet Sustain (s)",
-                      ruleTag: "NO_HELMET",
-                      enabled: enableNoHelmet,
-                      value: confirmHelmetSec,
-                      fallback: 2.0,
-                      onChange: onConfirmHelmetSecChange,
-                    },
-                    {
-                      key: "vest",
-                      label: isVietnamese ? "Sustain Áo (s)" : "Vest Sustain (s)",
-                      ruleTag: "NO_VEST",
-                      enabled: enableNoVest,
-                      value: confirmVestSec,
-                      fallback: 4.0,
-                      onChange: onConfirmVestSecChange,
-                    },
-                  ].map((timer) => (
-                    <div
-                      key={timer.key}
-                      className={`flex items-center justify-between gap-3 rounded-xl border px-3.5 py-2.5 transition-all ${
-                        timer.enabled
-                          ? "border-accent/30 bg-accent/[0.06]"
-                          : "border-foreground/[0.06] bg-background/60 opacity-55"
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={`size-2 shrink-0 rounded-full ${
-                              timer.enabled ? "bg-accent" : "bg-muted-foreground/40"
-                            }`}
-                          />
-                          <span className="text-xs font-bold text-foreground">
-                            {timer.label}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 pl-3.5 font-mono text-[10px] text-muted-foreground">
-                          {isVietnamese ? "Áp dụng cho" : "Applies to"} {timer.ruleTag}
-                        </p>
-                      </div>
-
-                      <Input
-                        size="sm"
-                        type="number"
-                        min={0.5}
-                        max={30}
-                        step={0.5}
-                        disabled={!timer.enabled}
-                        value={timer.value}
-                        onChange={(e) =>
-                          timer.onChange(
-                            Math.max(0.5, Number(e.target.value) || timer.fallback),
-                          )
-                        }
-                        className="w-20 text-center font-mono font-bold text-primary"
-                      />
-                    </div>
-                  ))}
-
-                  {/* AI Confidence Threshold */}
-                  <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/[0.05] px-3.5 py-2.5">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="size-2 shrink-0 rounded-full bg-primary" />
-                        <span className="text-xs font-bold text-foreground">
-                          {isVietnamese ? "Ngưỡng tin cậy AI" : "AI Confidence"}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 pl-3.5 font-mono text-[10px] text-muted-foreground">
-                        0.10 – 1.00
-                      </p>
-                    </div>
-                    <Input
-                      size="sm"
-                      type="number"
-                      min={0.1}
-                      max={1.0}
-                      step={0.05}
-                      value={confidenceThreshold}
-                      onChange={(e) =>
-                        onConfidenceThresholdChange?.(
-                          Math.min(1, Math.max(0.1, Number(e.target.value) || 0.8)),
-                        )
-                      }
-                      className="w-20 text-center font-mono font-bold text-primary"
-                    />
-                  </div>
-
-                  {/* Cooldown chống lặp */}
-                  <div className="flex items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/[0.05] px-3.5 py-2.5">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="size-2 shrink-0 rounded-full bg-primary" />
-                        <span className="text-xs font-bold text-foreground">
-                          {isVietnamese ? "Cooldown lặp (s)" : "Alert Cooldown (s)"}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 pl-3.5 font-mono text-[10px] text-muted-foreground">
-                        0 – 3600s
-                      </p>
-                    </div>
-                    <Input
-                      size="sm"
-                      type="number"
-                      min={0}
-                      max={3600}
-                      step={5}
-                      value={cooldownSec}
-                      onChange={(e) =>
-                        onCooldownSecChange?.(
-                          Math.min(3600, Math.max(0, Math.round(Number(e.target.value) || 0))),
-                        )
-                      }
-                      className="w-20 text-center font-mono font-bold text-primary"
-                    />
-                  </div>
-                </div>
-
-                {/* 4 Rules Switches */}
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-                  {[
-                    {
-                      key: "no_helmet",
-                      label: "NO_HELMET",
-                      checked: enableNoHelmet,
-                      onChange: onEnableNoHelmetChange,
-                      mono: true,
-                    },
-                    {
-                      key: "no_vest",
-                      label: "NO_VEST",
-                      checked: enableNoVest,
-                      onChange: onEnableNoVestChange,
-                      mono: true,
-                    },
-                    {
-                      key: "restricted_area",
-                      label: "RESTRICTED_AREA",
-                      checked: enableRestrictedArea,
-                      onChange: onEnableRestrictedAreaChange,
-                      mono: true,
-                    },
-                    {
-                      key: "scene_cut",
-                      label: "Scene Cut",
-                      checked: enableSceneCut,
-                      onChange: onEnableSceneCutChange,
-                      mono: false,
-                    },
-                  ].map((rule) => (
-                    <div
-                      key={rule.key}
-                      className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 transition-all ${
-                        rule.checked
-                          ? "border-primary/35 bg-primary/[0.08]"
-                          : "border-foreground/[0.06] bg-background/60 opacity-65"
-                      }`}
-                    >
-                      <div className="min-w-0 space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={`size-2 shrink-0 rounded-full ${
-                              rule.checked
-                                ? "bg-primary shadow-[0_0_6px_var(--primary)]"
-                                : "bg-muted-foreground/40"
-                            }`}
-                          />
-                          <span
-                            className={`truncate text-[11px] font-bold tracking-tight ${
-                              rule.mono ? "font-mono" : ""
-                            } ${rule.checked ? "text-foreground" : "text-muted-foreground"}`}
-                          >
-                            {rule.label}
-                          </span>
-                        </div>
-                        <span
-                          className={`ml-3.5 inline-block rounded-md px-1.5 py-0.5 text-[9px] font-extrabold uppercase ${
-                            rule.checked
-                              ? "bg-primary/15 text-primary"
-                              : "bg-foreground/10 text-muted-foreground"
-                          }`}
-                        >
-                          {rule.checked
-                            ? isVietnamese
-                              ? "BẬT"
-                              : "ON"
-                            : isVietnamese
-                              ? "TẮT"
-                              : "OFF"}
-                        </span>
-                      </div>
-
-                      <Switch
-                        size="sm"
-                        checked={rule.checked}
-                        onCheckedChange={rule.onChange}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <CameraLiveRulesTray
+              safetySource={safetySource}
+              canManageCamera={canManageCamera}
+              canManageSafety={canManageSafety}
+              canEditRules={canEditRules}
+              isResettingRules={isResettingRules}
+              onResetToSiteRules={onResetToSiteRules}
+              confirmHelmetSec={confirmHelmetSec}
+              onConfirmHelmetSecChange={onConfirmHelmetSecChange}
+              confirmVestSec={confirmVestSec}
+              onConfirmVestSecChange={onConfirmVestSecChange}
+              confidenceThreshold={confidenceThreshold}
+              onConfidenceThresholdChange={onConfidenceThresholdChange}
+              cooldownSec={cooldownSec}
+              onCooldownSecChange={onCooldownSecChange}
+              enableNoHelmet={enableNoHelmet}
+              onEnableNoHelmetChange={onEnableNoHelmetChange}
+              enableNoVest={enableNoVest}
+              onEnableNoVestChange={onEnableNoVestChange}
+              enableRestrictedArea={enableRestrictedArea}
+              onEnableRestrictedAreaChange={onEnableRestrictedAreaChange}
+              enableSceneCut={enableSceneCut}
+              onEnableSceneCutChange={onEnableSceneCutChange}
+            />
           </>
         )}
       </div>

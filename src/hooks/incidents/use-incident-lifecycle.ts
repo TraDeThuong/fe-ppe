@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "@/lib/axios";
 import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { incidentService } from "@/services/incident.service";
@@ -75,7 +76,11 @@ export function useReviewIncident() {
         );
       }
     },
-    onError: (err: unknown) => {
+    onError: (err: unknown, { id }) => {
+      if (err instanceof ApiError && (err.status === 409 || err.code === "INVALID_STATUS_TRANSITION")) {
+        invalidateIncidentListsAndCounts(queryClient);
+        void queryClient.invalidateQueries({ queryKey: incidentKeys.detail(id) });
+      }
       const msg =
         err instanceof Error
           ? err.message
@@ -108,6 +113,10 @@ export function useBatchReviewIncidents() {
       );
     },
     onError: (err: unknown) => {
+      if (err instanceof ApiError && err.status === 409) {
+        invalidateIncidentListsAndCounts(queryClient);
+        void queryClient.invalidateQueries({ queryKey: incidentKeys.details() });
+      }
       const msg =
         err instanceof Error
           ? err.message

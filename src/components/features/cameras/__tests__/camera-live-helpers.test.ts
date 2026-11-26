@@ -5,6 +5,7 @@ import {
   buildCameraStartPayload,
   canAutoStartCameraSource,
   deriveLiveDefaultsFromConfig,
+  extractIncidentEvidencePair,
   filterSessionsForCameras,
   findSessionForCamera,
   getYouTubeEmbedUrl,
@@ -14,6 +15,7 @@ import {
   mergeCameraEvidences,
   normalizeIncidentEvidences,
   resolveCameraSourceIssue,
+  resolveEditedStreamUrl,
   resolveInitialCameraSource,
   selectAutoStartCandidates,
   toLiveRoiPolygons,
@@ -152,7 +154,7 @@ test("deriveLiveDefaultsFromConfig & findSessionForCamera map config and running
   assert.deepEqual(findSessionForCamera(map, sampleCamera), sess);
 });
 
-test("deriveLiveDefaultsFromConfig hydrates safety rules from effective site/camera config", () => {
+test("deriveLiveDefaultsFromConfig hydrates independent helmet and vest confirmation durations without dragging vest to 2.0s", () => {
   const defaults = deriveLiveDefaultsFromConfig(
     {
       id: "cfg-1",
@@ -172,7 +174,9 @@ test("deriveLiveDefaultsFromConfig hydrates safety rules from effective site/cam
       cameraName: null,
       cameraCode: null,
       confidenceThreshold: 0.7,
-      confirmationDuration: 8,
+      helmetConfirmationDuration: 3.5,
+      confirmationDuration: 3.5,
+      vestConfirmationDuration: 6.0,
       cooldownDuration: 110,
       rules: { enableNoHelmet: true, enableNoVest: false, enableRestrictedArea: false },
       source: "SITE_LEVEL",
@@ -183,8 +187,8 @@ test("deriveLiveDefaultsFromConfig hydrates safety rules from effective site/cam
   assert.equal(defaults.enableNoHelmet, true);
   assert.equal(defaults.enableNoVest, false);
   assert.equal(defaults.enableRestrictedArea, false);
-  assert.equal(defaults.confirmHelmetSec, 8);
-  assert.equal(defaults.confirmVestSec, 8);
+  assert.equal(defaults.confirmHelmetSec, 3.5);
+  assert.equal(defaults.confirmVestSec, 6.0);
   assert.equal(defaults.confidenceThreshold, 0.7);
   assert.equal(defaults.cooldownSec, 110);
 
@@ -194,12 +198,32 @@ test("deriveLiveDefaultsFromConfig hydrates safety rules from effective site/cam
   });
   assert.equal(startPayload.confidence_threshold, 0.7);
   assert.equal(startPayload.cooldown_s, 110);
-  assert.equal(startPayload.confirmation_duration_s, 8);
-  assert.equal(startPayload.confirmation_duration_vest_s, 8);
+  assert.equal(startPayload.confirmation_duration_s, 3.5);
+  assert.equal(startPayload.confirmation_duration_vest_s, 6.0);
 
   const hotPayload = buildCameraHotConfigPayload(defaults);
   assert.equal(hotPayload.confidence_threshold, 0.7);
   assert.equal(hotPayload.cooldown_s, 110);
+  assert.equal(hotPayload.confirmation_duration_s, 3.5);
+  assert.equal(hotPayload.confirmation_duration_vest_s, 6.0);
+
+  // Backward compatibility: legacy payload missing vestConfirmationDuration keeps Vest at 4.0s
+  const legacyDefaults = deriveLiveDefaultsFromConfig(null, {
+    siteId: "site-1",
+    siteName: null,
+    siteCode: null,
+    cameraId: sampleCamera.id,
+    cameraName: null,
+    cameraCode: null,
+    confidenceThreshold: 0.8,
+    confirmationDuration: 2.0,
+    cooldownDuration: 30,
+    rules: { enableNoHelmet: true, enableNoVest: true, enableRestrictedArea: true },
+    source: "SITE_LEVEL",
+    resolvedAt: "",
+  });
+  assert.equal(legacyDefaults.confirmHelmetSec, 2.0);
+  assert.equal(legacyDefaults.confirmVestSec, 4.0);
 });
 
 test("hasMaskedCredentials, canAutoStartCameraSource & resolveCameraSourceIssue reject masked RTSP and HTTPS .mp4", () => {
@@ -218,16 +242,52 @@ test("hasMaskedCredentials, canAutoStartCameraSource & resolveCameraSourceIssue 
     canAutoStartCameraSource(
       {
         ...sampleCamera,
-        sourceType: "HLS",
+        sourceType: "FILE",
         streamUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
       },
       uploadedVideos,
     ),
     false,
   );
+  // Dead DB sourceType "WEBCAM" with empty streamUrl is no longer treated as auto-runnable
   assert.equal(
     canAutoStartCameraSource({ sourceType: "WEBCAM", streamUrl: "" }, uploadedVideos),
+    false,
+  );
+  // YouTube with HTTP sourceType is directly runnable on AI Engine
+  assert.equal(
+    canAutoStartCameraSource(
+      { sourceType: "HTTP", streamUrl: "https://www.youtube.com/watch?v=1-iS7LArMPA" },
+      uploadedVideos,
+    ),
     true,
+  );
+
+  // resolveEditedStreamUrl protects masked credentials on EditCameraModal submit
+  assert.deepEqual(
+    resolveEditedStreamUrl(
+      "rtsp://admin:***@10.0.0.1:554/stream",
+      "rtsp://admin:***@10.0.0.1:554/stream",
+    ),
+    { ok: true, streamUrl: undefined },
+  );
+  assert.deepEqual(
+    resolveEditedStreamUrl(
+      "rtsp://admin:***@10.0.0.99:554/stream",
+      "rtsp://admin:***@10.0.0.1:554/stream",
+    ),
+    { ok: false, errorCode: "MASKED_PASSWORD_CHANGED" },
+  );
+  assert.deepEqual(
+    resolveEditedStreamUrl("   ", "rtsp://admin:***@10.0.0.1:554/stream"),
+    { ok: false, errorCode: "EMPTY_URL" },
+  );
+  assert.deepEqual(
+    resolveEditedStreamUrl(
+      "rtsp://admin:NewPass123@10.0.0.99:554/stream",
+      "rtsp://admin:***@10.0.0.1:554/stream",
+    ),
+    { ok: true, streamUrl: "rtsp://admin:NewPass123@10.0.0.99:554/stream" },
   );
 
   const maskedIssue = resolveCameraSourceIssue(
@@ -292,6 +352,21 @@ test("normalizeIncidentEvidences & mergeCameraEvidences adapt DB evidences witho
   assert.equal(dbEvidences[0].trackId, "7");
   assert.equal(dbEvidences[0].beforeUrl, "http://localhost:9000/ppe-evidences/cameras/cam1/ref.jpg");
   assert.equal(dbEvidences[0].afterUrl, "http://localhost:9000/ppe-evidences/cameras/cam1/snap.jpg");
+
+  const extractedPair = extractIncidentEvidencePair(
+    { ...incidents[0], trackId: 42 },
+    "CAM-01",
+  );
+  assert.equal(extractedPair.isPair, true);
+  assert.equal(extractedPair.lightboxItem?.trackId, "42");
+  assert.equal(
+    extractedPair.beforeUrl,
+    "http://localhost:9000/ppe-evidences/cameras/cam1/ref.jpg",
+  );
+  assert.equal(
+    extractedPair.afterUrl,
+    "http://localhost:9000/ppe-evidences/cameras/cam1/snap.jpg",
+  );
 
   const liveEvidences: EvidenceItem[] = [
     {

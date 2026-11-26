@@ -33,9 +33,9 @@ export function resolveIncidentListScope(
   }
   if (stat === "resolved") return { scope: "work", status: "RESOLVED", requiresRole: false };
 
-  // Drill-down links from the dashboard, site and camera pages used an unfiltered status.
+  // Drill-down links from the dashboard, site, zone and camera pages used an unfiltered status.
   if (scope !== "work" && (stat === "critical" || stat === "total" ||
-    ["siteId", "cameraId", "fromDate", "toDate"].some((key) => get(key) != null))) {
+    ["siteId", "zoneId", "cameraId", "fromDate", "toDate"].some((key) => get(key) != null))) {
     return { scope: "all", requiresRole: false };
   }
 
@@ -57,4 +57,25 @@ export function getIncidentClosure(incident: IncidentItem) {
     label: closure?.oldStatus === "RESOLVED" ? "incidents.scope.closedAfterAcceptance" :
       closure?.oldStatus === "DISMISSED" ? "incidents.scope.closedAfterDismissal" : "incidents.status.closed",
   };
+}
+
+/**
+ * Ánh xạ bộ lọc phân khu (`zoneId`) sang danh sách `cameraIds` thuộc phân khu đó
+ * để gửi lên Backend (tránh gửi `zoneId` bị Zod strip vô ích).
+ */
+export function resolveZoneCameraIds(
+  zoneId: string | undefined,
+  cameras: ReadonlyArray<{ id: string; siteId?: string | null; zoneId?: string | null }>,
+  siteId?: string,
+): string[] | undefined {
+  const trimmedZone = zoneId?.trim();
+  if (!trimmedZone) return undefined;
+  return cameras
+    .filter(
+      (cam) =>
+        Boolean(cam.id) &&
+        cam.zoneId === trimmedZone &&
+        (!siteId || cam.siteId === siteId),
+    )
+    .map((cam) => cam.id);
 }

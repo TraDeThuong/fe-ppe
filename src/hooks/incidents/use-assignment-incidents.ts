@@ -78,6 +78,7 @@ export async function fetchIncidentStatusBucket(
     limit: number;
     maxPages?: number;
     includeAssignments?: boolean;
+    includeAllAssignments?: boolean;
   },
   signal?: AbortSignal,
 ): Promise<StatusBucketResult> {
@@ -97,6 +98,7 @@ export async function fetchIncidentStatusBucket(
       sortBy: "detectedAt",
       sortOrder: "desc",
       ...(params.includeAssignments ? { includeAssignments: true } : {}),
+      ...(params.includeAllAssignments ? { includeAllAssignments: true } : {}),
     },
     { signal },
   );
@@ -129,6 +131,7 @@ export async function fetchIncidentStatusBucket(
             sortBy: "detectedAt",
             sortOrder: "desc",
             ...(params.includeAssignments ? { includeAssignments: true } : {}),
+            ...(params.includeAllAssignments ? { includeAllAssignments: true } : {}),
           },
           { signal, suppressToast: true },
         );
@@ -276,6 +279,7 @@ export function useAssignmentIncidents(
           limit: DEFAULT_BUCKET_LIMIT,
           maxPages: 1,
           includeAssignments: false,
+          includeAllAssignments: false,
         },
         {
           key: "confirmed" as const,
@@ -283,6 +287,7 @@ export function useAssignmentIncidents(
           limit: DEFAULT_BUCKET_LIMIT,
           maxPages: maxConfirmedPages,
           includeAssignments,
+          includeAllAssignments: false,
         },
         {
           key: "resolved" as const,
@@ -290,6 +295,7 @@ export function useAssignmentIncidents(
           limit: DEFAULT_BUCKET_LIMIT,
           maxPages: 1,
           includeAssignments,
+          includeAllAssignments: includeAssignments,
         },
         {
           key: "closed" as const,
@@ -297,6 +303,7 @@ export function useAssignmentIncidents(
           limit: closedLimit,
           maxPages: 1,
           includeAssignments: includeClosedAssignments,
+          includeAllAssignments: includeClosedAssignments,
         },
         {
           key: "dismissed" as const,
@@ -304,6 +311,7 @@ export function useAssignmentIncidents(
           limit: dismissedLimit,
           maxPages: 1,
           includeAssignments: false,
+          includeAllAssignments: false,
         },
       ] as const,
     [
@@ -326,6 +334,7 @@ export function useAssignmentIncidents(
           limit: spec.limit,
           maxPages: spec.maxPages,
           includeAssignments: spec.includeAssignments || undefined,
+          includeAllAssignments: spec.includeAllAssignments || undefined,
         },
       ] as const,
       queryFn: ({ signal }: { signal: AbortSignal }) =>
@@ -336,6 +345,7 @@ export function useAssignmentIncidents(
             limit: spec.limit,
             maxPages: spec.maxPages,
             includeAssignments: spec.includeAssignments,
+            includeAllAssignments: spec.includeAllAssignments,
           },
           signal,
         ),

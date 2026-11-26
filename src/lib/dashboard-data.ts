@@ -931,7 +931,11 @@ export function buildDashboardAnalyticsFromReporting(input: {
     );
 
   // 5. Tổng hợp tỷ lệ thẩm duyệt & MTTR toàn kỳ
-  const reviewed = confirmedTotal + resolvedTotal + dismissedTotal;
+  const trueViolationsTotal =
+    openTotal + confirmedTotal + resolvedTotal + dismissedTotal <= total
+      ? confirmedTotal + resolvedTotal
+      : Math.max(confirmedTotal, resolvedTotal);
+  const reviewed = trueViolationsTotal + dismissedTotal;
   const dismissedRate =
     reviewed > 0
       ? Number(((dismissedTotal / reviewed) * 100).toFixed(2))
@@ -985,9 +989,10 @@ export function buildDashboardAnalyticsFromReporting(input: {
     trueViolations: confirmedTotal,
     falseAlarms: dismissedTotal,
     falseAlarmRate:
-      typeof summary.falseAlarmRate === "number"
+      dismissedRate ??
+      (typeof summary.falseAlarmRate === "number" && reviewed > 0
         ? summary.falseAlarmRate
-        : dismissedRate,
+        : null),
     complianceRate:
       typeof summary.complianceRate === "number"
         ? summary.complianceRate

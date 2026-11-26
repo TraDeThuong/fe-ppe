@@ -6,11 +6,13 @@ import {
   Building2,
   Camera,
   Clock,
+  Cpu,
   ExternalLink,
   MapPin,
 } from "lucide-react";
 import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
+import { resolveIncidentTelemetry } from "./viewer/evidence-media-utils";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useLocale } from "@/providers/locale-provider";
 import type { IncidentItem } from "@/types";
@@ -26,15 +28,19 @@ export function IncidentMetaCard({ incident }: IncidentMetaCardProps) {
   const {
     getSiteName,
     getZoneName,
+    getCamera,
     getCameraCode,
     getCameraName,
   } = useEntityLookup();
 
+  const camera = getCamera(incident.cameraId);
   const siteName = incident.siteName || getSiteName(incident.siteId);
   const zoneName =
-    incident.zoneName || getZoneName(incident.siteId, incident.zoneId);
+    incident.zoneName ||
+    getZoneName(incident.siteId, incident.zoneId || camera?.zoneId);
   const cameraCode = incident.cameraCode || getCameraCode(incident.cameraId);
   const cameraName = incident.cameraName || getCameraName(incident.cameraId);
+  const telemetry = resolveIncidentTelemetry(incident);
 
   const detectedDate = new Date(incident.detectedAt).toLocaleString(locale, {
     year: "numeric",
@@ -117,6 +123,30 @@ export function IncidentMetaCard({ incident }: IncidentMetaCardProps) {
         </p>
       ),
     },
+    ...(telemetry.trackId !== null || telemetry.confidencePct !== null
+      ? [
+          {
+            key: "ai-telemetry",
+            icon: Cpu,
+            label: isVietnamese ? "Định danh & Độ tin cậy AI" : "AI Track & Confidence",
+            color: "text-primary",
+            content: (
+              <div className="flex flex-wrap items-center gap-2">
+                {telemetry.trackId !== null && (
+                  <span className="rounded-lg border border-primary/25 bg-primary/10 px-2 py-0.5 font-mono text-[11px] font-bold text-primary">
+                    Track #{telemetry.trackId}
+                  </span>
+                )}
+                {telemetry.confidencePct !== null && (
+                  <span className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                    AI {telemetry.confidencePct}%
+                  </span>
+                )}
+              </div>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (

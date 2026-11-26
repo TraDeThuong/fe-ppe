@@ -10,8 +10,7 @@ import {
   Select,
   type SelectOption,
 } from "@/components/ui/form/selection-controls/select";
-import { useAiModelDetail, useAiModels } from "@/hooks/ai-metrics";
-import { useCameras } from "@/hooks/cameras";
+import { useAiModelDetail } from "@/hooks/ai-metrics";
 import {
   generateUniqueEntityCode,
   isCodeTaken,
@@ -23,6 +22,7 @@ import type {
   CreateAiModelDto,
   CreateAiModelVersionDto,
   RecordAiPerformanceDto,
+  CameraItem,
 } from "@/types";
 
 export const MODEL_CODE_REGEX = /^[a-zA-Z0-9._-]+$/;
@@ -86,6 +86,7 @@ export interface CreateAiModelModalProps {
   onOpenChange: (open: boolean) => void;
   loading?: boolean;
   onSubmit: (dto: CreateAiModelDto) => Promise<unknown>;
+  models: AiModelDto[];
 }
 
 const MODEL_TYPE_OPTIONS: SelectOption[] = [
@@ -99,13 +100,13 @@ export function CreateAiModelModal({
   onOpenChange,
   loading = false,
   onSubmit,
+  models,
 }: CreateAiModelModalProps) {
   const { locale } = useLocale();
   const isVi = locale === "vi-VN";
-  const { data: existingModels = [] } = useAiModels();
   const existingModelCodes = useMemo(
-    () => existingModels.map((m) => m.code),
-    [existingModels],
+    () => models.map((m) => m.code),
+    [models],
   );
 
   const [name, setName] = useState("");
@@ -643,6 +644,8 @@ export interface RecordAiBenchmarkModalProps {
   models: AiModelDto[];
   loading?: boolean;
   onSubmit: (dto: RecordAiPerformanceDto) => Promise<unknown>;
+  cameras: CameraItem[];
+  loadingCameras: boolean;
 }
 
 export function RecordAiBenchmarkModal({
@@ -651,14 +654,11 @@ export function RecordAiBenchmarkModal({
   models,
   loading = false,
   onSubmit,
+  cameras,
+  loadingCameras: isCamerasLoading,
 }: RecordAiBenchmarkModalProps) {
   const { locale } = useLocale();
   const isVi = locale === "vi-VN";
-  const {
-    data: camerasData,
-    isLoading: isCamerasLoading,
-  } = useCameras({ limit: 100 }, { enabled: open });
-  const cameras = camerasData?.items ?? [];
 
   const activeDeployedVersion = useMemo(() => {
     for (const m of models) {

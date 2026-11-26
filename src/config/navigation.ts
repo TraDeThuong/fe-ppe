@@ -317,12 +317,24 @@ export function resolveRoutePermission(pathname: string): string | undefined {
   return matched ? ROUTE_PERMISSIONS[matched] : undefined;
 }
 
+export function canAccessAiSandbox(
+  permissions: readonly string[] = [],
+  role?: string,
+): boolean {
+  return role === "ADMIN" || role === "SUPER_ADMIN" ||
+    (permissions.includes("PPE_AI_METRICS_READ") &&
+      permissions.includes("PPE_MODEL_MANAGE"));
+}
+
 /** Kiểm tra quyền truy cập route (hỗ trợ cả single permission và anyPermissions) */
 export function hasRouteAccess(
   pathname: string,
   permissions: readonly string[] = [],
   role?: string,
 ): boolean {
+  if (pathname === "/ai-metrics/test" || pathname.startsWith("/ai-metrics/test/")) {
+    return canAccessAiSandbox(permissions, role);
+  }
   if (role === "ADMIN" || role === "SUPER_ADMIN") return true;
 
   const anyCandidates = Object.keys(ROUTE_ANY_PERMISSIONS).filter(

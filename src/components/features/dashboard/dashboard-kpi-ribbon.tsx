@@ -19,13 +19,21 @@ import {
 } from "@/components/ui/animated-number";
 import { Skeleton } from "@/components/ui/skeleton";
 
+export interface DashboardKpiAiSummary {
+  modelLabel?: string | null;
+  avgFps?: number | null;
+  avgLatencyMs?: number | null;
+}
+
 export interface DashboardKpiRibbonProps {
   total: number | null;
   rawTotal?: number | null;
   pendingCount: number | null;
   rawPendingCount?: number | null;
+  confirmedCount?: number | null;
   totalCamerasCount: number | null;
   onlineCamerasCount: number | null;
+  aiSummary?: DashboardKpiAiSummary | null;
   analytics: import("@/types/dashboard.types").DashboardAnalytics | null;
   canViewReports: boolean;
   canViewIncidents: boolean;
@@ -235,8 +243,10 @@ export function DashboardKpiRibbon({
   rawTotal,
   pendingCount,
   rawPendingCount,
+  confirmedCount,
   totalCamerasCount,
   onlineCamerasCount,
+  aiSummary,
   analytics,
   canViewReports,
   canViewIncidents,
@@ -260,10 +270,151 @@ export function DashboardKpiRibbon({
       ? `${number.format(onlineCamerasCount)}/${number.format(totalCamerasCount)}`
       : "—";
 
+  const offlineCamerasCount =
+    onlineCamerasCount !== null &&
+    totalCamerasCount !== null &&
+    totalCamerasCount > 0 &&
+    onlineCamerasCount <= totalCamerasCount
+      ? totalCamerasCount - onlineCamerasCount
+      : null;
+
+  const onlineCameraPercent =
+    onlineCamerasCount !== null &&
+    totalCamerasCount !== null &&
+    totalCamerasCount > 0 &&
+    onlineCamerasCount <= totalCamerasCount
+      ? Math.round((onlineCamerasCount / totalCamerasCount) * 100)
+      : null;
+
+  const effectiveFalseAlertRateValue =
+    analytics && analytics.reviewed > 0
+      ? (analytics.falseAlarmRate ?? analytics.dismissedRate)
+      : null;
+
   const dismissedRate =
-    analytics?.dismissedRate == null
+    effectiveFalseAlertRateValue == null
       ? "—"
-      : `${number.format(Math.round(analytics.dismissedRate * 10) / 10)}%`;
+      : `${number.format(Math.round(effectiveFalseAlertRateValue * 10) / 10)}%`;
+
+  const mttrText =
+    analytics?.mttrMinutes != null
+      ? `${number.format(Math.round(analytics.mttrMinutes * 10) / 10)} ${t("dashboard.charts.minutes")}`
+      : null;
+
+  const resolvedInPeriod =
+    analytics?.resolvedIncidents !== undefined
+      ? analytics.resolvedIncidents
+      : null;
+
+  const trueViolationsInPeriod =
+    analytics && analytics.reviewed > 0
+      ? Math.max(0, analytics.reviewed - analytics.dismissed)
+      : null;
+
+  const periodTotalFooter = (() => {
+    if (total !== null && rawTotal != null && rawTotal > total) {
+      return isVietnamese
+        ? `Gom từ ${number.format(rawTotal)} lỗi gốc · ${t("dashboard.kpi.allStatuses")}`
+        : `Grouped from ${number.format(rawTotal)} raw · ${t("dashboard.kpi.allStatuses")}`;
+    }
+    if (total !== null && total > 0 && resolvedInPeriod !== null) {
+      if (mttrText) {
+        return t("dashboard.kpi.resolvedWithMttr", {
+          resolved: number.format(resolvedInPeriod),
+          mttr: mttrText,
+        });
+      }
+      return t("dashboard.kpi.resolvedInPeriod", {
+        resolved: number.format(resolvedInPeriod),
+        total: number.format(total),
+      });
+    }
+    return t("dashboard.kpi.allStatuses");
+  })();
+
+  const pendingFooter = (() => {
+    if (confirmedCount != null && confirmedCount > 0) {
+      return t("dashboard.kpi.confirmedAwaitingResolve", {
+        count: number.format(confirmedCount),
+      });
+    }
+    if (
+      pendingCount !== null &&
+      rawPendingCount != null &&
+      rawPendingCount > pendingCount
+    ) {
+      return isVietnamese
+        ? `${number.format(rawPendingCount)} bản ghi lỗi chờ duyệt`
+        : `${number.format(rawPendingCount)} raw records pending`;
+    }
+    return t("dashboard.kpi.currentAllDays");
+  })();
+
+  const aiFooterSuffix = (() => {
+    if (!aiSummary) return null;
+    const parts: string[] = [];
+    if (aiSummary.modelLabel) parts.push(aiSummary.modelLabel);
+    if (
+      typeof aiSummary.avgFps === "number" &&
+      Number.isFinite(aiSummary.avgFps)
+    ) {
+      parts.push(
+        `${number.format(Math.round(aiSummary.avgFps * 10) / 10)} FPS`,
+      );
+    }
+    if (
+      typeof aiSummary.avgLatencyMs === "number" &&
+      Number.isFinite(aiSummary.avgLatencyMs)
+    ) {
+      parts.push(
+        `${number.format(Math.round(aiSummary.avgLatencyMs * 10) / 10)}ms`,
+      );
+    }
+    return parts.length > 0 ? parts.join(" · ") : null;
+  })();
+
+  const cameraFooter = (() => {
+    if (offlineCamerasCount !== null && onlineCameraPercent !== null) {
+      if (offlineCamerasCount > 0) {
+        if (aiFooterSuffix) {
+          return isVietnamese
+            ? `${number.format(offlineCamerasCount)} ngoại tuyến · ${aiFooterSuffix}`
+            : `${number.format(offlineCamerasCount)} offline · ${aiFooterSuffix}`;
+        }
+        return t("dashboard.kpi.camerasOfflineSummary", {
+          offline: number.format(offlineCamerasCount),
+          percent: onlineCameraPercent,
+        });
+      }
+      if (aiFooterSuffix) {
+        return isVietnamese
+          ? `100% trực tuyến · ${aiFooterSuffix}`
+          : `100% online · ${aiFooterSuffix}`;
+      }
+      return t("dashboard.kpi.camerasAllOnline");
+    }
+    if (aiFooterSuffix) return aiFooterSuffix;
+    return t("dashboard.kpi.cameraScope");
+  })();
+
+  const falseAlertFooter = (() => {
+    if (analytics && analytics.reviewed > 0) {
+      if (
+        typeof analytics.complianceRate === "number" &&
+        trueViolationsInPeriod !== null
+      ) {
+        const complianceFormatted = number.format(
+          Math.round(analytics.complianceRate * 10) / 10,
+        );
+        return t("dashboard.kpi.trueViolationsAndCompliance", {
+          trueCount: number.format(trueViolationsInPeriod),
+          compliance: complianceFormatted,
+        });
+      }
+      return `${number.format(analytics.dismissed)} / ${number.format(analytics.reviewed)} · ${t("dashboard.kpi.reviewedInPeriod")}`;
+    }
+    return t(analytics ? "dashboard.kpi.noReviews" : "dashboard.kpi.noData");
+  })();
 
   const hasAccess =
     canViewReports || canViewIncidents || canViewCameras;
@@ -403,15 +554,7 @@ export function DashboardKpiRibbon({
                     value={total === null ? "—" : number.format(total)}
                     icon={ShieldAlert}
                     tone="primary"
-                    footer={
-                      total !== null &&
-                      rawTotal != null &&
-                      rawTotal > total
-                        ? isVietnamese
-                          ? `Gom từ ${number.format(rawTotal)} lỗi gốc · ${t("dashboard.kpi.allStatuses")}`
-                          : `Grouped from ${number.format(rawTotal)} raw · ${t("dashboard.kpi.allStatuses")}`
-                        : t("dashboard.kpi.allStatuses")
-                    }
+                    footer={periodTotalFooter}
                     onClick={canViewIncidents ? onNavigateIncidents : undefined}
                   />
                   {periodState}
@@ -428,15 +571,7 @@ export function DashboardKpiRibbon({
                     }
                     icon={Clock}
                     tone={pendingCount ? "warning" : "primary"}
-                    footer={
-                      pendingCount !== null &&
-                      rawPendingCount != null &&
-                      rawPendingCount > pendingCount
-                        ? isVietnamese
-                          ? `${number.format(rawPendingCount)} bản ghi lỗi chờ duyệt`
-                          : `${number.format(rawPendingCount)} raw records pending`
-                        : t("dashboard.kpi.currentAllDays")
-                    }
+                    footer={pendingFooter}
                     onClick={onFilterPending}
                   />
                   {pendingState}
@@ -450,8 +585,12 @@ export function DashboardKpiRibbon({
                     title={t("dashboard.kpi.onlineCameras")}
                     value={cameraRatio}
                     icon={Camera}
-                    tone="success"
-                    footer={t("dashboard.kpi.cameraScope")}
+                    tone={
+                      offlineCamerasCount !== null && offlineCamerasCount > 0
+                        ? "warning"
+                        : "success"
+                    }
+                    footer={cameraFooter}
                     onClick={onNavigateCameras}
                   />
                   {cameraState}
@@ -462,19 +601,16 @@ export function DashboardKpiRibbon({
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <KpiTile
                     index="04"
-                    title={t("dashboard.kpi.dismissedRate")}
+                    title={t("dashboard.kpi.falseAlertRate")}
                     value={dismissedRate}
                     icon={CheckCircle2}
-                    tone="primary"
-                    footer={
-                      analytics && analytics.reviewed > 0
-                        ? `${number.format(analytics.dismissed)} / ${number.format(analytics.reviewed)} · ${t("dashboard.kpi.reviewedInPeriod")}`
-                        : t(
-                          analytics
-                            ? "dashboard.kpi.noReviews"
-                            : "dashboard.kpi.noData",
-                        )
+                    tone={
+                      effectiveFalseAlertRateValue !== null &&
+                      effectiveFalseAlertRateValue >= 30
+                        ? "warning"
+                        : "primary"
                     }
+                    footer={falseAlertFooter}
                   />
                   {periodState}
                 </div>

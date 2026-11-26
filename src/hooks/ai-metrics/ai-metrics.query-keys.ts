@@ -2,7 +2,7 @@ import type { AiPerformanceFilter } from "@/types";
 
 export const aiMetricsKeys = {
   all: ["ai-metrics"] as const,
-  performance: (filter?: AiPerformanceFilter) =>
+  performance: (filter: Pick<AiPerformanceFilter, "cameraId" | "startDate" | "endDate">) =>
     [...aiMetricsKeys.all, "performance", filter] as const,
   models: () => [...aiMetricsKeys.all, "models"] as const,
   model: (id: string) => [...aiMetricsKeys.models(), id] as const,
