@@ -52,7 +52,7 @@ export function useDashboardPeriod(initial?: {
     const update = () => {
       if (!document.hidden) setToday(vietnamToday());
     };
-    const timer = setInterval(update, 1000);
+    const timer = setInterval(update, 60_000);
     document.addEventListener("visibilitychange", update);
     window.addEventListener("focus", update);
     return () => {
@@ -81,6 +81,7 @@ interface DashboardAccess {
   userId?: string;
   siteId: string | null;
   period: DashboardPeriod | null;
+  activeTab: "overview" | "safety" | "devices";
   incidents: boolean;
   analytics: boolean;
   cameras: boolean;
@@ -154,13 +155,18 @@ export function useDashboardData(access: DashboardAccess) {
         : undefined,
     [siteId, period],
   );
+  const canLoadHourlyRisk =
+    ready &&
+    access.analytics &&
+    access.activeTab === "safety" &&
+    !!hourlyRiskParams;
   const hourlyRiskQuery = useQuery({
     queryKey: [
       ...reportingKeys.hourlyRisk(hourlyRiskParams),
       "dashboard",
       userId,
     ],
-    enabled: ready && access.analytics && !!hourlyRiskParams,
+    enabled: canLoadHourlyRisk,
     queryFn: ({ signal }) =>
       reportingService.getHourlyRisk(hourlyRiskParams, {
         signal,
@@ -172,13 +178,18 @@ export function useDashboardData(access: DashboardAccess) {
     () => (statsFilter ? { ...statsFilter, limit: 50 } : undefined),
     [statsFilter],
   );
+  const canLoadCameraRankings =
+    ready &&
+    access.analytics &&
+    access.activeTab === "devices" &&
+    !!cameraRankingsParams;
   const cameraRankingsQuery = useQuery({
     queryKey: [
       ...reportingKeys.rankings(cameraRankingsParams),
       "dashboard",
       userId,
     ],
-    enabled: ready && access.analytics && !!cameraRankingsParams,
+    enabled: canLoadCameraRankings,
     queryFn: ({ signal }) =>
       reportingService.getCameraRankings(cameraRankingsParams, {
         signal,
@@ -449,8 +460,8 @@ export function useDashboardData(access: DashboardAccess) {
         const [summaryRes] = await Promise.all([
           summaryQuery.refetch(),
           violationQuery.refetch(),
-          hourlyRiskQuery.refetch(),
-          cameraRankingsQuery.refetch(),
+          ...(canLoadHourlyRisk ? [hourlyRiskQuery.refetch()] : []),
+          ...(canLoadCameraRankings ? [cameraRankingsQuery.refetch()] : []),
           trendsQuery.refetch(),
         ]);
         return summaryRes;
@@ -461,6 +472,8 @@ export function useDashboardData(access: DashboardAccess) {
       analytics?.total,
       summaryQuery,
       violationQuery,
+      canLoadHourlyRisk,
+      canLoadCameraRankings,
       hourlyRiskQuery,
       cameraRankingsQuery,
       trendsQuery,

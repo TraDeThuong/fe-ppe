@@ -30,6 +30,10 @@ import {
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import { aiMetricsService } from "@/services/ai-metrics.service";
+import {
+  clampSiteConfirmationDuration,
+  resolveSiteConfirmationDurations,
+} from "@/components/features/sites/site-helpers";
 import type {
   AiModelDto,
   SiteItem,
@@ -38,6 +42,35 @@ import type {
 
 export interface SiteSafetyRulesTabProps {
   site: SiteItem;
+}
+
+function safeClampDuration(value: number | null | undefined, fallback: number): number {
+  if (typeof clampSiteConfirmationDuration === "function") {
+    return clampSiteConfirmationDuration(value, fallback);
+  }
+  const num = Number(value);
+  if (value == null || !Number.isFinite(num)) return fallback;
+  return Number(Math.min(60, Math.max(1, num)).toFixed(1));
+}
+
+function safeResolveDurations(source?: {
+  helmetConfirmationDuration?: number | null;
+  confirmationDuration?: number | null;
+  vestConfirmationDuration?: number | null;
+} | null) {
+  if (typeof resolveSiteConfirmationDurations === "function") {
+    return resolveSiteConfirmationDurations(source);
+  }
+  return {
+    helmetConfirmationDuration: safeClampDuration(
+      source?.helmetConfirmationDuration ?? source?.confirmationDuration,
+      2,
+    ),
+    vestConfirmationDuration: safeClampDuration(
+      source?.vestConfirmationDuration,
+      4,
+    ),
+  };
 }
 
 export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
@@ -68,7 +101,10 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
   const [enableNoHelmet, setEnableNoHelmet] = useState(true);
   const [enableNoVest, setEnableNoVest] = useState(true);
   const [enableRestrictedArea, setEnableRestrictedArea] = useState(true);
-  const [confirmationDuration, setConfirmationDuration] = useState<number>(2);
+  const [helmetConfirmationDuration, setHelmetConfirmationDuration] =
+    useState<number>(2);
+  const [vestConfirmationDuration, setVestConfirmationDuration] =
+    useState<number>(4);
   const [confidenceThreshold, setConfidenceThreshold] = useState<number>(0.8);
   const [cooldownDuration, setCooldownDuration] = useState<number>(30);
   const [modelVersionId, setModelVersionId] = useState<string>("");
@@ -77,10 +113,12 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
 
   useEffect(() => {
     if (sourceConfig) {
+      const durations = safeResolveDurations(sourceConfig);
       setEnableNoHelmet(sourceConfig.enableNoHelmet ?? true);
       setEnableNoVest(sourceConfig.enableNoVest ?? true);
       setEnableRestrictedArea(sourceConfig.enableRestrictedArea ?? true);
-      setConfirmationDuration(sourceConfig.confirmationDuration ?? 2);
+      setHelmetConfirmationDuration(durations.helmetConfirmationDuration);
+      setVestConfirmationDuration(durations.vestConfirmationDuration);
       setConfidenceThreshold(Number(sourceConfig.confidenceThreshold) || 0.8);
       setCooldownDuration(sourceConfig.cooldownDuration ?? 30);
       setModelVersionId(sourceConfig.modelVersionId ?? "");
@@ -89,11 +127,14 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
 
   const isDirty = useMemo(() => {
     if (!sourceConfig) return false;
+    const baselineDurations = safeResolveDurations(sourceConfig);
     return (
       enableNoHelmet !== (sourceConfig.enableNoHelmet ?? true) ||
       enableNoVest !== (sourceConfig.enableNoVest ?? true) ||
       enableRestrictedArea !== (sourceConfig.enableRestrictedArea ?? true) ||
-      confirmationDuration !== (sourceConfig.confirmationDuration ?? 2) ||
+      helmetConfirmationDuration !==
+        baselineDurations.helmetConfirmationDuration ||
+      vestConfirmationDuration !== baselineDurations.vestConfirmationDuration ||
       Math.abs(confidenceThreshold - (Number(sourceConfig.confidenceThreshold) || 0.8)) > 0.001 ||
       cooldownDuration !== (sourceConfig.cooldownDuration ?? 30) ||
       modelVersionId !== (sourceConfig.modelVersionId ?? "")
@@ -103,7 +144,8 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
     enableNoHelmet,
     enableNoVest,
     enableRestrictedArea,
-    confirmationDuration,
+    helmetConfirmationDuration,
+    vestConfirmationDuration,
     confidenceThreshold,
     cooldownDuration,
     modelVersionId,
@@ -122,11 +164,21 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
 
   const handleSaveSiteConfig = async () => {
     if (!isSiteEditable) return;
+    const safeHelmetDuration = safeClampDuration(
+      helmetConfirmationDuration,
+      2,
+    );
+    const safeVestDuration = safeClampDuration(
+      vestConfirmationDuration,
+      4,
+    );
     const payload: UpdateSiteSafetyConfigPayload = {
       enableNoHelmet,
       enableNoVest,
       enableRestrictedArea,
-      confirmationDuration,
+      helmetConfirmationDuration: safeHelmetDuration,
+      confirmationDuration: safeHelmetDuration,
+      vestConfirmationDuration: safeVestDuration,
       confidenceThreshold,
       cooldownDuration,
       modelVersionId: modelVersionId ? modelVersionId : null,
@@ -140,6 +192,7 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
 
   const handleApplySystemDefault = () => {
     if (!systemDefault) return;
+    const defaultDurations = safeResolveDurations(systemDefault);
     setEnableNoHelmet(
       systemDefault.rules?.enableNoHelmet ?? systemDefault.enableNoHelmet ?? true,
     );
@@ -151,7 +204,8 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
         systemDefault.enableRestrictedArea ??
         true,
     );
-    setConfirmationDuration(systemDefault.confirmationDuration ?? 2);
+    setHelmetConfirmationDuration(defaultDurations.helmetConfirmationDuration);
+    setVestConfirmationDuration(defaultDurations.vestConfirmationDuration);
     setConfidenceThreshold(Number(systemDefault.confidenceThreshold) || 0.8);
     setCooldownDuration(systemDefault.cooldownDuration ?? 30);
     setModelVersionId(systemDefault.modelVersionId ?? "");
@@ -431,7 +485,7 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
       3. THRESHOLD & MODEL CONTROLS (EXTRUDED CONTAINERS + INSET WELLS)
   ========================================================= */}
   <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-    {/* Confirmation Duration (0.5 - 60s) */}
+    {/* Confirmation Duration: Independent Helmet (NO_HELMET) & Vest (NO_VEST) (1 - 60s) */}
     <section className="flex flex-col justify-between rounded-[24px] border border-white/60 bg-surface p-5 shadow-[8px_8px_18px_var(--shadow-dark),-8px_-8px_18px_rgba(255,255,255,0.85)] dark:border-white/[0.06] dark:bg-card dark:shadow-[8px_8px_20px_rgba(0,0,0,0.55),-3px_-3px_10px_rgba(255,255,255,0.03)]">
       <div className="flex items-start gap-3.5">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[15px] border border-white/60 bg-surface text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] dark:border-white/[0.05] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45),-2px_-2px_5px_rgba(255,255,255,0.02)]">
@@ -440,46 +494,95 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
         <div className="min-w-0 flex-1">
           <h4 className="text-[13px] font-extrabold text-foreground">
             {isVietnamese
-              ? "Ngưỡng thời gian xác nhận vi phạm"
-              : "Violation Confirmation Time"}
+              ? "Ngưỡng thời gian xác nhận vi phạm (Mũ & Áo độc lập)"
+              : "Violation Confirmation Time (Independent Helmet & Vest)"}
           </h4>
           <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
             {isVietnamese
-              ? "Thời gian vi phạm liên tục tối thiểu (0.5 – 60 giây) trước khi kích hoạt cảnh báo."
-              : "Minimum sustained violation duration (0.5 – 60 sec) before triggering an alert."}
+              ? "Thời gian vi phạm liên tục tối thiểu (1 – 60 giây, bước 0.5s) cho từng loại PPE trước khi phát cảnh báo."
+              : "Minimum sustained violation duration (1 – 60 sec, step 0.5s) per PPE type before triggering an alert."}
           </p>
         </div>
       </div>
 
-      {/* Deep Inset Well */}
-      <div className="mt-4 rounded-[18px] bg-background/60 p-4 shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_rgba(255,255,255,0.85)] dark:bg-black/30 dark:shadow-[inset_4px_4px_10px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.03)]">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[11px] font-bold text-muted-foreground">
-            {isVietnamese ? "Thời lượng" : "Duration"}
-          </span>
-          {/* Extruded Digital Readout Badge */}
-          <span className="rounded-xl border border-white/70 bg-surface px-3 py-1 font-mono text-xs font-black tabular-nums text-primary shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:border-white/[0.06] dark:bg-card dark:shadow-[3px_3px_7px_rgba(0,0,0,0.55)]">
-            {confirmationDuration} {isVietnamese ? "giây" : "sec"}
-          </span>
+      {/* Dual Deep Inset Wells: Helmet (default 2s) & Vest (default 4s) */}
+      <div className="mt-4 grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+        {/* 1. Helmet Confirmation Slider (NO_HELMET) */}
+        <div className="rounded-[18px] bg-background/60 p-3.5 shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_rgba(255,255,255,0.85)] dark:bg-black/30 dark:shadow-[inset_4px_4px_10px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.03)]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-foreground">
+              <HardHat className="h-3.5 w-3.5 text-primary" />
+              <span>{isVietnamese ? "Mũ bảo hộ" : "Hard Hat"}</span>
+            </span>
+            <span className="rounded-xl border border-white/70 bg-surface px-2.5 py-0.5 font-mono text-xs font-black tabular-nums text-primary shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:border-white/[0.06] dark:bg-card dark:shadow-[3px_3px_7px_rgba(0,0,0,0.55)]">
+              {helmetConfirmationDuration} {isVietnamese ? "giây" : "sec"}
+            </span>
+          </div>
+
+          <input
+            type="range"
+            min="1"
+            max="60"
+            step="0.5"
+            disabled={!isSiteEditable}
+            aria-label={
+              isVietnamese
+                ? "Thời gian xác nhận Mũ bảo hộ (NO_HELMET)"
+                : "Hard Hat confirmation duration (NO_HELMET)"
+            }
+            value={helmetConfirmationDuration}
+            onChange={(e) =>
+              setHelmetConfirmationDuration(parseFloat(e.target.value))
+            }
+            className="mt-3 h-2.5 w-full cursor-pointer appearance-none rounded-full bg-surface shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] accent-primary dark:bg-black/50 dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.8)]"
+          />
+
+          <div className="mt-2 flex justify-between font-mono text-[9.5px] font-semibold text-muted-foreground/75">
+            <span>1s</span>
+            <span>15s</span>
+            <span>30s</span>
+            <span>45s</span>
+            <span>60s</span>
+          </div>
         </div>
 
-        <input
-          type="range"
-          min="0.5"
-          max="60"
-          step="0.5"
-          disabled={!isSiteEditable}
-          value={confirmationDuration}
-          onChange={(e) => setConfirmationDuration(parseFloat(e.target.value))}
-          className="mt-3.5 h-2.5 w-full cursor-pointer appearance-none rounded-full bg-surface shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] accent-primary dark:bg-black/50 dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.8)]"
-        />
+        {/* 2. Vest Confirmation Slider (NO_VEST) */}
+        <div className="rounded-[18px] bg-background/60 p-3.5 shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_rgba(255,255,255,0.85)] dark:bg-black/30 dark:shadow-[inset_4px_4px_10px_rgba(0,0,0,0.7),inset_-2px_-2px_6px_rgba(255,255,255,0.03)]">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-foreground">
+              <Shirt className="h-3.5 w-3.5 text-accent" />
+              <span>{isVietnamese ? "Áo phản quang" : "Safety Vest"}</span>
+            </span>
+            <span className="rounded-xl border border-white/70 bg-surface px-2.5 py-0.5 font-mono text-xs font-black tabular-nums text-accent shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.9)] dark:border-white/[0.06] dark:bg-card dark:shadow-[3px_3px_7px_rgba(0,0,0,0.55)]">
+              {vestConfirmationDuration} {isVietnamese ? "giây" : "sec"}
+            </span>
+          </div>
 
-        <div className="mt-2.5 flex justify-between font-mono text-[9.5px] font-semibold text-muted-foreground/75">
-          <span>0.5s</span>
-          <span>15s</span>
-          <span>30s</span>
-          <span>45s</span>
-          <span>60s</span>
+          <input
+            type="range"
+            min="1"
+            max="60"
+            step="0.5"
+            disabled={!isSiteEditable}
+            aria-label={
+              isVietnamese
+                ? "Thời gian xác nhận Áo phản quang (NO_VEST)"
+                : "Safety Vest confirmation duration (NO_VEST)"
+            }
+            value={vestConfirmationDuration}
+            onChange={(e) =>
+              setVestConfirmationDuration(parseFloat(e.target.value))
+            }
+            className="mt-3 h-2.5 w-full cursor-pointer appearance-none rounded-full bg-surface shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.8)] accent-accent dark:bg-black/50 dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.8)]"
+          />
+
+          <div className="mt-2 flex justify-between font-mono text-[9.5px] font-semibold text-muted-foreground/75">
+            <span>1s</span>
+            <span>15s</span>
+            <span>30s</span>
+            <span>45s</span>
+            <span>60s</span>
+          </div>
         </div>
       </div>
     </section>

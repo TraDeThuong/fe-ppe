@@ -145,7 +145,20 @@ export interface StatisticsSummaryDto {
   periodStart?: string;
   periodEnd?: string;
   severityBreakdown?: SeverityBreakdownMapDto;
+  siteBreakdown?: SiteStatisticsSummaryDto[];
 }
+
+export type SiteStatisticsSummaryDto = Pick<
+  StatisticsSummaryDto,
+  | "totalIncidents"
+  | "openIncidents"
+  | "resolvedIncidents"
+  | "trueViolations"
+  | "falseAlarms"
+  | "falseAlarmRate"
+  | "complianceRate"
+  | "meanTimeToResolveHours"
+> & { siteId: string };
 
 export interface TrendItemDto {
   date: string;

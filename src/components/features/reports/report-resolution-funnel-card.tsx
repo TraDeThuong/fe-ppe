@@ -468,16 +468,13 @@ export function ReportResolutionFunnelCard({
               <div className="max-h-[385px] space-y-2.5 overflow-y-auto pr-1">
                 {siteStats.map((site, idx) => {
                   const isSelected = selectedSiteId === site.siteId;
+                  const selectSite = site.canSelect === false ? undefined : onSelectSite;
                   return (
                     <div
                       key={site.siteId}
-                      onClick={() => {
-                        if (onSelectSite) {
-                          onSelectSite(isSelected ? "" : site.siteId);
-                        }
-                      }}
+                      onClick={selectSite ? () => selectSite(isSelected ? "" : site.siteId) : undefined}
                       className={`rounded-2xl border p-3 transition-all ${
-                        onSelectSite ? "cursor-pointer" : ""
+                        selectSite ? "cursor-pointer" : ""
                       } ${
                         isSelected
                           ? "border-primary/45 bg-background shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_var(--shadow-light)]"
@@ -562,7 +559,7 @@ export function ReportResolutionFunnelCard({
               </div>
             )}
 
-            {onSelectSite && siteStats.length > 1 && (
+            {onSelectSite && siteStats.filter((site) => site.canSelect !== false).length > 1 && (
               <div className="rounded-2xl border border-white/50 bg-background/80 px-3.5 py-2 text-[10px] font-medium text-muted-foreground shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)] dark:border-white/5">
                 {selectedSiteId
                   ? isVietnamese

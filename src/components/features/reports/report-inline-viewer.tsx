@@ -50,6 +50,8 @@ export interface ReportInlineViewerProps {
   report: ReportGenerationDto | null;
   currentUserId?: string;
   isAdmin?: boolean;
+  canReadReports?: boolean;
+  userSiteIds?: string[];
   onOpenModalPreview?: (report: ReportGenerationDto) => void;
 }
 
@@ -112,6 +114,8 @@ export function ReportInlineViewer({
   report,
   currentUserId,
   isAdmin = false,
+  canReadReports = true,
+  userSiteIds,
   onOpenModalPreview,
 }: ReportInlineViewerProps) {
   const { t, locale } = useLocale();
@@ -134,7 +138,10 @@ export function ReportInlineViewer({
   const format = report ? detectReportFormat(report) : "PDF";
   const isCompleted = report?.status === "COMPLETED";
   const canAccess = report
-    ? canAccessGeneratedReport(report, currentUserId, isAdmin)
+    ? canAccessGeneratedReport(report, currentUserId, isAdmin, {
+        canReadReports,
+        siteIds: userSiteIds,
+      })
     : false;
 
   const resolvedSiteName = useMemo(() => {

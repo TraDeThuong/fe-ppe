@@ -18,12 +18,45 @@ import { useSiteSafetyConfig, useUpdateSiteSafetyConfig } from "@/hooks/sites";
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import { aiMetricsService } from "@/services/ai-metrics.service";
+import {
+  clampSiteConfirmationDuration,
+  resolveSiteConfirmationDurations,
+} from "./site-helpers";
 import type { AiModelDto, SiteItem, UpdateSiteSafetyConfigPayload } from "@/types";
 
 export interface SiteSafetyConfigModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   site: SiteItem | null;
+}
+
+function safeClampDuration(value: number | null | undefined, fallback: number): number {
+  if (typeof clampSiteConfirmationDuration === "function") {
+    return clampSiteConfirmationDuration(value, fallback);
+  }
+  const num = Number(value);
+  if (value == null || !Number.isFinite(num)) return fallback;
+  return Number(Math.min(60, Math.max(1, num)).toFixed(1));
+}
+
+function safeResolveDurations(source?: {
+  helmetConfirmationDuration?: number | null;
+  confirmationDuration?: number | null;
+  vestConfirmationDuration?: number | null;
+} | null) {
+  if (typeof resolveSiteConfirmationDurations === "function") {
+    return resolveSiteConfirmationDurations(source);
+  }
+  return {
+    helmetConfirmationDuration: safeClampDuration(
+      source?.helmetConfirmationDuration ?? source?.confirmationDuration,
+      2,
+    ),
+    vestConfirmationDuration: safeClampDuration(
+      source?.vestConfirmationDuration,
+      4,
+    ),
+  };
 }
 
 export function SiteSafetyConfigModal({
@@ -55,7 +88,8 @@ export function SiteSafetyConfigModal({
   const [enableNoHelmet, setEnableNoHelmet] = useState(true);
   const [enableNoVest, setEnableNoVest] = useState(true);
   const [enableRestrictedArea, setEnableRestrictedArea] = useState(true);
-  const [confirmationDuration, setConfirmationDuration] = useState(2);
+  const [helmetConfirmationDuration, setHelmetConfirmationDuration] = useState(2);
+  const [vestConfirmationDuration, setVestConfirmationDuration] = useState(4);
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.8);
   const [cooldownDuration, setCooldownDuration] = useState(30);
   const [modelVersionId, setModelVersionId] = useState<string>("");
@@ -63,10 +97,12 @@ export function SiteSafetyConfigModal({
   useEffect(() => {
     const src = config || site?.safetyConfigs?.[0];
     if (src) {
+      const durations = safeResolveDurations(src);
       setEnableNoHelmet(src.enableNoHelmet ?? true);
       setEnableNoVest(src.enableNoVest ?? true);
       setEnableRestrictedArea(src.enableRestrictedArea ?? true);
-      setConfirmationDuration(src.confirmationDuration ?? 2);
+      setHelmetConfirmationDuration(durations.helmetConfirmationDuration);
+      setVestConfirmationDuration(durations.vestConfirmationDuration);
       setConfidenceThreshold(Number(src.confidenceThreshold) || 0.8);
       setCooldownDuration(src.cooldownDuration ?? 30);
       setModelVersionId(src.modelVersionId ?? "");
@@ -84,11 +120,22 @@ export function SiteSafetyConfigModal({
     e.preventDefault();
     if (!site || !canManage || !isSiteActive) return;
 
+    const safeHelmetDuration = safeClampDuration(
+      helmetConfirmationDuration,
+      2,
+    );
+    const safeVestDuration = safeClampDuration(
+      vestConfirmationDuration,
+      4,
+    );
+
     const payload: UpdateSiteSafetyConfigPayload = {
       enableNoHelmet,
       enableNoVest,
       enableRestrictedArea,
-      confirmationDuration,
+      helmetConfirmationDuration: safeHelmetDuration,
+      confirmationDuration: safeHelmetDuration,
+      vestConfirmationDuration: safeVestDuration,
       confidenceThreshold,
       cooldownDuration,
       modelVersionId: modelVersionId ? modelVersionId : null,
@@ -207,30 +254,61 @@ export function SiteSafetyConfigModal({
           </div>
         </div>
 
-        {/* Temporal Confirmation, AI Confidence & Cooldown */}
+        {/* Temporal Confirmation (Helmet & Vest), AI Confidence & Cooldown */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 rounded-2xl border border-border/40 bg-surface/40 p-4">
-          {/* Confirmation Duration */}
+          {/* Helmet Confirmation Duration (NO_HELMET) */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-muted-foreground">
-                {t("sites.safetyConfig.confirmViolation")}
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                <HardHat className="h-3.5 w-3.5 text-primary" />
+                <span>{t("sites.safetyConfig.confirmHelmet")}</span>
               </label>
               <span className="font-mono text-xs font-bold text-primary">
-                {confirmationDuration}s
+                {helmetConfirmationDuration}s
               </span>
             </div>
             <input
               type="range"
-              min={0.5}
+              min={1}
               max={60}
               step={0.5}
-              value={confirmationDuration}
+              value={helmetConfirmationDuration}
               disabled={disabled}
-              onChange={(e) => setConfirmationDuration(Number(e.target.value))}
+              onChange={(e) =>
+                setHelmetConfirmationDuration(Number(e.target.value))
+              }
               className="w-full accent-primary"
             />
             <p className="text-[10px] text-muted-foreground">
-              {t("sites.safetyConfig.confirmViolationHelp")}
+              {t("sites.safetyConfig.confirmHelmetHelp")}
+            </p>
+          </div>
+
+          {/* Vest Confirmation Duration (NO_VEST) */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                <Shirt className="h-3.5 w-3.5 text-accent" />
+                <span>{t("sites.safetyConfig.confirmVest")}</span>
+              </label>
+              <span className="font-mono text-xs font-bold text-accent">
+                {vestConfirmationDuration}s
+              </span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={60}
+              step={0.5}
+              value={vestConfirmationDuration}
+              disabled={disabled}
+              onChange={(e) =>
+                setVestConfirmationDuration(Number(e.target.value))
+              }
+              className="w-full accent-accent"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              {t("sites.safetyConfig.confirmVestHelp")}
             </p>
           </div>
 
@@ -260,11 +338,15 @@ export function SiteSafetyConfigModal({
           </div>
 
           {/* Cooldown Duration */}
-          <div className="space-y-1.5 sm:col-span-2">
+          <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                 <Timer className="h-3.5 w-3.5 text-primary" />
-                <span>{isVietnamese ? "Thời gian Cooldown chống lặp cảnh báo" : "Alert Cooldown Duration"}</span>
+                <span>
+                  {isVietnamese
+                    ? "Thời gian Cooldown chống lặp"
+                    : "Alert Cooldown Duration"}
+                </span>
               </label>
               <span className="font-mono text-xs font-bold text-primary">
                 {cooldownDuration}s
@@ -280,6 +362,11 @@ export function SiteSafetyConfigModal({
               onChange={(e) => setCooldownDuration(Number(e.target.value))}
               className="w-full accent-primary"
             />
+            <p className="text-[10px] text-muted-foreground">
+              {isVietnamese
+                ? "Khoảng nghỉ tối thiểu (5–300s) giữa hai cảnh báo trùng lặp"
+                : "Minimum interval (5–300s) between repeated alerts"}
+            </p>
           </div>
 
           {/* Model Version Selector */}

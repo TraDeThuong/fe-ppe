@@ -197,6 +197,7 @@ export default function DashboardContent() {
     userId: user?.id,
     siteId,
     period,
+    activeTab,
     ready: authenticated && isReady,
     incidents: canViewIncidents,
     analytics: canViewReports,

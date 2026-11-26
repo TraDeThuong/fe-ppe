@@ -48,7 +48,7 @@ export function useReportSummary(
 ) {
   return useQuery<StatisticsSummaryDto>({
     queryKey: reportingKeys.summary(params),
-    queryFn: () => reportingService.getSummary(params),
+    queryFn: ({ signal }) => reportingService.getSummary(params, { signal, strict: true, suppressToast: true }),
     staleTime: 30 * 1000,
     enabled: options?.enabled ?? true,
   });
@@ -60,7 +60,7 @@ export function useViolationTrends(
 ) {
   return useQuery<TrendItemDto[]>({
     queryKey: reportingKeys.trends(params),
-    queryFn: () => reportingService.getTrends(params),
+    queryFn: ({ signal }) => reportingService.getTrends(params, { signal, strict: true, suppressToast: true }),
     staleTime: 30 * 1000,
     enabled: options?.enabled ?? true,
   });
@@ -72,7 +72,7 @@ export function useViolationDistribution(
 ) {
   return useQuery<ViolationTypeStatDto[]>({
     queryKey: reportingKeys.distribution(params),
-    queryFn: () => reportingService.getViolationDistribution(params),
+    queryFn: ({ signal }) => reportingService.getViolationDistribution(params, { signal, strict: true, suppressToast: true }),
     staleTime: 30 * 1000,
     enabled: options?.enabled ?? true,
   });
@@ -84,7 +84,7 @@ export function useCameraRankings(
 ) {
   return useQuery<CameraStatDto[]>({
     queryKey: reportingKeys.rankings(params),
-    queryFn: () => reportingService.getCameraRankings(params),
+    queryFn: ({ signal }) => reportingService.getCameraRankings(params, { signal, strict: true, suppressToast: true }),
     staleTime: 30 * 1000,
     enabled: options?.enabled ?? true,
   });

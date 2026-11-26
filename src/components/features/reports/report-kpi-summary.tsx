@@ -11,16 +11,7 @@ import {
 } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
-import type {
-  CameraStatDto,
-  IncidentItem,
-  ReportGenerationDto,
-  ReportTemplateDto,
-  SiteItem,
-  StatisticsSummaryDto,
-  TrendItemDto,
-  ViolationTypeStatDto,
-} from "@/types";
+import type { StatisticsSummaryDto } from "@/types";
 import {
   ReportStatsDetailPanel,
   type ReportStatKey,
@@ -28,35 +19,17 @@ import {
 
 export interface ReportKpiSummaryProps {
   summary?: StatisticsSummaryDto | null;
-  reportsCount?: number;
   loading?: boolean;
   selectedStat?: ReportStatKey | null;
   onSelectStat?: (stat: ReportStatKey | null) => void;
-  distribution?: ViolationTypeStatDto[];
-  trends?: TrendItemDto[];
-  cameraRankings?: CameraStatDto[];
-  templates?: ReportTemplateDto[];
-  history?: ReportGenerationDto[];
-  sites?: SiteItem[];
-  incidents?: IncidentItem[];
-  onGenerateReport?: (template?: ReportTemplateDto) => void;
   onViewHistory?: () => void;
 }
 
 export function ReportKpiSummary({
   summary,
-  reportsCount,
   loading = false,
   selectedStat: propSelectedStat,
   onSelectStat,
-  distribution = [],
-  trends = [],
-  cameraRankings = [],
-  templates = [],
-  history = [],
-  sites = [],
-  incidents = [],
-  onGenerateReport,
   onViewHistory,
 }: ReportKpiSummaryProps) {
   const { t, locale } = useLocale();
@@ -80,7 +53,7 @@ export function ReportKpiSummary({
   const totalViolations = summary?.totalIncidents ?? 0;
   const complianceRate = summary
     ? `${summary.complianceRate.toFixed(1)}%`
-    : "0.0%";
+    : "100.0%";
   const mttr = summary
     ? `${summary.meanTimeToResolveHours.toFixed(1)} ${isVietnamese ? "giờ" : "hrs"}`
     : `0.0 ${isVietnamese ? "giờ" : "hrs"}`;
@@ -227,15 +200,8 @@ export function ReportKpiSummary({
         <ReportStatsDetailPanel
           activeStat={activeStat}
           summary={summary}
-          distribution={distribution}
-          trends={trends}
-          cameraRankings={cameraRankings}
-          templates={templates}
-          history={history}
-          sites={sites}
-          incidents={incidents}
+          loading={loading}
           onClose={() => handleToggle(activeStat)}
-          onGenerateReport={onGenerateReport}
           onViewHistory={onViewHistory}
         />
       )}

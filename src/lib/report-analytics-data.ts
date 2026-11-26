@@ -15,6 +15,37 @@ import type {
 import type { TrendGroupBy } from "@/components/features/reports";
 
 const MAX_BUCKETS_DAYS = 90;
+const DAY_MS = 86_400_000;
+
+function isValidIsoCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const ms = Date.parse(`${value}T00:00:00Z`);
+  if (!Number.isFinite(ms)) return false;
+  return new Date(ms).toISOString().slice(0, 10) === value;
+}
+
+/**
+ * Validate a report export/analytics period:
+ * - Both dates must be valid YYYY-MM-DD calendar dates
+ * - startDate <= endDate
+ * - Neither date may be in the future (Vietnam timezone)
+ * - Span must not exceed 90 days
+ */
+export function validateReportPeriod(
+  startDate: string,
+  endDate: string,
+  today = vietnamToday(),
+): boolean {
+  if (!isValidIsoCalendarDate(startDate) || !isValidIsoCalendarDate(endDate)) {
+    return false;
+  }
+  if (startDate > endDate) return false;
+  if (startDate > today || endDate > today) return false;
+  const diffDays =
+    (Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) /
+    DAY_MS;
+  return diffDays <= MAX_BUCKETS_DAYS;
+}
 
 /**
  * Compute inclusive YYYY-MM-DD range in Vietnam timezone (Asia/Ho_Chi_Minh).
@@ -169,8 +200,12 @@ export function reconcileReportTrends(params: {
     }
     const buckets = createZeroFilledBuckets(startDate, endDate, groupBy);
     for (const item of rawTrends) {
-      const existing = buckets.get(item.date) || {
-        date: item.date,
+      const bucketKey =
+        /^\d{4}-\d{2}-\d{2}$/.test(item.date) && groupBy !== "DAY"
+          ? getTrendBucketKey(item.date, groupBy)
+          : item.date;
+      const existing = buckets.get(bucketKey) || {
+        date: bucketKey,
         totalIncidents: 0,
         trueViolations: 0,
         falseAlarms: 0,
@@ -180,7 +215,7 @@ export function reconcileReportTrends(params: {
       existing.trueViolations += item.trueViolations ?? 0;
       existing.falseAlarms += item.falseAlarms ?? 0;
       existing.resolvedCount += item.resolvedCount ?? 0;
-      buckets.set(item.date, existing);
+      buckets.set(bucketKey, existing);
     }
     return Array.from(buckets.values()).sort((a, b) => a.date.localeCompare(b.date));
   }
@@ -189,8 +224,12 @@ export function reconcileReportTrends(params: {
 
   if (isRollupTrendsAuthoritative) {
     for (const item of rawTrends) {
-      const existing = buckets.get(item.date) || {
-        date: item.date,
+      const bucketKey =
+        /^\d{4}-\d{2}-\d{2}$/.test(item.date) && groupBy !== "DAY"
+          ? getTrendBucketKey(item.date, groupBy)
+          : item.date;
+      const existing = buckets.get(bucketKey) || {
+        date: bucketKey,
         totalIncidents: 0,
         trueViolations: 0,
         falseAlarms: 0,
@@ -200,7 +239,7 @@ export function reconcileReportTrends(params: {
       existing.trueViolations += item.trueViolations ?? 0;
       existing.falseAlarms += item.falseAlarms ?? 0;
       existing.resolvedCount += item.resolvedCount ?? 0;
-      buckets.set(item.date, existing);
+      buckets.set(bucketKey, existing);
     }
     return Array.from(buckets.values()).sort((a, b) => a.date.localeCompare(b.date));
   }
@@ -270,17 +309,55 @@ export function detectReportFormat(
   return "PDF";
 }
 
+export interface ReportAccessOptions {
+  /** Whether the user holds PPE_REPORTING_READ permission */
+  canReadReports?: boolean;
+  /** Assigned site IDs for multi-site tenancy (from user.siteIds, user.siteId, or accessible sites) */
+  siteIds?: readonly string[] | null;
+  /** Single primary site ID fallback */
+  siteId?: string | null;
+}
+
 /**
- * BOLA access check matching backend ReportingService: only ADMIN/SUPER_ADMIN or report creator can view/download.
+ * Site-tenancy & report access check aligned with Backend Issue #4:
+ * - ADMIN / SUPER_ADMIN can view/download all reports.
+ * - Report creator (`generatedBy === currentUserId`) can view/download their own report.
+ * - Users with `PPE_REPORTING_READ` (e.g. Viewer, Safety Manager) can view/download reports
+ *   scoped to their assigned site(s) (`siteIds` / `siteId`).
  */
 export function canAccessGeneratedReport(
-  report: Pick<ReportGenerationDto, "generatedBy">,
+  report: Pick<ReportGenerationDto, "generatedBy"> &
+    Partial<Pick<ReportGenerationDto, "siteId">>,
   currentUserId?: string,
   isAdmin = false,
+  options?: ReportAccessOptions,
 ): boolean {
+  if (options?.canReadReports === false) return false;
   if (isAdmin) return true;
-  if (!currentUserId || !report.generatedBy) return false;
-  return report.generatedBy === currentUserId;
+  if (currentUserId && report.generatedBy && report.generatedBy === currentUserId) {
+    return true;
+  }
+
+  if (options) {
+    const permittedSites = [
+      ...(options.siteIds ?? []),
+      ...(options.siteId ? [options.siteId] : []),
+    ].filter(Boolean);
+
+    if (permittedSites.length > 0) {
+      if (!report.siteId) return Boolean(options.canReadReports ?? true);
+      return (
+        permittedSites.includes(report.siteId) &&
+        Boolean(options.canReadReports ?? true)
+      );
+    }
+
+    if (options.canReadReports) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -392,11 +469,18 @@ function getIncidentResolutionMinutes(inc: Pick<IncidentItem, "detectedAt" | "cr
 }
 
 /**
- * Compute the 5-stage operational resolution funnel + false alarms from period incidents.
+ * Compute the 5-stage operational resolution funnel + false alarms from period incidents
+ * (or fallback to a summary DTO when passed a non-array summary object).
  */
 export function computeResolutionFunnel(
-  incidents: readonly IncidentItem[],
+  incidents: readonly IncidentItem[] | StatisticsSummaryDto | null | undefined,
 ): ResolutionFunnelSummary {
+  if (!Array.isArray(incidents)) {
+    return computeResolutionFunnelFromSummary(
+      incidents as StatisticsSummaryDto | null | undefined,
+    );
+  }
+
   let pendingReview = 0;
   let awaitingDispatch = 0;
   let remediating = 0;
@@ -474,10 +558,79 @@ export function computeResolutionFunnel(
   };
 }
 
+/**
+ * Derive the resolution funnel directly from `/api/v1/statistics/summary` without fetching raw incidents.
+ */
+export function computeResolutionFunnelFromSummary(
+  summary?: StatisticsSummaryDto | null,
+): ResolutionFunnelSummary {
+  if (!summary || (summary.totalIncidents ?? 0) <= 0) {
+    return computeResolutionFunnel([]);
+  }
+
+  const totalDetected = Math.max(0, summary.totalIncidents ?? 0);
+  const pendingReview = Math.max(0, summary.openIncidents ?? 0);
+  const closed = Math.max(0, summary.resolvedIncidents ?? 0);
+  const dismissed = Math.max(0, summary.falseAlarms ?? 0);
+  const rawConfirmed = Math.max(0, summary.trueViolations ?? 0);
+
+  const trueIncludesResolved =
+    closed > 0 &&
+    rawConfirmed >= closed &&
+    pendingReview + rawConfirmed + dismissed >= totalDetected;
+  const remediating = trueIncludesResolved
+    ? Math.max(0, rawConfirmed - closed)
+    : rawConfirmed;
+  const awaitingDispatch = 0;
+  const awaitingAcceptance = 0;
+
+  const trueViolationsTotal = remediating + closed;
+  const completedTotal = closed;
+  const resolutionRate =
+    trueViolationsTotal > 0
+      ? Math.round((completedTotal / trueViolationsTotal) * 100)
+      : 0;
+  const reviewedTotal = trueViolationsTotal + dismissed;
+  const falseAlarmRate =
+    typeof summary.falseAlarmRate === "number" && summary.falseAlarmRate > 0
+      ? Number(summary.falseAlarmRate.toFixed(1))
+      : reviewedTotal > 0
+        ? Number(((dismissed / reviewedTotal) * 100).toFixed(1))
+        : 0;
+
+  let bottleneckStage: ResolutionFunnelSummary["bottleneckStage"] = null;
+  let bottleneckCount = 0;
+  if (pendingReview > bottleneckCount) {
+    bottleneckCount = pendingReview;
+    bottleneckStage = "pendingReview";
+  }
+  if (remediating > bottleneckCount) {
+    bottleneckCount = remediating;
+    bottleneckStage = "remediating";
+  }
+
+  return {
+    totalDetected,
+    pendingReview,
+    awaitingDispatch,
+    remediating,
+    awaitingAcceptance,
+    closed,
+    dismissed,
+    trueViolationsTotal,
+    completedTotal,
+    resolutionRate,
+    falseAlarmRate,
+    bottleneckStage,
+    bottleneckCount,
+  };
+}
+
 export interface SiteComparisonStat {
   siteId: string;
   siteName: string;
   siteCode?: string;
+  canSelect?: boolean;
   totalIncidents: number;
   pendingReview: number;
   confirmedActive: number;

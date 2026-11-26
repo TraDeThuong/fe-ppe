@@ -93,17 +93,17 @@ export function ReportTypeOverviewStrip({
   return (
     <section
       aria-label={t("reports.types.sectionTitle")}
-      className={`rounded-3xl p-4 sm:p-5 border border-white/50 dark:border-white/5 ${NM.extruded}`}
+      className={`rounded-2xl p-2.5 sm:p-3 border border-white/50 dark:border-white/5 ${NM.extruded}`}
     >
-      {/* Header tích hợp gọn trong cùng 1 card */}
-      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2 px-1">
-        <div className="flex items-center gap-2.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)]" />
-          <h3 className="text-sm font-extrabold tracking-tight text-foreground">
+      {/* Header siêu gọn 1 dòng */}
+      <div className="mb-2 flex items-center justify-between gap-2 px-1">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-primary shadow-[0_0_6px_hsl(var(--primary)/0.6)]" />
+          <h3 className="truncate text-xs font-extrabold tracking-tight text-foreground">
             {t("reports.types.sectionTitle")}
           </h3>
-          <span className="hidden sm:inline-block text-muted-foreground/40">•</span>
-          <p className="hidden sm:block text-[11px] font-medium text-muted-foreground">
+          <span className="hidden md:inline text-muted-foreground/30">•</span>
+          <p className="hidden md:block truncate text-[11px] text-muted-foreground">
             {t("reports.types.sectionDesc")}
           </p>
         </div>
@@ -112,28 +112,28 @@ export function ReportTypeOverviewStrip({
           <button
             type="button"
             onClick={() => onSelectType("")}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-primary transition-all cursor-pointer border border-white/40 dark:border-white/10 ${NM.recessed} hover:brightness-105 active:scale-95`}
+            className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold text-primary transition-all cursor-pointer border border-white/40 dark:border-white/10 ${NM.recessed} hover:brightness-105 active:scale-95`}
           >
-            <span>
-              {isVietnamese ? "Xem tất cả loại báo cáo" : "Show all report types"}
-            </span>
+            {isVietnamese ? "Tất cả" : "All"}
           </button>
         )}
       </div>
 
-      {/* Khay chứa lõm (Recessed Well) gom tất cả item thành 1 cụm liền mạch */}
+      {/* Mobile: Cuộn ngang (không chiếm height) | Tablet/Desktop: Grid 2 -> 3 -> 6 cột */}
       <div
-        className={`grid grid-cols-1 gap-2 rounded-2xl p-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 ${NM.recessed}`}
+        className={`flex gap-1.5 overflow-x-auto no-scrollbar rounded-xl p-1.5 sm:grid sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 sm:overflow-visible ${NM.recessed}`}
       >
         {items.map((item) => {
           const Icon = item.icon;
           const isSelected = selectedType === item.type;
+          const showQuickExport = canExportReports && item.type && hasTemplates;
 
           return (
             <div
               key={item.type || "ALL"}
               role="button"
               tabIndex={0}
+              title={item.formatHint ? `${item.subtitle} (${item.formatHint})` : item.subtitle}
               onClick={() => onSelectType(item.type)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -141,76 +141,70 @@ export function ReportTypeOverviewStrip({
                   onSelectType(item.type);
                 }
               }}
-              className={`group relative flex cursor-pointer flex-col justify-between rounded-xl p-2.5 text-left transition-all duration-200 select-none ${isSelected
-                  ? `${NM.extruded} bg-background/60 border border-primary/30`
-                  : "border border-transparent hover:bg-white/30 dark:hover:bg-white/[0.03]"
+              className={`group relative flex min-w-[168px] sm:min-w-0 shrink-0 items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left transition-all duration-150 cursor-pointer select-none ${isSelected
+                  ? `${NM.extruded} bg-background/75 border border-primary/35`
+                  : "border border-transparent hover:bg-white/40 dark:hover:bg-white/[0.04]"
                 }`}
             >
-              {/* Hàng trên: Icon bên trái + Nội dung + Count bên phải (tiết kiệm chiều cao tối đa) */}
-              <div className="flex items-start gap-2.5">
+              {/* Cụm trái: Icon + Title + Subtitle */}
+              <div className="flex min-w-0 flex-1 items-center gap-2">
                 <div
-                  className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all duration-200 ${isSelected
-                      ? "bg-primary text-primary-foreground shadow-[0_4px_10px_-2px_hsl(var(--primary)/0.5)]"
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${isSelected
+                      ? "bg-primary text-primary-foreground shadow-sm"
                       : "bg-primary/10 text-primary group-hover:bg-primary/15"
                     }`}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className="h-3.5 w-3.5" />
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-1.5">
+                  <div className="flex items-center gap-1">
                     <p
-                      className={`truncate text-xs font-extrabold tracking-tight transition-colors ${isSelected
+                      className={`truncate text-[11px] font-bold leading-tight transition-colors ${isSelected
                           ? "text-primary"
                           : "text-foreground group-hover:text-primary"
                         }`}
                     >
                       {item.title}
                     </p>
-
-                    <span
-                      className={`shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[10px] font-extrabold tabular-nums ${isSelected
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-black/[0.04] dark:bg-white/[0.06] text-foreground/80"
-                        }`}
-                    >
-                      {item.count}
-                    </span>
                   </div>
-
-                  <p className="mt-0.5 line-clamp-1 text-[10px] text-muted-foreground">
+                  <p className="mt-0.5 truncate text-[10px] leading-tight text-muted-foreground/80">
                     {item.subtitle}
+                    {item.formatHint && (
+                      <span className="ml-1 font-mono text-[9px] opacity-70">
+                        · {item.formatHint}
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
 
-              {/* Hàng dưới siêu gọn: Format hint + Nút xuất nhanh nằm chung 1 dòng */}
-              {(item.formatHint || (canExportReports && item.type && hasTemplates)) && (
-                <div className="mt-2 flex items-center justify-between gap-1 border-t border-border/30 pt-1.5">
-                  {item.formatHint ? (
-                    <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground/75">
-                      {item.formatHint}
-                    </span>
-                  ) : (
-                    <span />
-                  )}
+              {/* Cụm phải: Badge Count + Nút xuất nhanh tối giản */}
+              <div className="flex shrink-0 items-center gap-1">
+                <span
+                  className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-extrabold tabular-nums leading-none ${isSelected
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-black/[0.05] dark:bg-white/[0.07] text-foreground/75"
+                    }`}
+                >
+                  {item.count}
+                </span>
 
-                  {canExportReports && item.type && hasTemplates && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onQuickGenerateForType(item.type);
-                      }}
-                      title={isVietnamese ? "Xuất báo cáo loại này" : "Generate this type"}
-                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold text-primary transition-all hover:bg-primary hover:text-primary-foreground cursor-pointer active:scale-95"
-                    >
-                      <FilePlus2 className="h-3 w-3" />
-                      <span>{isVietnamese ? "Xuất" : "Export"}</span>
-                    </button>
-                  )}
-                </div>
-              )}
+                {showQuickExport && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onQuickGenerateForType(item.type);
+                    }}
+                    title={isVietnamese ? "Xuất báo cáo loại này" : "Export this type"}
+                    aria-label={isVietnamese ? "Xuất báo cáo loại này" : "Export this type"}
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-primary/80 transition-all hover:bg-primary hover:text-primary-foreground active:scale-90 cursor-pointer"
+                  >
+                    <FilePlus2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}

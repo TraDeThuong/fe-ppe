@@ -17,8 +17,8 @@ export type ReportsPageTab = "analytics" | "reports";
 export interface ReportsHeaderProps {
   activeTab: ReportsPageTab;
   onTabChange: (tab: ReportsPageTab) => void;
-  totalIncidents: number;
-  complianceRate: number;
+  totalIncidents?: number;
+  complianceRate?: number;
   totalReports: number;
   activeTemplates: number;
   isRefreshing: boolean;
@@ -59,7 +59,7 @@ export function ReportsHeader({
       label: t("reports.tabs.analyticsLabel"),
       caption: t("reports.tabs.analyticsCaption"),
       icon: <BarChart3 className="size-4" />,
-      badge: `${totalIncidents} ${isVietnamese ? "sự cố" : "incidents"}`,
+      badge: totalIncidents === undefined ? undefined : `${totalIncidents} ${isVietnamese ? "sự cố" : "incidents"}`,
       useAccent: false,
     },
     {
@@ -110,12 +110,14 @@ export function ReportsHeader({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-xs font-semibold text-primary ${NM.recessed}`}
-                >
-                  <BarChart3 className="size-3 text-primary" />
-                  {complianceRate.toFixed(1)}% {isVietnamese ? "tuân thủ" : "compliance"}
-                </span>
+                {complianceRate !== undefined ? (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-xs font-semibold text-primary ${NM.recessed}`}
+                  >
+                    <BarChart3 className="size-3 text-primary" />
+                    {complianceRate.toFixed(1)}% {isVietnamese ? "tuân thủ" : "compliance"}
+                  </span>
+                ) : null}
 
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-xs font-semibold text-accent ${NM.recessed}`}

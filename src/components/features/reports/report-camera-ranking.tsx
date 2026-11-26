@@ -138,7 +138,7 @@ export function ReportCameraRanking({
       ) : (
         <>
           {/* Synchronized Ranking Grid */}
-          <div className="relative grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          <div className="relative grid grid-cols-[repeat(auto-fit,minmax(min(100%,12rem),1fr))] gap-3.5">
             {rankings.map((item, idx) => {
               const resolvePct =
                 item.totalViolations > 0

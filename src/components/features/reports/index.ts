@@ -8,7 +8,6 @@ export * from "./report-filter-toolbar";
 export * from "./report-trend-chart";
 export * from "./report-violation-donut";
 export * from "./report-resolution-funnel-card";
-export * from "./report-personnel-performance-card";
 export * from "./report-camera-ranking";
 export * from "./report-template-cards";
 export * from "./report-history-table";

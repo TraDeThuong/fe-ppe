@@ -2,11 +2,13 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   canSyncSiteOfficers,
+  clampSiteConfirmationDuration,
   generateUniqueZoneCode,
   isAdminRole,
   normalizeZoneCode,
   parseSiteContactOfficers,
   resolveDisplayOfficers,
+  resolveSiteConfirmationDurations,
   toDateInputValue,
 } from "../site-helpers";
 
@@ -82,5 +84,34 @@ describe("site-helpers", () => {
     assert.equal(canSyncSiteOfficers("SAFETY_MANAGER", true), true);
     assert.equal(canSyncSiteOfficers("SAFETY_MANAGER", false), false);
     assert.equal(canSyncSiteOfficers("SAFETY_OFFICER"), false);
+  });
+
+  it("resolves independent helmet and vest confirmation durations with 4.0s vest fallback and 1-60s clamping", () => {
+    assert.equal(clampSiteConfirmationDuration(0.5, 2), 1);
+    assert.equal(clampSiteConfirmationDuration(75, 4), 60);
+    assert.equal(clampSiteConfirmationDuration(undefined, 4), 4);
+
+    assert.deepEqual(
+      resolveSiteConfirmationDurations({
+        helmetConfirmationDuration: 3.5,
+        confirmationDuration: 3.5,
+        vestConfirmationDuration: 6.5,
+      }),
+      {
+        helmetConfirmationDuration: 3.5,
+        vestConfirmationDuration: 6.5,
+      },
+    );
+
+    // Backward-compatible legacy payload without vestConfirmationDuration keeps Vest at 4s
+    assert.deepEqual(
+      resolveSiteConfirmationDurations({
+        confirmationDuration: 2,
+      }),
+      {
+        helmetConfirmationDuration: 2,
+        vestConfirmationDuration: 4,
+      },
+    );
   });
 });

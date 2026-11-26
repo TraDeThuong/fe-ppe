@@ -48,6 +48,8 @@ export interface ReportHistoryListProps {
   onPageChange: (page: number) => void;
   currentUserId?: string;
   isAdmin?: boolean;
+  canReadReports?: boolean;
+  userSiteIds?: string[];
 }
 
 export function ReportHistoryList({
@@ -70,6 +72,8 @@ export function ReportHistoryList({
   onPageChange,
   currentUserId,
   isAdmin = false,
+  canReadReports = true,
+  userSiteIds,
 }: ReportHistoryListProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -252,7 +256,10 @@ export function ReportHistoryList({
               const isSelected = selectedReportId === item.id;
               const format = detectReportFormat(item);
               const isCompleted = item.status === "COMPLETED";
-              const canAccess = canAccessGeneratedReport(item, currentUserId, isAdmin);
+              const canAccess = canAccessGeneratedReport(item, currentUserId, isAdmin, {
+                canReadReports,
+                siteIds: userSiteIds,
+              });
               const siteLabel =
                 item.siteName ||
                 (item.siteId

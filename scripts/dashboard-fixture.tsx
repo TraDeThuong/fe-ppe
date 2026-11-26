@@ -24,6 +24,7 @@ function Fixture() {
     userId,
     siteId: scenario,
     period: period.period,
+    activeTab: "safety",
     incidents: allowed,
     analytics: true,
     cameras: true,

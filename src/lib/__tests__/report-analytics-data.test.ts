@@ -5,6 +5,7 @@ import {
   computePersonnelPerformanceStats,
   computeReportArchiveStats,
   computeResolutionFunnel,
+  computeResolutionFunnelFromSummary,
   computeRoleSegmentedPersonnelStats,
   computeSiteComparisonStats,
   detectReportFormat,
@@ -12,6 +13,7 @@ import {
   getReportDateRange,
   getVietnamDateBoundaries,
   reconcileReportTrends,
+  validateReportPeriod,
 } from "../report-analytics-data";
 import type {
   IncidentItem,
@@ -241,6 +243,56 @@ describe("report-analytics-data", () => {
     assert.equal(canAccessGeneratedReport(reports[0], "user-1", false), true);
     assert.equal(canAccessGeneratedReport(reports[1], "user-1", false), false);
     assert.equal(canAccessGeneratedReport(reports[1], "user-1", true), true);
+
+    // Site tenancy & PPE_REPORTING_READ alignment (Backend Issue #4):
+    // Same-site Viewer / Safety Manager can access reports for their assigned site
+    assert.equal(
+      canAccessGeneratedReport(reports[1], "viewer-1", false, {
+        canReadReports: true,
+        siteIds: ["s1"],
+      }),
+      true,
+    );
+    // Different-site user is blocked from other site's reports
+    assert.equal(
+      canAccessGeneratedReport(reports[1], "viewer-2", false, {
+        canReadReports: true,
+        siteIds: ["s2"],
+      }),
+      false,
+    );
+    // Explicit lack of PPE_REPORTING_READ blocks access
+    assert.equal(
+      canAccessGeneratedReport(reports[1], "viewer-1", false, {
+        canReadReports: false,
+        siteIds: ["s1"],
+      }),
+      false,
+    );
+
+    // Validate report export periods (<= 90 days, no future dates)
+    assert.equal(validateReportPeriod("2026-11-01", "2026-11-20", "2026-11-20"), true);
+    assert.equal(validateReportPeriod("2026-11-21", "2026-11-20", "2026-11-20"), false);
+    assert.equal(validateReportPeriod("2026-11-01", "2026-11-21", "2026-11-20"), false);
+    assert.equal(validateReportPeriod("2026-07-01", "2026-11-20", "2026-11-20"), false);
+
+    // Derive funnel directly from StatisticsSummaryDto
+    const summaryFunnel = computeResolutionFunnelFromSummary({
+      totalIncidents: 10,
+      openIncidents: 2,
+      trueViolations: 3,
+      resolvedIncidents: 4,
+      falseAlarms: 1,
+      falseAlarmRate: 12.5,
+      complianceRate: 70,
+      meanTimeToResolveHours: 1.5,
+    });
+    assert.equal(summaryFunnel.totalDetected, 10);
+    assert.equal(summaryFunnel.pendingReview, 2);
+    assert.equal(summaryFunnel.remediating, 3);
+    assert.equal(summaryFunnel.completedTotal, 4);
+    assert.equal(summaryFunnel.dismissed, 1);
+    assert.equal(summaryFunnel.bottleneckStage, "remediating");
 
     const stats = computeReportArchiveStats(reports, templates, 12);
     assert.equal(stats.totalReports, 12);

@@ -6,6 +6,56 @@ import {
 import { userService } from "@/services/user.service";
 import type { SiteContactOfficer, SiteItem, UserResponseDto } from "@/types";
 
+export const SITE_SAFETY_RULE_LIMITS = {
+  MIN_CONFIRMATION_DURATION: 1,
+  MAX_CONFIRMATION_DURATION: 60,
+  DEFAULT_HELMET_CONFIRMATION_DURATION: 2,
+  DEFAULT_VEST_CONFIRMATION_DURATION: 4,
+} as const;
+
+export function clampSiteConfirmationDuration(
+  value: number | null | undefined,
+  fallback: number,
+): number {
+  const num = Number(value);
+  if (value == null || !Number.isFinite(num)) {
+    return fallback;
+  }
+  const clamped = Math.min(
+    SITE_SAFETY_RULE_LIMITS.MAX_CONFIRMATION_DURATION,
+    Math.max(SITE_SAFETY_RULE_LIMITS.MIN_CONFIRMATION_DURATION, num),
+  );
+  return Number(clamped.toFixed(1));
+}
+
+export function resolveSiteConfirmationDurations(
+  source?: {
+    helmetConfirmationDuration?: number | null;
+    confirmationDuration?: number | null;
+    vestConfirmationDuration?: number | null;
+  } | null,
+): {
+  helmetConfirmationDuration: number;
+  vestConfirmationDuration: number;
+} {
+  const rawHelmet =
+    source?.helmetConfirmationDuration ?? source?.confirmationDuration;
+  const helmetConfirmationDuration = clampSiteConfirmationDuration(
+    rawHelmet,
+    SITE_SAFETY_RULE_LIMITS.DEFAULT_HELMET_CONFIRMATION_DURATION,
+  );
+  // Đọc độc lập vestConfirmationDuration (mặc định 4.0s, không fallback sang confirmationDuration)
+  const vestConfirmationDuration = clampSiteConfirmationDuration(
+    source?.vestConfirmationDuration,
+    SITE_SAFETY_RULE_LIMITS.DEFAULT_VEST_CONFIRMATION_DURATION,
+  );
+
+  return {
+    helmetConfirmationDuration,
+    vestConfirmationDuration,
+  };
+}
+
 export function groupUsersBySafetyRole(allUsers: readonly UserResponseDto[]) {
   const managers: UserResponseDto[] = [];
   const officers: UserResponseDto[] = [];

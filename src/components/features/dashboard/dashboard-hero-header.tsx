@@ -28,12 +28,12 @@ import {
 
 export interface DashboardHeroHeaderProps {
   user:
-    | MeDto
-    | {
-        fullName?: string | null;
-        email?: string | null;
-        role?: string;
-      };
+  | MeDto
+  | {
+    fullName?: string | null;
+    email?: string | null;
+    role?: string;
+  };
   siteName?: string | null;
   isRealtimeConnected: boolean;
   onRefresh?: () => void;
@@ -156,50 +156,70 @@ export function DashboardHeroHeader({
   return (
     <section
       aria-label="Dashboard Command Console Header"
-      className={`relative overflow-hidden rounded-[24px] p-4 sm:rounded-[30px] sm:p-7 transition-all duration-300 ${NM.chassis}`}
+      className={`relative overflow-hidden rounded-[22px] p-3.5 sm:rounded-[30px] sm:p-7 transition-all duration-300 ${NM.chassis}`}
     >
       {/* Top specular highlight */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-10 top-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent"
+        className="pointer-events-none absolute inset-x-6 sm:inset-x-10 top-0 h-[1px] bg-gradient-to-r from-transparent via-primary/40 to-transparent"
       />
 
-      <div className="relative space-y-5">
+      <div className="relative space-y-3.5 sm:space-y-5">
         {/* ============================================================
-            TẦNG 1: IDENTITY + LIVE STATUS (TRÁI) & SHIFT/CLOCK + ACTIONS (PHẢI)
+            TẦNG 1: IDENTITY (TRÁI) & COMPACT CLOCK + ICON ACTIONS (PHẢI)
            ============================================================ */}
-        <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 sm:gap-5 xl:flex-row xl:items-center xl:justify-between">
           {/* Left Identity Cluster */}
-          <div className="flex items-start gap-4">
+          <div className="flex items-center sm:items-start gap-3 sm:gap-4">
             {/* 3D Extruded Emblem */}
             <div
-              className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${NM.extruded}`}
+              className={`relative flex h-10 w-10 sm:h-14 sm:w-14 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl ${NM.extruded}`}
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-md">
-                <LayoutDashboard className="size-5" />
+              <div className="flex h-7 w-7 sm:h-10 sm:w-10 items-center justify-center rounded-lg sm:rounded-xl bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-md">
+                <LayoutDashboard className="size-4 sm:size-5" />
               </div>
-              <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-background shadow-sm">
+              <span className="absolute -right-1 -top-1 flex h-3 w-3 sm:h-3.5 sm:w-3.5 items-center justify-center rounded-full bg-background shadow-sm">
                 <span
-                  className={`h-2 w-2 rounded-full ${
-                    isRealtimeConnected
+                  className={`h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full ${isRealtimeConnected
                       ? "bg-primary shadow-[0_0_8px_hsl(var(--primary))]"
                       : "bg-muted-foreground/60"
-                  }`}
+                    }`}
                 />
               </span>
             </div>
 
-            <div className="min-w-0 space-y-2">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-xl font-extrabold tracking-tight text-foreground sm:text-2xl">
+            <div className="min-w-0 flex-1 space-y-0 sm:space-y-2">
+              <div className="flex items-center gap-2 sm:gap-2.5">
+                <h1 className="truncate text-lg font-extrabold tracking-tight text-foreground sm:text-2xl">
                   {t("nav.dashboard")}
                 </h1>
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
+
+                {/* Mobile-only minimal live dot */}
+                <span
+                  title={
+                    isRealtimeConnected
+                      ? t("dashboard.connected")
+                      : t("dashboard.disconnected")
+                  }
+                  className="inline-flex sm:hidden items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary"
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${isRealtimeConnected
+                        ? "bg-primary animate-pulse"
+                        : "bg-muted-foreground"
+                      }`}
+                  />
+                  LIVE
+                </span>
+
+                {/* Desktop-only Subtitle Badge */}
+                <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                   Smart PPE · Command Center
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {/* Desktop-only Metadata Row (Ẩn hoàn toàn trên Mobile) */}
+              <div className="hidden sm:flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span>
                   {t("dashboard.welcome")},{" "}
                   <strong className="font-bold text-foreground">
@@ -213,22 +233,20 @@ export function DashboardHeroHeader({
                 </span>
 
                 <span
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-[11px] font-semibold ${
-                    isRealtimeConnected
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-[11px] font-semibold ${isRealtimeConnected
                       ? "text-primary"
                       : "text-muted-foreground"
-                  } ${NM.recessed}`}
+                    } ${NM.recessed}`}
                 >
                   <span className="relative flex h-2 w-2">
                     {isRealtimeConnected && (
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-40" />
                     )}
                     <span
-                      className={`relative h-2 w-2 rounded-full ${
-                        isRealtimeConnected
+                      className={`relative h-2 w-2 rounded-full ${isRealtimeConnected
                           ? "bg-primary"
                           : "bg-muted-foreground"
-                      }`}
+                        }`}
                     />
                   </span>
                   {isRealtimeConnected
@@ -238,7 +256,7 @@ export function DashboardHeroHeader({
 
                 <span
                   title={resolvedSiteLabel}
-                  className={`inline-flex max-w-full sm:max-w-[240px] items-center gap-1.5 rounded-xl px-3 py-1 text-[11px] font-semibold text-foreground ${NM.recessed}`}
+                  className={`inline-flex max-w-[240px] items-center gap-1.5 rounded-xl px-3 py-1 text-[11px] font-semibold text-foreground ${NM.recessed}`}
                 >
                   <Building2 className="size-3.5 shrink-0 text-primary" />
                   <span className="truncate">{resolvedSiteLabel}</span>
@@ -247,28 +265,30 @@ export function DashboardHeroHeader({
             </div>
           </div>
 
-          {/* Right Telemetry Pod & Action Controls */}
-          <div className="flex flex-wrap items-center gap-2.5 self-start xl:self-center">
+          {/* Right Telemetry Pod & Icon-only Actions (Mobile) / Full Controls (Web) */}
+          <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-2.5 sm:self-start xl:self-center">
             {/* Shift & Live Clock Pod */}
             <div
-              className={`flex items-center gap-3 rounded-2xl px-3.5 py-2 ${NM.extruded}`}
+              className={`flex items-center gap-2 sm:gap-3 rounded-xl sm:rounded-2xl px-2.5 py-1.5 sm:px-3.5 sm:py-2 ${NM.extruded}`}
             >
               <div
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-primary ${NM.recessed}`}
+                className={`flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg sm:rounded-xl text-primary ${NM.recessed}`}
               >
-                <ShiftIcon className="size-4" />
+                <ShiftIcon className="size-3.5 sm:size-4" />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
+                {/* Ẩn label ca trực trên mobile */}
+                <div className="hidden sm:flex items-center gap-1.5">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
                     {shiftConfig[shiftKey].label}
                   </span>
                   <Activity className="size-3 text-primary" />
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="whitespace-nowrap font-mono text-sm font-black tabular-nums text-foreground">
+                  <span className="whitespace-nowrap font-mono text-xs sm:text-sm font-black tabular-nums text-foreground">
                     {currentTime || "--:--:--"}
                   </span>
+                  {/* Ẩn ngày tháng trên mobile */}
                   <span className="hidden text-[10px] font-medium text-muted-foreground sm:inline">
                     {currentDate || "..."}
                   </span>
@@ -276,26 +296,33 @@ export function DashboardHeroHeader({
               </div>
             </div>
 
-            {onRefresh && (
-              <ConsoleRefreshButton
-                compact
-                onRefresh={onRefresh}
-                isRefreshing={isRefreshing}
-                label={t("dashboard.data.refresh")}
-                ariaLabel={t("dashboard.data.refresh")}
-              />
-            )}
+            {/* Action Buttons: Chỉ giữ icon trên mobile, đủ text trên web */}
+            <div className="flex items-center gap-2 sm:gap-2.5">
+              {onRefresh && (
+                <ConsoleRefreshButton
+                  compact
+                  onRefresh={onRefresh}
+                  isRefreshing={isRefreshing}
+                  label={t("dashboard.data.refresh")}
+                  ariaLabel={t("dashboard.data.refresh")}
+                />
+              )}
 
-            {canExportReports && onOpenExportReport && (
-              <button
-                type="button"
-                onClick={onOpenExportReport}
-                className="inline-flex h-12 shrink-0 cursor-pointer items-center gap-2 rounded-2xl bg-primary px-4 text-xs font-extrabold uppercase tracking-wider text-primary-foreground shadow-[6px_6px_14px_rgba(0,0,0,0.16),-4px_-4px_10px_rgba(255,255,255,0.7),inset_1px_1px_1px_rgba(255,255,255,0.35)] transition-all hover:brightness-105 active:scale-[0.98] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.5)]"
-              >
-                <FileSpreadsheet className="size-4" />
-                <span>{t("dashboard.data.export")}</span>
-              </button>
-            )}
+              {canExportReports && onOpenExportReport && (
+                <button
+                  type="button"
+                  onClick={onOpenExportReport}
+                  title={t("dashboard.data.export")}
+                  aria-label={t("dashboard.data.export")}
+                  className="inline-flex h-10 w-10 sm:h-12 sm:w-auto shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl sm:rounded-2xl bg-primary px-0 sm:px-4 text-xs font-extrabold uppercase tracking-wider text-primary-foreground shadow-[6px_6px_14px_rgba(0,0,0,0.16),-4px_-4px_10px_rgba(255,255,255,0.7),inset_1px_1px_1px_rgba(255,255,255,0.35)] transition-all hover:brightness-105 active:scale-[0.98] dark:shadow-[6px_6px_14px_rgba(0,0,0,0.5)]"
+                >
+                  <FileSpreadsheet className="size-4 shrink-0" />
+                  <span className="hidden sm:inline">
+                    {t("dashboard.data.export")}
+                  </span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -303,15 +330,17 @@ export function DashboardHeroHeader({
             TẦNG 2: DOMAIN NAVIGATION SWITCH TRACK
            ============================================================ */}
         {activeTab && onChangeTab && (
-          <DashboardNavTabs
-            activeTab={activeTab}
-            onChangeTab={onChangeTab}
-            pendingCount={pendingCount}
-            onlineCameras={onlineCameras}
-            totalCameras={totalCameras}
-            canViewSafety={canViewSafety}
-            canViewDevices={canViewDevices}
-          />
+          <div className="-mx-3.5 px-3.5 sm:mx-0 sm:px-0 overflow-x-auto no-scrollbar">
+            <DashboardNavTabs
+              activeTab={activeTab}
+              onChangeTab={onChangeTab}
+              pendingCount={pendingCount}
+              onlineCameras={onlineCameras}
+              totalCameras={totalCameras}
+              canViewSafety={canViewSafety}
+              canViewDevices={canViewDevices}
+            />
+          </div>
         )}
 
         {/* ============================================================
