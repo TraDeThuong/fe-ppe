@@ -9,6 +9,7 @@ import {
   Shield,
   Users,
 } from "lucide-react";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 
 export type SiteDetailTabKey =
@@ -26,6 +27,7 @@ export interface SiteDetailTabsProps {
   pendingIncidentsCount?: number;
   zoneCount?: number;
   officersCount?: number;
+  visibleTabs?: SiteDetailTabKey[];
   className?: string;
 }
 
@@ -36,6 +38,7 @@ interface TabItemConfig {
   icon: typeof Camera;
   badge?: number;
   badgeTone?: "default" | "danger" | "primary";
+  permitted: boolean;
 }
 
 export function SiteDetailTabs({
@@ -45,17 +48,27 @@ export function SiteDetailTabs({
   pendingIncidentsCount = 0,
   zoneCount = 0,
   officersCount = 0,
+  visibleTabs,
   className = "",
 }: SiteDetailTabsProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canReadCameras = can("PPE_CAMERA_READ");
+  const canReadIncidents = can("PPE_INCIDENT_READ");
+  const canReadZones = can("PPE_ZONE_READ") || can("PPE_RESTRICTED_AREA_READ");
+  const canReadSafety =
+    can("PPE_SAFETY_CONFIG_READ") || can("PPE_SAFETY_CONFIG_MANAGE");
+  const canReadReporting = can("PPE_REPORTING_READ");
+  const canReadUsers = can("USER_READ");
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const activeTabRef = useRef<HTMLButtonElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
 
-  const tabs: TabItemConfig[] = useMemo(
-    () => [
+  const tabs: TabItemConfig[] = useMemo(() => {
+    const allTabs: TabItemConfig[] = [
       {
         key: "cameras",
         labelShort: t("sites.detail.tabs.camerasShort"),
@@ -63,6 +76,7 @@ export function SiteDetailTabs({
         icon: Camera,
         badge: cameraCount > 0 ? cameraCount : undefined,
         badgeTone: "primary",
+        permitted: canReadCameras,
       },
       {
         key: "incidents",
@@ -71,6 +85,7 @@ export function SiteDetailTabs({
         icon: AlertTriangle,
         badge: pendingIncidentsCount > 0 ? pendingIncidentsCount : undefined,
         badgeTone: "danger",
+        permitted: canReadIncidents,
       },
       {
         key: "zones",
@@ -79,18 +94,21 @@ export function SiteDetailTabs({
         icon: Layers,
         badge: zoneCount > 0 ? zoneCount : undefined,
         badgeTone: "default",
+        permitted: canReadZones,
       },
       {
         key: "safety-rules",
         labelShort: t("sites.detail.tabs.safetyRulesShort"),
         labelFull: t("sites.detail.tabs.safetyRules"),
         icon: Shield,
+        permitted: canReadSafety,
       },
       {
         key: "analytics",
         labelShort: t("sites.detail.tabs.analyticsShort"),
         labelFull: t("sites.detail.tabs.analytics"),
         icon: BarChart3,
+        permitted: canReadReporting,
       },
       {
         key: "personnel",
@@ -99,10 +117,29 @@ export function SiteDetailTabs({
         icon: Users,
         badge: officersCount > 0 ? officersCount : undefined,
         badgeTone: "default",
+        permitted: canReadUsers,
       },
-    ],
-    [t, cameraCount, pendingIncidentsCount, zoneCount, officersCount]
-  );
+    ];
+
+    if (Array.isArray(visibleTabs)) {
+      const allowedSet = new Set(visibleTabs);
+      return allTabs.filter((tab) => allowedSet.has(tab.key));
+    }
+    return allTabs.filter((tab) => tab.permitted);
+  }, [
+    t,
+    cameraCount,
+    pendingIncidentsCount,
+    zoneCount,
+    officersCount,
+    visibleTabs,
+    canReadCameras,
+    canReadIncidents,
+    canReadZones,
+    canReadSafety,
+    canReadReporting,
+    canReadUsers,
+  ]);
 
   // Check scroll overflows for fade indicator
   const checkScroll = () => {

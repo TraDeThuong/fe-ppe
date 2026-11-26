@@ -8,39 +8,32 @@ import {
   Clock,
   FileSpreadsheet,
   FileText,
-  History,
   ShieldCheck,
   SlidersHorizontal,
 } from "lucide-react";
 import { GenerateReportModal } from "@/components/features/reports/generate-report-modal";
-import { ReportCameraRanking } from "@/components/features/reports/report-camera-ranking";
-import { ReportHistoryTable } from "@/components/features/reports/report-history-table";
-import { ReportPreviewModal } from "@/components/features/reports/report-preview-modal";
 import {
   ReportTrendChart,
   type TrendGroupBy,
 } from "@/components/features/reports/report-trend-chart";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGenerateReport } from "@/hooks/reporting/use-generate-report";
-import { useReportHistory } from "@/hooks/reporting/use-report-history";
 import { useReportTemplates } from "@/hooks/reporting/use-report-templates";
 import {
   useAnalyticsToday,
   useSiteAnalytics,
 } from "@/hooks/sites/use-site-analytics";
-import { useTableState } from "@/hooks/use-table-state";
 import { useCan } from "@/hooks/use-can";
 import {
   analyticsPeriod,
   analyticsPreset,
-  canAccessSiteReport,
   isAccessError,
   type AnalyticsCollection,
 } from "@/lib/site-analytics-data";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
 import { reportingService } from "@/services/reporting.service";
-import type { GenerateReportDto, ReportGenerationDto, SiteItem } from "@/types";
+import type { GenerateReportDto, SiteItem } from "@/types";
 
 export interface SiteAnalyticsTabProps {
   site: SiteItem;
@@ -110,34 +103,40 @@ function AnalyticsStatus({
   query: {
     isFetching: boolean;
     error: Error | null;
-    data?: AnalyticsCollection;
+    data?: Partial<AnalyticsCollection> | unknown;
   };
   retry: () => void;
 }) {
   const { locale } = useLocale();
   const vi = locale === "vi-VN";
+  const maybeCollection =
+    query.data &&
+    typeof query.data === "object" &&
+    "complete" in query.data
+      ? (query.data as AnalyticsCollection)
+      : undefined;
   let message: string | null = null;
   if (!permitted || isAccessError(query.error))
     message = vi
-      ? "Bạn không có quyền đọc dữ liệu sự cố của công trường này."
-      : "You do not have permission to read this site's incidents.";
+      ? "Bạn không có quyền đọc dữ liệu thống kê của công trường này."
+      : "You do not have permission to read this site's statistics.";
   else if (!valid)
     message = vi
       ? "Chọn ngày hợp lệ, không ở tương lai, từ ngày không sau đến ngày và tối đa 90 ngày."
       : "Choose valid dates, not in the future, in order and within 90 calendar days.";
   else if (query.error)
     message = vi
-      ? "Không thể tải dữ liệu sự cố. Vui lòng thử lại."
-      : "Unable to load incidents. Please retry.";
-  else if (query.data && !query.data.complete) {
-    const issue = query.data.issue;
+      ? "Không thể tải dữ liệu thống kê. Vui lòng thử lại."
+      : "Unable to load statistics. Please retry.";
+  else if (maybeCollection && !maybeCollection.complete) {
+    const issue = maybeCollection.issue;
     message = vi
-      ? `Chưa đủ dữ liệu: ${issue === "limit" ? "vượt 5.000 sự cố" : issue === "closed-limit" ? "vượt 200 hồ sơ đã đóng cần xác minh" : issue === "closed-history" ? "thiếu lịch sử của hồ sơ đã đóng" : issue === "changed" ? "dữ liệu thay đổi trong lúc tải" : "không tải được đầy đủ dữ liệu"}. Hãy thu hẹp khoảng ngày hoặc thử lại.`
+      ? `Chưa đủ dữ liệu (${issue}). Hãy thu hẹp khoảng ngày hoặc thử lại.`
       : `Incomplete data (${issue}). Narrow the date range or retry; no partial totals are displayed.`;
   } else if (query.isFetching && !query.data)
     message = vi
-      ? "Đang tải và xác minh đầy đủ sự cố…"
-      : "Loading and verifying all incidents…";
+      ? "Đang tải số liệu thống kê công trường…"
+      : "Loading site statistics…";
   else if (query.isFetching)
     message = vi ? "Đang cập nhật dữ liệu…" : "Updating data…";
   if (!message) return null;
@@ -182,7 +181,6 @@ function SiteAnalyticsContent({ site }: SiteAnalyticsTabProps) {
   const { user, status } = useAuth();
   const can = useCan();
   const ready = status === "authenticated" && !!user;
-  const canReadIncidents = ready && can("PPE_INCIDENT_READ");
   const canReadReports = ready && can("PPE_REPORTING_READ");
   const canExport = canReadReports && can("PPE_REPORTING_EXPORT");
   const today = useAnalyticsToday();
@@ -200,8 +198,6 @@ function SiteAnalyticsContent({ site }: SiteAnalyticsTabProps) {
   const [selectedHourlyDate, setHourlyDate] = useState<string | null>(null);
   const hourlyDate = selectedHourlyDate ?? today;
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
-  const [previewReport, setPreviewReport] =
-    useState<ReportGenerationDto | null>(null);
   const { period, hourPeriod, periodQuery, hourSource, analytics, hourly } =
     useSiteAnalytics({
       userId: user?.id,
@@ -211,26 +207,8 @@ function SiteAnalyticsContent({ site }: SiteAnalyticsTabProps) {
       hourlyDate,
       groupBy,
       today,
-      enabled: canReadIncidents,
-    });
-  const historyTable = useTableState([], site.id);
-  const historyQuery = useReportHistory(
-    {
-      siteId: site.id,
-      page: historyTable.pagination.pageIndex + 1,
-      limit: historyTable.pagination.pageSize,
-    },
-    {
       enabled: canReadReports,
-      scopeUserId: user?.id,
-      placeholderData: undefined,
-      retry: false,
-    }
-  );
-  const history =
-    canReadReports && !historyQuery.error
-      ? (historyQuery.data?.items ?? [])
-      : [];
+    });
   const { data: templates = [], isLoading: templatesLoading } =
     useReportTemplates({ enabled: canExport });
   const activeTemplates = useMemo(
@@ -244,26 +222,6 @@ function SiteAnalyticsContent({ site }: SiteAnalyticsTabProps) {
   const generate = useGenerateReport({ notifySuccess: false });
   const [downloadingGenerated, setDownloadingGenerated] = useState(false);
   const exportBusy = generate.isPending || downloadingGenerated;
-  const accessReport = (report: ReportGenerationDto) =>
-    canAccessSiteReport(report, user, canExport, site.id);
-
-  const downloadReport = async (report: ReportGenerationDto) => {
-    if (!accessReport(report)) return;
-    try {
-      await reportingService.downloadReportFile(report);
-      toast.success(
-        vi ? "Đã tải báo cáo thành công." : "Report downloaded successfully."
-      );
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : vi
-            ? "Không thể tải báo cáo."
-            : "Unable to download report."
-      );
-    }
-  };
 
   const triggerGenerateAndDownload = async (dto: GenerateReportDto) => {
     if (
@@ -278,7 +236,6 @@ function SiteAnalyticsContent({ site }: SiteAnalyticsTabProps) {
       );
     }
     const generated = await generate.mutateAsync(dto);
-    historyTable.resetPage();
     if (generated.status === "FAILED") {
       toast.error(
         generated.errorMessage ||
@@ -514,7 +471,7 @@ function SiteAnalyticsContent({ site }: SiteAnalyticsTabProps) {
           2. STATUS BANNER
       ========================================================= */}
       <AnalyticsStatus
-        permitted={canReadIncidents}
+        permitted={canReadReports}
         valid={!!period}
         query={periodQuery}
         retry={() => void periodQuery.refetch()}
@@ -810,7 +767,7 @@ function SiteAnalyticsContent({ site }: SiteAnalyticsTabProps) {
         </div>
 
         <AnalyticsStatus
-          permitted={canReadIncidents}
+          permitted={canReadReports}
           valid={!!hourPeriod}
           query={hourSource}
           retry={() => void hourSource.refetch()}
@@ -908,75 +865,7 @@ function SiteAnalyticsContent({ site }: SiteAnalyticsTabProps) {
       </Card>
 
       {/* =========================================================
-          6. CAMERA RANKING
-      ========================================================= */}
-      {analytics && (
-        <div className={nmSurface}>
-          <ReportCameraRanking
-            style={{ height: "auto" }}
-            rankings={analytics.cameras.slice(0, 10)}
-            lookupEnabled={false}
-            confirmedOnly
-          />
-        </div>
-      )}
-
-      {/* =========================================================
-          7. REPORT GENERATION HISTORY
-      ========================================================= */}
-      <section className={`${nmSurface} space-y-4`}>
-        <div className="relative flex items-center gap-3 pb-3.5 before:absolute before:inset-x-0 before:bottom-0 before:h-[1px] before:bg-gradient-to-r before:from-transparent before:via-border/45 before:to-transparent">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-primary/[0.08] text-primary shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_rgba(255,255,255,0.8)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)]">
-            <History className="h-4 w-4" />
-          </div>
-          <h4 className="text-[13px] font-extrabold tracking-tight text-foreground">
-            {vi
-              ? "Lịch sử Xuất Báo cáo của Công trường"
-              : "Site report generation history"}
-          </h4>
-        </div>
-
-        {!canReadReports || isAccessError(historyQuery.error) ? (
-          <p
-            role="status"
-            className={`${nmInset} px-4 py-3 text-xs font-medium text-muted-foreground`}
-          >
-            {vi
-              ? "Bạn không có quyền xem lịch sử báo cáo."
-              : "You do not have permission to view report history."}
-          </p>
-        ) : (
-          <ReportHistoryTable
-            history={history}
-            loading={historyQuery.isLoading}
-            currentUserId={user?.id}
-            isAdmin={user?.role === "ADMIN"}
-            onPreview={(report) => {
-              if (accessReport(report)) setPreviewReport(report);
-            }}
-            canAccessReport={accessReport}
-            lookupEnabled={false}
-            siteName={site.name}
-            tableState={{
-              ...historyTable,
-              rowCount: historyQuery.data?.meta?.total ?? 0,
-              pageCount: historyQuery.data?.meta?.totalPages ?? 0,
-              fetching: historyQuery.isFetching,
-              error: historyQuery.error,
-              features: {
-                globalFilter: false,
-                sorting: false,
-                rowSelection: false,
-                pagination: true,
-              },
-              onRetry: () => void historyQuery.refetch(),
-            }}
-          />
-        )}
-      </section>
-
-      {/* =========================================================
-          8. MODALS
+          6. MODALS
       ========================================================= */}
       {canExport && (
         <GenerateReportModal
@@ -992,17 +881,6 @@ function SiteAnalyticsContent({ site }: SiteAnalyticsTabProps) {
           validatePeriod={(start, end) =>
             !!analyticsPeriod(start, end, today)
           }
-        />
-      )}
-
-      {previewReport && accessReport(previewReport) && (
-        <ReportPreviewModal
-          open
-          onOpenChange={(open) => {
-            if (!open) setPreviewReport(null);
-          }}
-          report={previewReport}
-          onDownload={(report) => void downloadReport(report)}
         />
       )}
     </div>

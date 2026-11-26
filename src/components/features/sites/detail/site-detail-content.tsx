@@ -33,9 +33,12 @@ import { useLocale } from "@/providers/locale-provider";
 import { reportingService } from "@/services/reporting.service";
 import { DeleteSiteDialog } from "../delete-site-dialog";
 import { EditSiteModal } from "../edit-site-modal";
-import { resolveDisplayOfficers, syncSiteOfficersAccess } from "../site-helpers";
-import { SiteSafetyConfigModal } from "../site-safety-config-modal";
-import { SiteZonesDrawer } from "../site-zones-drawer";
+import {
+  canSyncSiteOfficers,
+  parseSiteContactOfficers,
+  resolveDisplayOfficers,
+  syncSiteOfficersAccess,
+} from "../site-helpers";
 import { SiteDetailHero } from "./site-detail-hero";
 import { SiteDetailKpiBar } from "./site-detail-kpi-bar";
 import { SiteDetailTabs, type SiteDetailTabKey } from "./site-detail-tabs";
@@ -80,11 +83,35 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
   const canReadCameras = can("PPE_CAMERA_READ");
   const canReadIncidents = can("PPE_INCIDENT_READ");
   const canReadReporting = can("PPE_REPORTING_READ");
+  const canReadSafety =
+    can("PPE_SAFETY_CONFIG_READ") || can("PPE_SAFETY_CONFIG_MANAGE");
+  const canReadUsers = can("USER_READ");
+  const canUpdateUsers = can("USER_UPDATE");
   const canManageSite = can("PPE_SITE_MANAGE");
-  const canManageZones = can("PPE_ZONE_MANAGE") || can("PPE_RESTRICTED_AREA_MANAGE");
-  const canManageSafety = can("PPE_SAFETY_CONFIG_MANAGE");
   const canExportReport = can("PPE_REPORTING_EXPORT");
-  const isAdmin = currentUser?.role === "ADMIN" || currentUser?.role === "SUPER_ADMIN";
+  const canSyncUsers = canSyncSiteOfficers(
+    currentUser?.role,
+    canReadUsers && canUpdateUsers,
+  );
+
+  const permittedTabs = useMemo<SiteDetailTabKey[]>(() => {
+    const list: SiteDetailTabKey[] = [];
+    if (canReadCameras) list.push("cameras");
+    if (canReadIncidents) list.push("incidents");
+    if (canReadZones || canReadRestricted) list.push("zones");
+    if (canReadSafety) list.push("safety-rules");
+    if (canReadReporting) list.push("analytics");
+    if (canReadUsers) list.push("personnel");
+    return list;
+  }, [
+    canReadCameras,
+    canReadIncidents,
+    canReadZones,
+    canReadRestricted,
+    canReadSafety,
+    canReadReporting,
+    canReadUsers,
+  ]);
 
   // Active Tab synchronized with URL (including back-navigation to no ?tab=)
   const [activeTab, setActiveTab] = useState<SiteDetailTabKey>(() =>
@@ -95,10 +122,13 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
     setActiveTab(resolveTab(searchParams.get("tab")));
   }, [searchParams]);
 
+  const effectiveActiveTab: SiteDetailTabKey | null = useMemo(() => {
+    if (permittedTabs.includes(activeTab)) return activeTab;
+    return permittedTabs[0] ?? null;
+  }, [activeTab, permittedTabs]);
+
   // Modals / Drawers state
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [zonesDrawerOpen, setZonesDrawerOpen] = useState(false);
-  const [safetyDrawerOpen, setSafetyDrawerOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
 
@@ -193,9 +223,9 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
   }, [lastAlert, siteId, queryClient]);
 
   const handleUpdateSite = async (id: string, payload: UpdateSitePayload) => {
-    const previousOfficers = Array.isArray(site?.contactOfficers) ? site.contactOfficers : [];
+    const previousOfficers = parseSiteContactOfficers(site?.contactOfficers);
     await updateSiteMutation.mutateAsync({ id, payload });
-    await syncSiteOfficersAccess(id, payload.contactOfficers, isAdmin, previousOfficers);
+    await syncSiteOfficersAccess(id, payload.contactOfficers, canSyncUsers, previousOfficers);
     setEditModalOpen(false);
   };
 
@@ -299,15 +329,13 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
       <SiteDetailHero
         site={site}
         onEdit={() => setEditModalOpen(true)}
-        onManageZones={() => setZonesDrawerOpen(true)}
-        onSafetyConfig={() => setSafetyDrawerOpen(true)}
         onExportReport={() => setExportModalOpen(true)}
-        onViewPersonnel={() => handleNavigateTab("personnel")}
+        onViewPersonnel={
+          canReadUsers ? () => handleNavigateTab("personnel") : undefined
+        }
         onArchive={handleArchiveSite}
         onDelete={() => setDeleteDialogOpen(true)}
         canEdit={canManageSite}
-        canManageZones={canManageZones}
-        canSafetyConfig={canManageSafety}
         canExportReport={canExportReport}
         canArchive={canManageSite}
         canDelete={canManageSite}
@@ -323,32 +351,39 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
         complianceRate={complianceRate}
         zoneCount={zoneCount}
         restrictedCount={restrictedCount}
-        onSelectTab={(tab) => handleNavigateTab(tab as SiteDetailTabKey)}
+        onSelectTab={(tab) => {
+          if (permittedTabs.includes(tab as SiteDetailTabKey)) {
+            handleNavigateTab(tab as SiteDetailTabKey);
+          }
+        }}
       />
 
       {/* 3. Neumorphic Segmented Control Navigation */}
-      <SiteDetailTabs
-        activeTab={activeTab}
-        onTabChange={(tab) => handleNavigateTab(tab)}
-        cameraCount={cameraCount}
-        pendingIncidentsCount={pendingIncidentsCount}
-        zoneCount={zoneCount}
-        officersCount={officersCount}
-      />
+      {effectiveActiveTab && (
+        <SiteDetailTabs
+          activeTab={effectiveActiveTab}
+          onTabChange={(tab) => handleNavigateTab(tab)}
+          cameraCount={cameraCount}
+          pendingIncidentsCount={pendingIncidentsCount}
+          zoneCount={zoneCount}
+          officersCount={officersCount}
+          visibleTabs={permittedTabs}
+        />
+      )}
 
       {/* 4. Active Tab Content Pane */}
       <div className="transition-all duration-200">
-        {activeTab === "cameras" && (
+        {effectiveActiveTab === "cameras" && (
           <SiteLiveCamerasTab site={site} initialZoneId={urlZoneId} />
         )}
-        {activeTab === "incidents" && (
+        {effectiveActiveTab === "incidents" && (
           <SiteIncidentsTab
             site={site}
             initialZoneId={urlZoneId}
             initialCameraId={urlCameraId}
           />
         )}
-        {activeTab === "zones" && (
+        {effectiveActiveTab === "zones" && (
           <SiteSpatialZonesTab
             site={site}
             onViewZoneCameras={(zoneId) =>
@@ -359,9 +394,11 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
             }
           />
         )}
-        {activeTab === "safety-rules" && <SiteSafetyRulesTab site={site} />}
-        {activeTab === "analytics" && <SiteAnalyticsTab site={site} />}
-        {activeTab === "personnel" && (
+        {effectiveActiveTab === "safety-rules" && (
+          <SiteSafetyRulesTab site={site} />
+        )}
+        {effectiveActiveTab === "analytics" && <SiteAnalyticsTab site={site} />}
+        {effectiveActiveTab === "personnel" && (
           <SitePersonnelTab
             site={site}
             onEditSite={canManageSite ? () => setEditModalOpen(true) : undefined}
@@ -382,18 +419,6 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
         site={site}
         onSubmit={handleUpdateSite}
         loading={updateSiteMutation.isPending}
-      />
-
-      <SiteZonesDrawer
-        open={zonesDrawerOpen}
-        onOpenChange={setZonesDrawerOpen}
-        site={site}
-      />
-
-      <SiteSafetyConfigModal
-        open={safetyDrawerOpen}
-        onOpenChange={setSafetyDrawerOpen}
-        site={site}
       />
 
       <DeleteSiteDialog

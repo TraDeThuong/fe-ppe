@@ -45,13 +45,15 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
   const isVietnamese = locale === "vi-VN";
   const can = useCan();
   const canManage = can("PPE_SAFETY_CONFIG_MANAGE");
+  const canReadSafety = can("PPE_SAFETY_CONFIG_READ") || canManage;
+  const canReadCameras = can("PPE_CAMERA_READ");
   const canReadModels = can("PPE_MODEL_READ");
   const isSiteActive = site.status === "ACTIVE";
   const isSiteEditable = canManage && isSiteActive;
 
   // Site safety config + system default + models
-  const { data: config, isLoading } = useSiteSafetyConfig(site.id);
-  const { data: systemDefault } = useSystemDefaultSafetyConfig();
+  const { data: config, isLoading } = useSiteSafetyConfig(site.id, canReadSafety);
+  const { data: systemDefault } = useSystemDefaultSafetyConfig(canReadSafety);
   const { data: aiModels = [] } = useQuery<AiModelDto[]>({
     queryKey: ["ai-models", "list"],
     queryFn: () => aiMetricsService.getAiModels(),
@@ -156,7 +158,10 @@ export function SiteSafetyRulesTab({ site }: SiteSafetyRulesTabProps) {
   };
 
   // ── Cameras inheriting this site standard ─────────────────────────────────
-  const { data: camerasData } = useCameras({ siteId: site.id, limit: 100 });
+  const { data: camerasData } = useCameras(
+    { siteId: site.id, limit: 100 },
+    { enabled: canReadCameras && Boolean(site.id) },
+  );
   const cameras = useMemo(() => camerasData?.items ?? [], [camerasData]);
 
   const ppeRules = [

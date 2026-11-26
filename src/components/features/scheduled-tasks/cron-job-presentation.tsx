@@ -19,9 +19,11 @@ export interface CronJobListProps {
   filtered: boolean;
   canManage: boolean;
   blockedJobs: ReadonlySet<CronJobName>;
+  actionPending?: boolean;
   onRetry: () => void;
   onTrigger: (job: CronJobItem) => void;
   onToggle: (job: CronJobItem) => void;
+  onEdit: (job: CronJobItem) => void;
   onViewDetail?: (job: CronJobItem) => void;
   onResetFilters?: () => void;
 }

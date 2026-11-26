@@ -35,12 +35,13 @@ export function SiteSafetyConfigModal({
   const isVietnamese = locale === "vi-VN";
   const can = useCan();
   const canManage = can("PPE_SAFETY_CONFIG_MANAGE");
+  const canReadSafety = can("PPE_SAFETY_CONFIG_READ") || canManage;
   const canReadModels = can("PPE_MODEL_READ");
   const isSiteActive = site?.status === "ACTIVE";
 
   const { data: config, isLoading: configLoading } = useSiteSafetyConfig(
     site?.id || "",
-    open && Boolean(site?.id),
+    open && Boolean(site?.id) && canReadSafety,
   );
   const { data: aiModels = [] } = useQuery<AiModelDto[]>({
     queryKey: ["ai-models", "list"],

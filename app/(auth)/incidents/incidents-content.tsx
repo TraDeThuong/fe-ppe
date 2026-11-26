@@ -19,7 +19,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useSite } from "@/contexts/SiteContext";
 import {
-  useBatchReviewIncidents,
   useCloseIncident,
   useCreateIncident,
   useDeleteIncident,
@@ -39,7 +38,6 @@ import { vietnamToday } from "@/lib/dashboard-data";
 import {
   dispatchIncidentsWithSignal,
   resolveIncidentsWithReport,
-  type DispatchIncidentsResult,
 } from "@/lib/incident-actions";
 import {
   incidentWorkStatuses,
@@ -60,6 +58,7 @@ import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
 import { incidentService } from "@/services/incident.service";
 import type { IncidentItem, IncidentQueryParams } from "@/types";
+import { useIncidentBatchActions } from "./use-incident-batch-actions";
 
 const STAT_TO_URL: Record<IncidentStatKey, string> = {
   total: "total",
@@ -473,7 +472,6 @@ export default function IncidentsContent() {
   const createMutation = useCreateIncident();
   const updateMutation = useUpdateIncident();
   const reviewMutation = useReviewIncident();
-  const batchReviewMutation = useBatchReviewIncidents();
   const closeMutation = useCloseIncident(closedHistoryAction.href);
   const deleteMutation = useDeleteIncident();
 
@@ -487,15 +485,6 @@ export default function IncidentsContent() {
   const [isCloseOpen, setIsCloseOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isExportFeedbackOpen, setIsExportFeedbackOpen] = useState(false);
-  const [batchRejectIds, setBatchRejectIds] = useState<string[] | null>(null);
-  const [batchRejectNote, setBatchRejectNote] = useState("");
-  const [batchRejectError, setBatchRejectError] = useState<string | null>(null);
-  const [batchDispatchItems, setBatchDispatchItems] = useState<IncidentItem[] | null>(null);
-  const [dispatchResult, setDispatchResult] = useState<DispatchIncidentsResult | null>(null);
-  const [batchResolveItems, setBatchResolveItems] = useState<IncidentItem[] | null>(null);
-  const [batchCloseItems, setBatchCloseItems] = useState<IncidentItem[] | null>(null);
-  const [batchCloseNote, setBatchCloseNote] = useState("");
-  const [batchActionPending, setBatchActionPending] = useState(false);
   const [singleActionPending, setSingleActionPending] = useState(false);
 
   const isRefreshingAll = isRefetching || statusCountsFetching;
@@ -525,160 +514,11 @@ export default function IncidentsContent() {
     setIsReviewOpen(true);
   };
 
-  const handleBatchReview = async (ids: string[], action: "CONFIRM" | "REJECT") => {
-    if (action === "REJECT") {
-      setBatchRejectIds(ids);
-      setBatchRejectNote("");
-      setBatchRejectError(null);
-      return;
-    }
-    try {
-      await batchReviewMutation.mutateAsync({ ids, action });
-    } catch {
-      // Handled by hook
-    }
-  };
-
-  const handleConfirmBatchReject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!batchRejectIds || batchRejectIds.length === 0) return;
-    const trimmed = batchRejectNote.trim();
-    if (trimmed.length < 3) {
-      setBatchRejectError(
-        isVietnamese
-          ? "Vui lòng nhập lý do bác bỏ (tối thiểu 3 ký tự)."
-          : "Please provide a dismissal reason (at least 3 characters).",
-      );
-      return;
-    }
-    try {
-      await batchReviewMutation.mutateAsync({
-        ids: batchRejectIds,
-        action: "REJECT",
-        resolutionNote: trimmed,
-      });
-      setBatchRejectIds(null);
-      setBatchRejectNote("");
-      setBatchRejectError(null);
-    } catch {
-      // Handled by hook
-    }
-  };
-
-  const handleConfirmBatchDispatch = async (payload: {
-    assignedTo: string;
-    note?: string;
-  }) => {
-    if (!batchDispatchItems || batchDispatchItems.length === 0) return;
-    setBatchActionPending(true);
-    try {
-      const res = await dispatchIncidentsWithSignal({
-        incidents: batchDispatchItems,
-        groupDispatch: true,
-        managerId: user?.id,
-        assignedTo: payload.assignedTo,
-        note: payload.note,
-        managerName: user?.fullName || user?.email || undefined,
-      });
-      setDispatchResult(res);
-      invalidateAllIncidentQueries(batchDispatchItems.map((i) => i.id));
-      if (res.assignedCount > 0) {
-        toast.success(
-          isVietnamese
-            ? `Đã duyệt & giao ${res.assignedCount} sự cố cho cán bộ${res.signalSent ? " (đã gửi 1 tín hiệu điều phối)" : ""}.`
-            : `Confirmed & dispatched ${res.assignedCount} incidents.`,
-        );
-      }
-      if (res.failedCount > 0) {
-        toast.error(
-          isVietnamese
-            ? `${res.failedCount} sự cố chưa thể phân công.`
-            : `${res.failedCount} incidents failed to assign.`,
-        );
-      }
-      setBatchDispatchItems(null);
-    } finally {
-      setBatchActionPending(false);
-    }
-  };
-
-  const handleConfirmBatchResolve = async (payload: {
-    resolutionNote: string;
-    afterFixFile?: File | null;
-    closeImmediately?: boolean;
-  }) => {
-    if (!batchResolveItems || batchResolveItems.length === 0) return;
-    setBatchActionPending(true);
-    try {
-      const res = await resolveIncidentsWithReport({
-        incidents: batchResolveItems,
-        resolutionNote: payload.resolutionNote,
-        afterFixFile: payload.afterFixFile,
-        closeImmediately: payload.closeImmediately,
-        officerName: user?.fullName || user?.email || undefined,
-      });
-      invalidateAllIncidentQueries(batchResolveItems.map((i) => i.id));
-      if (res.resolvedCount > 0) {
-        toast.success(
-          res.closedCount > 0
-            ? isVietnamese
-              ? `Đã khắc phục & đóng ${res.closedCount} sự cố.`
-              : `Resolved & closed ${res.closedCount} incidents.`
-            : isVietnamese
-              ? `Đã báo cáo khắc phục ${res.resolvedCount} sự cố${res.reportSignalSent ? " và gửi tín hiệu tới Quản lý" : ""}.`
-              : `Reported remediation for ${res.resolvedCount} incidents.`,
-          res.closedCount > 0 ? { action: closedHistoryAction } : undefined,
-        );
-      }
-      if (res.failedCount > 0) {
-        toast.error(
-          isVietnamese
-            ? `${res.failedCount} sự cố chưa thể cập nhật (kiểm tra quyền phân công).`
-            : `${res.failedCount} incidents failed to resolve.`,
-        );
-      }
-      setBatchResolveItems(null);
-    } finally {
-      setBatchActionPending(false);
-    }
-  };
-
-  const handleConfirmBatchClose = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!batchCloseItems || batchCloseItems.length === 0) return;
-    setBatchActionPending(true);
-    try {
-      const closeNote =
-        batchCloseNote.trim() ||
-        (isVietnamese
-          ? "Nghiệm thu và đóng hồ sơ sự cố an toàn (hàng loạt)"
-          : "Batch accepted and closed safety incident records");
-      const { succeeded, failed } = await runInBatches(batchCloseItems, 4, (inc) =>
-        incidentService.closeIncident(inc.id, { closeNote }),
-      );
-      const closedIds = batchCloseItems.map((i) => i.id);
-      setBatchCloseItems(null);
-      setBatchCloseNote("");
-      invalidateAllIncidentQueries(closedIds);
-      if (succeeded.length > 0) {
-        toast.success(
-          isVietnamese
-            ? `Đã nghiệm thu và đóng ${succeeded.length} hồ sơ sự cố.`
-            : `Accepted and closed ${succeeded.length} incidents.`,
-          { action: closedHistoryAction },
-        );
-      }
-      if (failed.length > 0) {
-        toast.error(
-          isVietnamese
-            ? `${failed.length} sự cố chưa thể đóng.`
-            : `${failed.length} incidents failed to close.`,
-        );
-      }
-    } finally {
-      setBatchActionPending(false);
-    }
-  };
+  const batchActions = useIncidentBatchActions({
+    closedHistoryAction,
+    onIncidentsChanged: invalidateAllIncidentQueries,
+  });
+  const { dispatchResult, setDispatchResult } = batchActions;
 
   const renderListControls = (quickSelect: ReactNode) => (
     <IncidentListControlCard
@@ -785,7 +625,7 @@ export default function IncidentsContent() {
                   : `${fetched.failed.length} records could not be loaded and are excluded from this retry.`,
               );
             }
-            setBatchDispatchItems(eligible);
+            batchActions.onBatchDispatch(eligible);
           }}
         />
       )}
@@ -871,20 +711,12 @@ export default function IncidentsContent() {
           loading={isListLoading}
           highlightedId={highlightedIncidentId}
           onReview={canReviewIncident && !isHistory ? handleOpenReview : undefined}
-          onBatchReview={canReviewIncident && !isHistory ? handleBatchReview : undefined}
-          onBatchDispatch={isOfficerRole || isHistory ? undefined : setBatchDispatchItems}
-          onBatchResolve={isHistory ? undefined : setBatchResolveItems}
-          onBatchClose={
-            isOfficerRole || isHistory
-              ? undefined
-              : (items) => {
-                  if (!items.length) return;
-                  setBatchCloseItems(items);
-                  setBatchCloseNote("");
-                }
-          }
-          batchReviewPending={batchReviewMutation.isPending}
-          batchActionPending={batchActionPending}
+          onBatchReview={canReviewIncident && !isHistory ? batchActions.onBatchReview : undefined}
+          onBatchDispatch={isOfficerRole || isHistory ? undefined : batchActions.onBatchDispatch}
+          onBatchResolve={isHistory ? undefined : batchActions.onBatchResolve}
+          onBatchClose={isOfficerRole || isHistory ? undefined : batchActions.onBatchClose}
+          batchReviewPending={batchActions.modalProps.batchReviewPending}
+          batchActionPending={batchActions.modalProps.batchActionPending}
           onAssign={
             isHistory
               ? undefined
@@ -1068,32 +900,7 @@ export default function IncidentsContent() {
             // Handled by hook
           }
         }}
-        batchDispatchItems={batchDispatchItems}
-        onClearBatchDispatch={() => setBatchDispatchItems(null)}
-        onSubmitBatchDispatch={handleConfirmBatchDispatch}
-        batchResolveItems={batchResolveItems}
-        onClearBatchResolve={() => setBatchResolveItems(null)}
-        onSubmitBatchResolve={handleConfirmBatchResolve}
-        batchRejectIds={batchRejectIds}
-        batchRejectNote={batchRejectNote}
-        batchRejectError={batchRejectError}
-        batchReviewPending={batchReviewMutation.isPending}
-        onBatchRejectNoteChange={setBatchRejectNote}
-        onClearBatchReject={() => {
-          setBatchRejectIds(null);
-          setBatchRejectNote("");
-          setBatchRejectError(null);
-        }}
-        onConfirmBatchReject={handleConfirmBatchReject}
-        batchCloseItems={batchCloseItems}
-        batchCloseNote={batchCloseNote}
-        batchActionPending={batchActionPending}
-        onBatchCloseNoteChange={setBatchCloseNote}
-        onClearBatchClose={() => {
-          setBatchCloseItems(null);
-          setBatchCloseNote("");
-        }}
-        onConfirmBatchClose={handleConfirmBatchClose}
+        {...batchActions.modalProps}
         isExportFeedbackOpen={isExportFeedbackOpen}
         onExportFeedbackOpenChange={setIsExportFeedbackOpen}
         exportFilterScope={{

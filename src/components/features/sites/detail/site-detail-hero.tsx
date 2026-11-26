@@ -14,7 +14,6 @@ import {
   Layers,
   MapPin,
   Phone,
-  Shield,
   ShieldCheck,
   Trash2,
   User,
@@ -29,15 +28,11 @@ import type { SiteContactOfficer, SiteItem } from "@/types";
 export interface SiteDetailHeroProps {
   site: SiteItem;
   onEdit?: () => void;
-  onManageZones?: () => void;
-  onSafetyConfig?: () => void;
   onExportReport?: () => void;
   onViewPersonnel?: () => void;
   onArchive?: () => void;
   onDelete?: () => void;
   canEdit?: boolean;
-  canManageZones?: boolean;
-  canSafetyConfig?: boolean;
   canExportReport?: boolean;
   canArchive?: boolean;
   canDelete?: boolean;
@@ -47,15 +42,11 @@ export interface SiteDetailHeroProps {
 export function SiteDetailHero({
   site,
   onEdit,
-  onManageZones,
-  onSafetyConfig,
   onExportReport,
   onViewPersonnel,
   onArchive,
   onDelete,
   canEdit = true,
-  canManageZones = true,
-  canSafetyConfig = true,
   canExportReport = true,
   canArchive = false,
   canDelete = false,
@@ -112,9 +103,7 @@ return (
         <span className="hidden sm:inline">{t("sites.detail.back")}</span>
       </button>
 
-      {(canManageZones ||
-        canSafetyConfig ||
-        canEdit ||
+      {(canEdit ||
         (onExportReport && canExportReport) ||
         (onArchive && canArchive && site.status !== "ARCHIVED") ||
         (onDelete && canDelete)) && (
@@ -125,32 +114,6 @@ return (
           dark:border-white/5 dark:bg-card/80
           dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.35),inset_-1px_-1px_4px_rgba(255,255,255,0.025)]
         ">
-          {canManageZones && onManageZones && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onManageZones}
-              className="h-8 rounded-xl border-transparent px-2.5 sm:px-3 text-xs text-primary shadow-none hover:border-primary/20 hover:bg-primary/10"
-            >
-              <Layers className="mr-1 sm:mr-1.5 h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t("sites.card.zonesAndRestricted")}</span>
-              <span className="sm:hidden">{isVietnamese ? "Khu vực" : "Zones"}</span>
-            </Button>
-          )}
-
-          {canSafetyConfig && onSafetyConfig && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onSafetyConfig}
-              className="h-8 rounded-xl border-transparent px-2.5 sm:px-3 text-xs text-accent shadow-none hover:border-accent/20 hover:bg-accent/10"
-            >
-              <Shield className="mr-1 sm:mr-1.5 h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t("sites.card.ppeRules")}</span>
-              <span className="sm:hidden">PPE</span>
-            </Button>
-          )}
-
           {canEdit && onEdit && (
             <Button
               variant="outline"

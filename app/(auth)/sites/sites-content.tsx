@@ -22,9 +22,12 @@ import {
   type SiteStatKey,
 } from "@/components/features/sites";
 import {
+  canSyncSiteOfficers,
+  isAdminRole,
   parseSiteContactOfficers,
   syncSiteOfficersAccess,
 } from "@/components/features/sites/site-helpers";
+import { useCameraCountsBySite } from "@/hooks/cameras";
 import {
   useCreateSite,
   useDeleteSite,
@@ -33,31 +36,33 @@ import {
   useUpdateSite,
   useArchiveSite,
 } from "@/hooks/sites";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import type { CreateSitePayload, SiteItem, UpdateSitePayload } from "@/types";
 
 const STAT_TO_URL: Record<SiteStatKey, string> = {
-  totalSites: "total-sites",
   totalZones: "zones",
   restrictedAreas: "restricted",
-  complianceRate: "compliance",
 };
 
 const URL_TO_STAT: Record<string, SiteStatKey> = {
-  "total-sites": "totalSites",
   zones: "totalZones",
   restricted: "restrictedAreas",
-  compliance: "complianceRate",
-  totalSites: "totalSites",
   totalZones: "totalZones",
   restrictedAreas: "restrictedAreas",
-  complianceRate: "complianceRate",
 };
 
 export default function SitesContent() {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const { user: currentUser } = useAuth();
+  const can = useCan();
+  const canReadCameras = can("PPE_CAMERA_READ");
+  const canSyncUsers = canSyncSiteOfficers(
+    currentUser?.role,
+    can("USER_READ") && can("USER_UPDATE"),
+  );
+  const isAdmin = isAdminRole(currentUser?.role);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -96,17 +101,67 @@ export default function SitesContent() {
     status: statusFilter || undefined,
 
   });
-  const sites = data?.items || [];
+  const rawSites = data?.items || [];
   const {
-    data: sitesCatalog = [],
+    data: rawSitesCatalog = [],
     isLoading: catalogLoading,
     isFetching: catalogFetching,
     refetch: refetchCatalog,
   } = useSitesCatalog();
 
-  const isRefreshingAll = isFetching || catalogFetching;
+  const allKnownSiteIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const s of rawSites) if (s.id) ids.add(s.id);
+    for (const s of rawSitesCatalog) if (s.id) ids.add(s.id);
+    return Array.from(ids);
+  }, [rawSites, rawSitesCatalog]);
+
+  const {
+    data: cameraCountsBySite,
+    isSuccess: cameraCountsLoaded,
+    isFetching: cameraCountsFetching,
+    refetch: refetchCameraCounts,
+  } = useCameraCountsBySite(allKnownSiteIds, {
+    enabled: canReadCameras && allKnownSiteIds.length > 0,
+  });
+
+  const cameraCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const item of cameraCountsBySite ?? []) {
+      map.set(item.siteId, item.total);
+    }
+    return map;
+  }, [cameraCountsBySite]);
+
+  const sites = useMemo(
+    () =>
+      rawSites.map((site) => ({
+        ...site,
+        cameraCount: cameraCountsLoaded
+          ? (cameraCountMap.get(site.id) ?? 0)
+          : site.cameraCount,
+      })),
+    [rawSites, cameraCountsLoaded, cameraCountMap],
+  );
+
+  const sitesCatalog = useMemo(
+    () =>
+      rawSitesCatalog.map((site) => ({
+        ...site,
+        cameraCount: cameraCountsLoaded
+          ? (cameraCountMap.get(site.id) ?? 0)
+          : site.cameraCount,
+      })),
+    [rawSitesCatalog, cameraCountsLoaded, cameraCountMap],
+  );
+
+  const isRefreshingAll = isFetching || catalogFetching || cameraCountsFetching;
   const handleRefreshAll = () => {
-    void Promise.all([refetch(), refetchCatalog()]);
+    void Promise.all([
+      refetch(),
+      refetchCatalog(),
+      ...(canReadCameras ? [refetchCameraCounts()] : []),
+    ]);
   };
 
   // Mutations
@@ -156,7 +211,7 @@ export default function SitesContent() {
       await syncSiteOfficersAccess(
         createdSite.id,
         payload.contactOfficers,
-        currentUser?.role === "ADMIN",
+        canSyncUsers,
       );
     }
   };
@@ -167,7 +222,7 @@ export default function SitesContent() {
     await syncSiteOfficersAccess(
       id,
       payload.contactOfficers,
-      currentUser?.role === "ADMIN",
+      canSyncUsers,
       previousOfficers,
     );
   };
@@ -221,28 +276,18 @@ export default function SitesContent() {
 
       {/* KPI Bento Summary */}
       <SiteKpiSummary
-
         sites={sitesCatalog}
-
         loading={catalogLoading}
-
         selectedStat={selectedStat}
-
         onSelectStat={handleSelectStat}
-
         onManageZones={handleManageZones}
-
-        onSafetyConfig={handleSafetyConfig}
-
-        onCreateSite={handleOpenCreate}
-
       />
 
       {/* Toolbar & Filters */}
       {viewMode !== "table" ? toolbar : null}
 
       {/* Tenancy Notice Banner for unassigned personnel (chỉ hiện khi không có bộ lọc nào đang bật) */}
-      {currentUser?.role !== "ADMIN" &&
+      {!isAdmin &&
         !isLoading &&
         !search.trim() &&
         !statusFilter &&

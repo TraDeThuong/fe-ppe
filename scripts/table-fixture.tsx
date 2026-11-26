@@ -171,7 +171,7 @@ function Demo() {
     case "templates": return <NotificationTemplatesTab />;
     case "configs": return <SystemConfigTable items={[{ id: "cfg-1", key: "app.name", value: "Smart PPE", category: "GENERAL", isPublic: true } as SystemConfigItem]} onEdit={noop} onDelete={noop} />;
     case "models": return <ModelGovernanceTable models={[{ id: "model-1", name: "PPE detector", code: "PPE", versions: [{ id: "v1", version: "v1", framework: "ONNX", status: "DEPLOYED", createdAt: "2026-11-07T00:00:00Z", metrics: { mAP50: 0.8 } }] } as unknown as AiModelDto]} />;
-    case "site-stats": return <SiteStatsDetailPanel activeStat="totalSites" sites={[site]} onClose={noop} />;
+    case "site-stats": return <SiteStatsDetailPanel activeStat="totalZones" sites={[site]} onClose={noop} />;
     case "role-stats": return <RoleStatsDetailPanel totalPermissionsCount={0} activeStat="totalRoles" roles={[role]} permissions={[]} onClose={noop} />;
     case "health": return <SystemHealthMatrix onRefresh={noop} healthReport={{
       services: Array.from({ length: 15 }, (_, i) => ({

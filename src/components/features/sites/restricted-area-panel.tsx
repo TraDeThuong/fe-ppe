@@ -19,8 +19,13 @@ export interface RestrictedAreaPanelProps {
 export function RestrictedAreaPanel({ siteId }: RestrictedAreaPanelProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
-  const canManage = useCan()("PPE_RESTRICTED_AREA_MANAGE");
-  const { data: areas = [], isLoading } = useRestrictedAreas(siteId, Boolean(siteId));
+  const can = useCan();
+  const canRead = can("PPE_RESTRICTED_AREA_READ");
+  const canManage = can("PPE_RESTRICTED_AREA_MANAGE");
+  const { data: areas = [], isLoading } = useRestrictedAreas(
+    siteId,
+    Boolean(siteId) && canRead,
+  );
   const deleteArea = useDeleteRestrictedArea();
 
   const [drawerOpen, setDrawerOpen] = useState(false);

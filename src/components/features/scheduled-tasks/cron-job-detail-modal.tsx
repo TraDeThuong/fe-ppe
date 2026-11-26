@@ -26,8 +26,9 @@ import { useCronJobHistory } from "@/hooks/cron/use-cron-history";
 import {
   calculateNextRun,
   CRON_TIMEZONE,
-  describeCronSchedule,
+  getCronScheduleLabel,
   detectCronConflicts,
+  isCronExecutionAudit,
 } from "@/lib/cron";
 import { useLocale } from "@/providers/locale-provider";
 import type {
@@ -68,18 +69,18 @@ export function CronJobDetailModal({
   const historyQuery = useCronJobHistory(job.name, canReadAudit);
   const auditItems: AuditLogItem[] = historyQuery.data?.items ?? [];
   const lastExecutionAudit = useMemo(
-    () => auditItems.find((item) => item.action !== "TOGGLE_CRON_JOB"),
+    () => auditItems.find(isCronExecutionAudit),
     [auditItems],
   );
 
   const nextRun = useMemo(
-    () => calculateNextRun(job.cron, job.isEnabled, new Date(), locale),
-    [job.cron, job.isEnabled, locale]
+    () => calculateNextRun(job, new Date(), locale),
+    [job, locale]
   );
 
   const conflict = useMemo(
-    () => detectCronConflicts(job.name, allJobs, isVietnamese),
-    [job.name, allJobs, isVietnamese]
+    () => detectCronConflicts(job.name, allJobs, t),
+    [job.name, allJobs, t]
   );
 
   const failedItems = useMemo(
@@ -211,7 +212,7 @@ export function CronJobDetailModal({
                   {isVietnamese ? "Mô tả lịch:" : "Schedule:"}
                 </span>
                 <span className="font-medium text-foreground text-right">
-                  {describeCronSchedule(job.cron, t)}
+                  {getCronScheduleLabel(job, t)}
                 </span>
               </div>
               <div className="flex justify-between items-center gap-2">

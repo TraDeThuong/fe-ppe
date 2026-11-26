@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarClock,
   Info,
@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/features/app-shell/page-header";
 import { ForbiddenView } from "@/components/features/app-shell/forbidden-view";
 import { RefreshButton } from "@/components/ui/refresh-action";
 import { Loader } from "@/components/ui/loader";
-import { useCronJobs, useCronMutations } from "@/hooks/cron/use-cron";
+import { useCronJobs, useCronMutations, useUpdateCronJob } from "@/hooks/cron/use-cron";
 import { useCronRecentExecutions } from "@/hooks/cron/use-cron-history";
 import { useDebounce } from "@/hooks/use-debounce";
 import { ApiError } from "@/lib/axios";
@@ -31,16 +31,22 @@ import type {
   CronScheduleFilter,
   RecentExecutionState,
   TriggerCronJobPayload,
+  UpdateCronJobPayload,
 } from "@/types/cron.types";
 import { CronJobCardGrid } from "./cron-job-card-grid";
 import { CronJobTable } from "./cron-job-table";
 import { CronJobDialog } from "./cron-job-dialog";
+import { CronJobEditModal } from "./cron-job-edit-modal";
 import { CronJobDetailModal } from "./cron-job-detail-modal";
 import { CronToggleConfirmDialog } from "./cron-toggle-confirm-dialog";
 import { CronKpiSummary, type CronStatKey } from "./cron-kpi-summary";
 import { CronToolbar, type CronViewMode } from "./cron-toolbar";
 
 const VIEW_MODE_STORAGE_KEY = "scheduled-tasks:view-mode";
+
+function isUncertainCronMutation(cause: unknown) {
+  return !(cause instanceof ApiError) || cause.status === 0 || cause.status >= 500 || cause.status === 408;
+}
 
 export function ScheduledTasksScreen() {
   const { user, status } = useAuth();
@@ -65,6 +71,7 @@ export function ScheduledTasksScreen() {
   const query = useCronJobs(canRead);
   const recentAuditQuery = useCronRecentExecutions(canRead && canReadAudit);
   const { trigger, toggle } = useCronMutations();
+  const update = useUpdateCronJob();
 
   useEffect(() => {
     try {
@@ -94,6 +101,7 @@ export function ScheduledTasksScreen() {
 
   // Detail modal state
   const [detailJob, setDetailJob] = useState<CronJobItem | null>(null);
+  const [editJob, setEditJob] = useState<CronJobItem | null>(null);
 
   // Toggle confirm modal state
   const [toggleConfirmJob, setToggleConfirmJob] = useState<CronJobItem | null>(null);
@@ -116,7 +124,7 @@ export function ScheduledTasksScreen() {
 
   // The ref closes the gap before React renders the mutation's pending state.
   const submitting = useRef(false);
-  const pending = trigger.isPending || toggle.isPending;
+  const pending = trigger.isPending || toggle.isPending || update.isPending;
   const jobs = query.data ?? [];
   const visible = filterCronJobs(jobs, search, filter, t);
   const enabledCount = jobs.filter((job) => job.isEnabled).length;
@@ -134,40 +142,61 @@ export function ScheduledTasksScreen() {
       setError(null);
       setSelection(null);
       setResult(null);
+      setEditJob(null);
     }
   };
 
-  const openTrigger = (job: CronJobItem) => {
-    if (
-      !canManage ||
-      query.isFetching ||
-      query.isError ||
-      blockedJobs.has(job.name) ||
-      submitting.current
-    )
-      return;
+  const canOpenJobAction = useCallback((job: CronJobItem) => (
+    canManage && !query.isFetching && !query.isError && !blockedJobs.has(job.name) && !submitting.current
+  ), [canManage, query.isFetching, query.isError, blockedJobs]);
+
+  const openTrigger = useCallback((job: CronJobItem) => {
+    if (!canOpenJobAction(job)) return;
     setResult(null);
     setError(null);
     setSelection({ job, action: "trigger" });
-  };
+  }, [canOpenJobAction]);
 
-  const openToggle = (job: CronJobItem) => {
-    if (
-      !canManage ||
-      query.isFetching ||
-      query.isError ||
-      blockedJobs.has(job.name) ||
-      submitting.current
-    )
-      return;
+  const openToggle = useCallback((job: CronJobItem) => {
+    if (!canOpenJobAction(job)) return;
     setToggleConfirmJob(job);
-  };
+  }, [canOpenJobAction]);
 
   const closeDialog = () => {
     if (submitting.current) return;
     setSelection(null);
     setResult(null);
     setError(null);
+  };
+
+  const openEdit = useCallback((job: CronJobItem) => {
+    if (canOpenJobAction(job)) setEditJob(job);
+  }, [canOpenJobAction]);
+
+  const closeEdit = useCallback(() => {
+    if (!submitting.current) setEditJob(null);
+  }, []);
+
+  const confirmEdit = async (payload: UpdateCronJobPayload) => {
+    if (!editJob || !canManage || submitting.current || blockedJobs.has(editJob.name)) return;
+    if (query.isError || query.isFetching) throw new Error(t("cron.refreshBeforeAction"));
+
+    const jobName = editJob.name;
+    submitting.current = true;
+    try {
+      await update.mutateAsync({ jobName, payload });
+      setEditJob(null);
+      setLastSynced(new Date());
+      toast.success(t("cron.edit.saved"));
+    } catch (cause) {
+      if (isUncertainCronMutation(cause)) {
+        setBlockedJobs((previous) => new Set(previous).add(jobName));
+        throw new Error(t("cron.edit.unknownOutcome"));
+      }
+      throw cause;
+    } finally {
+      submitting.current = false;
+    }
   };
 
   const confirmTrigger = async (payload: TriggerCronJobPayload) => {
@@ -205,12 +234,7 @@ export function ScheduledTasksScreen() {
         })
       );
     } catch (cause: any) {
-      const uncertain =
-        !(cause instanceof ApiError) ||
-        cause.status === 0 ||
-        cause.status >= 500 ||
-        cause.status === 408;
-      if (uncertain) {
+      if (isUncertainCronMutation(cause)) {
         setBlockedJobs((previous) => new Set(previous).add(job.name));
         setError(t("cron.unknownOutcome"));
       } else {
@@ -238,12 +262,7 @@ export function ScheduledTasksScreen() {
       );
       setToggleConfirmJob(null);
     } catch (cause: any) {
-      const uncertain =
-        !(cause instanceof ApiError) ||
-        cause.status === 0 ||
-        cause.status >= 500 ||
-        cause.status === 408;
-      if (uncertain) {
+      if (isUncertainCronMutation(cause)) {
         setBlockedJobs((previous) => new Set(previous).add(job.name));
         toast.error(t("cron.unknownOutcome"));
       } else {
@@ -264,10 +283,12 @@ export function ScheduledTasksScreen() {
     filtered: Boolean(search.trim()) || filter !== "all",
     canManage,
     blockedJobs,
+    actionPending: pending,
     onRetry: () => void refresh(),
-    onTrigger: (job: CronJobItem) => openTrigger(job),
-    onToggle: (job: CronJobItem) => openToggle(job),
-    onViewDetail: (job: CronJobItem) => setDetailJob(job),
+    onTrigger: openTrigger,
+    onToggle: openToggle,
+    onEdit: openEdit,
+    onViewDetail: setDetailJob,
     onResetFilters: () => {
       setSearch("");
       setFilter("all");
@@ -379,6 +400,20 @@ export function ScheduledTasksScreen() {
           blocked={blockedJobs.has(selection.job.name)}
           onConfirm={confirmTrigger}
           onClose={closeDialog}
+        />
+      ) : null}
+
+      {editJob && canManage ? (
+        <CronJobEditModal
+          key={editJob.name}
+          job={editJob}
+          pending={update.isPending}
+          fetching={query.isFetching}
+          listError={query.isError}
+          blocked={blockedJobs.has(editJob.name)}
+          onSubmit={confirmEdit}
+          onRefresh={() => void refresh()}
+          onClose={closeEdit}
         />
       ) : null}
 

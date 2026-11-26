@@ -5,18 +5,39 @@ export type CronJobName =
   | "daily-summary-digest"
   | "weekly-summary-digest";
 
+export type CronJobScheduleDto =
+  | { frequency: "HOURLY"; everyHours: number; minute: number }
+  | { frequency: "DAILY"; hour: number; minute: number }
+  | { frequency: "WEEKLY"; dayOfWeek: number; hour: number; minute: number }
+  | { frequency: "MONTHLY"; dayOfMonth: number; hour: number; minute: number };
+
+export interface CronJobDefaultParamsDto {
+  retentionDays?: number;
+  maxAgeHours?: number;
+}
+
+export interface UpdateCronJobPayload {
+  schedule?: CronJobScheduleDto;
+  description?: string;
+  isEnabled?: boolean;
+  defaultParams?: CronJobDefaultParamsDto;
+}
+
 export interface CronJobItem {
   name: CronJobName;
   cron: string;
   description: string;
   isEnabled: boolean;
+  schedule?: CronJobScheduleDto;
+  scheduleLabel?: string;
+  defaultParams?: CronJobDefaultParamsDto;
   lastStatus?: string;
   lastRun?: string;
   nextRun?: string;
 }
 
 export interface TriggerCronJobPayload {
-  params: { retentionDays?: number; maxAgeHours?: number };
+  params: CronJobDefaultParamsDto;
 }
 
 export interface CronJobExecutionResult {

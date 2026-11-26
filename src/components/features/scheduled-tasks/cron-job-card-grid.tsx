@@ -6,6 +6,7 @@ import {
   CalendarClock,
   Clock,
   Eye,
+  Pencil,
   Play,
   Power,
   RotateCcw,
@@ -15,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { TableError } from "@/components/ui/table";
 import {
   calculateNextRun,
-  describeCronSchedule,
+  getCronScheduleLabel,
   detectCronConflicts,
 } from "@/lib/cron";
 import { useLocale } from "@/providers/locale-provider";
@@ -37,14 +38,15 @@ export function CronJobCardGrid({
   filtered,
   canManage,
   blockedJobs,
+  actionPending,
   onRetry,
   onTrigger,
   onToggle,
+  onEdit,
   onViewDetail,
   onResetFilters,
 }: CronJobCardGridProps) {
   const { t, locale } = useLocale();
-  const isVietnamese = locale === "vi-VN";
 
   if (loading && jobs.length === 0) {
     return (
@@ -111,14 +113,9 @@ export function CronJobCardGrid({
         {jobs.map((job) => {
           const { Icon, categoryKey } = getCronJobCategoryMeta(job.name);
           const blocked = blockedJobs.has(job.name);
-          const actionDisabled = fetching || Boolean(error) || blocked;
-          const conflict = detectCronConflicts(job.name, allJobs, isVietnamese);
-          const nextRun = calculateNextRun(
-            job.cron,
-            job.isEnabled,
-            new Date(),
-            locale
-          );
+          const actionDisabled = fetching || actionPending || Boolean(error) || blocked;
+          const conflict = detectCronConflicts(job.name, allJobs, t);
+          const nextRun = calculateNextRun(job, new Date(), locale);
           const execution = recentExecutions[job.name];
           const jobTitle = t(`cron.jobs.${job.name}`);
 
@@ -219,7 +216,7 @@ export function CronJobCardGrid({
 
                   <div className="flex flex-wrap items-center justify-between gap-1.5">
                     <span className="font-medium text-foreground">
-                      {describeCronSchedule(job.cron, t)}
+                      {getCronScheduleLabel(job, t)}
                     </span>
                     {conflict.hasConflict && (
                       <span
@@ -227,7 +224,7 @@ export function CronJobCardGrid({
                         className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300"
                       >
                         <AlertTriangle className="size-3" aria-hidden="true" />
-                        <span>{t("cron.conflictBadge")} (08:00 T2)</span>
+                        <span>{t("cron.conflictBadge")}</span>
                       </span>
                     )}
                   </div>
@@ -292,7 +289,19 @@ export function CronJobCardGrid({
                 )}
 
                 {canManage && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={actionDisabled}
+                      onClick={() => onEdit(job)}
+                      aria-label={t("cron.edit.action") + ": " + jobTitle}
+                      className="h-8 gap-1.5 rounded-xl px-2.5 text-xs font-semibold"
+                    >
+                      <Pencil className="size-3.5" aria-hidden="true" />
+                      <span>{t("cron.edit.action")}</span>
+                    </Button>
                     <Button
                       type="button"
                       size="sm"

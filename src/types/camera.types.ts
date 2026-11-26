@@ -132,6 +132,14 @@ export interface PingCameraResult {
   checkedAt?: string;
 }
 
+export interface CameraSiteCountItem {
+  siteId: string;
+  total: number;
+  online: number;
+  offline: number;
+  error: number;
+}
+
 // ============================================================================
 // 4. QUERY & MUTATION PAYLOADS
 // ============================================================================

@@ -26,6 +26,7 @@ const SAMPLE_JOBS: CronJobItem[] = [
   {
     name: "cleanup-audit-logs",
     cron: "0 2 * * *",
+    scheduleLabel: "02:00 hàng ngày (UTC+7) từ API",
     description: "Dọn dẹp audit logs cũ hơn thời gian lưu trữ.",
     isEnabled: true,
   },
@@ -80,12 +81,14 @@ describe("Scheduled Tasks views", () => {
         onRetry={() => {}}
         onTrigger={() => {}}
         onToggle={() => {}}
+        onEdit={() => {}}
         onViewDetail={() => {}}
       />
     );
 
     const menuTriggers = html.match(/aria-haspopup="menu"/g) ?? [];
     assert.equal(menuTriggers.length, SAMPLE_JOBS.length);
+    assert.match(html, /02:00 hàng ngày \(UTC\+7\) từ API/);
     assert.doesNotMatch(html, /min-w-56 flex-wrap/);
     assert.match(html, /Cần làm mới trước khi thử lại\./);
     assert.match(html, /data-clickable=""/);
@@ -106,6 +109,7 @@ describe("Scheduled Tasks views", () => {
         onRetry={() => {}}
         onTrigger={() => {}}
         onToggle={() => {}}
+        onEdit={() => {}}
         onViewDetail={() => {}}
       />
     );
@@ -113,10 +117,10 @@ describe("Scheduled Tasks views", () => {
   });
 
   it("CronJobCardGrid renders cards, conflict badge, recent execution, and disabled controls for blocked jobs", () => {
+    const enabledJobs = SAMPLE_JOBS.map((job) => ({ ...job, isEnabled: true }));
     const html = render(
       <CronJobCardGrid
-        jobs={SAMPLE_JOBS}
-        allJobs={SAMPLE_JOBS}
+        jobs={enabledJobs}
         recentExecutions={{
           "cleanup-audit-logs": {
             timestamp: new Date().toISOString(),
@@ -133,6 +137,7 @@ describe("Scheduled Tasks views", () => {
         onRetry={() => {}}
         onTrigger={() => {}}
         onToggle={() => {}}
+        onEdit={() => {}}
         onViewDetail={() => {}}
       />
     );
@@ -140,7 +145,9 @@ describe("Scheduled Tasks views", () => {
     assert.match(html, /Dọn audit log cũ/);
     assert.match(html, /0 2 \* \* \*/);
     assert.match(html, /Vừa chạy \(145ms\)/);
-    assert.match(html, /Trùng lịch \(08:00 T2\)/);
+    assert.match(html, /Trùng lịch/);
+    assert.match(html, /02:00 hàng ngày \(UTC\+7\) từ API/);
+    assert.match(html, /disabled=""[^>]*aria-label="Chỉnh sửa: Dọn audit log cũ"/);
     assert.match(html, /Cần làm mới trước khi thử lại\./);
     assert.match(html, /disabled=""[^>]*aria-label="Chạy ngay: cleanup-audit-logs"/);
   });
@@ -158,6 +165,7 @@ describe("Scheduled Tasks views", () => {
         onRetry={() => {}}
         onTrigger={() => {}}
         onToggle={() => {}}
+        onEdit={() => {}}
       />
     );
     assert.match(loadingHtml, /aria-busy="true"/);
@@ -175,6 +183,7 @@ describe("Scheduled Tasks views", () => {
         onRetry={() => {}}
         onTrigger={() => {}}
         onToggle={() => {}}
+        onEdit={() => {}}
       />
     );
     assert.match(errorHtml, /role="alert"/);
@@ -192,6 +201,7 @@ describe("Scheduled Tasks views", () => {
         onRetry={() => {}}
         onTrigger={() => {}}
         onToggle={() => {}}
+        onEdit={() => {}}
         onResetFilters={() => {}}
       />
     );

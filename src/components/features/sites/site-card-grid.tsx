@@ -45,7 +45,8 @@ export function SiteCardGrid({
   const isVietnamese = locale === "vi-VN";
   const can = useCan();
   const canReadZones = can("PPE_ZONE_READ") || can("PPE_RESTRICTED_AREA_READ");
-  const canReadSafety = can("PPE_SAFETY_CONFIG_READ");
+  const canReadSafety =
+    can("PPE_SAFETY_CONFIG_READ") || can("PPE_SAFETY_CONFIG_MANAGE");
   const canManageSite = can("PPE_SITE_MANAGE");
 
   if (loading) {
@@ -215,7 +216,11 @@ export function SiteCardGrid({
                 <div className="flex items-center gap-1 text-muted-foreground">
                   <Camera className="h-3.5 w-3.5 text-primary/80" />
                   <span>
-                    <strong className="text-foreground">{site.cameraCount || 0}</strong>{" "}
+                    <strong className="text-foreground">
+                      {typeof site.cameraCount === "number"
+                        ? site.cameraCount
+                        : "--"}
+                    </strong>{" "}
                     {t("sites.units.cameras").toLowerCase()}
                   </span>
                 </div>

@@ -34,7 +34,7 @@ import {
   calculateNextRun,
   canReadCron,
   CRON_TIMEZONE,
-  describeCronSchedule,
+  getCronScheduleLabel,
   detectCronConflicts,
   extractRecentCronExecutions,
   findNextScheduledJob,
@@ -716,14 +716,9 @@ export function DashboardCronMiniCard({
                 const { Icon } = getCronJobCategoryMeta(job.name);
                 const jobTitle = getJobTitle(job.name);
                 const jobSummary = getJobSummary(job);
-                const scheduleText = describeCronSchedule(job.cron, t);
-                const nextRun = calculateNextRun(
-                  job.cron,
-                  job.isEnabled,
-                  new Date(),
-                  locale,
-                );
-                const conflict = detectCronConflicts(job.name, jobList, isVi);
+                const scheduleText = getCronScheduleLabel(job, t);
+                const nextRun = calculateNextRun(job, new Date(), locale);
+                const conflict = detectCronConflicts(job.name, jobList, t);
                 const lastExec = recentExecutions[job.name];
                 const guidance = jobGuidanceMap.get(job.name);
                 const outcomeSummary = lastExec

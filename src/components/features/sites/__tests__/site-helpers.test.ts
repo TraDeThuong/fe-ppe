@@ -1,7 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  canSyncSiteOfficers,
   generateUniqueZoneCode,
+  isAdminRole,
   normalizeZoneCode,
   parseSiteContactOfficers,
   resolveDisplayOfficers,
@@ -66,5 +68,19 @@ describe("site-helpers", () => {
     const forcedRandom = generateUniqueZoneCode("Khu A", existing, true);
     assert.notEqual(forcedRandom, "ZONE-KHU-A");
     assert.match(forcedRandom, /^ZONE-[A-Z0-9-]+$/);
+  });
+
+  it("normalizes admin roles (ADMIN and SUPER_ADMIN) and officer sync permission checks", () => {
+    assert.equal(isAdminRole("ADMIN"), true);
+    assert.equal(isAdminRole("SUPER_ADMIN"), true);
+    assert.equal(isAdminRole("admin"), true);
+    assert.equal(isAdminRole("SAFETY_MANAGER"), false);
+    assert.equal(isAdminRole(null), false);
+
+    assert.equal(canSyncSiteOfficers("ADMIN"), true);
+    assert.equal(canSyncSiteOfficers("SUPER_ADMIN"), true);
+    assert.equal(canSyncSiteOfficers("SAFETY_MANAGER", true), true);
+    assert.equal(canSyncSiteOfficers("SAFETY_MANAGER", false), false);
+    assert.equal(canSyncSiteOfficers("SAFETY_OFFICER"), false);
   });
 });

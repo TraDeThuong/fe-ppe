@@ -142,13 +142,13 @@ export function SiteTable({
         {
           id: 'zones',
           label: t('sites.actions.manageZones'),
-          hidden: !can('PPE_ZONE_READ'),
+          hidden: !(can('PPE_ZONE_READ') || can('PPE_RESTRICTED_AREA_READ')),
           onClick: onManageZones
         },
         {
           id: 'safety',
           label: t('sites.actions.safetyConfig'),
-          hidden: !can('PPE_SAFETY_CONFIG_MANAGE'),
+          hidden: !(can('PPE_SAFETY_CONFIG_READ') || can('PPE_SAFETY_CONFIG_MANAGE')),
           onClick: onSafetyConfig
         },
         {

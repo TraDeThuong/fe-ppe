@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import { AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { apiClient, ApiError } from "@/lib/axios";
+import type { CronJobItem, UpdateCronJobPayload } from "@/types/cron.types";
 import { cronService } from "../cron.service";
 
 const originalAdapter = apiClient.defaults.adapter;
@@ -39,6 +40,32 @@ describe("Cron service through the shared Axios interceptor", () => {
     };
     assert.deepEqual(await cronService.toggleJob("cleanup-audit-logs"), { jobName: "cleanup-audit-logs", isEnabled: false });
     assert.equal(count, 1);
+  });
+  it("updates only the requested job fields and returns the server configuration", async () => {
+    const payload: UpdateCronJobPayload = {
+      schedule: { frequency: "WEEKLY", dayOfWeek: 0, hour: 23, minute: 59 },
+      defaultParams: { retentionDays: 60 },
+    };
+    const job: CronJobItem = {
+      name: "cleanup-audit-logs",
+      cron: "59 23 * * 0",
+      schedule: payload.schedule,
+      scheduleLabel: "23:59 Chủ nhật hàng tuần (UTC+7)",
+      isEnabled: false,
+      description: "Dọn audit log",
+      defaultParams: payload.defaultParams,
+    };
+    let requests = 0;
+    apiClient.defaults.adapter = async (config) => {
+      requests += 1;
+      assert.equal(config.method, "patch");
+      assert.equal(config.url, "/cron/jobs/cleanup-audit-logs");
+      assert.deepEqual(JSON.parse(config.data), payload);
+      return { status: 200, statusText: "OK", headers: {}, config, data: { success: true, data: job } };
+    };
+
+    assert.deepEqual(await cronService.updateJob(job.name, payload), job);
+    assert.equal(requests, 1);
   });
   it("preserves HTTP errors and never retries a failed toggle", async () => {
     let count = 0;

@@ -19,9 +19,9 @@ export interface UseSiteComplianceSummaryOptions {
 }
 
 /**
- * Tính tỷ lệ tuân thủ an toàn trung bình theo danh sách công trường đang hoạt động.
- * Luôn scope theo từng siteId để loại trừ các bản ghi thống kê cũ của site đã xóa,
- * đồng thời đối chiếu dữ liệu live từ incident-service.
+ * Tính tỷ lệ tuân thủ an toàn trung bình bằng 1 request tổng hợp từ reporting-service
+ * (scope theo siteId nếu xem chi tiết 1 công trường, hoặc tổng hợp toàn phạm vi được phép trên /sites).
+ * Không lặp 3 * N requests theo danh sách siteIds.
  */
 export function useSiteComplianceSummary(
   siteIds: string[],
@@ -35,6 +35,16 @@ export function useSiteComplianceSummary(
     [siteIds],
   );
 
+  const scopeKey = useMemo(
+    () =>
+      normalizedSiteIds.length === 1
+        ? [normalizedSiteIds[0]]
+        : normalizedSiteIds.length > 1
+          ? ["all"]
+          : [],
+    [normalizedSiteIds],
+  );
+
   const isEnabled =
     (options?.enabled ?? true) &&
     normalizedSiteIds.length > 0 &&
@@ -42,7 +52,7 @@ export function useSiteComplianceSummary(
 
   return useQuery<SiteComplianceSummary | null>({
     queryKey: [
-      ...siteKeys.complianceSummary(normalizedSiteIds),
+      ...siteKeys.complianceSummary(scopeKey),
       canReadReporting,
       canReadIncidents,
     ],
@@ -52,27 +62,16 @@ export function useSiteComplianceSummary(
       fetchSiteComplianceSummary(normalizedSiteIds, {
         canReadReporting,
         canReadIncidents,
-        fetchReportingSummary: (id) =>
+        fetchReportingSummary: (siteId) =>
           reportingService.getSummary(
-            { siteId: id },
+            siteId ? { siteId } : undefined,
             { signal, suppressToast: true },
           ),
-        fetchLiveCounts: async (id) => {
-          const [totalPage, confirmedPage] = await Promise.all([
-            incidentService.getIncidents(
-              { siteId: id, page: 1, limit: 1 },
-              { signal, suppressToast: true },
-            ),
-            incidentService.getIncidents(
-              { siteId: id, status: "CONFIRMED", page: 1, limit: 1 },
-              { signal, suppressToast: true },
-            ),
-          ]);
-          return {
-            total: totalPage.meta?.total ?? totalPage.items.length,
-            confirmed: confirmedPage.meta?.total ?? confirmedPage.items.length,
-          };
-        },
+        fetchLiveCounts: (siteId) =>
+          incidentService.getStatusCounts(
+            siteId ? { siteId } : undefined,
+            { signal, suppressToast: true },
+          ),
       }),
   });
 }

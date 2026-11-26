@@ -2,14 +2,17 @@ import type { AuditLogItem } from "@/types/audit.types";
 import type {
   CronJobItem,
   CronJobName,
+  CronJobScheduleDto,
   CronScheduleConflict,
   CronScheduleFilter,
   NextRunCalculation,
   RecentExecutionState,
   TriggerCronJobPayload,
+  UpdateCronJobPayload,
 } from "@/types/cron.types";
 
 export const CRON_TIMEZONE = "Asia/Ho_Chi_Minh";
+export const CRON_SCHEDULE_FREQUENCIES = ["HOURLY", "DAILY", "WEEKLY", "MONTHLY"] as const;
 
 export function getCronParameter(jobName: CronJobName) {
   if (jobName === "cleanup-audit-logs") {
@@ -19,6 +22,11 @@ export function getCronParameter(jobName: CronJobName) {
     return { name: "maxAgeHours", min: 1, max: 720, defaultValue: 24 } as const;
   }
   return null;
+}
+
+export function getCronParameterValue(job: CronJobItem): string {
+  const field = getCronParameter(job.name);
+  return field ? String(job.defaultParams?.[field.name] ?? field.defaultValue) : "";
 }
 
 /** Empty values must never coerce to zero or silently use the cleanup default. */
@@ -57,29 +65,116 @@ export function filterCronJobs(
   });
 }
 
-// Decode only expressions we can accurately describe. Do not infer from the job
-// name: a different expression returned by the API must remain visible as-is.
-export function describeCronSchedule(
-  cron: string,
-  t: (key: string, params?: Record<string, string | number>) => string
-) {
+function readCronInteger(value: string, min: number, max: number): number | null {
+  if (!/^\d+$/.test(value)) return null;
+  const number = Number(value);
+  return number >= min && number <= max ? number : null;
+}
+
+// Accept only expressions that can be represented exactly by the schedule editor.
+export function parseCronSchedule(cron: string): CronJobScheduleDto | null {
   const parts = cron.trim().split(/\s+/);
-  if (parts.length !== 5) return t("cron.schedule.custom");
-  const [minute, hour, day, month, weekday] = parts;
-  if (
-    !/^\d+$/.test(minute) ||
-    !/^\d+$/.test(hour) ||
-    Number(minute) > 59 ||
-    Number(hour) > 23 ||
-    day !== "*" ||
-    month !== "*"
-  ) {
-    return t("cron.schedule.custom");
+  if (parts.length !== 5) return null;
+  const [minuteField, hourField, day, month, weekday] = parts;
+  const minute = readCronInteger(minuteField, 0, 59);
+  if (minute === null || month !== "*") return null;
+
+  if (day === "*" && weekday === "*" && hourField.startsWith("*/")) {
+    const everyHours = readCronInteger(hourField.slice(2), 1, 23);
+    return everyHours === null ? null : { frequency: "HOURLY", everyHours, minute };
   }
-  const time = `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
-  if (weekday === "*") return t("cron.schedule.daily", { time });
-  if (weekday === "1") return t("cron.schedule.monday", { time });
-  return t("cron.schedule.custom");
+
+  const hour = readCronInteger(hourField, 0, 23);
+  if (hour === null) return null;
+  if (day === "*" && weekday === "*") return { frequency: "DAILY", hour, minute };
+  if (day === "*") {
+    const dayOfWeek = readCronInteger(weekday, 0, 7);
+    return dayOfWeek === null ? null : { frequency: "WEEKLY", dayOfWeek: dayOfWeek % 7, hour, minute };
+  }
+  if (weekday === "*") {
+    const dayOfMonth = readCronInteger(day, 1, 28);
+    return dayOfMonth === null ? null : { frequency: "MONTHLY", dayOfMonth, hour, minute };
+  }
+  return null;
+}
+
+export function getCronJobSchedule(job: Pick<CronJobItem, "schedule" | "cron">) {
+  return job.schedule ?? parseCronSchedule(job.cron);
+}
+
+type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+function formatClockPart(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+export function formatCronSchedule(schedule: CronJobScheduleDto, t: Translate): string {
+  const minute = formatClockPart(schedule.minute);
+  if (schedule.frequency === "HOURLY") {
+    return t("cron.schedule.hourly", { hours: schedule.everyHours, minute });
+  }
+  const time = formatClockPart(schedule.hour) + ":" + minute;
+  switch (schedule.frequency) {
+    case "DAILY":
+      return t("cron.schedule.daily", { time });
+    case "WEEKLY":
+      return t("cron.schedule.weekly", { time, weekday: t("cron.schedule.weekday." + schedule.dayOfWeek) });
+    case "MONTHLY":
+      return t("cron.schedule.monthly", { time, day: schedule.dayOfMonth });
+  }
+}
+
+export function getCronScheduleLabel(job: CronJobItem, t: Translate): string {
+  if (job.scheduleLabel?.trim()) return job.scheduleLabel;
+  const schedule = getCronJobSchedule(job);
+  return schedule ? formatCronSchedule(schedule, t) : t("cron.schedule.custom");
+}
+
+export function getCronHourOptions(saved?: CronJobScheduleDto | null): number[] {
+  const options = [1, 2, 4, 6, 8, 12];
+  if (saved?.frequency === "HOURLY" && !options.includes(saved.everyHours)) {
+    return [...options, saved.everyHours].sort((a, b) => a - b);
+  }
+  return options;
+}
+
+function isSameCronSchedule(current: CronJobScheduleDto | null, next: CronJobScheduleDto) {
+  if (!current || current.minute !== next.minute) return false;
+  if (next.frequency === "HOURLY") {
+    return current.frequency === "HOURLY" && current.everyHours === next.everyHours;
+  }
+  if (current.frequency === "HOURLY" || current.hour !== next.hour) return false;
+  switch (next.frequency) {
+    case "DAILY":
+      return current.frequency === "DAILY";
+    case "WEEKLY":
+      return current.frequency === "WEEKLY" && current.dayOfWeek === next.dayOfWeek;
+    case "MONTHLY":
+      return current.frequency === "MONTHLY" && current.dayOfMonth === next.dayOfMonth;
+  }
+}
+
+export function getCronEditChanges(
+  job: CronJobItem,
+  schedule: CronJobScheduleDto | null,
+  description: string,
+  parameter: string,
+) {
+  const payload: UpdateCronJobPayload = {};
+  const trimmedDescription = description.trim();
+  const invalidDescription = trimmedDescription !== job.description.trim() &&
+    (trimmedDescription.length === 0 || trimmedDescription.length > 500);
+  const params = buildCronPayload(job.name, parameter)?.params;
+
+  if (schedule && !isSameCronSchedule(getCronJobSchedule(job), schedule)) payload.schedule = schedule;
+  if (!invalidDescription && trimmedDescription !== job.description.trim()) payload.description = trimmedDescription;
+
+  const field = getCronParameter(job.name);
+  if (field && params && params[field.name] !== Number(getCronParameterValue(job))) {
+    payload.defaultParams = params;
+  }
+
+  return { payload, invalidDescription, invalidParameter: !params };
 }
 
 export function canReadCron(status: string, permissions: readonly string[]) {
@@ -135,107 +230,69 @@ export function createDateFromVietnamParts(
   return new Date(Date.UTC(year, month - 1, day, hour - 7, minute, second));
 }
 
-/**
- * Tính toán thời điểm chạy tiếp theo (Next Run) cho biểu thức cron 5 trường tiêu chuẩn.
- */
+function runsAtHour(schedule: CronJobScheduleDto, hour: number) {
+  return schedule.frequency === "HOURLY" ? hour % schedule.everyHours === 0 : hour === schedule.hour;
+}
+
+function nextDateFromSchedule(schedule: CronJobScheduleDto, now: Date): Date {
+  const vn = getVietnamDateParts(now);
+  const at = (day: number, hour: number, month = vn.month) =>
+    createDateFromVietnamParts(vn.year, month, day, hour, schedule.minute);
+
+  switch (schedule.frequency) {
+    case "HOURLY":
+      for (let hour = vn.hour; hour < 24; hour++) {
+        if (!runsAtHour(schedule, hour)) continue;
+        const candidate = at(vn.day, hour);
+        if (candidate > now) return candidate;
+      }
+      return at(vn.day + 1, 0);
+    case "DAILY": {
+      const candidate = at(vn.day, schedule.hour);
+      return candidate > now ? candidate : at(vn.day + 1, schedule.hour);
+    }
+    case "WEEKLY": {
+      const day = vn.day + (schedule.dayOfWeek - vn.dayOfWeek + 7) % 7;
+      const candidate = at(day, schedule.hour);
+      return candidate > now ? candidate : at(day + 7, schedule.hour);
+    }
+    case "MONTHLY": {
+      const candidate = at(schedule.dayOfMonth, schedule.hour);
+      return candidate > now ? candidate : at(schedule.dayOfMonth, schedule.hour, vn.month + 1);
+    }
+  }
+}
+
 export function calculateNextRun(
-  cron: string,
-  isEnabled: boolean,
+  job: Pick<CronJobItem, "cron" | "schedule" | "isEnabled" | "nextRun">,
   now = new Date(),
-  locale = "vi-VN"
+  locale = "vi-VN",
 ): NextRunCalculation {
-  if (!isEnabled) {
+  const isVi = locale === "vi-VN";
+  if (!job.isEnabled) {
     return {
       date: null,
-      formatted: locale === "vi-VN" ? "Lịch đang tắt" : "Schedule paused",
-      relativeTime: locale === "vi-VN" ? "Tạm ngưng" : "Paused",
+      formatted: isVi ? "Lịch đang tắt" : "Schedule paused",
+      relativeTime: isVi ? "Tạm ngưng" : "Paused",
       isPaused: true,
     };
   }
 
-  const parts = cron.trim().split(/\s+/);
-  if (parts.length !== 5) {
+  const serverDate = job.nextRun ? new Date(job.nextRun) : null;
+  const schedule = getCronJobSchedule(job);
+  const nextRunDate = serverDate && serverDate > now
+    ? serverDate
+    : schedule && nextDateFromSchedule(schedule, now);
+
+  if (!nextRunDate) {
     return {
       date: null,
-      formatted: locale === "vi-VN" ? "Biểu thức tùy biến" : "Custom expression",
+      formatted: isVi ? "Biểu thức tùy biến" : "Custom expression",
       relativeTime: "—",
       isPaused: false,
     };
   }
 
-  const [minStr, hourStr, domStr, monStr, dowStr] = parts;
-  if (!/^\d+$/.test(minStr) || !/^\d+$/.test(hourStr) || domStr !== "*" || monStr !== "*") {
-    return {
-      date: null,
-      formatted: locale === "vi-VN" ? "Biểu thức tùy biến" : "Custom expression",
-      relativeTime: "—",
-      isPaused: false,
-    };
-  }
-
-  const targetMinute = Number(minStr);
-  const targetHour = Number(hourStr);
-  if (targetMinute > 59 || targetHour > 23) {
-    return {
-      date: null,
-      formatted: locale === "vi-VN" ? "Lỗi cú pháp cron" : "Invalid cron",
-      relativeTime: "—",
-      isPaused: false,
-    };
-  }
-
-  const vn = getVietnamDateParts(now);
-
-  let nextRunDate: Date;
-
-  if (dowStr === "*") {
-    // Hằng ngày vào targetHour:targetMinute
-    const isPastToday =
-      vn.hour > targetHour || (vn.hour === targetHour && vn.minute >= targetMinute);
-
-    const dayOffset = isPastToday ? 1 : 0;
-    const candidateVnDate = new Date(Date.UTC(vn.year, vn.month - 1, vn.day + dayOffset));
-    nextRunDate = createDateFromVietnamParts(
-      candidateVnDate.getUTCFullYear(),
-      candidateVnDate.getUTCMonth() + 1,
-      candidateVnDate.getUTCDate(),
-      targetHour,
-      targetMinute,
-      0
-    );
-  } else if (/^\d+$/.test(dowStr)) {
-    // Vào một thứ cụ thể trong tuần (0-6 hoặc 7=0)
-    const targetDow = Number(dowStr) % 7;
-    const currentDow = vn.dayOfWeek;
-
-    let daysToAdd = 0;
-    if (currentDow === targetDow) {
-      const isPastToday =
-        vn.hour > targetHour || (vn.hour === targetHour && vn.minute >= targetMinute);
-      daysToAdd = isPastToday ? 7 : 0;
-    } else {
-      daysToAdd = (targetDow - currentDow + 7) % 7;
-    }
-
-    const candidateVnDate = new Date(Date.UTC(vn.year, vn.month - 1, vn.day + daysToAdd));
-    nextRunDate = createDateFromVietnamParts(
-      candidateVnDate.getUTCFullYear(),
-      candidateVnDate.getUTCMonth() + 1,
-      candidateVnDate.getUTCDate(),
-      targetHour,
-      targetMinute,
-      0
-    );
-  } else {
-    return {
-      date: null,
-      formatted: locale === "vi-VN" ? "Biểu thức tùy biến" : "Custom expression",
-      relativeTime: "—",
-      isPaused: false,
-    };
-  }
-
-  // Định dạng ngày giờ hiển thị
   const formatted = new Intl.DateTimeFormat(locale, {
     timeZone: CRON_TIMEZONE,
     year: "numeric",
@@ -244,71 +301,62 @@ export function calculateNextRun(
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    hour12: false,
+    hourCycle: "h23",
   }).format(nextRunDate);
 
-  // Định dạng thời gian đếm ngược tương đối
   const diffMs = nextRunDate.getTime() - now.getTime();
-  let relativeTime = "";
-  if (diffMs <= 0) {
-    relativeTime = locale === "vi-VN" ? "Sắp diễn ra" : "Imminent";
-  } else if (diffMs < 3600_000) {
+  let relativeTime: string;
+  if (diffMs < 3_600_000) {
     const minutes = Math.max(1, Math.round(diffMs / 60_000));
-    relativeTime = locale === "vi-VN" ? `trong ${minutes} phút` : `in ${minutes}m`;
-  } else if (diffMs < 86400_000) {
-    const hours = Math.round(diffMs / 3600_000);
-    relativeTime = locale === "vi-VN" ? `trong ${hours} giờ` : `in ${hours}h`;
+    relativeTime = isVi ? "trong " + minutes + " phút" : "in " + minutes + "m";
+  } else if (diffMs < 86_400_000) {
+    const hours = Math.round(diffMs / 3_600_000);
+    relativeTime = isVi ? "trong " + hours + " giờ" : "in " + hours + "h";
   } else {
-    const days = Math.round(diffMs / 86400_000);
-    relativeTime = locale === "vi-VN" ? `trong ${days} ngày` : `in ${days}d`;
+    const days = Math.round(diffMs / 86_400_000);
+    relativeTime = isVi ? "trong " + days + " ngày" : "in " + days + "d";
   }
 
-  return {
-    date: nextRunDate,
-    formatted,
-    relativeTime,
-    isPaused: false,
-  };
+  return { date: nextRunDate, formatted, relativeTime, isPaused: false };
 }
 
-/**
- * Phát hiện xung đột lịch trình giữa các tác vụ định kỳ.
- * Nhận diện cụ thể: daily-summary-digest (0 8 * * *) và weekly-summary-digest (0 8 * * 1) cùng chạy lúc 08:00 sáng Thứ Hai.
- */
+function schedulesOverlap(a: CronJobScheduleDto, b: CronJobScheduleDto): boolean {
+  if (a.minute !== b.minute) return false;
+  if (a.frequency === "WEEKLY" && b.frequency === "WEEKLY" && a.dayOfWeek !== b.dayOfWeek) return false;
+  if (a.frequency === "MONTHLY" && b.frequency === "MONTHLY" && a.dayOfMonth !== b.dayOfMonth) return false;
+
+  // A day of the month can fall on any weekday over the calendar cycle.
+  for (let hour = 0; hour < 24; hour++) {
+    if (runsAtHour(a, hour) && runsAtHour(b, hour)) return true;
+  }
+  return false;
+}
+
 export function detectCronConflicts(
   jobName: CronJobName,
   allJobs: CronJobItem[],
-  isVietnamese = true
+  t: Translate,
 ): CronScheduleConflict {
-  if (jobName === "daily-summary-digest") {
-    const weeklyJob = allJobs.find((j) => j.name === "weekly-summary-digest");
-    if (weeklyJob && weeklyJob.isEnabled) {
-      return {
-        hasConflict: true,
-        conflictingJobNames: ["weekly-summary-digest"],
-        description: isVietnamese
-          ? "Trùng lịch với Báo cáo tuần vào lúc 08:00 Thứ Hai hằng tuần."
-          : "Schedule collision with Weekly Digest at 08:00 every Monday.",
-      };
+  const daily = "daily-summary-digest";
+  const weekly = "weekly-summary-digest";
+  if (jobName === daily || jobName === weekly) {
+    const otherName = jobName === daily ? weekly : daily;
+    const job = allJobs.find((item) => item.name === jobName);
+    const other = allJobs.find((item) => item.name === otherName);
+    if (job?.isEnabled && other?.isEnabled) {
+      const schedule = getCronJobSchedule(job);
+      const otherSchedule = getCronJobSchedule(other);
+      if (schedule && otherSchedule && schedulesOverlap(schedule, otherSchedule)) {
+        return {
+          hasConflict: true,
+          conflictingJobNames: [otherName],
+          description: t("cron.schedule.conflict", { name: t("cron.jobs." + otherName) }),
+        };
+      }
     }
   }
-  if (jobName === "weekly-summary-digest") {
-    const dailyJob = allJobs.find((j) => j.name === "daily-summary-digest");
-    if (dailyJob && dailyJob.isEnabled) {
-      return {
-        hasConflict: true,
-        conflictingJobNames: ["daily-summary-digest"],
-        description: isVietnamese
-          ? "Trùng lịch với Báo cáo ngày vào lúc 08:00 Thứ Hai hằng tuần."
-          : "Schedule collision with Daily Digest at 08:00 every Monday.",
-      };
-    }
-  }
-  return {
-    hasConflict: false,
-    conflictingJobNames: [],
-    description: "",
-  };
+
+  return { hasConflict: false, conflictingJobNames: [], description: "" };
 }
 
 /**
@@ -322,7 +370,7 @@ export function findNextScheduledJob(
   let earliest: { job: CronJobItem; nextRun: NextRunCalculation } | null = null;
   for (const job of jobs) {
     if (!job.isEnabled) continue;
-    const nextRun = calculateNextRun(job.cron, true, now, locale);
+    const nextRun = calculateNextRun(job, now, locale);
     if (!nextRun.date) continue;
     if (!earliest || nextRun.date.getTime() < earliest.nextRun.date!.getTime()) {
       earliest = { job, nextRun };
@@ -339,6 +387,10 @@ const KNOWN_CRON_JOBS = new Set<string>([
   "weekly-summary-digest",
 ]);
 
+export function isCronExecutionAudit(item: Pick<AuditLogItem, "action">): boolean {
+  return item.action !== "TOGGLE_CRON_JOB" && item.action !== "UPDATE_CRON_JOB";
+}
+
 /**
  * Derives the latest execution record per cron job from CRON_JOB audit logs.
  * Prefers `TRIGGER_CRON_JOB` entries when timestamps are within 2 seconds of a
@@ -350,7 +402,7 @@ export function extractRecentCronExecutions(
   const result: Record<string, RecentExecutionState> = {};
 
   for (const item of auditItems) {
-    if (item.targetType !== "CRON_JOB" || item.action === "TOGGLE_CRON_JOB") {
+    if (item.targetType !== "CRON_JOB" || !isCronExecutionAudit(item)) {
       continue;
     }
     const jobName = item.targetId;
@@ -442,14 +494,19 @@ export interface CronJobGuidance {
 
 const JUST_RAN_WINDOW_MS = 60 * 60 * 1000; // 60 minutes
 
-function getExpectedCycleMs(cron: string): number {
-  const parts = cron.trim().split(/\s+/);
-  if (parts.length === 5 && /^\d+$/.test(parts[4])) {
-    // Weekly schedule (+4h grace)
-    return 7 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000;
+function getExpectedCycleMs(job: CronJobItem): number {
+  const schedule = getCronJobSchedule(job);
+  const hour = 3_600_000;
+  switch (schedule?.frequency) {
+    case "HOURLY":
+      return (schedule.everyHours + 2) * hour;
+    case "WEEKLY":
+      return (7 * 24 + 4) * hour;
+    case "MONTHLY":
+      return (31 * 24 + 4) * hour;
+    default:
+      return 26 * hour;
   }
-  // Daily schedule (+2h grace)
-  return 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000;
 }
 
 /**
@@ -545,7 +602,7 @@ export function assessCronJobGuidance(
   }
 
   if (hasValidLastTime) {
-    if (ageMs > getExpectedCycleMs(job.cron)) {
+    if (ageMs > getExpectedCycleMs(job)) {
       return { state: "overdue", shouldClickRun: true, isJustRan: false, priorityRank: 1 };
     }
     if (isJustRan) {

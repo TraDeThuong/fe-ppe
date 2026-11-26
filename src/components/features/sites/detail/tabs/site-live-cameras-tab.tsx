@@ -60,6 +60,8 @@ export function SiteLiveCamerasTab({
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const can = useCan();
+  const canReadCameras = can("PPE_CAMERA_READ");
+  const canReadZones = can("PPE_ZONE_READ");
   const canManage = can("PPE_CAMERA_MANAGE");
 
   const [selectedZone, setSelectedZone] = useState<string>(initialZoneId || "ALL");
@@ -79,7 +81,7 @@ export function SiteLiveCamerasTab({
   const debouncedSearch = useDebounce(search, 350);
 
   // Live zones for zone name resolution & filter dropdown
-  const { data: siteZones = [] } = useSiteZones(site.id);
+  const { data: siteZones = [] } = useSiteZones(site.id, canReadZones);
   const zones = useMemo(
     () => (siteZones.length > 0 ? siteZones : site.zones || []),
     [siteZones, site.zones],
@@ -93,15 +95,18 @@ export function SiteLiveCamerasTab({
   }, [zones]);
 
   // Server-backed cameras query
-  const { data: camerasData, isLoading, refetch, isFetching } = useCameras({
-    siteId: site.id,
-    page,
-    limit,
-    search: debouncedSearch.trim() || undefined,
-    zoneId: selectedZone !== "ALL" ? selectedZone : undefined,
-    status: statusFilter !== "ALL" ? statusFilter : undefined,
-    sourceType: sourceFilter !== "ALL" ? sourceFilter : undefined,
-  });
+  const { data: camerasData, isLoading, refetch, isFetching } = useCameras(
+    {
+      siteId: site.id,
+      page,
+      limit,
+      search: debouncedSearch.trim() || undefined,
+      zoneId: selectedZone !== "ALL" ? selectedZone : undefined,
+      status: statusFilter !== "ALL" ? statusFilter : undefined,
+      sourceType: sourceFilter !== "ALL" ? sourceFilter : undefined,
+    },
+    { enabled: canReadCameras && Boolean(site.id) },
+  );
 
   const cameras: CameraItem[] = useMemo(() => camerasData?.items ?? [], [camerasData]);
   const totalCount = camerasData?.meta?.total ?? cameras.length;
@@ -116,7 +121,7 @@ export function SiteLiveCamerasTab({
     startingCameraId,
     refreshAll: refreshLiveSessions,
   } = useCameraLiveSessions({
-    enabled: true,
+    enabled: canReadCameras,
     pollIntervalMs: 5000,
     includeVideos: false,
   });

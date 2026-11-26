@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { useCan } from "@/hooks/use-can";
 import { useUsers } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
 import {
@@ -54,9 +55,13 @@ export function EditSiteModal({
 }: EditSiteModalProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const canReadUsers = useCan()("USER_READ");
 
-  // Fetch users for the dropdown
-  const { data: usersData, isLoading: usersLoading } = useUsers({ limit: 100 });
+  // Fetch users for the dropdown (only when modal is open and user has USER_READ)
+  const { data: usersData, isLoading: usersLoading } = useUsers(
+    { limit: 100 },
+    { enabled: open && canReadUsers },
+  );
   const allUsers: UserResponseDto[] = useMemo(() => usersData?.data ?? [], [usersData]);
 
   // Group personnel by hierarchy: SAFETY_MANAGER -> SAFETY_OFFICER -> Others

@@ -50,7 +50,9 @@ export function CreateSiteModal({
 }: CreateSiteModalProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
-  const canReadSites = useCan()("PPE_SITE_READ");
+  const can = useCan();
+  const canReadSites = can("PPE_SITE_READ");
+  const canReadUsers = can("USER_READ");
 
   // Fetch existing sites catalog to guarantee unique site code
   const { data: sitesCatalog } = useSitesCatalog({
@@ -61,8 +63,11 @@ export function CreateSiteModal({
     [sitesCatalog],
   );
 
-  // Fetch users for the dropdown
-  const { data: usersData, isLoading: usersLoading } = useUsers({ limit: 100 });
+  // Fetch users for the dropdown (only when modal is open and user has USER_READ)
+  const { data: usersData, isLoading: usersLoading } = useUsers(
+    { limit: 100 },
+    { enabled: open && canReadUsers },
+  );
   const allUsers: UserResponseDto[] = useMemo(() => usersData?.data ?? [], [usersData]);
 
   // Group personnel by hierarchy: SAFETY_MANAGER -> SAFETY_OFFICER -> Others

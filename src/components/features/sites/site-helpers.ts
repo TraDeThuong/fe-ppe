@@ -151,15 +151,41 @@ export function toDateInputValue(value?: string | null): string {
 }
 
 /**
- * Syncs `User.siteIds` when an Admin assigns or removes officers with `userId` on a site.
+ * Checks whether a user role has global administrative privileges.
+ */
+export function isAdminRole(role?: string | null): boolean {
+  const normalized = (role || "").trim().toUpperCase();
+  return normalized === "ADMIN" || normalized === "SUPER_ADMIN";
+}
+
+/**
+ * Determines whether the current user is permitted to synchronize officer `User.siteIds`
+ * across `smart-ppe-identity-service`.
+ */
+export function canSyncSiteOfficers(
+  role?: string | null,
+  hasUserPermissions?: boolean,
+): boolean {
+  if (typeof hasUserPermissions === "boolean") {
+    return hasUserPermissions || isAdminRole(role);
+  }
+  return isAdminRole(role);
+}
+
+/**
+ * Syncs `User.siteIds` when an authorized user assigns or removes officers with `userId` on a site.
  */
 export async function syncSiteOfficersAccess(
   siteId: string,
   contactOfficers: SiteContactOfficer[] | undefined,
-  isAdmin: boolean,
+  canSyncOrRole: boolean | string | null | undefined,
   previousOfficers?: SiteContactOfficer[] | null,
-): Promise<void> {
-  if (!siteId || !isAdmin) return;
+): Promise<{ synced: number; failed: number }> {
+  const canSync =
+    typeof canSyncOrRole === "boolean"
+      ? canSyncOrRole
+      : isAdminRole(canSyncOrRole);
+  if (!siteId || !canSync) return { synced: 0, failed: 0 };
 
   const nextUserIds = new Set(
     (contactOfficers || [])
@@ -172,32 +198,46 @@ export async function syncSiteOfficersAccess(
       .filter((id): id is string => Boolean(id)),
   );
 
-  const toAdd = Array.from(nextUserIds);
+  const toAdd =
+    previousOfficers !== undefined && previousOfficers !== null
+      ? Array.from(nextUserIds).filter((id) => !prevUserIds.has(id))
+      : Array.from(nextUserIds);
   const toRemove = Array.from(prevUserIds).filter((id) => !nextUserIds.has(id));
 
-  if (toAdd.length === 0 && toRemove.length === 0) return;
-
-  try {
-    await Promise.allSettled([
-      ...toAdd.map(async (userId) => {
-        const officerDetail = await userService.getUserById(userId);
-        const currentSites = officerDetail.siteIds || [];
-        if (!currentSites.includes(siteId)) {
-          await userService.assignUserSites(userId, [...currentSites, siteId]);
-        }
-      }),
-      ...toRemove.map(async (userId) => {
-        const officerDetail = await userService.getUserById(userId);
-        const currentSites = officerDetail.siteIds || [];
-        if (currentSites.includes(siteId)) {
-          await userService.assignUserSites(
-            userId,
-            currentSites.filter((id) => id !== siteId),
-          );
-        }
-      }),
-    ]);
-  } catch (err) {
-    console.warn("Could not auto-sync site access for officers:", err);
+  if (toAdd.length === 0 && toRemove.length === 0) {
+    return { synced: 0, failed: 0 };
   }
+
+  const results = await Promise.allSettled([
+    ...toAdd.map(async (userId) => {
+      const officerDetail = await userService.getUserById(userId);
+      const currentSites = officerDetail.siteIds || [];
+      if (!currentSites.includes(siteId)) {
+        await userService.assignUserSites(userId, [...currentSites, siteId]);
+      }
+    }),
+    ...toRemove.map(async (userId) => {
+      const officerDetail = await userService.getUserById(userId);
+      const currentSites = officerDetail.siteIds || [];
+      if (currentSites.includes(siteId)) {
+        await userService.assignUserSites(
+          userId,
+          currentSites.filter((id) => id !== siteId),
+        );
+      }
+    }),
+  ]);
+
+  let synced = 0;
+  let failed = 0;
+  for (const res of results) {
+    if (res.status === "fulfilled") {
+      synced += 1;
+    } else {
+      failed += 1;
+      console.warn("Could not auto-sync site access for officer:", res.reason);
+    }
+  }
+
+  return { synced, failed };
 }

@@ -5,6 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import {
   AlertTriangle,
   Eye,
+  Pencil,
   Play,
   RotateCcw,
 } from "lucide-react";
@@ -19,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import {
   calculateNextRun,
-  describeCronSchedule,
+  getCronScheduleLabel,
   detectCronConflicts,
 } from "@/lib/cron";
 import { useLocale } from "@/providers/locale-provider";
@@ -42,14 +43,15 @@ export function CronJobTable({
   filtered,
   canManage,
   blockedJobs,
+  actionPending,
   onRetry,
   onTrigger,
   onToggle,
+  onEdit,
   onViewDetail,
   onResetFilters,
 }: CronJobTableProps) {
   const { t, locale } = useLocale();
-  const isVietnamese = locale === "vi-VN";
 
   const columns = useMemo<ColumnDef<TableFeatureSet, CronJobItem, unknown>[]>(
     () => [
@@ -110,11 +112,11 @@ export function CronJobTable({
         header: t("cron.table.schedule"),
         cell: ({ row }) => {
           const job = row.original;
-          const conflict = detectCronConflicts(job.name, allJobs, isVietnamese);
+          const conflict = detectCronConflicts(job.name, allJobs, t);
           return (
             <div className="space-y-1 py-1 whitespace-nowrap">
               <div className="text-xs sm:text-sm text-foreground font-medium">
-                {describeCronSchedule(job.cron, t)}
+                {getCronScheduleLabel(job, t)}
               </div>
               {conflict.hasConflict && (
                 <div
@@ -122,7 +124,7 @@ export function CronJobTable({
                   className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300"
                 >
                   <AlertTriangle className="size-3" aria-hidden="true" />
-                  <span>{t("cron.conflictBadge")} (08:00 T2)</span>
+                  <span>{t("cron.conflictBadge")}</span>
                 </div>
               )}
             </div>
@@ -134,12 +136,7 @@ export function CronJobTable({
         header: t("cron.table.nextRun"),
         cell: ({ row }) => {
           const job = row.original;
-          const calculation = calculateNextRun(
-            job.cron,
-            job.isEnabled,
-            new Date(),
-            locale
-          );
+          const calculation = calculateNextRun(job, new Date(), locale);
 
           if (calculation.isPaused) {
             return (
@@ -179,7 +176,7 @@ export function CronJobTable({
           const job = row.original;
           const isEnabled = job.isEnabled;
           const actionDisabled =
-            fetching || Boolean(error) || blockedJobs.has(job.name);
+            fetching || actionPending || Boolean(error) || blockedJobs.has(job.name);
 
           if (!canManage) {
             return (
@@ -241,7 +238,7 @@ export function CronJobTable({
         cell: ({ row }) => {
           const job = row.original;
           const isActionDisabled = (item: CronJobItem) =>
-            fetching || Boolean(error) || blockedJobs.has(item.name);
+            fetching || Boolean(actionPending) || Boolean(error) || blockedJobs.has(item.name);
 
           const actions: TableRowAction<CronJobItem>[] = [
             {
@@ -250,6 +247,14 @@ export function CronJobTable({
               icon: <Eye className="size-3.5" aria-hidden="true" />,
               hidden: !onViewDetail,
               onClick: (item) => onViewDetail?.(item),
+            },
+            {
+              id: "edit",
+              label: t("cron.edit.action"),
+              icon: <Pencil className="size-3.5" aria-hidden="true" />,
+              hidden: !canManage,
+              disabled: isActionDisabled,
+              onClick: onEdit,
             },
             {
               id: "run-now",
@@ -277,15 +282,16 @@ export function CronJobTable({
     [
       t,
       locale,
-      isVietnamese,
       allJobs,
       recentExecutions,
       canManage,
       fetching,
       error,
       blockedJobs,
+      actionPending,
       onTrigger,
       onToggle,
+      onEdit,
       onViewDetail,
     ]
   );

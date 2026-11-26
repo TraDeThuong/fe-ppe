@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cronService } from "@/services/cron.service";
 import { auditQueryKeys } from "@/hooks/audit/audit.query-keys";
-import type { CronJobItem, CronJobName, TriggerCronJobPayload } from "@/types/cron.types";
+import type { CronJobItem, CronJobName, TriggerCronJobPayload, UpdateCronJobPayload } from "@/types/cron.types";
 import { cronQueryKeys } from "./cron.query-keys";
 
 export function useCronJobs(enabled: boolean, search?: string) {
@@ -40,4 +40,25 @@ export function useCronMutations() {
     },
   });
   return { trigger, toggle };
+}
+
+export function useUpdateCronJob() {
+  const client = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ jobName, payload }: { jobName: CronJobName; payload: UpdateCronJobPayload }) =>
+      cronService.updateJob(jobName, payload),
+    retry: false,
+    onSuccess: async (updated) => {
+      const queryKey = cronQueryKeys.list();
+      await client.cancelQueries({ queryKey });
+      client.setQueryData<CronJobItem[]>(queryKey, (jobs) => jobs?.map((job) =>
+        job.name === updated.name ? updated : job,
+      ));
+      void client.invalidateQueries({ queryKey });
+      void client.invalidateQueries({ queryKey: cronQueryKeys.history(updated.name) });
+      void client.invalidateQueries({ queryKey: cronQueryKeys.recentAudit() });
+      void client.invalidateQueries({ queryKey: auditQueryKeys.all });
+    },
+  });
 }

@@ -259,6 +259,7 @@ export function TableRowActions<TData extends RowData = any>({
                       event.stopPropagation();
                       if (!isDisabled) {
                         setIsOpen(false);
+                        triggerRef.current?.focus();
                         action.onClick(row.original, row.id);
                       }
                     }}

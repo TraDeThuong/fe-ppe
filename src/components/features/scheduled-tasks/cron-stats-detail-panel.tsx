@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { describeCronSchedule } from "@/lib/cron";
+import { CRON_SCHEDULE_FREQUENCIES, getCronJobSchedule, getCronScheduleLabel } from "@/lib/cron";
 import { useLocale } from "@/providers/locale-provider";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import type { CronJobItem, CronJobName, CronScheduleFilter } from "@/types/cron.types";
@@ -189,7 +189,7 @@ export function CronStatsDetailPanel({
       {activeStat === "total" && (
         <div className="space-y-4">
           {/* Recessed Telemetry Wells */}
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3.5">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3.5">
             {[
               {
                 label: t("cron.category.cleanup"),
@@ -201,16 +201,11 @@ export function CronStatsDetailPanel({
                 value: digestJobs.length,
                 accent: false,
               },
-              {
-                label: isVietnamese ? "Lịch hằng ngày" : "Daily Frequency",
-                value: jobs.filter((j) => !j.cron.endsWith("1")).length,
-                accent: true,
-              },
-              {
-                label: isVietnamese ? "Lịch hàng tuần" : "Weekly Frequency",
-                value: jobs.filter((j) => j.cron.endsWith("1")).length,
-                accent: false,
-              },
+              ...CRON_SCHEDULE_FREQUENCIES.map((frequency, index) => ({
+                label: t("cron.edit.frequency." + frequency),
+                value: jobs.filter((job) => getCronJobSchedule(job)?.frequency === frequency).length,
+                accent: index % 2 === 0,
+              })),
             ].map((metric, idx) => (
               <div
                 key={idx}
@@ -280,7 +275,7 @@ export function CronStatsDetailPanel({
                         {job.cron}
                       </code>
                       <span className="truncate">
-                        {describeCronSchedule(job.cron, t)}
+                        {getCronScheduleLabel(job, t)}
                       </span>
                     </div>
                   </div>
@@ -329,7 +324,7 @@ export function CronStatsDetailPanel({
                       {t(`cron.jobs.${job.name}`)}
                     </p>
                     <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                      {describeCronSchedule(job.cron, t)}
+                      {getCronScheduleLabel(job, t)}
                     </p>
                   </div>
                 </div>
@@ -403,7 +398,7 @@ export function CronStatsDetailPanel({
                           {t(`cron.jobs.${job.name}`)}
                         </p>
                         <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                          {describeCronSchedule(job.cron, t)}
+                          {getCronScheduleLabel(job, t)}
                         </p>
                       </div>
                     </div>

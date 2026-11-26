@@ -22,9 +22,14 @@ export interface ZoneListPanelProps {
 export function ZoneListPanel({ siteId }: ZoneListPanelProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
-  const canManage = useCan()("PPE_ZONE_MANAGE");
+  const can = useCan();
+  const canRead = can("PPE_ZONE_READ");
+  const canManage = can("PPE_ZONE_MANAGE");
 
-  const { data: zones = [], isLoading } = useSiteZones(siteId, Boolean(siteId));
+  const { data: zones = [], isLoading } = useSiteZones(
+    siteId,
+    Boolean(siteId) && canRead,
+  );
   const createZone = useCreateZone();
   const updateZone = useUpdateZone();
   const deleteZone = useDeleteZone();

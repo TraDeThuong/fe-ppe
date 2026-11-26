@@ -5,6 +5,7 @@ import type {
   CronJobName,
   ToggleCronJobResult,
   TriggerCronJobPayload,
+  UpdateCronJobPayload,
 } from "@/types/cron.types";
 
 // The shared interceptor already unwraps the outer { success, data } envelope.
@@ -28,6 +29,11 @@ export const cronService = {
     return apiClient.patch<never, ToggleCronJobResult>(
       `/cron/jobs/${encodeURIComponent(jobName)}/toggle`, undefined,
       requestOptions,
+    );
+  },
+  updateJob(jobName: CronJobName, payload: UpdateCronJobPayload): Promise<CronJobItem> {
+    return apiClient.patch<never, CronJobItem>(
+      `/cron/jobs/${encodeURIComponent(jobName)}`, payload, requestOptions,
     );
   },
 };

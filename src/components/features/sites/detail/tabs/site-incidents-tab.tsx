@@ -108,6 +108,9 @@ export function SiteIncidentsTab({
   const isVietnamese = locale === "vi-VN";
   const router = useRouter();
   const can = useCan();
+  const canReadIncidents = can("PPE_INCIDENT_READ");
+  const canReadCameras = can("PPE_CAMERA_READ");
+  const canReadZones = can("PPE_ZONE_READ");
   const canReview = can("PPE_INCIDENT_REVIEW");
   const canUpdate = can("PPE_INCIDENT_UPDATE");
   const canManage = can("PPE_INCIDENT_MANAGE");
@@ -141,8 +144,11 @@ export function SiteIncidentsTab({
     if (initialCameraId !== undefined) setCameraFilter(initialCameraId);
   }, [initialCameraId]);
 
-  const { data: camerasData } = useCameras({ siteId: site.id, limit: 100 });
-  const { data: siteZones = [] } = useSiteZones(site.id);
+  const { data: camerasData } = useCameras(
+    { siteId: site.id, limit: 100 },
+    { enabled: canReadCameras && Boolean(site.id) },
+  );
+  const { data: siteZones = [] } = useSiteZones(site.id, canReadZones);
 
   const cameras = useMemo(() => camerasData?.items ?? [], [camerasData?.items]);
   const zones = useMemo(
@@ -161,6 +167,15 @@ export function SiteIncidentsTab({
     Boolean(zoneFilter) && !cameraFilter && zoneCameras.length > 1;
   const effectiveCameraId =
     cameraFilter || (zoneFilter && zoneCameras.length === 1 ? zoneCameras[0].id : "");
+  const effectiveCameraIds = useMemo(
+    () =>
+      zoneHasZeroCameras
+        ? []
+        : isMultiCameraZoneFilter
+          ? zoneCameras.map((c) => c.id)
+          : undefined,
+    [zoneHasZeroCameras, isMultiCameraZoneFilter, zoneCameras],
+  );
 
   const debouncedSearch = useDebounce(search, 350);
   const filterKey = `${site.id}:${debouncedSearch.trim()}:${statusFilter}:${severityFilter}:${violationFilter}:${cameraFilter}:${zoneFilter}:${fromDate}:${toDate}`;
@@ -187,13 +202,14 @@ export function SiteIncidentsTab({
 
   const queryParams: IncidentQueryParams = {
     siteId: site.id,
-    page: isMultiCameraZoneFilter ? 1 : tableState.pagination.pageIndex + 1,
-    limit: isMultiCameraZoneFilter ? 100 : tableState.pagination.pageSize,
+    page: tableState.pagination.pageIndex + 1,
+    limit: tableState.pagination.pageSize,
     search: debouncedSearch.trim() || undefined,
     status: statusFilter || undefined,
     severity: severityFilter || undefined,
     violationType: violationFilter || undefined,
     cameraId: effectiveCameraId || undefined,
+    cameraIds: effectiveCameraIds,
     fromDate: fromDate || undefined,
     toDate: toDate ? `${toDate}T23:59:59.999Z` : undefined,
     sortBy: apiSorting.sortBy,
@@ -206,14 +222,20 @@ export function SiteIncidentsTab({
     isFetching,
     error,
     refetch,
-  } = useIncidents(queryParams, { enabled: !zoneHasZeroCameras });
-
-  const { data: statusCounts } = useIncidentStatusCounts({
-    siteId: site.id,
-    cameraId: effectiveCameraId || undefined,
-    fromDate: fromDate || undefined,
-    toDate: toDate ? `${toDate}T23:59:59.999Z` : undefined,
+  } = useIncidents(queryParams, {
+    enabled: canReadIncidents && Boolean(site.id) && !zoneHasZeroCameras,
   });
+
+  const { data: statusCounts } = useIncidentStatusCounts(
+    {
+      siteId: site.id,
+      cameraId: effectiveCameraId || undefined,
+      cameraIds: effectiveCameraIds,
+      fromDate: fromDate || undefined,
+      toDate: toDate ? `${toDate}T23:59:59.999Z` : undefined,
+    },
+    { enabled: canReadIncidents && Boolean(site.id) },
+  );
 
   const reviewMutation = useReviewIncident();
   const batchReviewMutation = useBatchReviewIncidents();
@@ -221,9 +243,15 @@ export function SiteIncidentsTab({
   const closeMutation = useCloseIncident();
   const assignMutation = useAssignOfficer();
 
+  // Strictly enforce inc.siteId === site.id on client as well to guard against keepPreviousData cache bleed
   const rawIncidents = useMemo(
-    () => (zoneHasZeroCameras ? [] : incidentsData?.items ?? []),
-    [zoneHasZeroCameras, incidentsData?.items],
+    () =>
+      zoneHasZeroCameras
+        ? []
+        : (incidentsData?.items ?? []).filter(
+            (inc) => !inc.siteId || inc.siteId === site.id,
+          ),
+    [zoneHasZeroCameras, incidentsData?.items, site.id],
   );
 
   const incidents = useMemo(() => {
@@ -234,30 +262,16 @@ export function SiteIncidentsTab({
 
   const totalCount = zoneHasZeroCameras
     ? 0
-    : isMultiCameraZoneFilter
-      ? incidents.length
-      : incidentsData?.meta?.total ?? incidents.length;
+    : incidentsData?.meta?.total ?? incidents.length;
   const totalPages = zoneHasZeroCameras
     ? 1
-    : isMultiCameraZoneFilter
-      ? Math.max(1, Math.ceil(incidents.length / tableState.pagination.pageSize))
-      : Math.max(
-          1,
-          incidentsData?.meta?.totalPages ??
-            Math.ceil(totalCount / tableState.pagination.pageSize),
-        );
+    : Math.max(
+        1,
+        incidentsData?.meta?.totalPages ??
+          Math.ceil(totalCount / tableState.pagination.pageSize),
+      );
 
-  const pagedIncidents = useMemo(() => {
-    if (!isMultiCameraZoneFilter) return incidents;
-    const start =
-      tableState.pagination.pageIndex * tableState.pagination.pageSize;
-    return incidents.slice(start, start + tableState.pagination.pageSize);
-  }, [
-    isMultiCameraZoneFilter,
-    incidents,
-    tableState.pagination.pageIndex,
-    tableState.pagination.pageSize,
-  ]);
+  const pagedIncidents = incidents;
 
   const cameraLookup = useMemo(() => {
     const map = new Map<

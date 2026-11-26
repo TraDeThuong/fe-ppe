@@ -24,7 +24,6 @@ import { Button } from "@/components/ui/button";
 import { PhoneReveal } from "@/components/ui/phone-reveal";
 import { useAssignUserSites, userKeys } from "@/hooks/users";
 import { useCan } from "@/hooks/use-can";
-import { collectCatalog } from "@/lib/table-utils";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
 import { userService } from "@/services/user.service";
@@ -55,29 +54,51 @@ export function SitePersonnelTab({ site, onEditSite }: SitePersonnelTabProps) {
     [site, isVietnamese],
   );
 
-  // Fetch system users to list authorized personnel (User.siteIds includes site.id)
-  const { data: allUsers = [], isLoading: usersLoading } = useQuery<UserResponseDto[]>({
-    queryKey: [...userKeys.lists(), "site-personnel-catalog"],
-    queryFn: () =>
-      collectCatalog(async (page, limit) => {
-        const res = await userService.getUsers({ page, limit, isDeleted: false });
-        return { items: res.data, meta: res.meta };
-      }),
-    enabled: canReadUsers,
+  // Fetch personnel assigned to this site directly via GET /api/v1/users?siteId=...
+  const { data: assignedUsers = [], isLoading: usersLoading } = useQuery<UserResponseDto[]>({
+    queryKey: userKeys.list({
+      siteId: site.id,
+      isDeleted: false,
+      page: 1,
+      limit: 100,
+    }),
+    queryFn: async () => {
+      const res = await userService.getUsers({
+        siteId: site.id,
+        isDeleted: false,
+        page: 1,
+        limit: 100,
+      });
+      return res.data;
+    },
+    enabled: canReadUsers && Boolean(site.id),
+    staleTime: 30 * 1000,
+  });
+
+  // Fetch unassigned active users for the assign dropdown via GET /api/v1/users?excludeSiteId=...
+  const { data: unassignedUsers = [] } = useQuery<UserResponseDto[]>({
+    queryKey: userKeys.list({
+      excludeSiteId: site.id,
+      isDeleted: false,
+      isActive: true,
+      page: 1,
+      limit: 100,
+    }),
+    queryFn: async () => {
+      const res = await userService.getUsers({
+        excludeSiteId: site.id,
+        isDeleted: false,
+        isActive: true,
+        page: 1,
+        limit: 100,
+      });
+      return res.data;
+    },
+    enabled: canReadUsers && canUpdateUsers && Boolean(site.id),
     staleTime: 30 * 1000,
   });
 
   const assignSitesMutation = useAssignUserSites();
-
-  const assignedUsers = useMemo(
-    () => allUsers.filter((u) => Array.isArray(u.siteIds) && u.siteIds.includes(site.id)),
-    [allUsers, site.id],
-  );
-
-  const unassignedUsers = useMemo(
-    () => allUsers.filter((u) => !Array.isArray(u.siteIds) || !u.siteIds.includes(site.id)),
-    [allUsers, site.id],
-  );
 
   const handleCopyPhone = (phone: string) => {
     navigator.clipboard.writeText(phone);
@@ -92,7 +113,7 @@ export function SitePersonnelTab({ site, onEditSite }: SitePersonnelTabProps) {
 
   const handleAssignUser = async () => {
     if (!selectedUserId) return;
-    const target = allUsers.find((u) => u.id === selectedUserId);
+    const target = unassignedUsers.find((u) => u.id === selectedUserId);
     if (!target) return;
     const currentSites = target.siteIds || [];
     if (currentSites.includes(site.id)) return;

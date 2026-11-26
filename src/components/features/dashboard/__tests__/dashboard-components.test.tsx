@@ -1034,7 +1034,7 @@ describe("Dashboard Components", () => {
 
       assert.ok(html.includes("Dọn audit log cũ"));
       assert.ok(html.includes("Báo cáo hoạt động hằng tuần"));
-      assert.ok(html.includes("Hằng ngày lúc 02:00"));
+      assert.ok(html.includes("02:00 hàng ngày (UTC+7)"));
       assert.ok(html.includes("Tự động bật"));
       assert.ok(html.includes("Tạm tắt"));
       assert.equal(html.includes("Đang chạy"), false);

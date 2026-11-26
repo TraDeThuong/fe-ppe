@@ -5,7 +5,7 @@ import { Loader2, Play, Power } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/form/foundation/input";
-import { buildCronPayload, getCronParameter } from "@/lib/cron";
+import { buildCronPayload, getCronParameter, getCronParameterValue } from "@/lib/cron";
 import { useLocale } from "@/providers/locale-provider";
 import type {
   CronJobExecutionResult,
@@ -38,7 +38,7 @@ export function CronJobDialog({
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const field = action === "trigger" ? getCronParameter(job.name) : null;
-  const [value, setValue] = useState(String(field?.defaultValue ?? ""));
+  const [value, setValue] = useState(() => field ? getCronParameterValue(job) : "");
   const [attempted, setAttempted] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
 

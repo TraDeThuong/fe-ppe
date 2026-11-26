@@ -56,12 +56,18 @@ export function SiteSpatialZonesTab({
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const can = useCan();
+  const canReadCameras = can("PPE_CAMERA_READ");
+  const canReadZones = can("PPE_ZONE_READ");
+  const canReadAreas = can("PPE_RESTRICTED_AREA_READ");
   const canManageZones = can("PPE_ZONE_MANAGE");
   const canManageAreas = can("PPE_RESTRICTED_AREA_MANAGE");
   const isSiteActive = site.status === "ACTIVE";
 
   // Cameras data to count cameras per zone
-  const { data: camerasData } = useCameras({ siteId: site.id, limit: 100 });
+  const { data: camerasData } = useCameras(
+    { siteId: site.id, limit: 100 },
+    { enabled: canReadCameras && Boolean(site.id) },
+  );
   const cameras = useMemo(() => camerasData?.items ?? [], [camerasData]);
 
   // Zones data & mutations
@@ -69,7 +75,7 @@ export function SiteSpatialZonesTab({
     data: zones = [],
     isLoading: zonesLoading,
     error: zonesError,
-  } = useSiteZones(site.id);
+  } = useSiteZones(site.id, canReadZones);
   const createZoneMutation = useCreateZone();
   const updateZoneMutation = useUpdateZone();
   const deleteZoneMutation = useDeleteZone();
@@ -79,7 +85,7 @@ export function SiteSpatialZonesTab({
     data: restrictedAreas = [],
     isLoading: areasLoading,
     error: areasError,
-  } = useRestrictedAreas(site.id);
+  } = useRestrictedAreas(site.id, canReadAreas);
   const updateAreaMutation = useUpdateRestrictedArea();
   const deleteAreaMutation = useDeleteRestrictedArea();
 

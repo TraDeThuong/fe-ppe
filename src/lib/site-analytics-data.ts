@@ -1,6 +1,16 @@
-import type { CameraStatDto, HourlyRiskItemDto, IncidentItem, ReportGenerationDto, ShiftRiskSummaryDto, TrendItemDto } from "@/types";
-import type { DashboardCollection, DashboardPage, DashboardPeriod } from "@/types/dashboard.types";
-import { addCalendarDays, collectDashboardPages, dashboardPeriod, incidentInPeriod, vietnamToday } from "./dashboard-data";
+import type {
+  CameraStatDto,
+  HourlyRiskItemDto,
+  HourlyRiskResponseDto,
+  IncidentItem,
+  ReportGenerationDto,
+  ShiftRiskSummaryDto,
+  StatisticsSummaryDto,
+  TrendItemDto,
+  ViolationTypeStatDto,
+} from "@/types";
+import type { DashboardCollection, DashboardPeriod } from "@/types/dashboard.types";
+import { addCalendarDays, dashboardPeriod, vietnamToday } from "./dashboard-data";
 import {
   clusterIncidentsByPerson,
   projectClusterToRepresentativeIncident,
@@ -85,52 +95,6 @@ export function canAccessSiteReport(
     (user.role === "ADMIN" || (!!report.generatedBy && report.generatedBy === user.id));
 }
 
-/** All requests are bounded; incomplete or changing input never becomes an aggregate. */
-export async function collectAnalyticsIncidents(
-  fetchPage: (page: number, limit: number) => Promise<DashboardPage<IncidentItem>>,
-  fetchDetail: (id: string) => Promise<IncidentItem>,
-  period: DashboardPeriod,
-  siteId: string,
-  signal?: AbortSignal,
-): Promise<AnalyticsCollection> {
-  const collected = await collectDashboardPages(fetchPage, {
-    signal,
-    accept: (item) => incidentInPeriod(item, period, siteId),
-  });
-  if (!collected.complete) return collected;
-  const closed = collected.items.filter((item) => item.status === "CLOSED");
-  const incomplete = (issue: AnalyticsIssue): AnalyticsCollection => ({
-    items: [], total: collected.total, complete: false, issue,
-  });
-  if (closed.length > 200) return incomplete("closed-limit");
-  const details = new Map<string, IncidentItem>();
-  for (let index = 0; index < closed.length; index += 3) {
-    signal?.throwIfAborted();
-    let batch: IncidentItem[];
-    try {
-      batch = await Promise.all(closed.slice(index, index + 3).map((item) => fetchDetail(item.id)));
-    } catch (error) {
-      signal?.throwIfAborted();
-      if (isAccessError(error)) throw error;
-      return incomplete("detail-error");
-    }
-    signal?.throwIfAborted();
-    for (const [offset, detail] of batch.entries()) {
-      const original = closed[index + offset];
-      if (detail.id !== original.id || !incidentInPeriod(detail, period, siteId) ||
-        detail.status !== original.status || detail.detectedAt !== original.detectedAt ||
-        detail.cameraId !== original.cameraId || detail.violationType !== original.violationType ||
-        detail.severity !== original.severity || detail.resolvedAt !== original.resolvedAt) {
-        return incomplete("changed");
-      }
-      if (incidentOutcome(detail) === "unknown") return incomplete("closed-history");
-      details.set(detail.id, detail);
-    }
-  }
-  signal?.throwIfAborted();
-  return { ...collected, items: collected.items.map((item) => details.get(item.id) ?? item) };
-}
-
 function bucketKey(day: string, groupBy: AnalyticsGroupBy): string {
   if (groupBy === "DAY") return day;
   if (groupBy === "MONTH") return day.slice(0, 7);
@@ -139,6 +103,333 @@ function bucketKey(day: string, groupBy: AnalyticsGroupBy): string {
   const year = date.getUTCFullYear();
   const week = Math.ceil(((date.getTime() - Date.UTC(year, 0, 1)) / 86_400_000 + 1) / 7);
   return `${year}-W${String(week).padStart(2, "0")}`;
+}
+
+/**
+ * Chuẩn hóa số liệu phân tích của công trường trực tiếp từ các API `/api/v1/statistics/*`
+ * (loại bỏ hoàn toàn việc quét toàn bộ trang incidents và +200 calls GET /incidents/:id).
+ */
+export function buildSiteAnalyticsFromStatistics(params: {
+  summary: StatisticsSummaryDto;
+  trends: readonly TrendItemDto[];
+  distribution: readonly ViolationTypeStatDto[];
+  cameras: readonly CameraStatDto[];
+  period: DashboardPeriod;
+  groupBy: AnalyticsGroupBy;
+}): SiteAnalytics {
+  const { summary, trends: rawTrends, distribution: rawDistribution, cameras: rawCameras, period, groupBy } = params;
+
+  const totalIncidents = Math.max(0, summary.totalIncidents ?? 0);
+  const pending = Math.max(0, summary.openIncidents ?? 0);
+  const resolved = Math.max(0, summary.resolvedIncidents ?? 0);
+  const dismissed = Math.max(0, summary.falseAlarms ?? 0);
+  const rawConfirmed = Math.max(0, summary.trueViolations ?? 0);
+
+  // Trong reporting-service: openIncidents + trueViolations (CONFIRMED) + resolvedIncidents + falseAlarms = totalIncidents.
+  // Nếu rollup đã gộp resolved vào trueViolations (open + trueViolations + falseAlarms >= totalIncidents), tách confirmed = trueViolations - resolved.
+  const trueIncludesResolved =
+    resolved > 0 &&
+    rawConfirmed >= resolved &&
+    pending + rawConfirmed + dismissed >= totalIncidents;
+  const confirmed = trueIncludesResolved
+    ? Math.max(0, rawConfirmed - resolved)
+    : rawConfirmed;
+  const trueViolations = confirmed + resolved;
+  const unknown = Math.max(
+    0,
+    totalIncidents - (pending + confirmed + resolved + dismissed),
+  );
+
+  // Zero-fill trend buckets across [period.startDate, period.endDate]
+  const trendMap = new Map<string, TrendItemDto>();
+  for (let day = period.startDate; day <= period.endDate; day = addCalendarDays(day, 1)) {
+    const key = bucketKey(day, groupBy);
+    if (!trendMap.has(key)) {
+      trendMap.set(key, {
+        date: key,
+        totalIncidents: 0,
+        trueViolations: 0,
+        falseAlarms: 0,
+        resolvedCount: 0,
+      });
+    }
+  }
+  for (const item of rawTrends) {
+    if (!item?.date) continue;
+    const key =
+      /^\d{4}-\d{2}-\d{2}$/.test(item.date) && groupBy !== "DAY"
+        ? bucketKey(item.date, groupBy)
+        : item.date;
+    const bucket = trendMap.get(key);
+    if (!bucket) continue;
+    bucket.totalIncidents += Math.max(0, item.totalIncidents ?? 0);
+    bucket.trueViolations += Math.max(0, item.trueViolations ?? 0);
+    bucket.falseAlarms += Math.max(0, item.falseAlarms ?? 0);
+    bucket.resolvedCount += Math.max(0, item.resolvedCount ?? 0);
+  }
+
+  // Violation breakdown distribution
+  const knownTypes = ["NO_HELMET", "NO_VEST", "RESTRICTED_AREA", "MULTI_VIOLATION"];
+  const distCounts = new Map<string, number>();
+  for (const row of rawDistribution) {
+    if (!row || row.violationType === "TOTAL_AGGREGATED") continue;
+    const count = Math.max(0, row.count ?? 0);
+    if (count <= 0) continue;
+    const normalizedType = knownTypes.includes(row.violationType)
+      ? row.violationType
+      : "OTHER";
+    distCounts.set(normalizedType, (distCounts.get(normalizedType) ?? 0) + count);
+  }
+  const distTotal = [...distCounts.values()].reduce((sum, n) => sum + n, 0);
+  const distribution = [...distCounts.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([type, count]) => ({
+      type,
+      count,
+      percentage: distTotal > 0 ? (count / distTotal) * 100 : 0,
+    }));
+
+  // Severity breakdown & SLA rows
+  const slaTargets: ReadonlyArray<readonly ["CRITICAL" | "HIGH" | "MEDIUM" | "LOW", number]> = [
+    ["CRITICAL", 15],
+    ["HIGH", 30],
+    ["MEDIUM", 60],
+    ["LOW", 120],
+  ];
+  let weightedMttrSum = 0;
+  let resolutionSamples = 0;
+  const severityRows: AnalyticsSeverity[] = slaTargets.map(([key, targetSlaMinutes]) => {
+    const item = summary.severityBreakdown?.[key];
+    const count = Math.max(0, item?.count ?? 0);
+    const rowResolved = Math.max(0, item?.resolved ?? 0);
+    const actualMttr =
+      item &&
+      typeof item.actualMttrMinutes === "number" &&
+      Number.isFinite(item.actualMttrMinutes) &&
+      item.actualMttrMinutes > 0
+        ? item.actualMttrMinutes
+        : null;
+    const samples = actualMttr != null && rowResolved > 0 ? rowResolved : 0;
+    if (samples > 0 && actualMttr != null) {
+      weightedMttrSum += actualMttr * samples;
+      resolutionSamples += samples;
+    }
+    return {
+      key,
+      count,
+      resolved: rowResolved,
+      targetSlaMinutes: item?.targetSlaMinutes ?? targetSlaMinutes,
+      actualMttrMinutes: actualMttr,
+      resolutionSamples: samples,
+    };
+  });
+
+  const mttrMinutes =
+    resolutionSamples > 0
+      ? weightedMttrSum / resolutionSamples
+      : typeof summary.meanTimeToResolveHours === "number" &&
+          Number.isFinite(summary.meanTimeToResolveHours) &&
+          summary.meanTimeToResolveHours > 0
+        ? summary.meanTimeToResolveHours * 60
+        : null;
+
+  const reviewed = trueViolations + dismissed;
+  const confirmedRate =
+    totalIncidents > 0 ? (trueViolations / totalIncidents) * 100 : null;
+  const falseAlarmRate =
+    reviewed > 0 ? (dismissed / reviewed) * 100 : null;
+
+  const cameras: CameraStatDto[] = [...rawCameras]
+    .filter((c) => Boolean(c?.cameraId))
+    .map((c) => ({
+      cameraId: c.cameraId,
+      cameraName: c.cameraName,
+      totalViolations: Math.max(0, c.totalViolations ?? 0),
+      confirmedCount: Math.max(0, c.confirmedCount ?? 0),
+      falseAlarmCount: Math.max(0, c.falseAlarmCount ?? 0),
+      resolvedCount: Math.max(0, c.resolvedCount ?? 0),
+    }))
+    .sort(
+      (a, b) =>
+        b.totalViolations - a.totalViolations ||
+        a.cameraId.localeCompare(b.cameraId),
+    );
+
+  return {
+    totalIncidents,
+    rawTotalIncidents: totalIncidents,
+    trueViolations,
+    pending,
+    confirmed,
+    resolved,
+    dismissed,
+    unknown,
+    confirmedRate,
+    falseAlarmRate,
+    mttrMinutes,
+    resolutionSamples,
+    severityRows,
+    distribution,
+    trends: [...trendMap.values()],
+    cameras,
+  };
+}
+
+/**
+ * Chuẩn hóa số liệu phân tích rủi ro 24 giờ & 3 ca trực từ `/api/v1/statistics/hourly-risk`.
+ */
+export function buildSiteHourlyRiskFromStatistics(
+  dto: HourlyRiskResponseDto | null | undefined,
+): SiteHourlyRisk {
+  const defaultHourly: HourlyRiskItemDto[] = Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    label: `${String(hour).padStart(2, "0")}:00`,
+    count: 0,
+    riskLevel: "LOW",
+    shift: hour >= 6 && hour < 14 ? "MORNING" : hour >= 14 && hour < 22 ? "AFTERNOON" : "NIGHT",
+    severityBreakdown: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 },
+  }));
+
+  const hourly =
+    dto?.hourly && dto.hourly.length === 24
+      ? dto.hourly.map((h, idx) => ({
+          ...defaultHourly[idx],
+          ...h,
+          count: Math.max(0, h.count ?? 0),
+        }))
+      : defaultHourly;
+
+  const defaultShift = (
+    name: string,
+    timeRange: string,
+    code: HourlyRiskItemDto["shift"],
+  ): ShiftRiskSummaryDto => {
+    const hours = hourly.filter((h) => h.shift === code);
+    const totalIncidents = hours.reduce((sum, h) => sum + h.count, 0);
+    const sumSev = (sev: keyof HourlyRiskItemDto["severityBreakdown"]) =>
+      hours.reduce((n, h) => n + (h.severityBreakdown?.[sev] ?? 0), 0);
+    const criticalCount = sumSev("CRITICAL");
+    const highCount = sumSev("HIGH");
+    const mediumCount = sumSev("MEDIUM");
+    const lowCount = sumSev("LOW");
+    const riskLevel =
+      criticalCount || highCount >= 3
+        ? "CRITICAL"
+        : highCount || mediumCount >= 3
+          ? "HIGH"
+          : mediumCount || totalIncidents >= 2
+            ? "MEDIUM"
+            : "LOW";
+    return {
+      name,
+      timeRange,
+      totalIncidents,
+      criticalCount,
+      highCount,
+      mediumCount,
+      lowCount,
+      riskLevel,
+    };
+  };
+
+  const shifts: Record<"morning" | "afternoon" | "night", ShiftRiskSummaryDto> = {
+    morning: dto?.shifts?.morning ?? defaultShift("MORNING", "06:00–14:00", "MORNING"),
+    afternoon: dto?.shifts?.afternoon ?? defaultShift("AFTERNOON", "14:00–22:00", "AFTERNOON"),
+    night: dto?.shifts?.night ?? defaultShift("NIGHT", "00:00–06:00 · 22:00–24:00", "NIGHT"),
+  };
+
+  const total =
+    typeof dto?.summary?.totalIncidents === "number"
+      ? Math.max(0, dto.summary.totalIncidents)
+      : hourly.reduce((sum, h) => sum + h.count, 0);
+
+  if (total <= 0) {
+    return {
+      hourly,
+      shifts,
+      total: 0,
+      peakHour: null,
+      peakShift: null,
+    };
+  }
+
+  const peakHour =
+    typeof dto?.summary?.peakHour === "number"
+      ? dto.summary.peakHour
+      : hourly.reduce((a, b) => (b.count > a.count ? b : a)).hour;
+
+  const rawPeakShift = dto?.summary?.peakShift?.toLowerCase();
+  const keys = ["morning", "afternoon", "night"] as const;
+  const peakShift: "morning" | "afternoon" | "night" =
+    rawPeakShift === "morning" || rawPeakShift === "afternoon" || rawPeakShift === "night"
+      ? rawPeakShift
+      : keys.reduce((a, b) =>
+          shifts[b].totalIncidents > shifts[a].totalIncidents ? b : a,
+        );
+
+  return {
+    hourly,
+    shifts,
+    total,
+    peakHour,
+    peakShift,
+  };
+}
+
+export async function fetchSiteStatisticsAnalytics(params: {
+  siteId: string;
+  period: DashboardPeriod;
+  groupBy: AnalyticsGroupBy;
+  signal?: AbortSignal;
+  deps: {
+    getSummary: (
+      filter: { siteId: string; startDate: string; endDate: string },
+      options?: { signal?: AbortSignal; suppressToast?: boolean; strict?: boolean },
+    ) => Promise<StatisticsSummaryDto>;
+    getTrends: (
+      filter: {
+        siteId: string;
+        startDate: string;
+        endDate: string;
+        groupBy: AnalyticsGroupBy;
+      },
+      options?: { signal?: AbortSignal; suppressToast?: boolean; strict?: boolean },
+    ) => Promise<TrendItemDto[]>;
+    getViolationDistribution: (
+      filter: { siteId: string; startDate: string; endDate: string },
+      options?: { signal?: AbortSignal; suppressToast?: boolean; strict?: boolean },
+    ) => Promise<ViolationTypeStatDto[]>;
+    getCameraRankings?: (
+      filter: { siteId: string; startDate: string; endDate: string; limit?: number },
+      options?: { signal?: AbortSignal; suppressToast?: boolean; strict?: boolean },
+    ) => Promise<CameraStatDto[]>;
+  };
+}): Promise<SiteAnalytics> {
+  const { siteId, period, groupBy, signal, deps } = params;
+  const baseFilter = {
+    siteId,
+    startDate: period.startDate,
+    endDate: period.endDate,
+  };
+  const reqOpts = { signal, suppressToast: true, strict: true };
+
+  const [summary, trends, distribution, cameras] = await Promise.all([
+    deps.getSummary(baseFilter, reqOpts),
+    deps.getTrends({ ...baseFilter, groupBy }, reqOpts),
+    deps.getViolationDistribution(baseFilter, reqOpts),
+    deps.getCameraRankings
+      ? deps.getCameraRankings({ ...baseFilter, limit: 10 }, reqOpts)
+      : Promise.resolve([]),
+  ]);
+
+  return buildSiteAnalyticsFromStatistics({
+    summary,
+    trends,
+    distribution,
+    cameras,
+    period,
+    groupBy,
+  });
 }
 
 export function aggregateSiteAnalytics(

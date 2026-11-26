@@ -35,26 +35,44 @@ describe("site-compliance.helper", () => {
   });
 
   it("distinguishes valid empty reporting summary (100%) from error EMPTY_SUMMARY (0%)", () => {
-    assert.equal(isUsableReportingSummary(makeSummary({ totalIncidents: 0, complianceRate: 0 })), false);
-    assert.equal(isUsableReportingSummary(makeSummary({ totalIncidents: 0, complianceRate: 100 })), true);
-    assert.equal(isUsableReportingSummary(makeSummary({ totalIncidents: 5, complianceRate: 0 })), true);
+    assert.equal(
+      isUsableReportingSummary(makeSummary({ totalIncidents: 0, complianceRate: 0 })),
+      false,
+    );
+    assert.equal(
+      isUsableReportingSummary(makeSummary({ totalIncidents: 0, complianceRate: 100 })),
+      true,
+    );
+    assert.equal(
+      isUsableReportingSummary(makeSummary({ totalIncidents: 5, complianceRate: 0 })),
+      true,
+    );
   });
 
-  it("prefers live incident counts over stale reporting rollup rows", () => {
-    const staleSummary = makeSummary({ totalIncidents: 6, trueViolations: 6, complianceRate: 0 });
-    const reconciled = reconcileSingleSiteCompliance(staleSummary, {
-      total: 224,
-      confirmed: 110,
+  it("prefers authoritative reporting summary over live incident counts to avoid formula drift", () => {
+    const reportingSummary = makeSummary({
+      totalIncidents: 100,
+      trueViolations: 20,
+      complianceRate: 80,
     });
-    assert.deepEqual(reconciled, { totalIncidents: 224, trueViolations: 110 });
+    const reconciled = reconcileSingleSiteCompliance(reportingSummary, {
+      total: 100,
+      confirmed: 15,
+    });
+    assert.deepEqual(reconciled, { totalIncidents: 100, trueViolations: 20 });
   });
 
-  it("falls back to usable reporting summary when live counts are unavailable", () => {
-    const validSummary = makeSummary({ totalIncidents: 20, trueViolations: 4, complianceRate: 80 });
-    assert.deepEqual(reconcileSingleSiteCompliance(validSummary, null), {
-      totalIncidents: 20,
-      trueViolations: 4,
-    });
+  it("falls back to live status counts when reporting summary is unavailable", () => {
+    assert.deepEqual(
+      reconcileSingleSiteCompliance(makeSummary(), {
+        total: 20,
+        confirmed: 4,
+      }),
+      {
+        totalIncidents: 20,
+        trueViolations: 4,
+      },
+    );
     assert.equal(reconcileSingleSiteCompliance(makeSummary(), null), null);
   });
 
@@ -72,26 +90,59 @@ describe("site-compliance.helper", () => {
     assert.equal(aggregateSitesCompliance([null]), null);
   });
 
-  it("fetches scoped site compliance and degrades gracefully when one service fails", async () => {
-    const queriedSites: string[] = [];
-    const result = await fetchSiteComplianceSummary(["site-1", "site-2"], {
+  it("uses 1 single summary request across multiple sites (no 3N loop)", async () => {
+    const reportingCalls: Array<string | undefined> = [];
+    let liveCalls = 0;
+
+    const result = await fetchSiteComplianceSummary(
+      ["site-1", "site-2", "site-3", "site-4", "site-5"],
+      {
+        canReadReporting: true,
+        canReadIncidents: true,
+        fetchReportingSummary: async (siteId) => {
+          reportingCalls.push(siteId);
+          return makeSummary({
+            totalIncidents: 200,
+            trueViolations: 30,
+            complianceRate: 85,
+          });
+        },
+        fetchLiveCounts: async () => {
+          liveCalls += 1;
+          return { total: 200, confirmed: 30 };
+        },
+      },
+    );
+
+    assert.equal(reportingCalls.length, 1);
+    assert.equal(reportingCalls[0], undefined);
+    assert.equal(liveCalls, 0);
+    assert.deepEqual(result, {
+      complianceRate: 85,
+      totalIncidents: 200,
+      trueViolations: 30,
+    });
+  });
+
+  it("scopes to siteId when a single site is queried and falls back to 1 live status-counts request on error", async () => {
+    const reportingCalls: Array<string | undefined> = [];
+    const liveCalls: Array<string | undefined> = [];
+
+    const result = await fetchSiteComplianceSummary(["site-1"], {
       canReadReporting: true,
       canReadIncidents: true,
       fetchReportingSummary: async (siteId) => {
-        queriedSites.push(siteId);
-        // Simulate stale rollup returning 0% on site-1 and error on site-2
-        if (siteId === "site-1") {
-          return makeSummary({ totalIncidents: 6, trueViolations: 6, complianceRate: 0 });
-        }
+        reportingCalls.push(siteId);
         throw new Error("Reporting service error");
       },
       fetchLiveCounts: async (siteId) => {
-        if (siteId === "site-1") return { total: 224, confirmed: 110 };
-        return { total: 0, confirmed: 0 };
+        liveCalls.push(siteId);
+        return { total: 224, confirmed: 110 };
       },
     });
 
-    assert.deepEqual(queriedSites, ["site-1", "site-2"]);
+    assert.deepEqual(reportingCalls, ["site-1"]);
+    assert.deepEqual(liveCalls, ["site-1"]);
     assert.deepEqual(result, {
       complianceRate: 50.89,
       totalIncidents: 224,

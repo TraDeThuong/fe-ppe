@@ -4,6 +4,7 @@ import type {
   CameraHealthLogItem,
   CameraItem,
   CameraQueryParams,
+  CameraSiteCountItem,
   CameraStreamItem,
   CreateCameraPayload,
   CreateCameraStreamPayload,
@@ -212,6 +213,33 @@ export const cameraService = {
       online: Number(data?.online ?? 0),
       offline: Number(data?.offline ?? 0),
     };
+  },
+
+  /**
+   * GET /api/v1/cameras/counts-by-site
+   * Thống kê gộp số lượng camera theo danh sách công trường (total, online, offline, error).
+   */
+  async getCountsBySite(
+    siteIds?: string[],
+    options?: { signal?: AbortSignal; suppressToast?: boolean },
+  ): Promise<CameraSiteCountItem[]> {
+    const normalizedIds = Array.isArray(siteIds)
+      ? Array.from(new Set(siteIds.map((id) => id.trim()).filter(Boolean))).slice(0, 100)
+      : [];
+    const res = await apiClient.get<unknown, any>("/cameras/counts-by-site", {
+      params: normalizedIds.length > 0 ? { siteIds: normalizedIds.join(",") } : undefined,
+      signal: options?.signal,
+      ...(options?.suppressToast ? { suppressToast: true } : {}),
+    } as Record<string, unknown>);
+    const data = unwrapData<CameraSiteCountItem[]>(res);
+    if (!Array.isArray(data)) return [];
+    return data.map((item) => ({
+      siteId: String(item.siteId),
+      total: Number(item.total ?? 0),
+      online: Number(item.online ?? 0),
+      offline: Number(item.offline ?? 0),
+      error: Number(item.error ?? 0),
+    }));
   },
 
   /**
