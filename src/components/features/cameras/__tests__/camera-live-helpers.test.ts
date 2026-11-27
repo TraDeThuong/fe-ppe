@@ -4,6 +4,7 @@ import {
   buildCameraHotConfigPayload,
   buildCameraStartPayload,
   canAutoStartCameraSource,
+  computeSyncedLiveFps,
   deriveLiveDefaultsFromConfig,
   extractIncidentEvidencePair,
   filterSessionsForCameras,
@@ -130,6 +131,23 @@ test("buildCameraStartPayload & buildCameraHotConfigPayload enforce BE schema wi
   assert.equal(hotPayload.target_fps, 25);
 });
 
+test("registered YouTube cameras use server-side source lookup for production tracking", () => {
+  const camera = { ...sampleCamera, streamUrl: "https://www.youtube.com/watch?v=abc123" };
+  const values = {
+    ...deriveLiveDefaultsFromConfig(camera.config),
+    source: camera.streamUrl,
+  };
+
+  const payload = buildCameraStartPayload(camera, values, {
+    productionMode: true,
+    useRegisteredSource: true,
+  });
+
+  assert.equal(payload.camera_uuid, camera.id);
+  assert.equal(Object.hasOwn(payload, "source"), false);
+  assert.equal(buildCameraStartPayload(camera, values).source, camera.streamUrl);
+});
+
 test("deriveLiveDefaultsFromConfig & findSessionForCamera map config and running sessions", () => {
   const defaults = deriveLiveDefaultsFromConfig({
     id: "cfg-1",
@@ -224,6 +242,54 @@ test("deriveLiveDefaultsFromConfig hydrates independent helmet and vest confirma
   });
   assert.equal(legacyDefaults.confirmHelmetSec, 2.0);
   assert.equal(legacyDefaults.confirmVestSec, 4.0);
+});
+
+test("computeSyncedLiveFps adapts target_fps and ai_fps to backend inference latency to prevent bbox lag", () => {
+  assert.equal(computeSyncedLiveFps(null), null);
+  assert.equal(
+    computeSyncedLiveFps({
+      fps: 25,
+      target_fps: 25,
+      ai_fps: 15,
+      inference_latency_ms: 40,
+      rule_latency_ms: 0.2,
+      e2e_alert_latency_ms: 0,
+      active_persons: 1,
+      active_violations: 0,
+      counts: { person: 1, helmet: 1, safety_vest: 1 },
+    }),
+    null,
+  );
+
+  // When inference takes 250ms (4 FPS), 25 target_fps would race 6+ frames ahead; syncs to 5 FPS
+  const synced = computeSyncedLiveFps({
+    fps: 24,
+    target_fps: 25,
+    ai_fps: 10,
+    inference_latency_ms: 250,
+    rule_latency_ms: 0.2,
+    e2e_alert_latency_ms: 0,
+    active_persons: 2,
+    active_violations: 1,
+    counts: { person: 2, helmet: 2, safety_vest: 1 },
+  });
+  assert.deepEqual(synced, { target_fps: 5, ai_fps: 5 });
+
+  // Once already synced within <2 FPS, returns null to avoid redundant PATCH calls
+  assert.equal(
+    computeSyncedLiveFps({
+      fps: 5,
+      target_fps: 5,
+      ai_fps: 5,
+      inference_latency_ms: 250,
+      rule_latency_ms: 0.2,
+      e2e_alert_latency_ms: 0,
+      active_persons: 2,
+      active_violations: 1,
+      counts: { person: 2, helmet: 2, safety_vest: 1 },
+    }),
+    null,
+  );
 });
 
 test("hasMaskedCredentials, canAutoStartCameraSource & resolveCameraSourceIssue reject masked RTSP and HTTPS .mp4", () => {

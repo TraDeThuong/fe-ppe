@@ -46,8 +46,19 @@ export function CameraLiveViewport({
   const isVietnamese = locale === "vi-VN";
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const retryTimerRef = useRef<number | null>(null);
 
   const isRunning = stats?.status === "running";
+  const isReconnecting = stats?.status === "reconnecting";
+  const isWaitingForStream =
+    isStarting || stats?.status === "initializing" || isReconnecting;
+  const hasFailed = stats?.status === "error";
+  const sessionError = hasFailed
+    ? stats?.error ||
+      (isVietnamese ? "Không thể mở luồng AI." : "Unable to open the AI stream.")
+    : isReconnecting
+      ? stats?.error
+      : null;
   const metrics = stats?.metrics;
   const html5PreviewUrl =
     !isRunning && isHtml5VideoUrl(cameraStreamUrl) ? cameraStreamUrl!.trim() : null;
@@ -202,6 +213,15 @@ export function CameraLiveViewport({
               key={`${liveCameraId}-${streamNonce}`}
               src={aiTestService.getLiveStreamUrl(liveCameraId, streamNonce)}
               alt={`AI Live MJPEG Stream ${liveCameraId}`}
+              onError={() => {
+                if (retryTimerRef.current !== null) {
+                  window.clearTimeout(retryTimerRef.current);
+                }
+                retryTimerRef.current = window.setTimeout(() => {
+                  retryTimerRef.current = null;
+                  onReloadStream();
+                }, 1500);
+              }}
               className="h-full w-full rounded-xl object-contain"
             />
 
@@ -242,15 +262,19 @@ export function CameraLiveViewport({
               </button>
             </div>
           </div>
-        ) : isStarting ? (
+        ) : isWaitingForStream ? (
           <div className={`rounded-2xl px-8 py-6 ${NM.extruded}`}>
             <Loader
               size="lg"
               showLabel
               label={
-                isVietnamese
-                  ? "Đang khởi tạo luồng suy luận Live..."
-                  : "Initializing live inference stream..."
+                isReconnecting
+                  ? isVietnamese
+                    ? "Đang kết nối lại luồng AI..."
+                    : "Reconnecting the AI stream..."
+                  : isVietnamese
+                    ? "Đang khởi tạo luồng suy luận Live..."
+                    : "Initializing live inference stream..."
               }
             />
           </div>
@@ -279,9 +303,13 @@ export function CameraLiveViewport({
             <div className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-2 rounded-xl border border-white/30 bg-background/90 px-3 py-1.5 text-[11px] font-bold text-foreground shadow-sm backdrop-blur-md">
               <span className="h-2 w-2 rounded-full bg-accent" />
               <span>
-                {isVietnamese
-                  ? "Preview gốc (AI Tracking chưa bật)"
-                  : "Raw Preview (AI Tracking inactive)"}
+                {hasFailed
+                  ? isVietnamese
+                    ? "Preview gốc (Lỗi AI Tracking)"
+                    : "Raw Preview (AI Tracking error)"
+                  : isVietnamese
+                    ? "Preview gốc (AI Tracking chưa bật)"
+                    : "Raw Preview (AI Tracking inactive)"}
               </span>
             </div>
 
@@ -388,15 +416,17 @@ export function CameraLiveViewport({
                 )}
               </div>
             )}
-
-            {stats?.error && (
-              <div className="mx-auto inline-block rounded-xl border border-accent/25 bg-accent/15 px-3.5 py-2 text-xs font-bold text-accent">
-                {isVietnamese ? "Lỗi session:" : "Session error:"} {stats.error}
-              </div>
-            )}
           </div>
         )}
       </div>
+      {!isStarting && sessionError && (
+        <p
+          role="alert"
+          className="mt-3 break-words rounded-xl border border-accent/25 bg-accent/15 px-3.5 py-2 text-xs font-bold text-accent"
+        >
+          {isVietnamese ? "Lỗi AI Tracking" : "AI Tracking error"} — {sessionError}
+        </p>
+      )}
     </section>
   );
 }

@@ -55,25 +55,68 @@ export function resolveAiPerformance(
   let totalWeight = 0;
   let latencySum = 0;
   let fpsSum = 0;
-  const days = new Map<string, { weight: number; latency: number; fps: number }>();
+  let p95Sum = 0;
+  let p95Weight = 0;
+  let e2eSum = 0;
+  let e2eWeight = 0;
+  const days = new Map<
+    string,
+    {
+      weight: number;
+      latency: number;
+      fps: number;
+      p95Sum: number;
+      p95Weight: number;
+      e2eSum: number;
+      e2eWeight: number;
+    }
+  >();
 
   for (const row of selectedRows) {
     const count = metricNumber(row.totalFrames);
     const latency = metricNumber(row.avgLatencyMs);
     const fps = metricNumber(row.avgFps);
+    const p95 = metricNumber(row.p95LatencyMs);
+    const e2e = metricNumber(row.e2eAlertLatencyMs);
     if (count !== null) frames = (frames ?? 0) + count;
-    if (latency === null || fps === null) continue;
 
     const weight = count !== null && count > 0 ? count : 1;
+    if (p95 !== null) {
+      p95Sum += p95 * weight;
+      p95Weight += weight;
+    }
+    if (e2e !== null) {
+      e2eSum += e2e * weight;
+      e2eWeight += weight;
+    }
+
+    if (latency === null || fps === null) continue;
+
     totalWeight += weight;
     latencySum += latency * weight;
     fpsSum += fps * weight;
 
     const date = String(row.statDate).slice(0, 10);
-    const daily = days.get(date) ?? { weight: 0, latency: 0, fps: 0 };
+    const daily = days.get(date) ?? {
+      weight: 0,
+      latency: 0,
+      fps: 0,
+      p95Sum: 0,
+      p95Weight: 0,
+      e2eSum: 0,
+      e2eWeight: 0,
+    };
     daily.weight += weight;
     daily.latency += latency * weight;
     daily.fps += fps * weight;
+    if (p95 !== null) {
+      daily.p95Sum += p95 * weight;
+      daily.p95Weight += weight;
+    }
+    if (e2e !== null) {
+      daily.e2eSum += e2e * weight;
+      daily.e2eWeight += weight;
+    }
     days.set(date, daily);
   }
 
@@ -83,6 +126,12 @@ export function resolveAiPerformance(
       timestamp: date.slice(5),
       latencyMs: Number((daily.latency / daily.weight).toFixed(2)),
       fps: Number((daily.fps / daily.weight).toFixed(2)),
+      ...(daily.p95Weight > 0
+        ? { p95LatencyMs: Number((daily.p95Sum / daily.p95Weight).toFixed(2)) }
+        : {}),
+      ...(daily.e2eWeight > 0
+        ? { e2eAlertLatencyMs: Number((daily.e2eSum / daily.e2eWeight).toFixed(2)) }
+        : {}),
     }));
 
   const metrics = version?.metrics;
@@ -102,6 +151,8 @@ export function resolveAiPerformance(
     recall,
     f1Score: metricNumber(metrics?.f1Score ?? metrics?.f1) ?? derivedF1,
     averageLatencyMs: roundAverage(latencySum, totalWeight),
+    p95LatencyMs: roundAverage(p95Sum, p95Weight),
+    e2eAlertLatencyMs: roundAverage(e2eSum, e2eWeight),
     averageFps: roundAverage(fpsSum, totalWeight),
     totalFramesProcessed: frames,
     perClassMetrics: Array.isArray(metrics?.perClassMetrics) ? metrics.perClassMetrics : [],

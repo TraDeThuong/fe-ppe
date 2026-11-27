@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { AlertOctagon, BoxSelect, Pause, Play, RotateCcw, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
+import { AlertOctagon, BoxSelect, Check, Pause, Play, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/providers/locale-provider";
 import type { RestrictedAreaPoint } from "@/types";
@@ -38,6 +38,18 @@ function isVideoSource(url?: string): boolean {
   );
 }
 
+const MAX_POINTS = 50;
+const ARROW_OFFSETS: Partial<Record<string, [number, number]>> = {
+  ArrowLeft: [-1, 0],
+  ArrowRight: [1, 0],
+  ArrowUp: [0, -1],
+  ArrowDown: [0, 1],
+};
+
+function clampCoordinate(value: number) {
+  return Math.max(0, Math.min(1, Math.round(value * 10000) / 10000));
+}
+
 export function RestrictedAreaCanvas({
   points,
   onChange,
@@ -48,37 +60,43 @@ export function RestrictedAreaCanvas({
 }: RestrictedAreaCanvasProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
-  const containerRef = useRef<HTMLDivElement>(null);
+  const drawingRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const dragRef = useRef<{
+    index: number;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    original: RestrictedAreaPoint;
+  } | null>(null);
   const [dimensions, setDimensions] = useState({ width: 640, height: 360 });
   const [videoAspect, setVideoAspect] = useState<string>("16 / 9");
   const [isPaused, setIsPaused] = useState(false);
   const [videoError, setVideoError] = useState(false);
+  const [addingPoints, setAddingPoints] = useState(false);
+  const isDrawing = points.length === 0 || addingPoints;
 
   const youtubeUrl = getYouTubeEmbedUrl(streamUrl);
   const isNativeVideo = isVideoSource(streamUrl) && !videoError;
   const fallbackConstructionImage = "/images/camera-live-evidence.jpg";
 
-  const updateSize = () => {
-    if (containerRef.current) {
-      setDimensions({
-        width: containerRef.current.clientWidth,
-        height: containerRef.current.clientHeight,
-      });
-    }
-  };
-
   useEffect(() => {
+    const drawing = drawingRef.current;
+    if (!drawing) return;
+    const updateSize = () => {
+      const { width, height } = drawing.getBoundingClientRect();
+      setDimensions({ width, height });
+    };
     updateSize();
-    window.addEventListener("resize", updateSize);
-    return () => window.removeEventListener("resize", updateSize);
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(drawing);
+    return () => observer.disconnect();
   }, []);
 
   const handleVideoLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const v = e.currentTarget;
     if (v.videoWidth && v.videoHeight) {
       setVideoAspect(`${v.videoWidth} / ${v.videoHeight}`);
-      setTimeout(updateSize, 50);
     }
   };
 
@@ -95,20 +113,64 @@ export function RestrictedAreaCanvas({
     }
   };
 
-  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (disabled || !containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
+  const handleClick = (e: MouseEvent<HTMLDivElement>) => {
+    if (disabled || !isDrawing || points.length >= MAX_POINTS) return;
+    const rect = e.currentTarget.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
 
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
+    setAddingPoints(true);
+    onChange([
+      ...points,
+      {
+        x: clampCoordinate((e.clientX - rect.left) / rect.width),
+        y: clampCoordinate((e.clientY - rect.top) / rect.height),
+      },
+    ]);
+  };
 
-    const newPoint: RestrictedAreaPoint = {
-      x: Math.max(0, Math.min(1, Math.round(x * 10000) / 10000)),
-      y: Math.max(0, Math.min(1, Math.round(y * 10000) / 10000)),
+  const handleVertexPointerDown = (e: PointerEvent<HTMLButtonElement>, index: number) => {
+    if (disabled || e.button !== 0 || dragRef.current) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = {
+      index,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      original: points[index],
     };
+  };
 
-    onChange([...points, newPoint]);
+  const handleVertexPointerMove = (e: PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    const rect = drawingRef.current?.getBoundingClientRect();
+    if (disabled || drag?.pointerId !== e.pointerId || !rect?.width || !rect.height) return;
+
+    moveVertex(
+      drag.index,
+      drag.original.x + (e.clientX - drag.startX) / rect.width,
+      drag.original.y + (e.clientY - drag.startY) / rect.height,
+    );
+  };
+
+  const moveVertex = (index: number, nextX: number, nextY: number) => {
+    const x = clampCoordinate(nextX);
+    const y = clampCoordinate(nextY);
+    const point = points[index];
+    if (point && (point.x !== x || point.y !== y)) {
+      onChange(points.map((existing, currentIndex) => currentIndex === index ? { x, y } : existing));
+    }
+  };
+
+  const handleVertexKeyDown = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const direction = ARROW_OFFSETS[e.key];
+    if (disabled || !direction) return;
+    e.preventDefault();
+    const step = e.shiftKey ? 0.05 : 0.01;
+    moveVertex(index, points[index].x + direction[0] * step, points[index].y + direction[1] * step);
+  };
+
+  const finishVertexDrag = (e: PointerEvent<HTMLButtonElement>) => {
+    if (dragRef.current?.pointerId === e.pointerId) dragRef.current = null;
   };
 
   const handleUndo = () => {
@@ -118,10 +180,12 @@ export function RestrictedAreaCanvas({
   };
 
   const handleClear = () => {
+    setAddingPoints(false);
     onChange([]);
   };
 
   const handleQuickBox = () => {
+    setAddingPoints(false);
     onChange([
       { x: 0.25, y: 0.25 },
       { x: 0.75, y: 0.25 },
@@ -138,14 +202,12 @@ export function RestrictedAreaCanvas({
     <div className="space-y-3">
       {/* Interactive Danger Canvas Container */}
       <div
-        ref={containerRef}
-        onClick={handleClick}
         style={{
           aspectRatio: videoAspect,
           maxHeight: "56vh",
           margin: "0 auto",
         }}
-        className="relative w-full cursor-crosshair overflow-hidden rounded-2xl border-2 border-dashed border-danger/60 bg-neutral-950 shadow-nm-inset select-none flex items-center justify-center"
+        className="relative w-full overflow-hidden rounded-2xl border-2 border-dashed border-danger/60 bg-neutral-950 shadow-nm-inset select-none flex items-center justify-center"
       >
         {/* Background Visual Layer */}
         {youtubeUrl ? (
@@ -212,75 +274,76 @@ export function RestrictedAreaCanvas({
               )}
             </button>
           )}
-          <span className="rounded-lg bg-black/60 backdrop-blur-md px-2 py-1 font-mono text-[10px] text-white/80 border border-white/10 hidden sm:inline-block">
-            {isVietnamese ? "Nhấp chuột để chấm điểm ranh giới" : "Click to plot danger points"}
-          </span>
         </div>
 
-        {/* SVG Danger Boundary Layer */}
-        <svg className="absolute inset-0 h-full w-full pointer-events-none">
-          {/* Danger Stripe Pattern Def */}
-          <defs>
-            <pattern
-              id="dangerStripes"
-              width="16"
-              height="16"
-              patternTransform="rotate(45 0 0)"
-              patternUnits="userSpaceOnUse"
-            >
-              <line x1="0" y1="0" x2="0" y2="16" stroke="rgba(239, 68, 68, 0.45)" strokeWidth="6" />
-            </pattern>
-          </defs>
+        <div
+          ref={drawingRef}
+          onClick={handleClick}
+          className={`absolute inset-0 ${!disabled && isDrawing ? "cursor-crosshair" : ""}`}
+        >
+          {/* SVG Danger Boundary Layer */}
+          <svg aria-hidden="true" className="absolute inset-0 h-full w-full pointer-events-none">
+            {/* Danger Stripe Pattern Def */}
+            <defs>
+              <pattern
+                id="dangerStripes"
+                width="16"
+                height="16"
+                patternTransform="rotate(45 0 0)"
+                patternUnits="userSpaceOnUse"
+              >
+                <line x1="0" y1="0" x2="0" y2="16" stroke="rgba(239, 68, 68, 0.45)" strokeWidth="6" />
+              </pattern>
+            </defs>
 
-          {/* Filled Danger Polygon with stripes */}
-          {points.length >= 3 && (
-            <>
-              <polygon
+            {/* Filled Danger Polygon with stripes */}
+            {points.length >= 3 && (
+              <>
+                <polygon
+                  points={svgPoints}
+                  fill="rgba(239, 68, 68, 0.22)"
+                  stroke="#ef4444"
+                  strokeWidth="2.5"
+                  strokeDasharray="5 3"
+                />
+                <polygon points={svgPoints} fill="url(#dangerStripes)" opacity="0.35" />
+              </>
+            )}
+
+            {/* Polyline for < 3 points */}
+            {points.length > 0 && points.length < 3 && (
+              <polyline
                 points={svgPoints}
-                fill="rgba(239, 68, 68, 0.22)"
+                fill="none"
                 stroke="#ef4444"
                 strokeWidth="2.5"
-                strokeDasharray="5 3"
+                strokeDasharray="4 2"
               />
-              <polygon points={svgPoints} fill="url(#dangerStripes)" opacity="0.35" />
-            </>
-          )}
-
-          {/* Polyline for < 3 points */}
-          {points.length > 0 && points.length < 3 && (
-            <polyline
-              points={svgPoints}
-              fill="none"
-              stroke="#ef4444"
-              strokeWidth="2.5"
-              strokeDasharray="4 2"
-            />
-          )}
-
-          {/* Vertex Dots */}
-          {points.map((p, idx) => (
-            <g key={idx}>
-              <circle
-                cx={p.x * dimensions.width}
-                cy={p.y * dimensions.height}
-                r="6.5"
-                fill="#ef4444"
-                stroke="#ffffff"
-                strokeWidth="2"
-              />
-              <text
-                x={p.x * dimensions.width + 9}
-                y={p.y * dimensions.height - 9}
-                fill="#ffffff"
-                fontSize="11"
-                fontWeight="bold"
-                className="drop-shadow-md select-none font-mono"
-              >
-                P{idx + 1}
-              </text>
-            </g>
+            )}
+          </svg>
+          {points.map((point, index) => (
+            <button
+              key={index}
+              type="button"
+              aria-label={isVietnamese ? `Kéo điểm ${index + 1}` : `Drag vertex ${index + 1}`}
+              disabled={disabled}
+              style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }}
+              onPointerDown={(e) => handleVertexPointerDown(e, index)}
+              onPointerMove={handleVertexPointerMove}
+              onPointerUp={finishVertexDrag}
+              onPointerCancel={finishVertexDrag}
+              onLostPointerCapture={finishVertexDrag}
+              onKeyDown={(e) => handleVertexKeyDown(e, index)}
+              onClick={(e) => e.stopPropagation()}
+              className="group absolute flex size-10 -translate-x-1/2 -translate-y-1/2 touch-none cursor-grab items-center justify-center rounded-full focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-white active:cursor-grabbing disabled:cursor-default"
+            >
+              <span aria-hidden="true" className="size-3.5 rounded-full border-2 border-white bg-red-500 group-hover:ring-4 group-hover:ring-white/40" />
+              <span aria-hidden="true" className="absolute left-[calc(50%+9px)] top-0 font-mono text-[11px] font-bold text-white drop-shadow-md">
+                P{index + 1}
+              </span>
+            </button>
           ))}
-        </svg>
+        </div>
 
         {/* Coordinates Overlay Badge */}
         <div className="absolute bottom-2 left-2 rounded-lg bg-black/75 backdrop-blur-sm px-2.5 py-1 font-mono text-[11px] text-white/90 border border-white/10 pointer-events-none flex items-center gap-2">
@@ -302,12 +365,29 @@ export function RestrictedAreaCanvas({
       {/* Action Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
         <p className="text-xs text-muted-foreground">
-          {isVietnamese
-            ? "Nhấp chuột theo chiều kim đồng hồ quanh khu vực hố móng / trạm điện / chân cẩu nguy hiểm."
-            : "Click clockwise around excavation, transformer or crane danger zones."}
+          {isDrawing
+            ? isVietnamese
+              ? "Chấm điểm theo thứ tự quanh ranh giới. Kéo các điểm để chỉnh vị trí."
+              : "Click around the boundary in order. Drag vertices to adjust them."
+            : isVietnamese
+              ? "Kéo các điểm để chỉnh ranh giới. Bấm Thêm điểm để tiếp tục vẽ."
+              : "Drag vertices to adjust the boundary. Select Add points to continue drawing."}
         </p>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setAddingPoints(!isDrawing)}
+            disabled={disabled || (isDrawing ? points.length < 3 : points.length >= MAX_POINTS)}
+            className="flex items-center gap-1.5 text-xs text-primary hover:text-primary"
+          >
+            {isDrawing ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+            {isDrawing
+              ? isVietnamese ? "Xong" : "Done"
+              : isVietnamese ? "Thêm điểm" : "Add points"}
+          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -330,7 +410,7 @@ export function RestrictedAreaCanvas({
             className="flex items-center gap-1.5 text-xs"
           >
             <RotateCcw className="h-3.5 w-3.5" />
-            <span>{isVietnamese ? "Hoàn tác" : "Undo"}</span>
+            <span>{isVietnamese ? "Bỏ điểm cuối" : "Remove last"}</span>
           </Button>
 
           <Button

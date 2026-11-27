@@ -6,10 +6,10 @@ import {
   Eye,
   Laptop,
   Smartphone,
-  Sparkles,
   Wifi,
 } from "lucide-react";
 import { MaintenanceScreen } from "./maintenance-screen";
+import { env } from "@/config/env";
 import { useLocale } from "@/providers/locale-provider";
 import type { MaintenanceConfig } from "@/types";
 
@@ -20,7 +20,7 @@ export interface MaintenancePreviewCardProps {
 export function MaintenancePreviewCard({
   config,
 }: MaintenancePreviewCardProps) {
-  const { t, locale } = useLocale();
+  const { t } = useLocale();
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
 
   return (
@@ -79,7 +79,7 @@ export function MaintenancePreviewCard({
                 <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80" />
               </div>
               <div className="mx-auto min-w-0 flex-1 max-w-48 text-[11px] font-mono text-muted-foreground bg-background px-2.5 sm:px-3 py-0.5 rounded-md border border-border/30 text-center truncate">
-                https://smartppe.vn
+                {env.appUrl || "https://smartppe.vn"}
               </div>
             </div>
 

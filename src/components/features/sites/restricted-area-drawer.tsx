@@ -94,13 +94,6 @@ export interface RestrictedAreaDrawerProps {
   ) => Promise<void> | void;
 }
 
-const DEFAULT_CAMERA_PRESET_BOX: RestrictedAreaPoint[] = [
-  { x: 0.25, y: 0.25 },
-  { x: 0.75, y: 0.25 },
-  { x: 0.75, y: 0.75 },
-  { x: 0.25, y: 0.75 },
-];
-
 export function RestrictedAreaDrawer({
   open,
   onOpenChange,
@@ -207,13 +200,7 @@ export function RestrictedAreaDrawer({
 
       const areaPts = extractPlottedBoundaryPoints(preferredArea.boundary);
       const camPts = extractPlottedBoundaryPoints(initialPoints);
-      setPoints(
-        camPts.length >= 3
-          ? camPts
-          : areaPts.length >= 3
-            ? areaPts
-            : DEFAULT_CAMERA_PRESET_BOX,
-      );
+      setPoints(camPts.length ? camPts : areaPts);
     } else {
       setSelectedSiteAreaId("NEW");
       setName(
@@ -226,8 +213,7 @@ export function RestrictedAreaDrawer({
       setDescription("");
       setStatus("ACTIVE");
       setZoneId(cameraZoneId);
-      const camPts = extractPlottedBoundaryPoints(initialPoints);
-      setPoints(camPts.length >= 3 ? camPts : DEFAULT_CAMERA_PRESET_BOX);
+      setPoints(extractPlottedBoundaryPoints(initialPoints));
     }
   }, [
     open,
@@ -249,8 +235,7 @@ export function RestrictedAreaDrawer({
       setDescription("");
       setStatus("ACTIVE");
       setZoneId(fixedCamera?.zoneId || defaultZoneId || "");
-      const camPts = extractPlottedBoundaryPoints(initialPoints);
-      setPoints(camPts.length >= 3 ? camPts : DEFAULT_CAMERA_PRESET_BOX);
+      setPoints(extractPlottedBoundaryPoints(initialPoints));
       return;
     }
 
@@ -262,13 +247,7 @@ export function RestrictedAreaDrawer({
       setZoneId(found.zoneId || fixedCamera?.zoneId || defaultZoneId || "");
       const areaPts = extractPlottedBoundaryPoints(found.boundary);
       const camPts = extractPlottedBoundaryPoints(initialPoints);
-      setPoints(
-        areaPts.length >= 3
-          ? areaPts
-          : camPts.length >= 3
-            ? camPts
-            : DEFAULT_CAMERA_PRESET_BOX,
-      );
+      setPoints(areaPts.length ? areaPts : camPts);
     }
   };
 
@@ -647,6 +626,7 @@ export function RestrictedAreaDrawer({
             </div>
 
             <RestrictedAreaCanvas
+              key={`${fixedCamera?.id ?? ""}:${selectedSiteAreaId}`}
               points={points}
               onChange={setPoints}
               streamUrl={fixedCamera?.streamUrl || undefined}

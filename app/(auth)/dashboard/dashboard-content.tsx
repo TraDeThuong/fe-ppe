@@ -509,7 +509,7 @@ export default function DashboardContent() {
         periodState={periodState}
       />
 
-      {(activeTab === "overview" || activeTab === "safety") && (
+      {activeTab === "overview" && (
         <DashboardKpiRibbon
           total={displayPeriodTotal}
           rawTotal={displayRawPeriodTotal}

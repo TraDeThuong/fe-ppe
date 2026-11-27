@@ -46,6 +46,8 @@ describe("ai-metrics cards", () => {
     const html = renderWithProviders(
       React.createElement(LatencyChartCard, {
         avgLatencyMs: 18.5,
+        p95LatencyMs: 31.2,
+        e2eAlertLatencyMs: 412.6,
         avgFps: 28.5,
         latencyHistory: [
           { timestamp: "10-31", latencyMs: 18.4, fps: 28.5 },
@@ -60,6 +62,35 @@ describe("ai-metrics cards", () => {
     assert.ok(html.includes("ms"));
     assert.ok(html.includes("28.5"));
     assert.ok(html.includes("18.4"));
+    assert.ok(html.includes("31.2"));
+    assert.ok(html.includes("412.6"));
+  });
+
+  it("AiMetricsKpiSummary renders p95LatencyMs and e2eAlertLatencyMs on the latency card", () => {
+    const html = renderWithProviders(
+      React.createElement(AiMetricsKpiSummary, {
+        performance: {
+          modelName: "YOLOv11s-PPE",
+          version: "3.0.0",
+          mAP50: 0.88,
+          mAP50_95: 0.64,
+          precision: 0.85,
+          recall: 0.84,
+          f1Score: 0.845,
+          averageLatencyMs: 19.4,
+          p95LatencyMs: 34.8,
+          e2eAlertLatencyMs: 390.5,
+          averageFps: 27.2,
+          totalFramesProcessed: 12000,
+          perClassMetrics: [],
+          confusionMatrix: { classes: [], matrix: [] },
+          latencyHistory: [],
+        },
+      }),
+    );
+
+    assert.ok(html.includes("34.8 ms"));
+    assert.ok(html.includes("390.5 ms"));
   });
 
   it("ConfusionMatrixHeatmap highlights selectedClass when provided", () => {

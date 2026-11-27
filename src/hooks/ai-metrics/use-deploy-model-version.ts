@@ -43,12 +43,36 @@ export function useDeployModelVersion() {
       queryClient.invalidateQueries({ queryKey: aiMetricsKeys.all });
       queryClient.invalidateQueries({ queryKey: reportingKeys.dashboardKpi() });
       const versionLabel = formatVersionLabel(data.version);
-      toast.success(
-        pickLocaleText(
-          `Đã cập nhật phiên bản ${versionLabel} trong Registry.`,
-          `Updated version ${versionLabel} in the Registry.`,
-        ),
-      );
+      const syncStatus = data.aiRuntimeSync?.status;
+      if (syncStatus === "SYNCED") {
+        toast.success(
+          pickLocaleText(
+            `Đã triển khai phiên bản ${versionLabel} và đồng bộ nóng sang AI Engine thành công.`,
+            `Deployed version ${versionLabel} and hot-synced to AI Engine.`,
+          ),
+        );
+      } else if (syncStatus === "EVENT_PUBLISHED") {
+        toast.success(
+          pickLocaleText(
+            `Đã cập nhật phiên bản ${versionLabel} trong Registry và phát sự kiện đồng bộ qua Redis.`,
+            `Updated version ${versionLabel} in the Registry and published sync event via Redis.`,
+          ),
+        );
+      } else if (syncStatus === "FAILED") {
+        toast.info(
+          pickLocaleText(
+            `Đã cập nhật phiên bản ${versionLabel} trong Registry. AI Engine chưa phản hồi đồng bộ nóng và sẽ tự đồng bộ ở chu kỳ kế tiếp.`,
+            `Updated version ${versionLabel} in the Registry. AI Engine hot-sync was unreachable and will sync on the next cycle.`,
+          ),
+        );
+      } else {
+        toast.success(
+          pickLocaleText(
+            `Đã cập nhật phiên bản ${versionLabel} trong Registry.`,
+            `Updated version ${versionLabel} in the Registry.`,
+          ),
+        );
+      }
     },
     onError: (err: unknown) => {
       const msg = formatMutationError(

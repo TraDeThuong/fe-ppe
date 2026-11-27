@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Clock, Gauge, TrendingDown, TrendingUp } from "lucide-react";
+import { Activity, BellRing, Clock, Gauge, TrendingDown, TrendingUp } from "lucide-react";
 import { useId } from "react";
 import { useLocale } from "@/providers/locale-provider";
 import { AnimatedNumber, useAnimatedProgress } from "@/components/ui/animated-number";
@@ -10,6 +10,8 @@ import { AiCardHelpButton } from "./ai-metrics-guide-modal";
 export interface LatencyChartCardProps {
   latencyHistory?: LatencyDataPoint[];
   avgLatencyMs?: number | null;
+  p95LatencyMs?: number | null;
+  e2eAlertLatencyMs?: number | null;
   avgFps?: number | null;
   loading?: boolean;
   onOpenGuide?: () => void;
@@ -18,6 +20,8 @@ export interface LatencyChartCardProps {
 export function LatencyChartCard({
   latencyHistory = [],
   avgLatencyMs = null,
+  p95LatencyMs = null,
+  e2eAlertLatencyMs = null,
   avgFps = null,
   loading = false,
   onOpenGuide,
@@ -158,6 +162,22 @@ export function LatencyChartCard({
       icon: Clock,
       accent: false,
       note: isVi ? "Độ trễ trung bình" : "Average latency",
+    },
+    {
+      label: t("aiMetrics.latencyChart.p95Latency"),
+      value: p95LatencyMs,
+      unit: "ms",
+      icon: Gauge,
+      accent: false,
+      note: isVi ? "Phân vị P95 (< 100 ms)" : "95th percentile (< 100 ms)",
+    },
+    {
+      label: t("aiMetrics.latencyChart.e2eAlertLatency"),
+      value: e2eAlertLatencyMs,
+      unit: "ms",
+      icon: BellRing,
+      accent: true,
+      note: isVi ? "Cảnh báo đầu-cuối (< 2000 ms)" : "End-to-End Alert (< 2000 ms)",
     },
     {
       label: t("aiMetrics.latencyChart.minLatency"),
@@ -520,7 +540,7 @@ export function LatencyChartCard({
         </div>
 
         {/* KPI cards */}
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           {stats.map((stat, statIdx) => {
             const Icon = stat.icon;
             const numericStat = stat.value;
@@ -610,13 +630,23 @@ export function LatencyChartCard({
             </div>
           </div>
 
-          <div className="text-right">
-            <p className="text-lg font-extrabold tracking-tight text-primary tabular-nums">
-              &lt; 100 ms
-            </p>
-            <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-              Service level objective
-            </p>
+          <div className="flex flex-wrap items-center gap-4 text-right">
+            <div>
+              <p className="text-lg font-extrabold tracking-tight text-primary tabular-nums">
+                P95 &lt; 100 ms
+              </p>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                Inference SLA
+              </p>
+            </div>
+            <div className="border-l border-border/40 pl-4">
+              <p className="text-lg font-extrabold tracking-tight text-accent tabular-nums">
+                E2E &lt; 2000 ms
+              </p>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                Service level objective
+              </p>
+            </div>
           </div>
         </footer>
       </div>

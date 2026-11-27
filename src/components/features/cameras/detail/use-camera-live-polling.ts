@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { normalizeLiveEvidences } from "@/components/features/ai-test/ai-test-utils";
+import { computeSyncedLiveFps } from "@/components/features/cameras/camera-live-helpers";
 import { useRealtime } from "@/contexts/RealtimeContext";
+import { useCan } from "@/hooks/use-can";
 import {
   aiTestService,
   isAiEndpointNotFoundError,
@@ -81,8 +83,10 @@ export function useCameraLivePolling({
   onInvalidateIncidents,
 }: UseCameraLivePollingOptions) {
   const { lastAlert } = useRealtime();
+  const canManageCamera = useCan()("PPE_CAMERA_MANAGE");
   const [stats, setStats] = useState<LiveStatsResponse | null>(null);
   const prevViolationsCountRef = useRef<number | null>(null);
+  const lastAutoSyncAtRef = useRef<number>(0);
 
   const isSessionActive =
     runningSession?.status === "running" ||
@@ -109,21 +113,32 @@ export function useCameraLivePolling({
         const data = await aiTestService.getLiveStats(liveCameraId);
         if (!cancelled) {
           setStats((prev) => mergePolledStats(prev, data));
+          if (canManageCamera && data.status === "running") {
+            const now = Date.now();
+            const syncedFps = computeSyncedLiveFps(data.metrics);
+            if (syncedFps && now - lastAutoSyncAtRef.current >= 2500) {
+              lastAutoSyncAtRef.current = now;
+              void aiTestService
+                .updateLiveConfig(liveCameraId, syncedFps)
+                .catch(() => undefined);
+            }
+          }
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && isAiEndpointNotFoundError(err)) {
           setStats((prev) => (prev ? { ...prev, status: "stopped" } : null));
-          if (isAiEndpointNotFoundError(err)) {
-            void onRefreshAiEngine();
-          }
+          void onRefreshAiEngine();
         }
       }
     };
 
     void poll();
+    const isBootstrapping =
+      stats?.status === "initializing" ||
+      runningSession?.status === "initializing";
     const timer = window.setInterval(() => {
       void poll();
-    }, 1500);
+    }, isBootstrapping ? 600 : 1200);
 
     const handleVisibility = () => {
       if (!document.hidden) {
@@ -141,7 +156,7 @@ export function useCameraLivePolling({
         document.removeEventListener("visibilitychange", handleVisibility);
       }
     };
-  }, [activeTab, isSessionActive, liveCameraId, onRefreshAiEngine]);
+  }, [activeTab, canManageCamera, isSessionActive, liveCameraId, onRefreshAiEngine, runningSession?.status, stats?.status]);
 
   // Refresh DB Incidents on SSE violation alerts or sandbox live violation confirmation
   useEffect(() => {
@@ -202,8 +217,6 @@ export function useCameraLivePolling({
     [liveCameraId, rawEvidences, recentViolations],
   );
 
-  const isRunning =
-    stats?.status === "running" || runningSession?.status === "running";
   const effectiveStats: LiveStatsResponse | null =
     stats ??
     (runningSession
@@ -219,7 +232,7 @@ export function useCameraLivePolling({
   return {
     stats,
     setStats,
-    isRunning,
+    isRunning: effectiveStats?.status === "running",
     effectiveStats,
     liveEvidences,
   };

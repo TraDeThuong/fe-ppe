@@ -4,18 +4,15 @@ import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   Clock,
-  HardHat,
-  HelpCircle,
   LogOut,
   Mail,
   RefreshCw,
-  Shield,
-  ShieldAlert,
   Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePublicConfig } from "@/hooks/auth";
+import { getConfig, SYSTEM_CONFIG_KEYS } from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 import type { PublicMaintenanceStatus } from "@/types";
 
@@ -35,8 +32,17 @@ export function MaintenanceScreen({
   previewMode = "desktop",
 }: MaintenanceScreenProps) {
   const { logout, user } = useAuth();
-  const { t, locale } = useLocale();
-  const isVietnamese = locale === "vi-VN";
+  const { t } = useLocale();
+  const { data: publicConfig } = usePublicConfig();
+  const rawSupportEmail = getConfig<string>(
+    publicConfig,
+    SYSTEM_CONFIG_KEYS.supportEmail,
+    "support@smartppe.vn",
+  );
+  const supportEmail =
+    typeof rawSupportEmail === "string" && rawSupportEmail.trim().length > 0
+      ? rawSupportEmail.trim()
+      : "support@smartppe.vn";
   const isMobilePreview = isPreview && previewMode === "mobile";
 
   const [timeLeft, setTimeLeft] = useState<{
@@ -311,10 +317,10 @@ export function MaintenanceScreen({
               <Mail className="h-3 w-3 text-primary shrink-0" />
               <span className="max-w-full truncate">{t("maintenance.screen.support")}</span>
               <a
-                href="mailto:support@smartppe.vn"
+                href={`mailto:${supportEmail}`}
                 className="font-semibold text-primary hover:underline shrink-0"
               >
-                support@smartppe.vn
+                {supportEmail}
               </a>
             </p>
           </div>

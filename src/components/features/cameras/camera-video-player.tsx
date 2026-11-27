@@ -48,6 +48,7 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
   const effectiveStopLive = canManage ? onStopLive : undefined;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [streamError, setStreamError] = useState(false);
+  const [retryNonce, setRetryNonce] = useState<number>(0);
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
@@ -74,6 +75,15 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
       setStreamError(false);
     }
   }, [camera.id, isRunning]);
+
+  useEffect(() => {
+    if (!isRunning || !streamError || !isVisible) return;
+    const timer = window.setTimeout(() => {
+      setRetryNonce(Date.now());
+      setStreamError(false);
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [isRunning, isVisible, streamError]);
   const metrics = liveSession?.metrics;
 
   const fps = typeof metrics?.fps === "number" ? metrics.fps : undefined;
@@ -152,7 +162,7 @@ export const CameraVideoPlayer = memo(function CameraVideoPlayer({
           {isVisible ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={aiTestService.getLiveStreamUrl(liveId)}
+              src={aiTestService.getLiveStreamUrl(liveId, retryNonce || undefined)}
               alt={`AI Live Stream ${camera.name}`}
               onError={() => setStreamError(true)}
               className="h-full w-full object-contain"

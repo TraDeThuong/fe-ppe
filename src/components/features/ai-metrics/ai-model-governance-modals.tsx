@@ -685,6 +685,8 @@ export function RecordAiBenchmarkModal({
   const [statDate, setStatDate] = useState(todayDate);
   const [fps, setFps] = useState("24");
   const [latencyMs, setLatencyMs] = useState("22");
+  const [p95LatencyMs, setP95LatencyMs] = useState("35");
+  const [e2eAlertLatencyMs, setE2eAlertLatencyMs] = useState("380");
   const [frameCount, setFrameCount] = useState("1000");
 
   const wasOpenRef = useRef(false);
@@ -694,6 +696,8 @@ export function RecordAiBenchmarkModal({
       setStatDate(getTodayVietnamDate());
       setFps("24");
       setLatencyMs("22");
+      setP95LatencyMs("35");
+      setE2eAlertLatencyMs("380");
       setFrameCount("1000");
       if (activeDeployedVersion) {
         setModelVersionId("");
@@ -740,6 +744,8 @@ export function RecordAiBenchmarkModal({
     e.preventDefault();
     if (!resolvedCameraId) return;
     const resolvedVersionId = effectiveVersionId || undefined;
+    const parsedP95 = p95LatencyMs.trim() ? Number(p95LatencyMs) : undefined;
+    const parsedE2e = e2eAlertLatencyMs.trim() ? Number(e2eAlertLatencyMs) : undefined;
     try {
       await onSubmit({
         cameraId: resolvedCameraId,
@@ -747,6 +753,14 @@ export function RecordAiBenchmarkModal({
         statDate: statDate || undefined,
         fps: Number(fps),
         latencyMs: Number(latencyMs),
+        p95LatencyMs:
+          parsedP95 !== undefined && Number.isFinite(parsedP95) && parsedP95 >= 0
+            ? parsedP95
+            : undefined,
+        e2eAlertLatencyMs:
+          parsedE2e !== undefined && Number.isFinite(parsedE2e) && parsedE2e >= 0
+            ? parsedE2e
+            : undefined,
         frameCount: Number(frameCount) || 1,
       });
       onOpenChange(false);
@@ -863,6 +877,31 @@ export function RecordAiBenchmarkModal({
               required
               value={frameCount}
               onChange={(e) => setFrameCount(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground">P95 Latency (ms)</label>
+            <Input
+              type="number"
+              step="0.1"
+              min={0}
+              max={60000}
+              value={p95LatencyMs}
+              onChange={(e) => setP95LatencyMs(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-foreground">E2E Alert Latency (ms)</label>
+            <Input
+              type="number"
+              step="0.1"
+              min={0}
+              max={60000}
+              value={e2eAlertLatencyMs}
+              onChange={(e) => setE2eAlertLatencyMs(e.target.value)}
             />
           </div>
         </div>

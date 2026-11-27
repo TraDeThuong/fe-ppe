@@ -12,6 +12,7 @@ export interface AiMetricsKpiSummaryProps {
   loading?: boolean;
   selectedStat?: AiMetricStatKey | null;
   onSelectStat?: (stat: AiMetricStatKey | null) => void;
+  onNavigateToGovernance?: () => void;
 }
 
 function formatFramesCount(total: number): string {
@@ -26,6 +27,7 @@ export function AiMetricsKpiSummary({
   loading = false,
   selectedStat: propSelectedStat,
   onSelectStat,
+  onNavigateToGovernance,
 }: AiMetricsKpiSummaryProps) {
   const { t } = useLocale();
 
@@ -47,6 +49,12 @@ export function AiMetricsKpiSummary({
     : "—";
   const latencyFormatted = performance?.averageLatencyMs != null
     ? `${performance.averageLatencyMs.toFixed(1)} ms`
+    : "—";
+  const p95Formatted = performance?.p95LatencyMs != null
+    ? `${performance.p95LatencyMs.toFixed(1)} ms`
+    : "—";
+  const e2eFormatted = performance?.e2eAlertLatencyMs != null
+    ? `${performance.e2eAlertLatencyMs.toFixed(1)} ms`
     : "—";
   const fpsFormatted = performance?.averageFps != null
     ? `${performance.averageFps.toFixed(1)} FPS`
@@ -122,6 +130,10 @@ export function AiMetricsKpiSummary({
                     {t("aiMetrics.stats.viewDetail")} <ChevronDown className="h-3 w-3" />
                   </span>
                 )}
+              </span>
+              <span className="truncate font-mono text-[10px] font-semibold text-muted-foreground">
+                P95: <strong className="text-foreground">{loading ? "..." : p95Formatted}</strong> · E2E:{" "}
+                <strong className="text-foreground">{loading ? "..." : e2eFormatted}</strong>
               </span>
             </div>
           }
@@ -201,6 +213,7 @@ export function AiMetricsKpiSummary({
             }
           }}
           onClose={() => handleToggle(activeStat)}
+          onNavigateToGovernance={onNavigateToGovernance}
         />
       )}
     </div>

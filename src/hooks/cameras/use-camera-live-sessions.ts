@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
@@ -13,6 +13,7 @@ import { cameraService } from "@/services/camera.service";
 import { cameraKeys } from "./camera.query-keys";
 import {
   buildCameraStartPayload,
+  computeSyncedLiveFps,
   deriveLiveDefaultsFromConfig,
   findSessionForCamera,
   resolveInitialCameraSource,
@@ -177,7 +178,11 @@ export function useCameraLiveSessions(options?: {
           source,
           ...overrides,
         },
-        { productionMode },
+        {
+          productionMode,
+          useRegisteredSource:
+            overrides?.source == null && source === camera.streamUrl?.trim(),
+        },
       );
 
       return aiTestService.startLiveStream(payload);
@@ -345,6 +350,24 @@ export function useCameraLiveSessions(options?: {
     () => sessionsQuery.data?.sessions ?? [],
     [sessionsQuery.data?.sessions],
   );
+
+  const lastSessionSyncMapRef = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    if (!canManageCamera || sessions.length === 0) return;
+    const now = Date.now();
+    for (const sess of sessions) {
+      if (sess.status !== "running") continue;
+      const syncedFps = computeSyncedLiveFps(sess.metrics);
+      if (!syncedFps) continue;
+      const lastAt = lastSessionSyncMapRef.current.get(sess.camera_id) ?? 0;
+      if (now - lastAt < 2500) continue;
+      lastSessionSyncMapRef.current.set(sess.camera_id, now);
+      void aiTestService
+        .updateLiveConfig(sess.camera_id, syncedFps)
+        .catch(() => undefined);
+    }
+  }, [canManageCamera, sessions]);
 
   const sessionMap = useMemo(() => {
     const map = new Map<string, LiveSessionInfo>();

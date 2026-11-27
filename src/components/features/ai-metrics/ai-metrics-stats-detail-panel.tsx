@@ -27,6 +27,7 @@ export interface AiMetricsStatsDetailPanelProps {
   performance?: AiPerformanceDto | null;
   onSelectStat: (stat: AiMetricStatKey) => void;
   onClose: () => void;
+  onNavigateToGovernance?: () => void;
 }
 
 function formatFramesCount(total: number): string {
@@ -41,8 +42,10 @@ export function AiMetricsStatsDetailPanel({
   performance,
   onSelectStat,
   onClose,
+  onNavigateToGovernance,
 }: AiMetricsStatsDetailPanelProps) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
+  const isVi = locale === "vi-VN";
 
   // Giá trị định dạng thực tế từ API
   const mapFormatted = performance?.mAP50 != null
@@ -54,6 +57,12 @@ export function AiMetricsStatsDetailPanel({
     ? `${performance.averageLatencyMs.toFixed(1)} ms`
     : "—";
   const latencyNum = performance?.averageLatencyMs ?? 0;
+  const p95Formatted = performance?.p95LatencyMs != null
+    ? `${performance.p95LatencyMs.toFixed(1)} ms`
+    : "—";
+  const e2eFormatted = performance?.e2eAlertLatencyMs != null
+    ? `${performance.e2eAlertLatencyMs.toFixed(1)} ms`
+    : "—";
 
   const fpsFormatted = performance?.averageFps != null
     ? `${performance.averageFps.toFixed(1)} FPS`
@@ -202,6 +211,16 @@ export function AiMetricsStatsDetailPanel({
   const CurrentIcon = config.icon;
 
   const scrollToSection = (id: string) => {
+    if (id === "model-governance" && onNavigateToGovernance) {
+      onNavigateToGovernance();
+      setTimeout(() => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 60);
+      return;
+    }
     const el = document.getElementById(id);
     if (el) {
       el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -321,6 +340,37 @@ export function AiMetricsStatsDetailPanel({
 
       {/* Main Content Area */}
       <div className="space-y-3 sm:space-y-3.5">
+        {activeStat === "latency" && (
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <div className="flex items-center justify-between rounded-xl border border-border/40 bg-background/50 px-3.5 py-2.5 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  {t("aiMetrics.latencyChart.p95Latency")}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {isVi ? "Ngưỡng SLA mục tiêu: < 100 ms" : "Target SLA: < 100 ms"}
+                </p>
+              </div>
+              <span className="font-mono text-sm font-extrabold text-primary tabular-nums">
+                {p95Formatted}
+              </span>
+            </div>
+            <div className="flex items-center justify-between rounded-xl border border-border/40 bg-background/50 px-3.5 py-2.5 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  {t("aiMetrics.latencyChart.e2eAlertLatency")}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {isVi ? "Ngưỡng SLA cảnh báo: < 2000 ms" : "Alert SLA: < 2000 ms"}
+                </p>
+              </div>
+              <span className="font-mono text-sm font-extrabold text-primary tabular-nums">
+                {e2eFormatted}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Core plain-language explanation (Dễ hiểu cho người dùng) */}
         <div className="rounded-xl border border-border/40 bg-background/50 p-3 sm:p-3.5 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
           <div className="flex items-start gap-2.5">

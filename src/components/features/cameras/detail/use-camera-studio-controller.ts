@@ -353,16 +353,21 @@ export function useCameraStudioController(cameraId: string) {
             enableSceneCut,
             roiPolygon: cameraConfig?.roiPolygon,
           },
-          { productionMode },
+          {
+            productionMode,
+            useRegisteredSource: !nextOverride && !overrideSource.trim(),
+          },
         );
-        await aiTestService.startLiveStream(payload);
+        const started = await aiTestService.startLiveStream(payload);
         setStreamNonce(Date.now());
         const fresh = await aiTestService
-          .getLiveStats(liveCameraId)
+          .getLiveStats(started.camera_id)
           .catch(() => null);
-        if (fresh) setStats(fresh);
+        setStats(
+          fresh ?? { camera_id: started.camera_id, status: "initializing" },
+        );
         void refreshAiEngine();
-        if (!options?.silent) {
+        if (fresh?.status === "running" && !options?.silent) {
           toast.success(
             isVietnamese
               ? `Đã bật Live AI Tracking cho ${liveCameraId}`
@@ -399,6 +404,7 @@ export function useCameraStudioController(cameraId: string) {
       enableSceneCut,
       isVietnamese,
       liveCameraId,
+      overrideSource,
       productionMode,
       refreshAiEngine,
       selectedModel,
@@ -592,7 +598,6 @@ export function useCameraStudioController(cameraId: string) {
         silent: true,
         payload: {
           roiPolygon: points.length >= 3 ? points : null,
-          processingEnabled: true,
         },
       });
       setEnableRestrictedArea(true);

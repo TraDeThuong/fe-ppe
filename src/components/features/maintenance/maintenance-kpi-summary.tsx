@@ -138,9 +138,6 @@ export function MaintenanceKpiSummary({
       ? {
         badgeVariant: "warning" as const,
         badgeText: t("maintenance.badge.readOnly"),
-        accentBar: "via-amber-500/75",
-        iconBox:
-          "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
         Icon: AlertTriangle,
         summaryText: isVietnamese
           ? "Đang bật chế độ chỉ đọc: cho phép xem dữ liệu, chặn thêm/sửa/xóa."
@@ -149,18 +146,12 @@ export function MaintenanceKpiSummary({
       : {
         badgeVariant: "danger" as const,
         badgeText: t("maintenance.badge.active"),
-        accentBar: "via-rose-500/75",
-        iconBox:
-          "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400",
         Icon: ShieldAlert,
         summaryText: t("maintenance.switch.activeDesc"),
       }
     : {
       badgeVariant: "success" as const,
       badgeText: t("maintenance.badge.online"),
-      accentBar: "via-emerald-500/65",
-      iconBox:
-        "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
       Icon: ShieldCheck,
       summaryText: t("maintenance.switch.inactiveDesc"),
     };
@@ -266,38 +257,12 @@ export function MaintenanceKpiSummary({
                 </span>
               </div>
 
-              {/* Title + Explicit ON/OFF Pill + Summary */}
+              {/* Title + Operational Mode Badge + Summary */}
               <div className="min-w-0 flex-1 space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-base sm:text-lg font-black tracking-tight text-foreground">
                     {t("maintenance.switch.label")}
                   </h3>
-
-                  {/* Ultra-clear ON / OFF State Indicator Pill */}
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)] transition-all duration-300 ${isEnabled
-                        ? isReadOnly
-                          ? "border-amber-500/45 text-amber-600 dark:text-amber-400"
-                          : "border-rose-500/45 text-rose-600 dark:text-rose-400"
-                        : "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
-                      }`}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${isEnabled
-                          ? isReadOnly
-                            ? "bg-amber-500 animate-pulse"
-                            : "bg-rose-500 animate-pulse"
-                          : "bg-emerald-500"
-                        }`}
-                    />
-                    {isEnabled
-                      ? isVietnamese
-                        ? "CHẾ ĐỘ BẢO TRÌ: BẬT"
-                        : "MAINTENANCE: ON"
-                      : isVietnamese
-                        ? "HỆ THỐNG HOẠT ĐỘNG: BÌNH THƯỜNG"
-                        : "SYSTEM: ONLINE"}
-                  </span>
 
                   <Badge
                     variant={statusTone.badgeVariant}

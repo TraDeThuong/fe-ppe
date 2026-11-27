@@ -56,12 +56,30 @@ const URL_TO_STAT: Record<string, AiMetricStatKey> = {
   inferences: "samples",
 };
 
+export type AiMetricsPageTab = "performance" | "governance";
+
 export default function AiMetricsContent() {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  // URL state synchronization for active tab ("performance" | "governance")
+  const tabParam = searchParams.get("tab");
+  const activeTab: AiMetricsPageTab =
+    tabParam === "governance" ? "governance" : "performance";
+
+  const handleTabChange = (nextTab: AiMetricsPageTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextTab === "governance") {
+      params.set("tab", "governance");
+    } else {
+      params.delete("tab");
+    }
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
 
   // URL state synchronization for stats (giống trang Roles)
   const statParam = searchParams.get("stat");
@@ -210,6 +228,11 @@ export default function AiMetricsContent() {
       undefined
     : undefined;
 
+  const allVersionsCount = useMemo(
+    () => models.reduce((sum, m) => sum + (m.versions?.length ?? 0), 0),
+    [models],
+  );
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Page Header */}
@@ -297,84 +320,147 @@ export default function AiMetricsContent() {
         onOpenGuide={() => setGuideKey("active-model")}
       />
 
-      {/* Bento Console KPI Summary với hiệu ứng sunken và Panel giải thích chi tiết */}
-      <AiMetricsKpiSummary
-        performance={performance}
-        loading={isPerfLoading}
-        selectedStat={selectedStat}
-        onSelectStat={handleSelectStat}
-      />
+      {/* 2-Tab Navigation: Hiệu năng & Chỉ số AI | Quản trị Phiên bản Model */}
+      <div
+        role="tablist"
+        aria-label={t("aiMetrics.title")}
+        className="overflow-x-auto no-scrollbar flex items-center gap-1.5 sm:gap-2 border-b border-border/40 pb-2.5 -mx-3 px-3 sm:mx-0 sm:px-0 dark:border-black/50"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "performance"}
+          onClick={() => handleTabChange("performance")}
+          className={`flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold transition-all duration-200 ${
+            activeTab === "performance"
+              ? "bg-surface-elevated text-primary shadow-[inset_2px_2px_4px_rgba(0,0,0,0.15),inset_-2px_-2px_4px_rgba(255,255,255,0.05)] dark:bg-card dark:text-primary dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.7)]"
+              : "text-muted-foreground hover:bg-surface-elevated/50 hover:text-foreground dark:hover:bg-card/50"
+          }`}
+        >
+          <Activity
+            className={`h-4 w-4 shrink-0 ${
+              activeTab === "performance" ? "text-primary" : "text-muted-foreground"
+            }`}
+          />
+          <span>{t("aiMetrics.tabs.performance")}</span>
+        </button>
 
-      {/* Filter Toolbar */}
-      <AiMetricsToolbar
-        models={models}
-        selectedModelId={filter.modelId ?? ""}
-        canReadModels={canReadModels}
-        onModelChange={(nextModelId) => {
-          setSelectedModelId(nextModelId);
-          setSelectedClass(null);
-        }}
-        cameras={cameras}
-        selectedCameraId={filter.cameraId ?? ""}
-        canReadCameras={canReadCameras}
-        onCameraChange={setSelectedCameraId}
-        period={period}
-        onPeriodChange={setPeriod}
-      />
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "governance"}
+          onClick={() => handleTabChange("governance")}
+          className={`flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold transition-all duration-200 ${
+            activeTab === "governance"
+              ? "bg-surface-elevated text-primary shadow-[inset_2px_2px_4px_rgba(0,0,0,0.15),inset_-2px_-2px_4px_rgba(255,255,255,0.05)] dark:bg-card dark:text-primary dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.7)]"
+              : "text-muted-foreground hover:bg-surface-elevated/50 hover:text-foreground dark:hover:bg-card/50"
+          }`}
+        >
+          <Layers
+            className={`h-4 w-4 shrink-0 ${
+              activeTab === "governance" ? "text-primary" : "text-muted-foreground"
+            }`}
+          />
+          <span>{t("aiMetrics.tabs.governance")}</span>
+          {canReadModels && (
+            <span
+              className={`ml-0.5 rounded-full px-2 py-0.2 text-[10px] sm:text-xs font-mono font-bold ${
+                activeTab === "governance"
+                  ? "bg-primary/15 text-primary"
+                  : "bg-surface text-muted-foreground dark:bg-muted"
+              }`}
+            >
+              {allVersionsCount}
+            </span>
+          )}
+        </button>
+      </div>
 
-      {/* 2-Column: Per-Class Breakdown (Left) & Confusion Matrix Heatmap (Right) */}
-      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 items-stretch">
-        <div id="per-class-breakdown" className="scroll-mt-20 h-full">
-          <PerClassMetricsCard
-            metrics={performance?.perClassMetrics}
-            canTestModel={canTestModel}
+      {activeTab === "performance" ? (
+        <div className="space-y-4 sm:space-y-6">
+          {/* Bento Console KPI Summary với hiệu ứng sunken và Panel giải thích chi tiết */}
+          <AiMetricsKpiSummary
+            performance={performance}
             loading={isPerfLoading}
-            selectedClass={selectedClass}
-            onSelectClass={setSelectedClass}
-            onOpenGuide={() => setGuideKey("per-class")}
+            selectedStat={selectedStat}
+            onSelectStat={handleSelectStat}
+            onNavigateToGovernance={() => handleTabChange("governance")}
+          />
+
+          {/* Filter Toolbar */}
+          <AiMetricsToolbar
+            models={models}
+            selectedModelId={filter.modelId ?? ""}
+            canReadModels={canReadModels}
+            onModelChange={(nextModelId) => {
+              setSelectedModelId(nextModelId);
+              setSelectedClass(null);
+            }}
+            cameras={cameras}
+            selectedCameraId={filter.cameraId ?? ""}
+            canReadCameras={canReadCameras}
+            onCameraChange={setSelectedCameraId}
+            period={period}
+            onPeriodChange={setPeriod}
+          />
+
+          {/* 2-Column: Per-Class Breakdown (Left) & Confusion Matrix Heatmap (Right) */}
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 items-stretch">
+            <div id="per-class-breakdown" className="scroll-mt-20 h-full">
+              <PerClassMetricsCard
+                metrics={performance?.perClassMetrics}
+                canTestModel={canTestModel}
+                loading={isPerfLoading}
+                selectedClass={selectedClass}
+                onSelectClass={setSelectedClass}
+                onOpenGuide={() => setGuideKey("per-class")}
+              />
+            </div>
+
+            <div id="confusion-matrix" className="scroll-mt-20 h-full">
+              <ConfusionMatrixHeatmap
+                confusionMatrix={performance?.confusionMatrix}
+                loading={isPerfLoading}
+                selectedClass={selectedClass}
+                onSelectClass={setSelectedClass}
+                onOpenGuide={() => setGuideKey("confusion-matrix")}
+              />
+            </div>
+          </div>
+
+          {/* Inference Latency & FPS Stability Chart */}
+          <div id="latency-timeline" className="scroll-mt-20">
+            <LatencyChartCard
+              latencyHistory={performance?.latencyHistory}
+              avgLatencyMs={performance?.averageLatencyMs}
+              p95LatencyMs={performance?.p95LatencyMs}
+              e2eAlertLatencyMs={performance?.e2eAlertLatencyMs}
+              avgFps={performance?.averageFps}
+              loading={isPerfLoading}
+              onOpenGuide={() => setGuideKey("latency-chart")}
+            />
+          </div>
+        </div>
+      ) : (
+        /* Model Governance & Registered Versions Table */
+        <div id="model-governance" className="scroll-mt-20">
+          <ModelGovernanceTable
+            models={models}
+            onDeploy={handleOpenDeploy}
+            onAddVersion={(modelId) => {
+              setVersionModalModelId(modelId);
+              setIsCreateVersionOpen(true);
+            }}
+            onRefresh={canReadModels ? refetchModels : undefined}
+            canReadModels={canReadModels}
+            error={canReadModels && isModelsError}
+            onOpenGuide={() => setGuideKey("governance")}
+            canDeploy={canManageModels}
+            loading={canReadModels && isModelsLoading}
+            fetching={canReadModels && isModelsFetching}
           />
         </div>
-
-        <div id="confusion-matrix" className="scroll-mt-20 h-full">
-          <ConfusionMatrixHeatmap
-            confusionMatrix={performance?.confusionMatrix}
-            loading={isPerfLoading}
-            selectedClass={selectedClass}
-            onSelectClass={setSelectedClass}
-            onOpenGuide={() => setGuideKey("confusion-matrix")}
-          />
-        </div>
-      </div>
-
-      {/* Inference Latency & FPS Stability Chart */}
-      <div id="latency-timeline" className="scroll-mt-20">
-        <LatencyChartCard
-          latencyHistory={performance?.latencyHistory}
-          avgLatencyMs={performance?.averageLatencyMs}
-          avgFps={performance?.averageFps}
-          loading={isPerfLoading}
-          onOpenGuide={() => setGuideKey("latency-chart")}
-        />
-      </div>
-
-      {/* Model Governance & Registered Versions Table */}
-      <div id="model-governance" className="scroll-mt-20">
-        <ModelGovernanceTable
-          models={models}
-          onDeploy={handleOpenDeploy}
-          onAddVersion={(modelId) => {
-            setVersionModalModelId(modelId);
-            setIsCreateVersionOpen(true);
-          }}
-          onRefresh={canReadModels ? refetchModels : undefined}
-          canReadModels={canReadModels}
-          error={canReadModels && isModelsError}
-          onOpenGuide={() => setGuideKey("governance")}
-          canDeploy={canManageModels}
-          loading={canReadModels && isModelsLoading}
-          fetching={canReadModels && isModelsFetching}
-        />
-      </div>
+      )}
 
       {/* Registry update confirmation */}
       <DeployModelDialog

@@ -10,6 +10,7 @@ import {
 import type {
   EvidenceItem,
   LiveConfigPayload,
+  LiveMetrics,
   LiveSessionInfo,
   LiveStartPayload,
   LiveVideoItem,
@@ -151,6 +152,10 @@ export function resolveEditedStreamUrl(
 export interface LiveSourceModeOptions {
   /** Production 24/7 AI server (`app/server.py`) hỗ trợ tra cứu M2M RTSP gốc khi URL bị mask `:***@`. */
   productionMode?: boolean;
+}
+
+interface LiveStartOptions extends LiveSourceModeOptions {
+  useRegisteredSource?: boolean;
 }
 
 /**
@@ -422,7 +427,43 @@ function clampConfidence(value: number, fallback: number): number {
 
 function clampCooldownSec(value: number, fallback: number): number {
   if (!Number.isFinite(value)) return fallback;
-  return Math.min(3600, Math.max(0, Math.round(value)));
+  return Math.min(3600, Math.max(1, Math.round(value)));
+}
+
+/**
+ * Computes an adaptive `{ target_fps, ai_fps }` pair based on the backend's real-time
+ * `inference_latency_ms` so `origin/develop`'s reader loop never races 10-20 frames ahead
+ * of the background AI worker (preventing bounding box lag on moving workers).
+ */
+export function computeSyncedLiveFps(
+  metrics?: LiveMetrics | null,
+): { target_fps: number; ai_fps: number } | null {
+  const inferMs = metrics?.inference_latency_ms;
+  if (typeof inferMs !== "number" || !Number.isFinite(inferMs) || inferMs <= 55) {
+    return null;
+  }
+  const maxInferencesPerSec = 1000 / inferMs;
+  const rawOptimalFps = Math.round(maxInferencesPerSec * 1.35);
+  const syncedTargetFps = Math.min(15, Math.max(3, clampFps(rawOptimalFps, 8)));
+  const currentTargetFps =
+    typeof metrics?.target_fps === "number" && Number.isFinite(metrics.target_fps)
+      ? metrics.target_fps
+      : 25;
+  const currentAiFps =
+    typeof metrics?.ai_fps === "number" && Number.isFinite(metrics.ai_fps)
+      ? metrics.ai_fps
+      : 10;
+
+  if (
+    Math.abs(currentTargetFps - syncedTargetFps) < 2 &&
+    Math.abs(currentAiFps - syncedTargetFps) < 2
+  ) {
+    return null;
+  }
+  return {
+    target_fps: syncedTargetFps,
+    ai_fps: syncedTargetFps,
+  };
 }
 
 /**
@@ -495,13 +536,13 @@ export function deriveLiveDefaultsFromConfig(
 
 /**
  * Builds strict `LiveStartPayload` adhering to BE `ConfigDict(extra="forbid")`.
- * In Production 24/7 mode, sends `camera_uuid` and omits masked `source` so AI Server
- * performs M2M internal lookup against Camera Service.
+ * In Production mode, omit the source URL for registered cameras so the AI server
+ * resolves the source and site through Camera Service and can dispatch incidents.
  */
 export function buildCameraStartPayload(
   camera: Pick<CameraItem, "id" | "code"> | string,
   values: CameraLiveFormValues,
-  options: LiveSourceModeOptions = {},
+  options: LiveStartOptions = {},
 ): LiveStartPayload {
   const trimmedSource = values.source.trim();
   const roiPolygons = toLiveRoiPolygons(values.roiPolygon);
@@ -536,7 +577,7 @@ export function buildCameraStartPayload(
     if (camUuid) {
       base.camera_uuid = camUuid;
     }
-    if (!trimmedSource || hasMaskedCredentials(trimmedSource)) {
+    if (options.useRegisteredSource || !trimmedSource || hasMaskedCredentials(trimmedSource)) {
       delete base.source;
     }
   }

@@ -75,6 +75,8 @@ export interface LatencyDataPoint {
   timestamp: string;
   latencyMs: number;
   fps: number;
+  p95LatencyMs?: number | null;
+  e2eAlertLatencyMs?: number | null;
 }
 
 export interface AiPerformanceDto {
@@ -86,6 +88,8 @@ export interface AiPerformanceDto {
   recall: number | null;
   f1Score: number | null;
   averageLatencyMs: number | null;
+  p95LatencyMs?: number | null;
+  e2eAlertLatencyMs?: number | null;
   averageFps: number | null;
   totalFramesProcessed: number | null;
   perClassMetrics: PerClassMetric[];
@@ -101,6 +105,8 @@ export interface AiPerformanceStatDto {
   avgFps: number;
   avgLatencyMs: number;
   maxLatencyMs: number;
+  p95LatencyMs?: number | null;
+  e2eAlertLatencyMs?: number | null;
   totalFrames: string;
 }
 
@@ -114,6 +120,8 @@ export interface RecordAiPerformanceDto {
   statDate?: string;
   fps: number;
   latencyMs: number;
+  p95LatencyMs?: number;
+  e2eAlertLatencyMs?: number;
   frameCount?: number;
 }
 
@@ -132,6 +140,18 @@ export interface AiPerformanceFilter {
 // ============================================================================
 // 3. AI MODEL GOVERNANCE & VERSIONS
 // ============================================================================
+
+export interface AiModelDeploySyncResultDto {
+  status: "SYNCED" | "EVENT_PUBLISHED" | "FAILED" | "SKIPPED" | string;
+  channel: "HTTP_AND_REDIS" | "HTTP" | "REDIS" | "NONE" | string;
+  synced: boolean;
+  eventName: string;
+  targetUrl?: string;
+  httpStatus?: number | null;
+  redisPublished?: boolean;
+  syncedAt: string;
+  message: string;
+}
 
 export interface AiModelVersionDto {
   id: string;
@@ -160,6 +180,8 @@ export interface AiModelVersionDto {
     mAP50_95?: number;
     fps?: number;
     latencyMs?: number;
+    p95LatencyMs?: number;
+    e2eAlertLatencyMs?: number;
     sizeMb?: number;
     sampleCount?: number;
     totalFramesProcessed?: number;
@@ -170,6 +192,7 @@ export interface AiModelVersionDto {
   } | null;
   deployedAt?: string | null;
   createdAt: string;
+  aiRuntimeSync?: AiModelDeploySyncResultDto;
 }
 
 export interface AiModelDto {

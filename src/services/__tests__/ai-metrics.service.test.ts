@@ -114,6 +114,39 @@ describe("aiMetricsService.getAiPerformance", () => {
       { timestamp: "11-01", latencyMs: 27.5, fps: 25.5 },
     ]);
     assert.equal(result.totalFramesProcessed, 6000);
+    assert.equal(result.p95LatencyMs, null);
+    assert.equal(result.e2eAlertLatencyMs, null);
+  });
+
+  it("aggregates weighted p95LatencyMs and e2eAlertLatencyMs when present on telemetry rows", async () => {
+    mockStatistics([
+      {
+        cameraId: "cam-1",
+        modelVersionId: "ver-1",
+        statDate: "2026-11-01",
+        avgFps: 30,
+        avgLatencyMs: 20,
+        p95LatencyMs: 30,
+        e2eAlertLatencyMs: 320,
+        totalFrames: "1000",
+      },
+      {
+        cameraId: "cam-2",
+        modelVersionId: "ver-1",
+        statDate: "2026-11-01",
+        avgFps: 24,
+        avgLatencyMs: 30,
+        p95LatencyMs: 42,
+        e2eAlertLatencyMs: 440,
+        totalFrames: "3000",
+      },
+    ]);
+
+    const response = await aiMetricsService.getAiPerformance();
+    const result = resolveAiPerformance(response, {}, SAMPLE_MODELS, version);
+    assert.ok(result);
+    assert.equal(result.p95LatencyMs, 39);
+    assert.equal(result.e2eAlertLatencyMs, 410);
   });
 
   it("distinguishes empty telemetry from a measured zero", async () => {

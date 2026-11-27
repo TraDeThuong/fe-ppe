@@ -51,14 +51,14 @@ export function AiCardHelpButton({
       }}
       aria-label={resolvedLabel}
       title={resolvedLabel}
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-primary/25 bg-primary/[0.08] font-bold text-primary transition-all hover:bg-primary/15 hover:border-primary/40 active:translate-y-px shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] ${
+      className={`inline-flex shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/[0.08] font-bold text-primary transition-all hover:bg-primary/15 hover:border-primary/40 active:translate-y-px shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] ${
         compact
-          ? "px-2 py-1 text-[10px]"
-          : "px-2.5 py-1.5 text-[11px]"
+          ? "h-7 w-7"
+          : "h-8 w-8"
       } ${className}`}
     >
-      <HelpCircle className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
-      <span>{resolvedLabel}</span>
+      <HelpCircle className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
+      <span className="sr-only">{resolvedLabel}</span>
     </button>
   );
 }

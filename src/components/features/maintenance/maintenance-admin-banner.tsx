@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, ShieldAlert, Wrench } from "lucide-react";
+import { ArrowRight, ShieldAlert, Wrench } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 
 export interface MaintenanceAdminBannerProps {

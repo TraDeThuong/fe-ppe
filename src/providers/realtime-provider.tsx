@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { RealtimeContext, type PpeAlertEvent } from "@/contexts/RealtimeContext";
 import { env } from "@/config/env";
-import { apiClient } from "@/lib/axios";
+import { ApiError, apiClient } from "@/lib/axios";
 import { stripEmojis } from "@/lib/strip-emojis";
 import { authKeys } from "@/hooks/auth/auth.query-keys";
 import { maintenanceQueryKeys } from "@/hooks/maintenance/maintenance.query-keys";
@@ -26,15 +26,13 @@ const READ_SYNC_EVENTS = [
 ] as const;
 
 /** SSE không gửi được header/cookie an toàn → backend cấp ticket 1 lần qua REST */
-async function fetchStreamTicket(): Promise<string> {
-  const data = (await apiClient.post(
+async function fetchStreamTicket(signal: AbortSignal): Promise<string> {
+  const requestOptions = { signal, suppressToast: true };
+  const data = await apiClient.post<unknown, { ticket: string }>(
     "/notifications/stream-ticket",
     undefined,
-    { suppressToast: true } as any,
-  )) as {
-    ticket: string;
-    expiresIn: number;
-  };
+    requestOptions,
+  );
   return data.ticket;
 }
 
@@ -48,17 +46,18 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     if (status !== "authenticated") return;
 
     let source: EventSource | null = null;
-    let disposed = false;
+    const controller = new AbortController();
+    const { signal } = controller;
     let reconnectTimer: NodeJS.Timeout | null = null;
     let inboxInvalidateTimer: NodeJS.Timeout | null = null;
     let retryAttempt = 0;
 
     // Gom các đợt SSE bắn dồn dập trong 1.5s thành 1 lần tải lại hộp thư, tránh spam hàng chục request phân trang
     const scheduleInboxInvalidate = () => {
-      if (disposed || inboxInvalidateTimer) return;
+      if (signal.aborted || inboxInvalidateTimer) return;
       inboxInvalidateTimer = setTimeout(() => {
         inboxInvalidateTimer = null;
-        if (!disposed) {
+        if (!signal.aborted) {
           void queryClient.invalidateQueries(
             { queryKey: notificationKeys.lists() },
             { cancelRefetch: false },
@@ -71,22 +70,21 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       }, 1500);
     };
 
-    const scheduleReconnect = (minDelayMs: number) => {
-      if (disposed || reconnectTimer) return;
-      const exponentialMs = Math.min(60_000, minDelayMs * 2 ** Math.min(retryAttempt, 4));
+    const scheduleReconnect = (baseDelayMs: number, retryAfterMs = 0) => {
+      if (signal.aborted || reconnectTimer) return;
+      const exponentialMs = Math.min(60_000, baseDelayMs * 2 ** Math.min(retryAttempt, 4));
       retryAttempt += 1;
       reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
-        if (!disposed) {
-          void connect();
-        }
-      }, exponentialMs);
+        void connect();
+      }, Math.max(exponentialMs, retryAfterMs));
     };
 
     const connect = async () => {
+      if (signal.aborted) return;
       try {
-        const ticket = await fetchStreamTicket();
-        if (disposed) return;
+        const ticket = await fetchStreamTicket(signal);
+        if (signal.aborted) return;
 
         source = new EventSource(
           `${env.apiBaseUrl}/notifications/stream?ticket=${encodeURIComponent(ticket)}`,
@@ -176,24 +174,23 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
           void queryClient.invalidateQueries({ queryKey: systemQueryKeys.all });
         });
       } catch (err: unknown) {
+        if (signal.aborted) return;
         setIsConnected(false);
-        const statusCode =
-          err && typeof err === "object" && "status" in err
-            ? Number((err as { status?: unknown }).status)
-            : 0;
         // User không có quyền SSE (403) -> dừng retry vô hạn
-        if (statusCode === 403) {
-          return;
-        }
-        // Nếu bị rate-limit (429), chờ tối thiểu 60s trước khi xin ticket lại
-        scheduleReconnect(statusCode === 429 ? 60_000 : 10_000);
+        if (err instanceof ApiError && err.status === 403) return;
+
+        const retryAfterMs = err instanceof ApiError && err.status === 429
+          ? (err.retryAfter ?? 60) * 1000
+          : 0;
+        scheduleReconnect(10_000, retryAfterMs);
       }
     };
 
-    connect();
+    // Đợi React hoàn tất setup/cleanup của Strict Mode trước khi xin vé.
+    queueMicrotask(() => void connect());
 
     return () => {
-      disposed = true;
+      controller.abort();
       if (reconnectTimer) {
         clearTimeout(reconnectTimer);
       }
