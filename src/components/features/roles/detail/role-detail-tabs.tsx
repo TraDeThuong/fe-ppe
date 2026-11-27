@@ -18,6 +18,8 @@ export interface RoleDetailTabsProps {
   usersCount?: number;
   capabilitiesCount?: number;
   auditLogsCount?: number;
+  canViewUsers?: boolean;
+  canViewAuditLogs?: boolean;
   className?: string;
 }
 
@@ -28,6 +30,7 @@ interface TabItemConfig {
   icon: typeof Key;
   badge?: number;
   badgeTone?: "default" | "danger" | "primary";
+  hidden?: boolean;
 }
 
 export function RoleDetailTabs({
@@ -37,6 +40,8 @@ export function RoleDetailTabs({
   usersCount = 0,
   capabilitiesCount = 0,
   auditLogsCount = 0,
+  canViewUsers = true,
+  canViewAuditLogs = true,
   className = "",
 }: RoleDetailTabsProps) {
   const { t, locale } = useLocale();
@@ -47,47 +52,60 @@ export function RoleDetailTabs({
   const [canScrollRight, setCanScrollRight] = useState(false);
 
   const tabs: TabItemConfig[] = useMemo(
-    () => [
-      {
-        key: "permissions",
-        labelShort: t("roles.detailPage.tabs.permissionsShort"),
-        labelFull: t("roles.detailPage.tabs.permissions"),
-        icon: Key,
-        badge: permissionsCount,
-        badgeTone: "primary",
-      },
-      {
-        key: "users",
-        labelShort: t("roles.detailPage.tabs.usersShort"),
-        labelFull: t("roles.detailPage.tabs.users"),
-        icon: Users,
-        badge: usersCount,
-        badgeTone: "default",
-      },
-      {
-        key: "capabilities",
-        labelShort: t("roles.detailPage.tabs.capabilitiesShort"),
-        labelFull: t("roles.detailPage.tabs.capabilities"),
-        icon: Compass,
-        badge: capabilitiesCount > 0 ? capabilitiesCount : undefined,
-        badgeTone: "default",
-      },
-      {
-        key: "comparison",
-        labelShort: t("roles.detailPage.tabs.comparisonShort"),
-        labelFull: t("roles.detailPage.tabs.comparison"),
-        icon: GitCompare,
-      },
-      {
-        key: "audit-logs",
-        labelShort: t("roles.detailPage.tabs.auditShort"),
-        labelFull: t("roles.detailPage.tabs.audit"),
-        icon: ScrollText,
-        badge: auditLogsCount > 0 ? auditLogsCount : undefined,
-        badgeTone: "default",
-      },
+    () =>
+      (
+        [
+          {
+            key: "permissions",
+            labelShort: t("roles.detailPage.tabs.permissionsShort"),
+            labelFull: t("roles.detailPage.tabs.permissions"),
+            icon: Key,
+            badge: permissionsCount,
+            badgeTone: "primary",
+          },
+          {
+            key: "users",
+            labelShort: t("roles.detailPage.tabs.usersShort"),
+            labelFull: t("roles.detailPage.tabs.users"),
+            icon: Users,
+            badge: usersCount,
+            badgeTone: "default",
+            hidden: !canViewUsers,
+          },
+          {
+            key: "capabilities",
+            labelShort: t("roles.detailPage.tabs.capabilitiesShort"),
+            labelFull: t("roles.detailPage.tabs.capabilities"),
+            icon: Compass,
+            badge: capabilitiesCount > 0 ? capabilitiesCount : undefined,
+            badgeTone: "default",
+          },
+          {
+            key: "comparison",
+            labelShort: t("roles.detailPage.tabs.comparisonShort"),
+            labelFull: t("roles.detailPage.tabs.comparison"),
+            icon: GitCompare,
+          },
+          {
+            key: "audit-logs",
+            labelShort: t("roles.detailPage.tabs.auditShort"),
+            labelFull: t("roles.detailPage.tabs.audit"),
+            icon: ScrollText,
+            badge: auditLogsCount > 0 ? auditLogsCount : undefined,
+            badgeTone: "default",
+            hidden: !canViewAuditLogs,
+          },
+        ] as TabItemConfig[]
+      ).filter((tab) => !tab.hidden),
+    [
+      t,
+      permissionsCount,
+      usersCount,
+      capabilitiesCount,
+      auditLogsCount,
+      canViewUsers,
+      canViewAuditLogs,
     ],
-    [t, permissionsCount, usersCount, capabilitiesCount, auditLogsCount],
   );
 
   const checkScroll = () => {

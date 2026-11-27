@@ -193,7 +193,7 @@ export function RolePermissionsTab({
   };
 
   const handleSave = async () => {
-    if (selectedIds.size === 0) {
+    if (role.isSystem && selectedIds.size === 0) {
       toast.error(t("roles.permissions.minRequiredError"));
       return;
     }

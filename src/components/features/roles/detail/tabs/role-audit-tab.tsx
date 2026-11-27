@@ -10,6 +10,7 @@ import {
   AuditDetailDrawer,
 } from "@/components/features/audit-logs";
 import { useAuditLogs } from "@/hooks/audit";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import type { AuditLogDetail, AuditLogItem, RoleDto } from "@/types";
 import { auditService } from "@/services";
@@ -21,6 +22,8 @@ export interface RoleAuditTabProps {
 export function RoleAuditTab({ role }: RoleAuditTabProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canReadAuditLogs = can("AUDIT_LOG_READ");
 
   const [page, setPage] = useState(1);
   const [selectedRecord, setSelectedRecord] = useState<AuditLogItem | null>(null);
@@ -34,14 +37,19 @@ export function RoleAuditTab({ role }: RoleAuditTabProps) {
     isLoading,
     isRefetching,
     refetch,
-  } = useAuditLogs({
-    targetType: "ROLE",
-    targetId: role.id,
-    page,
-    limit: 20,
-    sortBy: "createdAt",
-    order: "desc",
-  });
+  } = useAuditLogs(
+    {
+      targetType: "ROLE",
+      targetId: role.id,
+      page,
+      limit: 20,
+      sortBy: "createdAt",
+      order: "desc",
+    },
+    {
+      enabled: canReadAuditLogs,
+    },
+  );
 
   const logs = auditResult?.items || [];
   const meta = auditResult?.meta || {

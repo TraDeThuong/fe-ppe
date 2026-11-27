@@ -246,6 +246,8 @@ export interface EmailLogsQueryParams {
   limit?: number;
   status?: string;
   toEmail?: string;
+  fromDate?: string;
+  toDate?: string;
 }
 
 export interface EmailLogsListResponse {

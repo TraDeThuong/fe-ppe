@@ -3,6 +3,7 @@ import { Table, TableContent, TablePagination } from "@/components/ui/table";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   Cctv,
@@ -25,8 +26,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PhoneReveal } from "@/components/ui/phone-reveal";
-import { useUsers } from "@/hooks/users";
+import { useCan } from "@/hooks/use-can";
+import { userKeys } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
+import { userService } from "@/services/user.service";
 import type { PermissionDto, RoleDto, ResourceCategory, UserResponseDto } from "@/types";
 import { RESOURCE_CATEGORY_ORDER, getPermissionCategory } from "@/types";
 
@@ -87,13 +90,11 @@ export function RoleStatsDetailPanel({
   onCreateRole,
 }: RoleStatsDetailPanelProps) {
   const { t, locale } = useLocale();
+  const can = useCan();
+  const canReadUsers = can("USER_READ");
 
   const systemRoles = useMemo(() => roles.filter((r) => r.isSystem), [roles]);
   const customRoles = useMemo(() => roles.filter((r) => !r.isSystem), [roles]);
-
-  // Fetch users for the 2-column assigned users layout
-  const { data: usersData, isLoading: usersLoading } = useUsers({ limit: 100 });
-  const allUsers: UserResponseDto[] = useMemo(() => usersData?.data ?? [], [usersData]);
 
   // State for selected role in the 2-column assignedUsers panel
   const [selectedRoleId, setSelectedRoleId] = useState<string>("");
@@ -110,6 +111,18 @@ export function RoleStatsDetailPanel({
     () => roles.find((r) => r.id === selectedRoleId) || roles[0],
     [roles, selectedRoleId],
   );
+
+  // Fetch users for the 2-column assigned users layout only when activeStat === "assignedUsers" and user has USER_READ
+  const { data: usersData, isLoading: usersLoading } = useQuery({
+    queryKey: [...userKeys.list({ roleName: selectedRole?.name, limit: 100 }), "all"],
+    queryFn: () => userService.getAllUsers({ roleName: selectedRole!.name }),
+    enabled:
+      canReadUsers &&
+      activeStat === "assignedUsers" &&
+      Boolean(selectedRole?.name),
+    staleTime: 30 * 1000,
+  });
+  const allUsers: UserResponseDto[] = useMemo(() => usersData?.data ?? [], [usersData]);
 
   // Filter users belonging to the currently selected role
   const selectedRoleUsers = useMemo(() => {

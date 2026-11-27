@@ -147,6 +147,18 @@ describe("Notifications UI & Logic", () => {
     );
     assert.ok(adminHtml.includes("Nhật ký gửi Email") || adminHtml.includes("Email Logs"));
     assert.ok(adminHtml.includes("Mẫu thông báo") || adminHtml.includes("Templates"));
+
+    const managerUser: MeDto = {
+      ...SAFETY_MANAGER_USER,
+      id: "u-mgr",
+      role: "MANAGER",
+      permissions: ["NOTIFICATION_READ", "NOTIFICATION_UPDATE"],
+    };
+    const managerHtml = renderNotifications(
+      <NotificationTabs activeTab="emailLogs" onTabChange={() => {}} unreadCount={0} />,
+      managerUser,
+    );
+    assert.ok(managerHtml.includes("Nhật ký gửi Email") || managerHtml.includes("Email Logs"));
   });
 
   it("renders NotificationConsoleHeader with SSE status, actions, and Day/Week/Month/Year/Custom time filter bar", () => {

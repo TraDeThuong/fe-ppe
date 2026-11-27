@@ -5,10 +5,8 @@ import {
   Cctv,
   Cpu,
   LayoutDashboard,
-  Lock,
   ScrollText,
   Settings2,
-  Shield,
   ShieldAlert,
   ShieldCheck,
   Users,
@@ -34,1157 +32,336 @@ export interface RoleKnowledgeProfile {
   securityGuardrails: string[];
 }
 
-export const ROLE_KNOWLEDGE_VI: Record<string, RoleKnowledgeProfile> = {
+interface RouteCapabilitySpec {
+  route: string;
+  icon: typeof LayoutDashboard;
+  titleVi: string;
+  titleEn: string;
+  /** Nếu true, mọi user đăng nhập đều vào được route này (vd: /dashboard) */
+  alwaysAccessible?: boolean;
+  readPerms: readonly string[];
+  reviewPerms?: readonly string[];
+  managePerms: readonly string[];
+  fullDescVi: string;
+  fullDescEn: string;
+  readDescVi: string;
+  readDescEn: string;
+  noneDescVi: string;
+  noneDescEn: string;
+}
+
+/**
+ * Bản đồ 12 trang hệ thống đồng bộ 100% với ROUTE_PERMISSIONS / ROUTE_ANY_PERMISSIONS
+ * tại src/config/navigation.ts. Mọi trạng thái truy cập được suy diễn trực tiếp từ
+ * tập quyền thực tế (role.permissions) trong cơ sở dữ liệu.
+ */
+const SYSTEM_ROUTE_SPECS: readonly RouteCapabilitySpec[] = [
+  {
+    route: "/dashboard",
+    icon: LayoutDashboard,
+    titleVi: "Bảng điều khiển",
+    titleEn: "Dashboard",
+    alwaysAccessible: true,
+    readPerms: ["PPE_INCIDENT_READ", "PPE_REPORTING_READ"],
+    managePerms: ["PPE_INCIDENT_MANAGE", "PPE_SITE_MANAGE", "SYSTEM_CONFIG_MANAGE"],
+    fullDescVi:
+      "Giám sát toàn bộ chỉ số KPI an toàn tổng hợp, tỷ lệ tuân thủ PPE đa công trường và cảnh báo thời gian thực.",
+    fullDescEn:
+      "Monitor aggregate safety KPIs, multi-site PPE compliance rates, and real-time operational alerts.",
+    readDescVi:
+      "Xem bảng tổng quan an toàn cá nhân, thông báo nhắc nhở và trạng thái hoạt động chung.",
+    readDescEn:
+      "View personal safety overview, reminders, and general operational status.",
+    noneDescVi: "Không có quyền truy cập.",
+    noneDescEn: "Access restricted.",
+  },
+  {
+    route: "/cameras",
+    icon: Cctv,
+    titleVi: "Giám sát Camera AI",
+    titleEn: "AI Camera Surveillance",
+    readPerms: ["PPE_CAMERA_READ"],
+    managePerms: ["PPE_CAMERA_MANAGE"],
+    fullDescVi:
+      "Xem luồng trực tiếp, thêm/sửa camera RTSP, vẽ vùng ROI và điều khiển luồng nhận diện AI.",
+    fullDescEn:
+      "View live streams, configure RTSP cameras, draw ROI polygons, and control AI inference streams.",
+    readDescVi:
+      "Xem danh sách và luồng video giám sát camera AI tại các phân khu được phân công (chế độ chỉ đọc).",
+    readDescEn:
+      "Monitor AI camera feeds and status across assigned zones (read-only mode).",
+    noneDescVi: "Chưa được cấp quyền PPE_CAMERA_READ để truy cập hệ thống camera.",
+    noneDescEn: "Missing PPE_CAMERA_READ permission to access camera feeds.",
+  },
+  {
+    route: "/incidents",
+    icon: ShieldAlert,
+    titleVi: "Sự cố An toàn PPE",
+    titleEn: "PPE Safety Incidents",
+    readPerms: ["PPE_INCIDENT_READ"],
+    reviewPerms: ["PPE_INCIDENT_REVIEW", "PPE_INCIDENT_UPDATE"],
+    managePerms: ["PPE_INCIDENT_MANAGE", "PPE_INCIDENT_DELETE"],
+    fullDescVi:
+      "Toàn quyền điều phối, phân công xử lý, phê duyệt đóng hồ sơ hoặc xóa các bản ghi sự cố vi phạm PPE.",
+    fullDescEn:
+      "Full authority to coordinate, assign, resolve, or delete PPE safety incident records.",
+    readDescVi:
+      "Tra cứu danh sách sự cố vi phạm PPE và bằng chứng hình ảnh AI ghi nhận.",
+    readDescEn:
+      "Inspect PPE violation incidents and AI-captured visual evidence.",
+    noneDescVi: "Chưa được cấp quyền PPE_INCIDENT_READ để xem danh sách sự cố.",
+    noneDescEn: "Missing PPE_INCIDENT_READ permission to view safety incidents.",
+  },
+  {
+    route: "/sites",
+    icon: Building2,
+    titleVi: "Công trường & Vùng cấm",
+    titleEn: "Sites & Restricted Areas",
+    readPerms: ["PPE_SITE_READ", "PPE_ZONE_READ", "PPE_RESTRICTED_AREA_READ"],
+    managePerms: [
+      "PPE_SITE_MANAGE",
+      "PPE_ZONE_MANAGE",
+      "PPE_RESTRICTED_AREA_MANAGE",
+      "PPE_SAFETY_CONFIG_MANAGE",
+    ],
+    fullDescVi:
+      "Tạo và cấu hình công trường, phân khu thi công (Zones), vùng cấm và quy chuẩn đồ bảo hộ PPE.",
+    fullDescEn:
+      "Create and configure sites, construction zones, restricted areas, and PPE safety rules.",
+    readDescVi:
+      "Xem sơ đồ công trường, danh sách phân khu và quy định bảo hộ lao động hiện hành.",
+    readDescEn:
+      "View site layouts, construction zones, and active PPE safety requirements.",
+    noneDescVi: "Chưa được cấp quyền PPE_SITE_READ để tra cứu công trường.",
+    noneDescEn: "Missing PPE_SITE_READ permission to browse construction sites.",
+  },
+  {
+    route: "/reports",
+    icon: BarChart3,
+    titleVi: "Báo cáo & Thống kê",
+    titleEn: "Compliance Reports",
+    readPerms: ["PPE_REPORTING_READ"],
+    managePerms: ["PPE_REPORTING_EXPORT"],
+    fullDescVi:
+      "Phân tích biểu đồ tuân thủ an toàn chuyên sâu và trích xuất báo cáo định kỳ (PDF/Excel/CSV).",
+    fullDescEn:
+      "Analyze safety compliance charts and export periodic audit reports (PDF/Excel/CSV).",
+    readDescVi:
+      "Xem thống kê và biểu đồ xu hướng vi phạm an toàn lao động trên giao diện web.",
+    readDescEn:
+      "View safety violation trends and compliance analytics dashboards.",
+    noneDescVi: "Chưa được cấp quyền PPE_REPORTING_READ để xem báo cáo thống kê.",
+    noneDescEn: "Missing PPE_REPORTING_READ permission to view compliance reports.",
+  },
+  {
+    route: "/ai-metrics",
+    icon: Cpu,
+    titleVi: "Đo lường & Model AI",
+    titleEn: "AI Metrics & Models",
+    readPerms: ["PPE_AI_METRICS_READ", "PPE_MODEL_READ"],
+    managePerms: ["PPE_MODEL_MANAGE"],
+    fullDescVi:
+      "Theo dõi hiệu năng nhận diện (mAP, FPS, độ trễ), quản lý phiên bản model và chạy AI Sandbox Test.",
+    fullDescEn:
+      "Monitor inference telemetry (mAP, FPS, latency), manage AI models, and run AI Sandbox tests.",
+    readDescVi:
+      "Xem các chỉ số đo lường độ chính xác và trạng thái vận hành của các mô hình thị giác máy tính.",
+    readDescEn:
+      "View accuracy telemetry and operational metrics of computer vision models.",
+    noneDescVi: "Chưa được cấp quyền PPE_AI_METRICS_READ để truy cập đo lường AI.",
+    noneDescEn: "Missing PPE_AI_METRICS_READ permission to view AI metrics.",
+  },
+  {
+    route: "/users",
+    icon: Users,
+    titleVi: "Quản lý Người dùng",
+    titleEn: "User Directory",
+    readPerms: ["USER_READ"],
+    managePerms: [
+      "USER_CREATE",
+      "USER_UPDATE",
+      "USER_DELETE",
+      "USER_RESTORE",
+      "USER_ROLE_ASSIGN",
+    ],
+    fullDescVi:
+      "Quản lý vòng đời tài khoản nhân sự: tạo mới, cập nhật, khóa/khôi phục, phân công công trường và gán vai trò.",
+    fullDescEn:
+      "Manage user account lifecycle: create, update, lock/restore, assign sites, and assign roles.",
+    readDescVi:
+      "Tra cứu danh bạ nhân sự, trạng thái hoạt động và thông tin liên hệ trong hệ thống.",
+    readDescEn:
+      "Browse workforce directory, account status, and contact information.",
+    noneDescVi: "Chưa được cấp quyền USER_READ để truy cập danh bạ người dùng.",
+    noneDescEn: "Missing USER_READ permission to access user directory.",
+  },
+  {
+    route: "/roles",
+    icon: ShieldCheck,
+    titleVi: "Vai trò & Phân quyền",
+    titleEn: "Roles & Permissions",
+    readPerms: ["ROLE_READ", "PERMISSION_READ"],
+    managePerms: [
+      "ROLE_CREATE",
+      "ROLE_UPDATE",
+      "ROLE_DELETE",
+      "ROLE_PERMISSION_ASSIGN",
+    ],
+    fullDescVi:
+      "Thiết lập vai trò tùy chỉnh, đồng bộ ma trận phân quyền RBAC và kiểm soát cơ chế chống tự khóa quyền.",
+    fullDescEn:
+      "Create custom roles, synchronize the RBAC permission matrix, and enforce anti-lockout controls.",
+    readDescVi:
+      "Xem danh mục vai trò và tra cứu cơ cấu phân quyền hiện hành trong hệ thống.",
+    readDescEn:
+      "View role catalog and inspect current RBAC permission assignments.",
+    noneDescVi: "Chưa được cấp quyền ROLE_READ để xem cấu hình vai trò.",
+    noneDescEn: "Missing ROLE_READ permission to view roles and permissions.",
+  },
+  {
+    route: "/audit-logs",
+    icon: ScrollText,
+    titleVi: "Nhật ký Hệ thống",
+    titleEn: "System Audit Logs",
+    readPerms: ["AUDIT_LOG_READ"],
+    managePerms: ["AUDIT_LOG_EXPORT"],
+    fullDescVi:
+      "Tra soát toàn bộ lịch sử thao tác bảo mật kèm IP/User-Agent và xuất dữ liệu kiểm toán.",
+    fullDescEn:
+      "Inspect full security audit trail with IP/User-Agent metadata and export audit logs.",
+    readDescVi:
+      "Xem nhật ký kiểm toán hệ thống và lịch sử thay đổi dữ liệu quan trọng.",
+    readDescEn:
+      "View system audit trail and historical changes on sensitive resources.",
+    noneDescVi: "Chưa được cấp quyền AUDIT_LOG_READ để tra cứu nhật ký kiểm toán.",
+    noneDescEn: "Missing AUDIT_LOG_READ permission to inspect audit logs.",
+  },
+  {
+    route: "/notifications",
+    icon: Bell,
+    titleVi: "Trung tâm Thông báo",
+    titleEn: "Notification Center",
+    readPerms: ["NOTIFICATION_READ", "NOTIFICATION_TEMPLATE_READ"],
+    managePerms: [
+      "NOTIFICATION_CREATE",
+      "NOTIFICATION_UPDATE",
+      "NOTIFICATION_DELETE",
+      "NOTIFICATION_TEMPLATE_MANAGE",
+    ],
+    fullDescVi:
+      "Nhận cảnh báo cá nhân, phát thông báo diện rộng và quản lý mẫu thông báo tự động.",
+    fullDescEn:
+      "Receive personal alerts, broadcast announcements, and manage notification templates.",
+    readDescVi:
+      "Nhận và quản lý hộp thư thông báo, cảnh báo vi phạm PPE cá nhân theo thời gian thực.",
+    readDescEn:
+      "Receive and manage personal notifications and real-time PPE violation alerts.",
+    noneDescVi: "Chưa được cấp quyền NOTIFICATION_READ để truy cập hộp thư thông báo.",
+    noneDescEn: "Missing NOTIFICATION_READ permission to access notifications.",
+  },
+  {
+    route: "/system",
+    icon: Settings2,
+    titleVi: "Cấu hình Hệ thống",
+    titleEn: "System Settings",
+    readPerms: ["SYSTEM_CONFIG_READ", "API_KEY_READ", "WEBHOOK_READ", "CRON_JOB_READ"],
+    managePerms: [
+      "SYSTEM_CONFIG_MANAGE",
+      "API_KEY_MANAGE",
+      "WEBHOOK_MANAGE",
+      "CRON_JOB_MANAGE",
+    ],
+    fullDescVi:
+      "Quản trị tham số hệ thống, Feature Flags, khóa tích hợp API Keys, Webhooks và tiến trình nền Cron.",
+    fullDescEn:
+      "Manage system parameters, feature flags, API keys, webhooks, and scheduled cron jobs.",
+    readDescVi:
+      "Xem cấu hình tham số vận hành hệ thống và trạng thái các dịch vụ tích hợp.",
+    readDescEn:
+      "View system configuration parameters and integration service status.",
+    noneDescVi: "Chưa được cấp quyền SYSTEM_CONFIG_READ để truy cập cấu hình hệ thống.",
+    noneDescEn: "Missing SYSTEM_CONFIG_READ permission to access system settings.",
+  },
+  {
+    route: "/maintenance",
+    icon: Wrench,
+    titleVi: "Bảo trì Hệ thống",
+    titleEn: "System Maintenance",
+    readPerms: ["MAINTENANCE_READ"],
+    managePerms: ["MAINTENANCE_MANAGE", "MAINTENANCE_BYPASS"],
+    fullDescVi:
+      "Kích hoạt/tắt chế độ bảo trì toàn hệ thống, cấu hình thông điệp bảo trì và quyền miễn trừ truy cập.",
+    fullDescEn:
+      "Toggle system-wide maintenance mode, configure notice banners, and bypass maintenance lock.",
+    readDescVi:
+      "Xem trạng thái và lịch trình bảo trì định kỳ của hệ thống.",
+    readDescEn:
+      "View current maintenance status and scheduled maintenance windows.",
+    noneDescVi: "Chưa được cấp quyền MAINTENANCE_READ hoặc MAINTENANCE_MANAGE.",
+    noneDescEn: "Missing MAINTENANCE_READ or MAINTENANCE_MANAGE permission.",
+  },
+];
+
+const SYSTEM_ROLE_META: Record<
+  string,
+  {
+    titleVi: string;
+    titleEn: string;
+    levelVi: string;
+    levelEn: string;
+    missionVi: string;
+    missionEn: string;
+  }
+> = {
   ADMIN: {
-    title: "Quản trị viên Hệ thống Cấp cao",
-    securityLevel: "Cấp độ 1 — Toàn quyền Quản trị & Điều hành Hệ thống",
-    mission:
+    titleVi: "Quản trị viên Hệ thống Cấp cao",
+    titleEn: "Chief System Administrator",
+    levelVi: "Cấp độ 1 — Toàn quyền Quản trị & Điều hành Hệ thống",
+    levelEn: "Tier 1 — Full System Administration & Security Control",
+    missionVi:
       "Chịu trách nhiệm tối cao về an ninh thông tin, tính sẵn sàng của hạ tầng AI, phân bổ người dùng và kiểm soát ma trận phân quyền RBAC toàn hệ thống Smart PPE.",
-    coreResponsibilities: [
-      "Quản lý toàn bộ vòng đời tài khoản người dùng, vai trò và phân bổ quyền truy cập API.",
-      "Thiết lập cấu hình AI model, camera RTSP, ranh giới công trường và các vùng cấm nguy hiểm.",
-      "Tra soát nhật ký kiểm toán (Audit Logs) và điều tra các sự cố an ninh nghiêm trọng.",
-      "Quản trị tham số hệ thống, webhook thông báo và các tiến trình đồng bộ tự động.",
-    ],
-    pageCapabilities: [
-      {
-        title: "Bảng điều khiển",
-        route: "/dashboard",
-        icon: LayoutDashboard,
-        accessLevel: "full",
-        accessLabel: "Toàn quyền",
-        description:
-          "Xem toàn bộ chỉ số KPI an toàn tổng hợp, tỷ lệ vi phạm của tất cả công trường, tình trạng phần cứng và cảnh báo thời gian thực.",
-      },
-      {
-        title: "Giám sát Camera AI",
-        route: "/cameras",
-        icon: Cctv,
-        accessLevel: "full",
-        accessLabel: "Toàn quyền",
-        description:
-          "Thêm mới, cấu hình URL RTSP, vẽ vùng an toàn ROI, hiệu chỉnh ngưỡng nhận diện mũ/áo/găng tay và kiểm soát luồng AI streaming.",
-      },
-      {
-        title: "Sự cố An toàn PPE",
-        route: "/incidents",
-        icon: ShieldAlert,
-        accessLevel: "full",
-        accessLabel: "Toàn quyền",
-        description:
-          "Xem, gán người xử lý, cập nhật trạng thái vi phạm, xóa sự cố rác hoặc phê duyệt đóng các hồ sơ vi phạm an toàn.",
-      },
-      {
-        title: "Công trường & Vùng cấm",
-        route: "/sites",
-        icon: Building2,
-        accessLevel: "full",
-        accessLabel: "Toàn quyền",
-        description:
-          "Tạo công trường mới, chia nhỏ các Zone thi công, thiết lập vùng cấm nghiêm ngặt (Restricted Areas) bắt buộc đồ bảo hộ.",
-      },
-      {
-        title: "Báo cáo & Thống kê",
-        route: "/reports",
-        icon: BarChart3,
-        accessLevel: "full",
-        accessLabel: "Toàn quyền",
-        description:
-          "Xem biểu đồ tuân thủ quy chuẩn an toàn, xuất báo cáo tổng hợp định dạng PDF, Excel và CSV phục vụ thanh tra.",
-      },
-      {
-        title: "Đo lường & Model AI",
-        route: "/ai-metrics",
-        icon: Cpu,
-        accessLevel: "full",
-        accessLabel: "Toàn quyền",
-        description:
-          "Theo dõi chỉ số mAP, IoU, độ trễ xử lý khung hình (FPS) và điều phối các phiên bản mô hình thị giác máy tính.",
-      },
-      {
-        title: "Quản lý Người dùng",
-        route: "/users",
-        icon: Users,
-        accessLevel: "full",
-        accessLabel: "Toàn quyền",
-        description:
-          "Tạo tài khoản công nhân, mở/khóa tài khoản nghỉ việc, đặt lại mật khẩu và cấp phát thiết bị bảo hộ thông minh.",
-      },
-      {
-        title: "Vai trò & Phân quyền",
-        route: "/roles",
-        icon: ShieldCheck,
-        accessLevel: "full",
-        accessLabel: "Toàn quyền",
-        description:
-          "Cấu hình ma trận phân quyền chi tiết, tạo vai trò tùy chỉnh và duy trì cơ chế bảo vệ chống tự khóa quyền (Anti-lockout).",
-      },
-      {
-        title: "Nhật ký Hệ thống",
-        route: "/audit-logs",
-        icon: ScrollText,
-        accessLevel: "full",
-        accessLabel: "Toàn quyền",
-        description:
-          "Tra soát nhật ký bảo mật chi tiết theo thời gian thực: địa chỉ IP, tác nhân trình duyệt và thao tác thay đổi dữ liệu nhạy cảm.",
-      },
-      {
-        title: "Trung tâm Thông báo",
-        route: "/notifications",
-        icon: Bell,
-        accessLevel: "full",
-        accessLabel: "Toàn quyền",
-        description:
-          "Gửi thông báo diện rộng (Broadcast), thiết lập kênh Webhook và quản lý các mẫu email cảnh báo tự động.",
-      },
-      {
-        title: "Cấu hình Hệ thống",
-        route: "/system",
-        icon: Settings2,
-        accessLevel: "full",
-        accessLabel: "Toàn quyền",
-        description:
-          "Thiết lập tham số môi trường, khóa API keys, quản lý Feature Flags và kích hoạt/tạm dừng các tác vụ Cron nền.",
-      },
-      {
-        title: "Bảo trì Hệ thống",
-        route: "/maintenance",
-        icon: Wrench,
-        accessLevel: "full",
-        accessLabel: "Toàn quyền",
-        description:
-          "Kích hoạt hoặc ngắt chế độ bảo trì toàn web, cấu hình thông điệp thông báo, thời gian dự kiến và danh sách tài khoản được phép miễn trừ.",
-      },
-    ],
-    securityGuardrails: [
-      "Được bảo vệ bởi cơ chế Anti-Lockout: Các quyền cốt lõi của ADMIN không thể bị thu hồi nhằm tránh mất quyền kiểm soát.",
-      "Toàn quyền quản trị và điều phối chế độ bảo trì toàn web mà không bị gián đoạn quyền truy cập.",
-      "Mọi thao tác thay đổi cấu hình bảo mật hoặc phân quyền đều được ghi vết kiểm toán vĩnh viễn.",
-      "Bắt buộc kích hoạt xác thực hai lớp (2FA) để đảm bảo an toàn tuyệt đối cho tài khoản quản trị tối cao.",
-    ],
+    missionEn:
+      "Holds ultimate responsibility for information security, AI infrastructure availability, workforce provisioning, and RBAC governance across Smart PPE.",
   },
-
   SAFETY_MANAGER: {
-    title: "Chỉ huy Trưởng An toàn Công trường",
-    securityLevel: "Cấp độ 2 — Quản trị Hiện trường & Giám sát AI",
-    mission:
-      "Chịu trách nhiệm trực tiếp về quy chuẩn an toàn lao động PPE tại các dự án công trường, xử lý sự cố hiện trường và hiệu chỉnh camera AI.",
-    coreResponsibilities: [
-      "Quản lý các phân khu thi công (Zones), quy tắc an toàn và các khu vực có nguy cơ tai nạn cao.",
-      "Thiết lập ngưỡng phát hiện vi phạm PPE (mũ bảo hộ, áo phản quang, giày, găng tay, khẩu trang).",
-      "Gán cán bộ an toàn (Safety Officer) phụ trách các sự cố vi phạm và duyệt đóng hồ sơ xử lý.",
-      "Xuất báo cáo định kỳ gửi ban chỉ huy công trình và cơ quan thanh tra an toàn lao động.",
-    ],
-    pageCapabilities: [
-      {
-        title: "Bảng điều khiển",
-        route: "/dashboard",
-        icon: LayoutDashboard,
-        accessLevel: "manage",
-        accessLabel: "Giám sát & Quản lý",
-        description:
-          "Theo dõi chỉ số an toàn hiện trường, biểu đồ vi phạm theo giờ và trạng thái kết nối các camera giám sát.",
-      },
-      {
-        title: "Giám sát Camera AI",
-        route: "/cameras",
-        icon: Cctv,
-        accessLevel: "manage",
-        accessLabel: "Quản lý hiện trường",
-        description:
-          "Xem luồng camera trực tiếp, cấu hình khu vực giám sát ROI và hiệu chỉnh độ nhạy phát hiện bảo hộ.",
-      },
-      {
-        title: "Sự cố An toàn PPE",
-        route: "/incidents",
-        icon: ShieldAlert,
-        accessLevel: "manage",
-        accessLabel: "Toàn quyền xử lý",
-        description:
-          "Tiếp nhận, phân bổ người giải quyết, kiểm duyệt bằng chứng hình ảnh và phê duyệt hoàn tất xử lý vi phạm.",
-      },
-      {
-        title: "Công trường & Vùng cấm",
-        route: "/sites",
-        icon: Building2,
-        accessLevel: "manage",
-        accessLabel: "Quản lý phân khu",
-        description:
-          "Thiết lập các phân khu công trường, quy chuẩn an toàn riêng cho từng vùng thi công và cấu hình cảnh báo vi phạm.",
-      },
-      {
-        title: "Báo cáo & Thống kê",
-        route: "/reports",
-        icon: BarChart3,
-        accessLevel: "manage",
-        accessLabel: "Tạo & Xuất báo cáo",
-        description:
-          "Khởi tạo và xuất báo cáo an toàn tổng hợp theo ca, tuần, tháng phục vụ họp giao ban công trường.",
-      },
-      {
-        title: "Đo lường & Model AI",
-        route: "/ai-metrics",
-        icon: Cpu,
-        accessLevel: "read",
-        accessLabel: "Xem hiệu năng",
-        description:
-          "Đánh giá độ chính xác của mô hình nhận diện mũ/áo tại công trường để yêu cầu tinh chỉnh khi cần.",
-      },
-      {
-        title: "Quản lý Người dùng",
-        route: "/users",
-        icon: Users,
-        accessLevel: "read",
-        accessLabel: "Tra cứu nhân sự",
-        description:
-          "Xem danh sách công nhân, liên hệ khẩn cấp và thông tin phân công lao động tại công trường.",
-      },
-      {
-        title: "Vai trò & Phân quyền",
-        route: "/roles",
-        icon: ShieldCheck,
-        accessLevel: "read",
-        accessLabel: "Xem tài liệu",
-        description:
-          "Tra cứu cẩm nang quyền hạn và trách nhiệm của từng vị trí trong hệ thống.",
-      },
-      {
-        title: "Nhật ký Hệ thống",
-        route: "/audit-logs",
-        icon: ScrollText,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Chỉ dành riêng cho Quản trị viên cấp cao nhằm bảo vệ bí mật vận hành hệ thống.",
-      },
-      {
-        title: "Trung tâm Thông báo",
-        route: "/notifications",
-        icon: Bell,
-        accessLevel: "manage",
-        accessLabel: "Nhận cảnh báo khẩn",
-        description:
-          "Nhận thông báo sự cố vi phạm nghiêm trọng và gửi thông báo nhắc nhở an toàn cho đội ngũ hiện trường.",
-      },
-      {
-        title: "Cấu hình Hệ thống",
-        route: "/system",
-        icon: Settings2,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Chỉ dành riêng cho Quản trị viên điều hành hạ tầng kỹ thuật.",
-      },
-    ],
-    securityGuardrails: [
-      "Không thể tự ý thay đổi quyền hạn hoặc can thiệp vào các tài khoản quản trị hệ thống.",
-      "Không có quyền can thiệp vào mã nguồn AI hoặc cấu hình API keys toàn hệ thống.",
-      "Mọi quyết định phê duyệt sự cố đều được ghi nhận danh tính người duyệt phục vụ công tác thanh tra.",
-    ],
+    titleVi: "Chỉ huy Trưởng An toàn Công trường",
+    titleEn: "Site Safety Manager",
+    levelVi: "Cấp độ 2 — Quản trị Hiện trường & Giám sát AI",
+    levelEn: "Tier 2 — Field Safety Management & AI Operations",
+    missionVi:
+      "Chịu trách nhiệm trực tiếp về quy chuẩn an toàn lao động PPE tại các dự án công trường, điều phối xử lý sự cố hiện trường và hiệu chỉnh camera AI.",
+    missionEn:
+      "Directly oversees PPE safety compliance across construction sites, coordinates incident response, and manages field AI cameras.",
   },
-
   SAFETY_OFFICER: {
-    title: "Cán bộ Giám sát An toàn Trực ban",
-    securityLevel: "Cấp độ 3 — Giám sát Hiện trường & Trực ban Cảnh báo",
-    mission:
-      "Trực ban theo dõi cảnh báo trực tiếp từ camera AI, xử lý vi phạm tại chỗ và ghi nhận hiện trường tuân thủ bảo hộ lao động.",
-    coreResponsibilities: [
-      "Theo dõi luồng camera trực tiếp tại các phân khu thi công được phân công ca trực.",
-      "Tiếp nhận cảnh báo tức thời khi công nhân không đội mũ, không mặc áo phản quang.",
-      "Đến hiện trường nhắc nhở, lập biên bản vi phạm và yêu cầu trang bị bảo hộ trước khi tiếp tục làm việc.",
-      "Chụp ảnh bằng chứng khắc phục sự cố và cập nhật tiến độ giải quyết lên hệ thống.",
-    ],
-    pageCapabilities: [
-      {
-        title: "Bảng điều khiển",
-        route: "/dashboard",
-        icon: LayoutDashboard,
-        accessLevel: "read",
-        accessLabel: "Theo dõi trực ban",
-        description:
-          "Quan sát các sự cố vi phạm đang chờ xử lý, số camera hoạt động và các cảnh báo nguy cấp trong ca trực.",
-      },
-      {
-        title: "Giám sát Camera AI",
-        route: "/cameras",
-        icon: Cctv,
-        accessLevel: "read",
-        accessLabel: "Xem luồng trực tiếp",
-        description:
-          "Xem trực tiếp video camera với khung nhận diện AI (Bounding box) về mũ bảo hộ, áo và người vi phạm.",
-      },
-      {
-        title: "Sự cố An toàn PPE",
-        route: "/incidents",
-        icon: ShieldAlert,
-        accessLevel: "review",
-        accessLabel: "Xử lý vi phạm",
-        description:
-          "Xem thông tin chi tiết sự cố, cập nhật trạng thái 'Đang xử lý', đính kèm ảnh hiện trường và hoàn tất khắc phục.",
-      },
-      {
-        title: "Công trường & Vùng cấm",
-        route: "/sites",
-        icon: Building2,
-        accessLevel: "read",
-        accessLabel: "Tra cứu vùng",
-        description:
-          "Xem sơ đồ ranh giới công trường và danh sách các vùng cấm yêu cầu trang bị đồ bảo hộ nghiêm ngặt.",
-      },
-      {
-        title: "Báo cáo & Thống kê",
-        route: "/reports",
-        icon: BarChart3,
-        accessLevel: "read",
-        accessLabel: "Xem thống kê ca",
-        description: "Xem thống kê các sự cố diễn ra trong ca làm việc phục vụ bàn giao ca.",
-      },
-      {
-        title: "Đo lường & Model AI",
-        route: "/ai-metrics",
-        icon: Cpu,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Khu vực kỹ thuật dành riêng cho quản trị viên AI.",
-      },
-      {
-        title: "Quản lý Người dùng",
-        route: "/users",
-        icon: Users,
-        accessLevel: "read",
-        accessLabel: "Xác minh công nhân",
-        description:
-          "Tra cứu danh tính công nhân khi phát hiện vi phạm để ghi nhận biên bản xử lý vi phạm.",
-      },
-      {
-        title: "Vai trò & Phân quyền",
-        route: "/roles",
-        icon: ShieldCheck,
-        accessLevel: "read",
-        accessLabel: "Xem tài liệu",
-        description: "Xem tài liệu phân quyền hệ thống.",
-      },
-      {
-        title: "Nhật ký Hệ thống",
-        route: "/audit-logs",
-        icon: ScrollText,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Chỉ dành cho Quản trị viên cấp cao.",
-      },
-      {
-        title: "Trung tâm Thông báo",
-        route: "/notifications",
-        icon: Bell,
-        accessLevel: "read",
-        accessLabel: "Nhận tin tức thời",
-        description: "Nhận thông báo đẩy (Push notification) ngay khi camera AI phát hiện vi phạm.",
-      },
-      {
-        title: "Cấu hình Hệ thống",
-        route: "/system",
-        icon: Settings2,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Chỉ dành cho Quản trị viên kỹ thuật.",
-      },
-    ],
-    securityGuardrails: [
-      "Không thể xóa sự cố khỏi hệ thống để ngăn chặn việc xóa dấu vết vi phạm.",
-      "Không có quyền chỉnh sửa cấu hình camera hoặc tắt thuật toán AI phát hiện bảo hộ.",
-      "Chỉ được phép cập nhật trạng thái các sự cố trong phạm vi công trường được phân công.",
-    ],
+    titleVi: "Cán bộ Giám sát An toàn Hiện trường",
+    titleEn: "Field Safety Officer",
+    levelVi: "Cấp độ 3 — Tác nghiệp Hiện trường & Xử lý Sự cố",
+    levelEn: "Tier 3 — Field Inspection & Incident Resolution",
+    missionVi:
+      "Trực tiếp theo dõi cảnh báo vi phạm PPE theo thời gian thực, xác minh bằng chứng hình ảnh AI và cập nhật kết quả khắc phục tại hiện trường.",
+    missionEn:
+      "Monitors real-time PPE violation alerts, verifies AI visual evidence, and updates on-site corrective actions.",
   },
-
   MANAGER: {
-    title: "Quản lý Điều hành & Nhân sự",
-    securityLevel: "Cấp độ 3 — Điều hành Nhân sự & Báo cáo",
-    mission:
-      "Điều phối nhân sự nhà thầu, theo dõi chỉ số tuân thủ tổng thể và đảm bảo chính sách an toàn lao động trong toàn bộ tổ chức.",
-    coreResponsibilities: [
-      "Quản lý danh sách nhân sự nhà thầu phụ, phòng ban và phân bổ tài khoản làm việc.",
-      "Đánh giá tỷ lệ tuân thủ quy chuẩn an toàn lao động của từng đơn vị thi công.",
-      "Theo dõi lịch sử vi phạm để đưa ra các biện pháp đào tạo lại hoặc chế tài kỷ luật.",
-      "Gửi thông báo định hướng an toàn lao động tới toàn thể cán bộ công nhân viên.",
-    ],
-    pageCapabilities: [
-      {
-        title: "Bảng điều khiển",
-        route: "/dashboard",
-        icon: LayoutDashboard,
-        accessLevel: "read",
-        accessLabel: "Tổng quan điều hành",
-        description: "Xem biểu đồ tổng hợp mức độ tuân thủ an toàn và xếp hạng vi phạm theo nhà thầu.",
-      },
-      {
-        title: "Giám sát Camera AI",
-        route: "/cameras",
-        icon: Cctv,
-        accessLevel: "read",
-        accessLabel: "Tình trạng camera",
-        description: "Kiểm tra mức độ phủ sóng camera và thời gian hoạt động của hệ thống.",
-      },
-      {
-        title: "Sự cố An toàn PPE",
-        route: "/incidents",
-        icon: ShieldAlert,
-        accessLevel: "read",
-        accessLabel: "Hồ sơ vi phạm",
-        description: "Tra cứu lịch sử vi phạm của từng cá nhân hoặc đội nhóm thi công.",
-      },
-      {
-        title: "Công trường & Vùng cấm",
-        route: "/sites",
-        icon: Building2,
-        accessLevel: "read",
-        accessLabel: "Danh mục dự án",
-        description: "Xem thông tin các dự án đang thi công và chỉ huy trưởng phụ trách.",
-      },
-      {
-        title: "Báo cáo & Thống kê",
-        route: "/reports",
-        icon: BarChart3,
-        accessLevel: "manage",
-        accessLabel: "Xuất dữ liệu",
-        description: "Xuất báo cáo vi phạm an toàn định kỳ phục vụ đánh giá năng lực nhà thầu.",
-      },
-      {
-        title: "Đo lường & Model AI",
-        route: "/ai-metrics",
-        icon: Cpu,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Khu vực kỹ thuật AI.",
-      },
-      {
-        title: "Quản lý Người dùng",
-        route: "/users",
-        icon: Users,
-        accessLevel: "manage",
-        accessLabel: "Quản trị nhân sự",
-        description: "Tạo tài khoản mới, cập nhật hồ sơ công nhân, gán phòng ban và quản lý trạng thái tài khoản.",
-      },
-      {
-        title: "Vai trò & Phân quyền",
-        route: "/roles",
-        icon: ShieldCheck,
-        accessLevel: "read",
-        accessLabel: "Xem tài liệu",
-        description: "Tra cứu tài liệu phân quyền hệ thống.",
-      },
-      {
-        title: "Nhật ký Hệ thống",
-        route: "/audit-logs",
-        icon: ScrollText,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Chỉ dành riêng cho Quản trị viên hệ thống.",
-      },
-      {
-        title: "Trung tâm Thông báo",
-        route: "/notifications",
-        icon: Bell,
-        accessLevel: "manage",
-        accessLabel: "Gửi thông báo",
-        description: "Soạn thảo và gửi thông báo nhắc nhở tuân thủ bảo hộ cho toàn công trường.",
-      },
-      {
-        title: "Cấu hình Hệ thống",
-        route: "/system",
-        icon: Settings2,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Chỉ dành riêng cho Quản trị viên kỹ thuật.",
-      },
-    ],
-    securityGuardrails: [
-      "Không có quyền cấp quyền quản trị cấp cao (Admin) cho người dùng.",
-      "Không thể can thiệp vào các tham số phát hiện của camera AI hoặc xóa bỏ bằng chứng sự cố.",
-      "Không có quyền truy cập vào các khóa API bí mật hoặc nhật ký kiểm toán hệ thống.",
-    ],
+    titleVi: "Quản lý Dự án & Điều hành",
+    titleEn: "Project & Operations Manager",
+    levelVi: "Cấp độ 3 — Giám sát Báo cáo & Điều hành",
+    levelEn: "Tier 3 — Executive Reporting & Operational Oversight",
+    missionVi:
+      "Theo dõi bức tranh tổng thể về mức độ tuân thủ an toàn lao động giữa các công trường, trích xuất báo cáo phục vụ thanh tra và ra quyết định điều hành.",
+    missionEn:
+      "Oversees cross-site safety compliance trends, exports audit reports, and drives operational decision-making.",
   },
-
   USER: {
-    title: "Thành viên & Công nhân Hiện trường",
-    securityLevel: "Cấp độ 4 — Thành viên Tiêu chuẩn",
-    mission:
-      "Tham gia lao động sản xuất an toàn, tuân thủ nghiêm ngặt các quy định về trang bị bảo hộ cá nhân (mũ, áo, giày, găng tay) và theo dõi thông tin cá nhân.",
-    coreResponsibilities: [
-      "Luôn luôn trang bị đầy đủ đồ bảo hộ PPE khi làm việc trong các khu vực bắt buộc.",
-      "Xem thông báo cá nhân về nhắc nhở an toàn hoặc các sự cố đã từng vi phạm.",
-      "Kiểm tra và cập nhật thông tin liên lạc cá nhân, số điện thoại khẩn cấp.",
-      "Nâng cao ý thức an toàn lao động và nhắc nhở đồng nghiệp cùng tuân thủ.",
-    ],
-    pageCapabilities: [
-      {
-        title: "Bảng điều khiển",
-        route: "/dashboard",
-        icon: LayoutDashboard,
-        accessLevel: "read",
-        accessLabel: "Thông tin chung",
-        description: "Xem thông điệp an toàn trong ngày và khẩu hiệu an toàn lao động của dự án.",
-      },
-      {
-        title: "Giám sát Camera AI",
-        route: "/cameras",
-        icon: Cctv,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Công nhân không có quyền truy cập xem luồng camera an ninh của công trường.",
-      },
-      {
-        title: "Sự cố An toàn PPE",
-        route: "/incidents",
-        icon: ShieldAlert,
-        accessLevel: "read",
-        accessLabel: "Xem thông báo lỗi",
-        description: "Xem các vi phạm của bản thân (nếu có) để rút kinh nghiệm và tuân thủ tốt hơn.",
-      },
-      {
-        title: "Công trường & Vùng cấm",
-        route: "/sites",
-        icon: Building2,
-        accessLevel: "read",
-        accessLabel: "Nội quy vùng",
-        description: "Xem sơ đồ thoát hiểm và biển báo quy định bảo hộ của từng khu vực.",
-      },
-      {
-        title: "Báo cáo & Thống kê",
-        route: "/reports",
-        icon: BarChart3,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Dành riêng cho cấp quản lý.",
-      },
-      {
-        title: "Đo lường & Model AI",
-        route: "/ai-metrics",
-        icon: Cpu,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Dành riêng cho kỹ sư AI.",
-      },
-      {
-        title: "Quản lý Người dùng",
-        route: "/users",
-        icon: Users,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Bảo mật danh tính nhân sự.",
-      },
-      {
-        title: "Vai trò & Phân quyền",
-        route: "/roles",
-        icon: ShieldCheck,
-        accessLevel: "read",
-        accessLabel: "Xem hướng dẫn",
-        description: "Đọc cẩm nang trách nhiệm và quyền hạn của mình trong hệ sinh thái an toàn.",
-      },
-      {
-        title: "Nhật ký Hệ thống",
-        route: "/audit-logs",
-        icon: ScrollText,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Dành riêng cho Quản trị viên cấp cao.",
-      },
-      {
-        title: "Trung tâm Thông báo",
-        route: "/notifications",
-        icon: Bell,
-        accessLevel: "read",
-        accessLabel: "Hòm thư cá nhân",
-        description: "Nhận thông báo nhắc nhở tuân thủ an toàn và các tin tức nội bộ công ty.",
-      },
-      {
-        title: "Cấu hình Hệ thống",
-        route: "/system",
-        icon: Settings2,
-        accessLevel: "none",
-        accessLabel: "Không có quyền",
-        description: "Dành riêng cho Quản trị viên kỹ thuật.",
-      },
-    ],
-    securityGuardrails: [
-      "Nguyên tắc đặc quyền tối thiểu: Chỉ có quyền đọc thông tin liên quan trực tiếp đến bản thân.",
-      "Tuyệt đối không có quyền can thiệp vào dữ liệu, camera hay các tài khoản người dùng khác.",
-      "Mọi hành vi đăng nhập trái phép sẽ bị hệ thống phát hiện và tạm khóa tài khoản.",
-    ],
-  },
-};
-
-export const ROLE_KNOWLEDGE_EN: Record<string, RoleKnowledgeProfile> = {
-  ADMIN: {
-    title: "Super System Administrator",
-    securityLevel: "Level 1 — Full System Administration & Operational Authority",
-    mission:
-      "Holds supreme accountability for information security, AI infrastructure availability, personnel provisioning, and system-wide RBAC policy enforcement.",
-    coreResponsibilities: [
-      "Manage end-to-end user account lifecycle, role hierarchy, and API privilege allocation.",
-      "Configure AI computer vision models, RTSP camera streams, site zones, and restricted hazardous areas.",
-      "Review audit trails (Audit Logs) and investigate security anomalies.",
-      "Administer runtime system parameters, notification webhooks, and automated background jobs.",
-    ],
-    pageCapabilities: [
-      {
-        title: "Dashboard",
-        route: "/dashboard",
-        icon: LayoutDashboard,
-        accessLevel: "full",
-        accessLabel: "Full Access",
-        description:
-          "Monitor aggregate safety KPIs, violation rates across all construction sites, hardware health, and real-time alerts.",
-      },
-      {
-        title: "AI Camera Surveillance",
-        route: "/cameras",
-        icon: Cctv,
-        accessLevel: "full",
-        accessLabel: "Full Access",
-        description:
-          "Add and configure RTSP feeds, delineate ROI safety zones, calibrate PPE detection thresholds (helmet/vest/gloves), and govern live streaming.",
-      },
-      {
-        title: "PPE Safety Incidents",
-        route: "/incidents",
-        icon: ShieldAlert,
-        accessLevel: "full",
-        accessLabel: "Full Access",
-        description:
-          "Inspect, assign responders, update violation status, purge false alarms, and approve safety incident closures.",
-      },
-      {
-        title: "Sites & Hazard Zones",
-        route: "/sites",
-        icon: Building2,
-        accessLevel: "full",
-        accessLabel: "Full Access",
-        description:
-          "Provision construction sites, partition zones, and declare high-risk restricted zones requiring mandatory protective gear.",
-      },
-      {
-        title: "Reports & Analytics",
-        route: "/reports",
-        icon: BarChart3,
-        accessLevel: "full",
-        accessLabel: "Full Access",
-        description:
-          "Review compliance trends, export comprehensive audit reports in PDF, Excel, and CSV formats for regulatory compliance.",
-      },
-      {
-        title: "AI Metrics & Models",
-        route: "/ai-metrics",
-        icon: Cpu,
-        accessLevel: "full",
-        accessLabel: "Full Access",
-        description:
-          "Inspect mAP, IoU, inference latency (FPS), and orchestrate vision model deployments.",
-      },
-      {
-        title: "User Directory",
-        route: "/users",
-        icon: Users,
-        accessLevel: "full",
-        accessLabel: "Full Access",
-        description:
-          "Provision worker accounts, lock/unlock accounts, reset credentials, and assign smart PPE equipment.",
-      },
-      {
-        title: "Roles & Permissions",
-        route: "/roles",
-        icon: ShieldCheck,
-        accessLevel: "full",
-        accessLabel: "Full Access",
-        description:
-          "Configure granular permission matrices, create custom roles, and uphold anti-lockout safeguards.",
-      },
-      {
-        title: "Audit Trail",
-        route: "/audit-logs",
-        icon: ScrollText,
-        accessLevel: "full",
-        accessLabel: "Full Access",
-        description:
-          "Inspect tamper-proof operational audit trails with IP tracking, user agents, and sensitive action logs.",
-      },
-      {
-        title: "Notification Center",
-        route: "/notifications",
-        icon: Bell,
-        accessLevel: "full",
-        accessLabel: "Full Access",
-        description:
-          "Dispatch broadcast alerts, configure webhook notification channels, and manage email notification templates.",
-      },
-      {
-        title: "System Administration",
-        route: "/system",
-        icon: Settings2,
-        accessLevel: "full",
-        accessLabel: "Full Access",
-        description:
-          "Fine-tune system environment parameters, API gateway keys, feature toggles, and scheduled background tasks.",
-      },
-      {
-        title: "System Maintenance",
-        route: "/maintenance",
-        icon: Wrench,
-        accessLevel: "full",
-        accessLabel: "Full Access",
-        description:
-          "Enable or disable platform-wide maintenance mode, schedule duration, configure user notices, and manage bypass whitelists.",
-      },
-    ],
-    securityGuardrails: [
-      "Protected by Anti-Lockout safeguards: Critical Admin permissions cannot be revoked.",
-      "Maintains uninterrupted access and exclusive administration over system-wide maintenance mode.",
-      "High-risk operational modifications are permanently recorded in the immutable audit log.",
-      "Two-Factor Authentication (2FA) is strongly enforced for Super Administrator credentials.",
-    ],
-  },
-
-  SAFETY_MANAGER: {
-    title: "Site Safety Operations Manager",
-    securityLevel: "Level 2 — Site Operations & AI Surveillance Administration",
-    mission:
-      "Responsible for field-level PPE compliance, incident remediation workflows, camera calibration, and site zone safety parameters.",
-    coreResponsibilities: [
-      "Oversee construction site zones, safety equipment rules, and restricted hazardous boundaries.",
-      "Calibrate PPE detection thresholds (Hardhat, High-Vis Vest, Boots, Gloves, Masks).",
-      "Assign duty safety officers to live incidents and approve formal remediation resolutions.",
-      "Generate monthly safety audit reports for contractor leadership and labor inspectors.",
-    ],
-    pageCapabilities: [
-      {
-        title: "Dashboard",
-        route: "/dashboard",
-        icon: LayoutDashboard,
-        accessLevel: "manage",
-        accessLabel: "Operational",
-        description:
-          "View real-time safety KPIs, live violation trends, and camera operational statuses across assigned sites.",
-      },
-      {
-        title: "AI Camera Surveillance",
-        route: "/cameras",
-        icon: Cctv,
-        accessLevel: "manage",
-        accessLabel: "Management",
-        description:
-          "Configure camera zones, adjust detection sensitivity thresholds, and manage stream bindings.",
-      },
-      {
-        title: "PPE Safety Incidents",
-        route: "/incidents",
-        icon: ShieldAlert,
-        accessLevel: "manage",
-        accessLabel: "Full Management",
-        description:
-          "Triage violations, delegate remediation tasks to field officers, and sign off on closed safety records.",
-      },
-      {
-        title: "Sites & Hazard Zones",
-        route: "/sites",
-        icon: Building2,
-        accessLevel: "manage",
-        accessLabel: "Site Administration",
-        description:
-          "Define working zones, set safety compliance rules per zone, and configure warning thresholds.",
-      },
-      {
-        title: "Reports & Analytics",
-        route: "/reports",
-        icon: BarChart3,
-        accessLevel: "manage",
-        accessLabel: "Export & Generate",
-        description:
-          "Produce and export daily/weekly/monthly safety compliance summaries.",
-      },
-      {
-        title: "AI Metrics & Models",
-        route: "/ai-metrics",
-        icon: Cpu,
-        accessLevel: "read",
-        accessLabel: "View Performance",
-        description:
-          "Inspect model accuracy scores and detection false-positive rates to request calibration.",
-      },
-      {
-        title: "User Directory",
-        route: "/users",
-        icon: Users,
-        accessLevel: "read",
-        accessLabel: "Directory Lookup",
-        description:
-          "Look up worker profiles, emergency contacts, and assigned equipment.",
-      },
-      {
-        title: "Roles & Permissions",
-        route: "/roles",
-        icon: ShieldCheck,
-        accessLevel: "read",
-        accessLabel: "View Only",
-        description:
-          "Consult the RBAC permission directory and capability guidelines.",
-      },
-      {
-        title: "Audit Trail",
-        route: "/audit-logs",
-        icon: ScrollText,
-        accessLevel: "none",
-        accessLabel: "Restricted",
-        description: "Access restricted to Super System Administrators.",
-      },
-      {
-        title: "Notification Center",
-        route: "/notifications",
-        icon: Bell,
-        accessLevel: "manage",
-        accessLabel: "Operational Alerts",
-        description:
-          "Receive high-priority incident triggers and dispatch team-wide safety bulletins.",
-      },
-      {
-        title: "System Administration",
-        route: "/system",
-        icon: Settings2,
-        accessLevel: "none",
-        accessLabel: "Restricted",
-        description: "Access restricted to Super System Administrators.",
-      },
-    ],
-    securityGuardrails: [
-      "Cannot delete or modify system-wide technical roles or grant unauthorized API scopes.",
-      "Cannot access or alter core system environment configs or API gateway credentials.",
-      "All incident approvals and zone rule changes are logged with timestamp and user ID.",
-    ],
-  },
-
-  SAFETY_OFFICER: {
-    title: "Duty Safety Inspector",
-    securityLevel: "Level 3 — Field Surveillance & Real-Time Incident Triage",
-    mission:
-      "Conducts live monitoring, receives instant PPE violation alerts, verifies detector outputs, and executes immediate on-site safety intervention.",
-    coreResponsibilities: [
-      "Continuously monitor live video feeds from AI safety cameras across active site zones.",
-      "Acknowledge instant PPE violation notifications, verify false alarms, and mark valid offenses.",
-      "Directly intervene with non-compliant personnel on site to ensure immediate protective gear compliance.",
-      "Record evidence photos, document incident details, and submit remediation reports.",
-    ],
-    pageCapabilities: [
-      {
-        title: "Dashboard",
-        route: "/dashboard",
-        icon: LayoutDashboard,
-        accessLevel: "read",
-        accessLabel: "Live Monitoring",
-        description:
-          "Track active incident counts, camera availability, and immediate hazard alerts.",
-      },
-      {
-        title: "AI Camera Surveillance",
-        route: "/cameras",
-        icon: Cctv,
-        accessLevel: "read",
-        accessLabel: "Live Stream Only",
-        description:
-          "View real-time camera video streams with bounding box overlays for helmets, vests, and gear.",
-      },
-      {
-        title: "PPE Safety Incidents",
-        route: "/incidents",
-        icon: ShieldAlert,
-        accessLevel: "review",
-        accessLabel: "Incident Triage",
-        description:
-          "Review incoming alerts, confirm violations, attach corrective photos, and resolve field tickets.",
-      },
-      {
-        title: "Sites & Hazard Zones",
-        route: "/sites",
-        icon: Building2,
-        accessLevel: "read",
-        accessLabel: "Zone Lookup",
-        description:
-          "View site maps and check required PPE specifications for each operational zone.",
-      },
-      {
-        title: "Reports & Analytics",
-        route: "/reports",
-        icon: BarChart3,
-        accessLevel: "read",
-        accessLabel: "View Shift Reports",
-        description: "View daily shift incident summaries and violation breakdowns.",
-      },
-      {
-        title: "AI Metrics & Models",
-        route: "/ai-metrics",
-        icon: Cpu,
-        accessLevel: "none",
-        accessLabel: "Restricted",
-        description: "Not permitted to inspect AI infrastructure metrics.",
-      },
-      {
-        title: "User Directory",
-        route: "/users",
-        icon: Users,
-        accessLevel: "read",
-        accessLabel: "Worker Verification",
-        description:
-          "Verify worker identities and check authorized site entry permits.",
-      },
-      {
-        title: "Roles & Permissions",
-        route: "/roles",
-        icon: ShieldCheck,
-        accessLevel: "read",
-        accessLabel: "View Only",
-        description: "Inspect assigned role duties and permissions guide.",
-      },
-      {
-        title: "Audit Trail",
-        route: "/audit-logs",
-        icon: ScrollText,
-        accessLevel: "none",
-        accessLabel: "Restricted",
-        description: "Access restricted to Super System Administrators.",
-      },
-      {
-        title: "Notification Center",
-        route: "/notifications",
-        icon: Bell,
-        accessLevel: "read",
-        accessLabel: "Alert Stream",
-        description: "Receive immediate push notifications when safety violations occur.",
-      },
-      {
-        title: "System Administration",
-        route: "/system",
-        icon: Settings2,
-        accessLevel: "none",
-        accessLabel: "Restricted",
-        description: "Access restricted to Super System Administrators.",
-      },
-    ],
-    securityGuardrails: [
-      "Cannot delete incident tickets from the system to preserve audit integrity.",
-      "Cannot modify camera RTSP connection strings or detection algorithm parameters.",
-      "Cannot reconfigure site boundary geometry or zone risk classifications.",
-    ],
-  },
-
-  MANAGER: {
-    title: "Operations & HR Manager",
-    securityLevel: "Level 3 — Personnel Operations & Compliance Reporting",
-    mission:
-      "Oversees workforce deployment, monitors subcontractor safety track records, and ensures health & safety regulatory compliance.",
-    coreResponsibilities: [
-      "Manage worker and contractor accounts, departmental assignments, and contact records.",
-      "Analyze weekly and monthly safety compliance reports across all contractor teams.",
-      "Track repeat PPE offenders to implement safety refresher training or disciplinary actions.",
-      "Broadcast general workplace announcements and safety compliance guidelines.",
-    ],
-    pageCapabilities: [
-      {
-        title: "Dashboard",
-        route: "/dashboard",
-        icon: LayoutDashboard,
-        accessLevel: "read",
-        accessLabel: "Overview",
-        description: "Review executive safety compliance scorecards and contractor performance metrics.",
-      },
-      {
-        title: "AI Camera Surveillance",
-        route: "/cameras",
-        icon: Cctv,
-        accessLevel: "read",
-        accessLabel: "Camera Health",
-        description: "Check camera deployment coverage and uptime across job sites.",
-      },
-      {
-        title: "PPE Safety Incidents",
-        route: "/incidents",
-        icon: ShieldAlert,
-        accessLevel: "read",
-        accessLabel: "Incident History",
-        description: "Inspect resolved incident histories and individual worker compliance track records.",
-      },
-      {
-        title: "Sites & Hazard Zones",
-        route: "/sites",
-        icon: Building2,
-        accessLevel: "read",
-        accessLabel: "Site Overview",
-        description: "View construction site directories, project managers, and zone configurations.",
-      },
-      {
-        title: "Reports & Analytics",
-        route: "/reports",
-        icon: BarChart3,
-        accessLevel: "manage",
-        accessLabel: "Export Reports",
-        description: "Generate and export workforce compliance summaries and violation frequency charts.",
-      },
-      {
-        title: "AI Metrics & Models",
-        route: "/ai-metrics",
-        icon: Cpu,
-        accessLevel: "none",
-        accessLabel: "Restricted",
-        description: "Access restricted to technical personnel.",
-      },
-      {
-        title: "User Directory",
-        route: "/users",
-        icon: Users,
-        accessLevel: "manage",
-        accessLabel: "Workforce Management",
-        description: "Add workers, edit profile information, assign departments, and maintain emergency contacts.",
-      },
-      {
-        title: "Roles & Permissions",
-        route: "/roles",
-        icon: ShieldCheck,
-        accessLevel: "read",
-        accessLabel: "View Only",
-        description: "Review role catalog and access privileges.",
-      },
-      {
-        title: "Audit Trail",
-        route: "/audit-logs",
-        icon: ScrollText,
-        accessLevel: "none",
-        accessLabel: "Restricted",
-        description: "Access restricted to Super System Administrators.",
-      },
-      {
-        title: "Notification Center",
-        route: "/notifications",
-        icon: Bell,
-        accessLevel: "manage",
-        accessLabel: "Announcements",
-        description: "Dispatch general announcements and workforce safety reminders.",
-      },
-      {
-        title: "System Administration",
-        route: "/system",
-        icon: Settings2,
-        accessLevel: "none",
-        accessLabel: "Restricted",
-        description: "Access restricted to Super System Administrators.",
-      },
-    ],
-    securityGuardrails: [
-      "Cannot assign administrator or privileged security roles to accounts.",
-      "Cannot modify AI models, detection thresholds, or camera streaming streams.",
-      "Cannot alter or delete recorded incident violation evidence photos.",
-    ],
-  },
-
-  USER: {
-    title: "Standard Worker / Member",
-    securityLevel: "Level 4 — Standard Field Member",
-    mission:
-      "Frontline field worker or general system user accessing personal safety notifications, assigned gear records, and training material.",
-    coreResponsibilities: [
-      "Comply with mandatory PPE requirements (helmet, vest, boots, gloves) at all times on site.",
-      "Review personal safety records and acknowledge violation warnings received.",
-      "Update personal contact details and emergency contact records.",
-      "Read workplace safety policies and protocol guidelines.",
-    ],
-    pageCapabilities: [
-      {
-        title: "Dashboard",
-        route: "/dashboard",
-        icon: LayoutDashboard,
-        accessLevel: "read",
-        accessLabel: "Personal View",
-        description: "View company safety statistics and general safety announcements.",
-      },
-      {
-        title: "AI Camera Surveillance",
-        route: "/cameras",
-        icon: Cctv,
-        accessLevel: "none",
-        accessLabel: "No Access",
-        description: "Workers do not have direct access to camera video feeds.",
-      },
-      {
-        title: "PPE Safety Incidents",
-        route: "/incidents",
-        icon: ShieldAlert,
-        accessLevel: "read",
-        accessLabel: "Personal Records",
-        description: "View self-related safety violation notifications and resolution notes.",
-      },
-      {
-        title: "Sites & Hazard Zones",
-        route: "/sites",
-        icon: Building2,
-        accessLevel: "read",
-        accessLabel: "Site Safety Rules",
-        description: "Check site maps, emergency exits, and zone gear requirements.",
-      },
-      {
-        title: "Reports & Analytics",
-        route: "/reports",
-        icon: BarChart3,
-        accessLevel: "none",
-        accessLabel: "No Access",
-        description: "Analytical exports restricted to management.",
-      },
-      {
-        title: "AI Metrics & Models",
-        route: "/ai-metrics",
-        icon: Cpu,
-        accessLevel: "none",
-        accessLabel: "No Access",
-        description: "Access restricted.",
-      },
-      {
-        title: "User Directory",
-        route: "/users",
-        icon: Users,
-        accessLevel: "none",
-        accessLabel: "No Access",
-        description: "User directory restricted to administrators and managers.",
-      },
-      {
-        title: "Roles & Permissions",
-        route: "/roles",
-        icon: ShieldCheck,
-        accessLevel: "read",
-        accessLabel: "View Guidelines",
-        description: "Read role responsibilities and permission documentation.",
-      },
-      {
-        title: "System Audit Logs",
-        route: "/audit-logs",
-        icon: ScrollText,
-        accessLevel: "none",
-        accessLabel: "No Access",
-        description: "Access restricted.",
-      },
-      {
-        title: "Notification Center",
-        route: "/notifications",
-        icon: Bell,
-        accessLevel: "read",
-        accessLabel: "Personal Inbox",
-        description: "Receive personal alerts, violation notices, and safety reminders.",
-      },
-      {
-        title: "System Settings",
-        route: "/system",
-        icon: Settings2,
-        accessLevel: "none",
-        accessLabel: "No Access",
-        description: "Access restricted.",
-      },
-    ],
-    securityGuardrails: [
-      "Strict least-privilege: Read-only access to self-associated documents and notifications.",
-      "Zero operational access to camera streams, system settings, or user management.",
-      "Cannot modify safety thresholds or close violation records.",
-    ],
+    titleVi: "Nhân sự / Công nhân Công trường",
+    titleEn: "Standard Personnel / Site Worker",
+    levelVi: "Cấp độ 4 — Quyền Truy cập Cơ bản (Least Privilege)",
+    levelEn: "Tier 4 — Standard Least-Privilege Access",
+    missionVi:
+      "Tài khoản tiêu chuẩn dành cho nhân sự tham gia dự án, cho phép theo dõi thông báo an toàn cá nhân và tra cứu thông tin trong phạm vi được phân quyền.",
+    missionEn:
+      "Standard account for project personnel to receive personal safety notifications and view authorized information.",
   },
 };
 
@@ -1193,134 +370,168 @@ export function getRoleKnowledgeProfile(
   locale: "vi-VN" | "en-US",
 ): RoleKnowledgeProfile {
   const isEn = locale === "en-US";
-  const dict = isEn ? ROLE_KNOWLEDGE_EN : ROLE_KNOWLEDGE_VI;
+  const roleName = role?.name?.toUpperCase() || "USER";
+  const isAdmin = roleName === "ADMIN" || roleName === "SUPER_ADMIN";
+  const permNames = new Set((role?.permissions || []).map((p) => p.name));
+  const hasAny = (list?: readonly string[]) =>
+    Boolean(list && list.some((p) => permNames.has(p)));
 
-  if (!role) {
-    return dict.USER;
-  }
+  // 1. Tính toán động khả năng truy cập trên 12 trang hệ thống từ tập quyền thực tế trong DB
+  const pageCapabilities: PageAccessRule[] = SYSTEM_ROUTE_SPECS.map((spec) => {
+    const canManage = isAdmin || hasAny(spec.managePerms);
+    const canReview = !canManage && hasAny(spec.reviewPerms);
+    const canRead =
+      !canManage &&
+      !canReview &&
+      (Boolean(spec.alwaysAccessible) || hasAny(spec.readPerms));
 
-  const roleKey = role.name.toUpperCase();
-  if (dict[roleKey]) {
-    return dict[roleKey];
-  }
+    let accessLevel: PageAccessRule["accessLevel"] = "none";
+    let accessLabel = isEn ? "No Access" : "Không truy cập";
+    let description = isEn ? spec.noneDescEn : spec.noneDescVi;
 
-  // Fallback for custom roles:
-  const permNames = new Set((role.permissions || []).map((p) => p.name));
-  const hasCamera = Array.from(permNames).some((p) => p.includes("CAMERA"));
-  const hasIncident = Array.from(permNames).some((p) => p.includes("INCIDENT"));
-  const hasUser = Array.from(permNames).some((p) => p.includes("USER"));
+    if (canManage) {
+      accessLevel = isAdmin ? "full" : "manage";
+      accessLabel = isAdmin
+        ? isEn
+          ? "Full Access"
+          : "Toàn quyền"
+        : isEn
+        ? "Manage"
+        : "Quản lý & Cấu hình";
+      description = isEn ? spec.fullDescEn : spec.fullDescVi;
+    } else if (canReview) {
+      accessLevel = "review";
+      accessLabel = isEn ? "Review & Update" : "Xử lý & Cập nhật";
+      description = isEn ? spec.fullDescEn : spec.fullDescVi;
+    } else if (canRead) {
+      accessLevel = "read";
+      accessLabel = isEn ? "View Only" : "Chỉ xem";
+      description = isEn ? spec.readDescEn : spec.readDescVi;
+    }
 
-  if (isEn) {
     return {
-      title: `Custom Role: ${role.name}`,
-      securityLevel: "Custom Role — Tailored access defined by Administrator",
-      mission:
-        role.description ||
-        "Custom role configured dynamically according to specific site workflow requirements.",
-      coreResponsibilities: [
-        "Execute authorized actions granted through the RBAC permission matrix.",
-        "Comply with resource domain boundaries and endpoint policy constraints.",
-      ],
-      pageCapabilities: [
-        {
-          title: "Dashboard",
-          route: "/dashboard",
-          icon: LayoutDashboard,
-          accessLevel: "read",
-          accessLabel: "Permitted",
-          description: "View aggregate safety metrics and operational dashboard overview.",
-        },
-        {
-          title: "AI Camera Surveillance",
-          route: "/cameras",
-          icon: Cctv,
-          accessLevel: hasCamera ? "manage" : "none",
-          accessLabel: hasCamera ? "Authorized" : "No Access",
-          description: hasCamera
-            ? "Permitted to monitor and inspect field camera streams."
-            : "No access granted to live surveillance streams.",
-        },
-        {
-          title: "PPE Safety Incidents",
-          route: "/incidents",
-          icon: ShieldAlert,
-          accessLevel: hasIncident ? "review" : "none",
-          accessLabel: hasIncident ? "Incident Review" : "No Access",
-          description: hasIncident
-            ? "Permitted to view and update safety incident tickets."
-            : "No access granted to incident management.",
-        },
-        {
-          title: "User Directory",
-          route: "/users",
-          icon: Users,
-          accessLevel: hasUser ? "manage" : "none",
-          accessLabel: hasUser ? "User Directory" : "No Access",
-          description: hasUser
-            ? "Permitted to inspect workforce directory."
-            : "No access granted to user accounts.",
-        },
-      ],
-      securityGuardrails: [
-        "Can only perform API endpoints with explicitly assigned permission scopes.",
-        "Strictly restricted from privilege escalation to unauthorized resource domains.",
-      ],
+      title: isEn ? spec.titleEn : spec.titleVi,
+      route: spec.route,
+      icon: spec.icon,
+      accessLevel,
+      accessLabel,
+      description,
     };
+  });
+
+  const accessibleCount = pageCapabilities.filter(
+    (p) => p.accessLevel !== "none",
+  ).length;
+  const manageCount = pageCapabilities.filter(
+    (p) => p.accessLevel === "full" || p.accessLevel === "manage",
+  ).length;
+
+  // 2. Metadata tiêu đề, cấp độ an ninh & sứ mệnh
+  const preset = SYSTEM_ROLE_META[roleName];
+  const title = preset
+    ? isEn
+      ? preset.titleEn
+      : preset.titleVi
+    : isEn
+    ? `Custom Role: ${role?.name || ""}`
+    : `Vai trò tùy chỉnh: ${role?.name || ""}`;
+
+  const securityLevel = preset
+    ? isEn
+      ? preset.levelEn
+      : preset.levelVi
+    : isEn
+    ? `Custom RBAC Profile — ${permNames.size} active permissions (${accessibleCount}/${pageCapabilities.length} routes)`
+    : `Hồ sơ RBAC tùy chỉnh — ${permNames.size} quyền thực thi (${accessibleCount}/${pageCapabilities.length} trang truy cập)`;
+
+  const mission =
+    role?.description?.trim() ||
+    (preset
+      ? isEn
+        ? preset.missionEn
+        : preset.missionVi
+      : isEn
+      ? "Dynamically configured role tailored to specific operational and security workflows."
+      : "Vai trò tùy chỉnh được cấu hình động theo cơ cấu tổ chức và quy trình vận hành thực tế.");
+
+  // 3. Trách nhiệm cốt lõi suy diễn từ quyền thực tế đang sở hữu
+  const coreResponsibilities: string[] = [];
+  if (isAdmin || hasAny(["ROLE_PERMISSION_ASSIGN", "USER_ROLE_ASSIGN", "USER_CREATE"])) {
+    coreResponsibilities.push(
+      isEn
+        ? "Administer user accounts, role assignments, and RBAC permission boundaries."
+        : "Quản trị tài khoản nhân sự, phân bổ vai trò và kiểm soát ma trận phân quyền RBAC.",
+    );
   }
+  if (isAdmin || hasAny(["PPE_INCIDENT_READ", "PPE_INCIDENT_REVIEW", "PPE_INCIDENT_MANAGE"])) {
+    coreResponsibilities.push(
+      isEn
+        ? "Monitor, verify, and resolve AI-detected PPE safety violation incidents."
+        : "Giám sát, xác minh bằng chứng AI và xử lý các sự cố vi phạm an toàn lao động PPE.",
+    );
+  }
+  if (isAdmin || hasAny(["PPE_CAMERA_READ", "PPE_CAMERA_MANAGE", "PPE_SITE_READ", "PPE_SITE_MANAGE"])) {
+    coreResponsibilities.push(
+      isEn
+        ? "Oversee construction sites, safety zones, restricted areas, and RTSP AI camera streams."
+        : "Theo dõi công trường, phân khu thi công, vùng cấm và luồng camera AI giám sát hiện trường.",
+    );
+  }
+  if (isAdmin || hasAny(["PPE_REPORTING_READ", "PPE_REPORTING_EXPORT", "PPE_AI_METRICS_READ"])) {
+    coreResponsibilities.push(
+      isEn
+        ? "Analyze safety compliance statistics, AI model performance, and periodic audit reports."
+        : "Phân tích thống kê tuân thủ an toàn, hiệu năng mô hình AI và trích xuất báo cáo định kỳ.",
+    );
+  }
+  if (coreResponsibilities.length === 0) {
+    coreResponsibilities.push(
+      isEn
+        ? "Access personal dashboard and notifications within least-privilege boundaries."
+        : "Truy cập bảng điều khiển cá nhân và nhận thông báo an toàn theo nguyên tắc tối thiểu đặc quyền.",
+    );
+  }
+
+  // 4. Rào chắn an ninh (Security Guardrails) theo trạng thái thực tế của Role
+  const securityGuardrails: string[] = [];
+  if (isAdmin) {
+    securityGuardrails.push(
+      isEn
+        ? "Protected by Anti-Lockout: Core administrative permissions (ROLE_PERMISSION_ASSIGN) cannot be revoked."
+        : "Được bảo vệ bởi cơ chế Anti-Lockout: Không thể thu hồi các quyền quản trị cốt lõi (ROLE_PERMISSION_ASSIGN) của ADMIN.",
+    );
+  } else if (role?.isSystem) {
+    securityGuardrails.push(
+      isEn
+        ? "System role identifier is immutable and cannot be renamed or deleted."
+        : "Định danh vai trò hệ thống là bất biến (Immutable), không thể đổi tên hoặc xóa khỏi cơ sở dữ liệu.",
+    );
+  } else {
+    securityGuardrails.push(
+      isEn
+        ? "Custom role: Can only be deleted when no active user accounts are assigned to it."
+        : "Vai trò tùy chỉnh: Chỉ cho phép xóa khi không còn tài khoản nhân sự nào đang được gán vai trò này.",
+    );
+  }
+
+  securityGuardrails.push(
+    isEn
+      ? `Currently granted ${permNames.size} API permissions across ${accessibleCount}/${pageCapabilities.length} application routes (${manageCount} management routes).`
+      : `Hiện đang được cấp ${permNames.size} mã quyền API trên ${accessibleCount}/${pageCapabilities.length} trang chức năng (${manageCount} trang có quyền quản lý).`,
+  );
+
+  securityGuardrails.push(
+    isEn
+      ? "Every permission sync or role assignment is permanently recorded in the Audit Trail with actor IP and timestamp."
+      : "Mọi thao tác đồng bộ quyền hạn hoặc gán nhân sự đều được lưu vết kiểm toán (Audit Logs) kèm IP và thời gian thực.",
+  );
 
   return {
-    title: `Vai trò tùy chỉnh: ${role.name}`,
-    securityLevel: "Vai trò người dùng thiết lập riêng theo dự án",
-    mission:
-      role.description ||
-      "Vai trò tùy chỉnh được cấu hình linh hoạt theo cơ cấu tổ chức riêng của công trường.",
-    coreResponsibilities: [
-      "Thực hiện các quyền hạn cụ thể đã được gán qua Ma trận phân quyền.",
-      "Tuân thủ các giới hạn truy cập được quy định trên từng phân hệ tài nguyên.",
-    ],
-    pageCapabilities: [
-      {
-        title: "Bảng điều khiển",
-        route: "/dashboard",
-        icon: LayoutDashboard,
-        accessLevel: "read",
-        accessLabel: "Được phép xem",
-        description: "Xem các thông tin chỉ số an toàn chung trên hệ thống.",
-      },
-      {
-        title: "Giám sát Camera AI",
-        route: "/cameras",
-        icon: Cctv,
-        accessLevel: hasCamera ? "manage" : "none",
-        accessLabel: hasCamera ? "Được phân quyền" : "Không có quyền",
-        description: hasCamera
-          ? "Được phép truy cập và giám sát các luồng camera hiện trường."
-          : "Chưa được cấp quyền truy cập camera giám sát.",
-      },
-      {
-        title: "Sự cố An toàn PPE",
-        route: "/incidents",
-        icon: ShieldAlert,
-        accessLevel: hasIncident ? "review" : "none",
-        accessLabel: hasIncident ? "Xử lý sự cố" : "Không có quyền",
-        description: hasIncident
-          ? "Được phép xem và cập nhật hồ sơ các sự cố vi phạm an toàn."
-          : "Không có quyền thao tác trên danh sách sự cố.",
-      },
-      {
-        title: "Quản lý Người dùng",
-        route: "/users",
-        icon: Users,
-        accessLevel: hasUser ? "manage" : "none",
-        accessLabel: hasUser ? "Quản lý nhân sự" : "Không có quyền",
-        description: hasUser
-          ? "Được phép tra cứu và hỗ trợ quản lý tài khoản người dùng."
-          : "Không có quyền xem hoặc thao tác trên danh sách nhân sự.",
-      },
-    ],
-    securityGuardrails: [
-      "Chỉ thực hiện được các API endpoints đã được gán mã quyền cụ thể.",
-      "Không thể tự ý vượt quyền truy cập sang các nhóm tài nguyên chưa được phê duyệt.",
-    ],
+    title,
+    securityLevel,
+    mission,
+    coreResponsibilities,
+    pageCapabilities,
+    securityGuardrails,
   };
 }

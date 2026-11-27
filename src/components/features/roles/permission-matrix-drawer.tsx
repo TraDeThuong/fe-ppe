@@ -180,7 +180,7 @@ export function PermissionMatrixDrawer({
   };
 
   const handleSave = async () => {
-    if (!canAssign || !role || selectedIds.size === 0) return;
+    if (!canAssign || !role || (role.isSystem && selectedIds.size === 0)) return;
     try {
       await onSave(role.id, Array.from(selectedIds));
       onOpenChange(false);
@@ -228,7 +228,7 @@ export function PermissionMatrixDrawer({
               type="button"
               variant="primary"
               onClick={handleSave}
-              disabled={loading || selectedIds.size === 0}
+              disabled={loading || (Boolean(role?.isSystem) && selectedIds.size === 0)}
               className="flex-1 sm:flex-initial"
             >
               <Shield className="mr-1.5 h-4 w-4" />

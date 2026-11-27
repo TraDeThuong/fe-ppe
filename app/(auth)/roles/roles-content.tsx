@@ -13,7 +13,6 @@ import {
   CreateRoleModal,
   EditRoleModal,
   DeleteRoleDialog,
-  RolePermissionsGuide,
   type RoleStatKey,
 } from "@/components/features/roles";
 import {
@@ -24,8 +23,9 @@ import {
   useDeleteRole,
   useSyncRolePermissions,
 } from "@/hooks/rbac";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
-import type { CreateRolePayload, RoleDto, UpdateRolePayload } from "@/types";
+import type { CreateRolePayload, PermissionDto, RoleDto, UpdateRolePayload } from "@/types";
 
 const STAT_TO_URL: Record<RoleStatKey, string> = {
   totalRoles: "total-roles",
@@ -67,17 +67,34 @@ export default function RolesContent() {
   };
 
   // Data fetching
+  const can = useCan();
+  const canReadPermissions = can("PERMISSION_READ");
+
   const { data: roles = [], isLoading: rolesLoading, isFetching: rolesFetching, error: rolesError, refetch: refetchRoles } = useRolesCatalog();
   const {
-    data: permissions = [],
+    data: fetchedPermissions = [],
     isLoading: permsLoading,
     isFetching: permsFetching,
     refetch: refetchPermissions,
-  } = usePermissions();
+  } = usePermissions(undefined, { enabled: canReadPermissions });
 
-  const isRefreshingAll = rolesFetching || permsFetching;
+  const permissions = useMemo<PermissionDto[]>(() => {
+    if (fetchedPermissions.length > 0) return fetchedPermissions;
+    const map = new Map<string, PermissionDto>();
+    for (const r of roles) {
+      for (const p of r.permissions ?? []) {
+        if (!map.has(p.id)) map.set(p.id, p);
+      }
+    }
+    return Array.from(map.values());
+  }, [fetchedPermissions, roles]);
+
+  const isRefreshingAll = rolesFetching || (canReadPermissions && permsFetching);
   const handleRefreshAll = () => {
-    void Promise.all([refetchRoles(), refetchPermissions()]);
+    void Promise.all([
+      refetchRoles(),
+      ...(canReadPermissions ? [refetchPermissions()] : []),
+    ]);
   };
 
   // Mutations
@@ -153,163 +170,72 @@ export default function RolesContent() {
     await syncPermissions.mutateAsync({ roleId, permissionIds });
   };
 
-  // View mode from URL: guide vs list
-  const viewParam = searchParams.get("view");
-  const isGuideView = viewParam === "guide";
-  const guideRoleParam = searchParams.get("role");
-
-  const toolbar = (<RoleToolbar
-
-    search={search}
-
-    onSearchChange={setSearch}
-
-    systemFilter={systemFilter}
-
-    onSystemFilterChange={setSystemFilter}
-
-    viewMode={viewMode}
-
-    onViewModeChange={setViewMode}
-
-    onCreateRole={handleOpenCreate}
-
-    onOpenGuide={() => {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("view", "guide");
-      params.delete("stat");
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-    }}
-
-    onRefresh={viewMode !== "table" ? handleRefreshAll : undefined}
-
-    isRefreshing={isRefreshingAll}
-
-  />);
+  const toolbar = (
+    <RoleToolbar
+      search={search}
+      onSearchChange={setSearch}
+      systemFilter={systemFilter}
+      onSystemFilterChange={setSystemFilter}
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      onCreateRole={handleOpenCreate}
+      onRefresh={viewMode !== "table" ? handleRefreshAll : undefined}
+      isRefreshing={isRefreshingAll}
+    />
+  );
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <PageHeader
-
         icon={ShieldCheck}
-
-        title={isGuideView ? t("roles.guide.title") : t("roles.title")}
-
-        description={
-          isGuideView ? t("roles.guide.description") : t("roles.description")
-        }
-
-        badge={isGuideView ? t("roles.guide.badge") : t("roles.badge.security")}
-
+        title={t("roles.title")}
+        description={t("roles.description")}
+        badge={t("roles.badge.security")}
         badgeIcon={ShieldCheck}
-
       />
 
-      {isGuideView ? (
-        /* Giao diện Cẩm nang tài liệu hướng dẫn (Không có thẻ stats) */
-        <RolePermissionsGuide
+      {/* KPI Bento Summary */}
+      <RoleKpiSummary
+        roles={roles}
+        permissions={permissions}
+        totalPermissionsCount={permissions.length}
+        loading={rolesLoading || permsLoading}
+        selectedStat={selectedStat}
+        onSelectStat={handleSelectStat}
+        onConfigurePermissions={handleOpenMatrix}
+        onCreateRole={handleOpenCreate}
+      />
 
-          roles={roles}
+      {/* Filter & Action Toolbar */}
+      {viewMode !== "table" ? toolbar : null}
 
-          allPermissions={permissions}
-
-          selectedRoleId={
-            roles.find(
-              (r) =>
-                r.id === guideRoleParam ||
-                r.name.toUpperCase() === guideRoleParam?.toUpperCase(),
-            )?.id
-          }
-
-          onSelectRole={(id) => {
-            const targetRole = roles.find((r) => r.id === id);
-            const params = new URLSearchParams(searchParams.toString());
-            if (targetRole) {
-              params.set("role", targetRole.name);
-            }
-            router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-          }}
-
-          onBackToList={() => {
-            const params = new URLSearchParams(searchParams.toString());
-            params.delete("view");
-            params.delete("role");
-            const q = params.toString();
-            router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-          }}
-
+      {/* Roles Display (Grid or Table) */}
+      {viewMode === "grid" ? (
+        <RoleCardGrid
+          roles={filteredRoles}
           onConfigurePermissions={handleOpenMatrix}
-
+          onEdit={handleOpenEdit}
+          onDelete={handleOpenDelete}
+          loading={rolesLoading}
         />
       ) : (
-        /* Giao diện Quản trị Vai trò chuẩn (Có thẻ stats + Toolbar + Danh sách vai trò) */
-        <>
-          {/* KPI Bento Summary */}
-          <RoleKpiSummary
-
-            roles={roles}
-
-            permissions={permissions}
-
-            totalPermissionsCount={permissions.length}
-
-            loading={rolesLoading || permsLoading}
-
-            selectedStat={selectedStat}
-
-            onSelectStat={handleSelectStat}
-
-            onConfigurePermissions={handleOpenMatrix}
-
-            onCreateRole={handleOpenCreate}
-
-          />
-
-          {/* Filter & Action Toolbar */}
-          {viewMode !== "table" ? toolbar : null}
-
-          {/* Roles Display (Grid or Table) */}
-          {viewMode === "grid" ? (
-            <RoleCardGrid
-
-              roles={filteredRoles}
-
-              onConfigurePermissions={handleOpenMatrix}
-
-              onEdit={handleOpenEdit}
-
-              onDelete={handleOpenDelete}
-
-              loading={rolesLoading}
-
-            />
-          ) : (
-            <RoleTable
-
-              roles={filteredRoles}
-
-              onConfigurePermissions={handleOpenMatrix}
-
-              onEdit={handleOpenEdit}
-
-              onDelete={handleOpenDelete}
-
-              loading={rolesLoading}
-
-              tableState={{
-                manualFiltering: true,
-                globalFilter: search,
-                filterKey: systemFilter,
-                fetching: isRefreshingAll,
-                error: rolesError,
-                onRetry: handleRefreshAll,
-                toolbar
-              }}
-
-            />
-          )}
-        </>
+        <RoleTable
+          roles={filteredRoles}
+          onConfigurePermissions={handleOpenMatrix}
+          onEdit={handleOpenEdit}
+          onDelete={handleOpenDelete}
+          loading={rolesLoading}
+          tableState={{
+            manualFiltering: true,
+            globalFilter: search,
+            filterKey: systemFilter,
+            fetching: isRefreshingAll,
+            error: rolesError,
+            onRetry: handleRefreshAll,
+            toolbar,
+          }}
+        />
       )}
 
       {/* Create Role Modal */}

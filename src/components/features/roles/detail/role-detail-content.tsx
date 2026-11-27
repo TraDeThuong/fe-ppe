@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,13 +13,14 @@ import {
   useSyncRolePermissions,
   useUpdateRole,
 } from "@/hooks/rbac";
-import { useUsers } from "@/hooks/users";
+import { useCan } from "@/hooks/use-can";
+import { userKeys } from "@/hooks/users";
 import { useAuditLogs } from "@/hooks/audit";
 import { useLocale } from "@/providers/locale-provider";
-import type { ResourceCategory, UpdateRolePayload, UserResponseDto } from "@/types";
+import { userService } from "@/services/user.service";
+import type { PermissionDto, ResourceCategory, UpdateRolePayload, UserResponseDto } from "@/types";
 import { EditRoleModal } from "../edit-role-modal";
 import { DeleteRoleDialog } from "../delete-role-dialog";
-import { PermissionMatrixDrawer } from "../permission-matrix-drawer";
 import { RoleDetailHero } from "./role-detail-hero";
 import { RoleDetailKpiBar } from "./role-detail-kpi-bar";
 import { RoleDetailTabs, type RoleDetailTabKey } from "./role-detail-tabs";
@@ -59,29 +61,60 @@ export function RoleDetailContent({ roleId }: RoleDetailContentProps) {
     }
   }, [searchParams]);
 
-  // Modals & Drawers state
+  // Modals & Filter state
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [matrixDrawerOpen, setMatrixDrawerOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<ResourceCategory | "ALL">(
     "ALL",
   );
 
   // Queries
+  const can = useCan();
+  const canReadPermissions = can("PERMISSION_READ");
+  const canReadUsers = can("USER_READ");
+  const canReadAuditLogs = can("AUDIT_LOG_READ");
+
   const { data: role, isLoading: roleLoading, error: roleError } = useRoleDetail(roleId);
   const { data: allRoles = [] } = useRolesCatalog();
-  const { data: allPermissions = [] } = usePermissions();
-  const { data: usersData, isLoading: usersLoading } = useUsers({ limit: 100 });
+  const { data: fetchedPermissions = [] } = usePermissions(undefined, {
+    enabled: canReadPermissions,
+  });
+
+  const allPermissions = useMemo<PermissionDto[]>(() => {
+    if (fetchedPermissions.length > 0) return fetchedPermissions;
+    const map = new Map<string, PermissionDto>();
+    for (const r of allRoles) {
+      for (const p of r.permissions ?? []) {
+        if (!map.has(p.id)) map.set(p.id, p);
+      }
+    }
+    for (const p of role?.permissions ?? []) {
+      if (!map.has(p.id)) map.set(p.id, p);
+    }
+    return Array.from(map.values());
+  }, [fetchedPermissions, allRoles, role?.permissions]);
+
+  const { data: usersData, isLoading: usersLoading } = useQuery({
+    queryKey: [...userKeys.list({ roleName: role?.name, limit: 100 }), "all"],
+    queryFn: () => userService.getAllUsers({ roleName: role!.name }),
+    enabled: canReadUsers && Boolean(role?.name),
+    staleTime: 30 * 1000,
+  });
   const allUsers: UserResponseDto[] = useMemo(() => usersData?.data ?? [], [usersData]);
 
   // Audit count for KPI
-  const { data: auditData } = useAuditLogs({
-    targetType: "ROLE",
-    targetId: roleId,
-    limit: 1,
-  });
+  const { data: auditData } = useAuditLogs(
+    {
+      targetType: "ROLE",
+      targetId: roleId,
+      limit: 1,
+    },
+    {
+      enabled: canReadAuditLogs,
+    },
+  );
 
-  // Filter users belonging to this specific role
+  // Users belonging to this specific role (fetched server-side by roleName)
   const roleUsers = useMemo(() => {
     if (!role) return [];
     return allUsers.filter((u) => {
@@ -143,19 +176,35 @@ export function RoleDetailContent({ roleId }: RoleDetailContentProps) {
       permissionIds,
       roleName: role?.name,
     });
-    setMatrixDrawerOpen(false);
   };
 
+  const effectiveActiveTab: RoleDetailTabKey = useMemo(() => {
+    if (activeTab === "users" && !canReadUsers) return "permissions";
+    if (activeTab === "audit-logs" && !canReadAuditLogs) return "permissions";
+    return activeTab;
+  }, [activeTab, canReadUsers, canReadAuditLogs]);
+
   const handleTabChange = (nextTab: RoleDetailTabKey) => {
+    if (nextTab === "users" && !canReadUsers) return;
+    if (nextTab === "audit-logs" && !canReadAuditLogs) return;
     setActiveTab(nextTab);
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", nextTab);
     router.replace(`/roles/${roleId}?${params.toString()}`, { scroll: false });
   };
 
+  const handleFocusPermissionsMatrix = () => {
+    handleTabChange("permissions");
+    if (typeof document !== "undefined") {
+      document
+        .getElementById("role-detail-tabs-section")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   const handleSelectCategoryFilter = (cat: ResourceCategory) => {
     setCategoryFilter(cat);
-    handleTabChange("permissions");
+    handleFocusPermissionsMatrix();
   };
 
   // Skeleton Loading
@@ -206,8 +255,8 @@ export function RoleDetailContent({ roleId }: RoleDetailContentProps) {
         role={role}
         allRoles={allRoles}
         allPermissions={allPermissions}
-        activeTab={activeTab}
-        onConfigurePermissions={() => setMatrixDrawerOpen(true)}
+        activeTab={effectiveActiveTab}
+        onConfigurePermissions={handleFocusPermissionsMatrix}
         onEdit={() => setEditModalOpen(true)}
         onDelete={() => setDeleteDialogOpen(true)}
         onViewUsers={() => handleTabChange("users")}
@@ -217,7 +266,7 @@ export function RoleDetailContent({ roleId }: RoleDetailContentProps) {
       {/* 2. Bento Quick KPI Console */}
       <RoleDetailKpiBar
         role={role}
-        totalPermissionsCount={allPermissions.length || 54}
+        totalPermissionsCount={allPermissions.length || (role.permissions?.length ?? 0)}
         assignedUsersCount={Math.max(roleUsers.length, role.userCount || 0)}
         activeUsersCount={activeUsersCount}
         twoFactorUsersCount={twoFactorUsersCount}
@@ -228,18 +277,22 @@ export function RoleDetailContent({ roleId }: RoleDetailContentProps) {
       />
 
       {/* 3. Neumorphic Segmented Navigation Tabs */}
-      <RoleDetailTabs
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        permissionsCount={role.permissions?.length ?? 0}
-        usersCount={Math.max(roleUsers.length, role.userCount || 0)}
-        capabilitiesCount={accessiblePagesCount}
-        auditLogsCount={auditData?.meta?.total}
-      />
+      <div id="role-detail-tabs-section">
+        <RoleDetailTabs
+          activeTab={effectiveActiveTab}
+          onTabChange={handleTabChange}
+          permissionsCount={role.permissions?.length ?? 0}
+          usersCount={Math.max(roleUsers.length, role.userCount || 0)}
+          capabilitiesCount={accessiblePagesCount}
+          auditLogsCount={auditData?.meta?.total}
+          canViewUsers={canReadUsers}
+          canViewAuditLogs={canReadAuditLogs}
+        />
+      </div>
 
       {/* 4. Active Tab Content Pane */}
       <div className="transition-all duration-200">
-        {activeTab === "permissions" && (
+        {effectiveActiveTab === "permissions" && (
           <RolePermissionsTab
             role={role}
             allPermissions={allPermissions}
@@ -250,7 +303,7 @@ export function RoleDetailContent({ roleId }: RoleDetailContentProps) {
           />
         )}
 
-        {activeTab === "users" && (
+        {effectiveActiveTab === "users" && canReadUsers && (
           <RoleUsersTab
             role={role}
             roleUsers={roleUsers}
@@ -259,9 +312,9 @@ export function RoleDetailContent({ roleId }: RoleDetailContentProps) {
           />
         )}
 
-        {activeTab === "capabilities" && <RoleCapabilitiesTab role={role} />}
+        {effectiveActiveTab === "capabilities" && <RoleCapabilitiesTab role={role} />}
 
-        {activeTab === "comparison" && (
+        {effectiveActiveTab === "comparison" && (
           <RoleComparisonTab
             currentRole={role}
             allRoles={allRoles}
@@ -269,10 +322,12 @@ export function RoleDetailContent({ roleId }: RoleDetailContentProps) {
           />
         )}
 
-        {activeTab === "audit-logs" && <RoleAuditTab role={role} />}
+        {effectiveActiveTab === "audit-logs" && canReadAuditLogs && (
+          <RoleAuditTab role={role} />
+        )}
       </div>
 
-      {/* Modals & Drawers */}
+      {/* Modals */}
       <EditRoleModal
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
@@ -287,15 +342,6 @@ export function RoleDetailContent({ roleId }: RoleDetailContentProps) {
         role={role}
         onConfirm={handleDeleteRole}
         loading={deleteRoleMutation.isPending}
-      />
-
-      <PermissionMatrixDrawer
-        open={matrixDrawerOpen}
-        onOpenChange={setMatrixDrawerOpen}
-        role={role}
-        allPermissions={allPermissions}
-        onSave={handleSavePermissions}
-        loading={syncPermissionsMutation.isPending}
       />
     </div>
   );

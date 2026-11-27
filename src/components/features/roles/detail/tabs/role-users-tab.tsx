@@ -27,6 +27,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useAssignUserRole } from "@/hooks/rbac";
 import { useCan } from "@/hooks/use-can";
+import { useUsers } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
 import type { RoleDto, UserResponseDto } from "@/types";
 
@@ -57,6 +58,7 @@ export function RoleUsersTab({
   const { user: currentUser } = useAuth();
   const can = useCan();
   const canAssignUserRole = can("USER_ROLE_ASSIGN");
+  const canReadUsers = can("USER_READ");
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -73,6 +75,20 @@ export function RoleUsersTab({
   const [addMemberModalOpen, setAddMemberModalOpen] = useState(false);
   const [candidateSearch, setCandidateSearch] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>("");
+
+  const { data: candidatesData } = useUsers(
+    {
+      search: candidateSearch.trim() || undefined,
+      limit: 100,
+    },
+    {
+      enabled: addMemberModalOpen && canReadUsers && canAssignUserRole,
+    },
+  );
+  const candidatePool = useMemo(
+    () => candidatesData?.data ?? allUsers,
+    [candidatesData?.data, allUsers],
+  );
 
   const assignUserRoleMutation = useAssignUserRole();
 
@@ -104,10 +120,13 @@ export function RoleUsersTab({
   const candidateUsers = useMemo(() => {
     const currentRoleUserIds = new Set(roleUsers.map((u) => u.id));
     const q = candidateSearch.trim().toLowerCase();
-    return allUsers
+    return candidatePool
       .filter(
         (u) =>
           !currentRoleUserIds.has(u.id) &&
+          u.roleId !== role.id &&
+          u.role?.id !== role.id &&
+          u.role?.name?.toUpperCase() !== role.name.toUpperCase() &&
           !u.deletedAt &&
           u.id !== currentUser?.id,
       )
@@ -119,7 +138,7 @@ export function RoleUsersTab({
           (u.role?.name || "").toLowerCase().includes(q)
         );
       });
-  }, [allUsers, roleUsers, candidateSearch, currentUser?.id]);
+  }, [candidatePool, roleUsers, role.id, role.name, candidateSearch, currentUser?.id]);
 
   const handleAssignCandidateToThisRole = async () => {
     if (!selectedCandidateId) return;

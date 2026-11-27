@@ -203,18 +203,20 @@ export function RoleDetailHero({
             </Button>
           )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onViewUsers}
-            className="h-8 rounded-xl border-transparent px-2.5 sm:px-3 text-xs text-accent shadow-none hover:border-accent/20 hover:bg-accent/10"
-          >
-            <UserPlus className="mr-1 sm:mr-1.5 h-3.5 w-3.5" />
-            <span className="hidden sm:inline">
-              {isVietnamese ? "Quản lý nhân sự" : "Manage Personnel"}
-            </span>
-            <span className="sm:hidden">{isVietnamese ? "Nhân sự" : "Users"}</span>
-          </Button>
+          {can("USER_READ") && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onViewUsers}
+              className="h-8 rounded-xl border-transparent px-2.5 sm:px-3 text-xs text-accent shadow-none hover:border-accent/20 hover:bg-accent/10"
+            >
+              <UserPlus className="mr-1 sm:mr-1.5 h-3.5 w-3.5" />
+              <span className="hidden sm:inline">
+                {isVietnamese ? "Quản lý nhân sự" : "Manage Personnel"}
+              </span>
+              <span className="sm:hidden">{isVietnamese ? "Nhân sự" : "Users"}</span>
+            </Button>
+          )}
 
           {can("ROLE_UPDATE") && (
             <Button
@@ -447,7 +449,7 @@ export function RoleDetailHero({
                     dark:bg-primary/10
                   "
                 >
-                  {role.permissions?.length ?? 0}/{allPermissions.length || 54}
+                  {role.permissions?.length ?? 0}/{allPermissions.length || (role.permissions?.length ?? 0)}
                 </span>
               </div>
 

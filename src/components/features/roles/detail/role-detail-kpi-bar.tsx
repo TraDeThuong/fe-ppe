@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Compass, Key, ScrollText, Users } from "lucide-react";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import type { RoleDto } from "@/types";
 import type { RoleDetailTabKey } from "./role-detail-tabs";
@@ -33,9 +34,12 @@ export function RoleDetailKpiBar({
 }: RoleDetailKpiBarProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canReadUsers = can("USER_READ");
+  const canReadAuditLogs = can("AUDIT_LOG_READ");
 
   const grantedCount = role.permissions?.length ?? 0;
-  const totalPerms = totalPermissionsCount || 54;
+  const totalPerms = totalPermissionsCount || grantedCount;
   const coveragePercent =
     totalPerms > 0 ? Math.round((grantedCount / totalPerms) * 100) : 0;
 
@@ -170,7 +174,10 @@ export function RoleDetailKpiBar({
     >
       {cards.map((card) => {
         const Icon = card.icon;
-        const isClickable = Boolean(onSelectTab);
+        const canAccessCardTab =
+          (card.tab !== "users" || canReadUsers) &&
+          (card.tab !== "audit-logs" || canReadAuditLogs);
+        const isClickable = Boolean(onSelectTab) && canAccessCardTab;
 
         return (
           <button

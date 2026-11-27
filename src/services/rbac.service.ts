@@ -80,18 +80,42 @@ export const rbacService = {
    * Lấy danh mục tất cả quyền hệ thống (mặc định lấy toàn bộ khi không truyền limit).
    */
   async getPermissions(params?: PermissionQueryParams): Promise<PermissionDto[]> {
-    const res = await apiClient.get<unknown, PermissionDto[] | { data: PermissionDto[] }>(
-      "/rbac/permissions",
-      {
-        params: {
-          limit: 100, // Đảm bảo lấy đủ toàn bộ 54 quyền hệ thống
-          ...params,
-        },
-      },
-    );
+    const res = await apiClient.get<
+      unknown,
+      PermissionDto[] | { data: PermissionDto[]; meta?: { totalPages?: number; total?: number } }
+    >("/rbac/permissions", {
+      params,
+    });
     if (Array.isArray(res)) return res;
     if (res && typeof res === "object" && "data" in res && Array.isArray(res.data)) {
-      return res.data;
+      const items = [...res.data];
+      const totalPages = res.meta?.totalPages ?? 1;
+      if (params?.page === undefined && totalPages > 1) {
+        const limit = params?.limit ?? (items.length || 100);
+        for (let page = 2; page <= totalPages; page += 3) {
+          const pages = await Promise.all(
+            Array.from({ length: Math.min(3, totalPages - page + 1) }, (_, i) =>
+              apiClient.get<unknown, PermissionDto[] | { data: PermissionDto[] }>(
+                "/rbac/permissions",
+                { params: { ...params, page: page + i, limit } },
+              ),
+            ),
+          );
+          for (const pageRes of pages) {
+            if (Array.isArray(pageRes)) {
+              items.push(...pageRes);
+            } else if (
+              pageRes &&
+              typeof pageRes === "object" &&
+              "data" in pageRes &&
+              Array.isArray(pageRes.data)
+            ) {
+              items.push(...pageRes.data);
+            }
+          }
+        }
+      }
+      return items;
     }
     return [];
   },

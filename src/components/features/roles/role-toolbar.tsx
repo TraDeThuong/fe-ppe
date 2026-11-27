@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, LayoutGrid, List, Plus, Search } from "lucide-react";
+import { LayoutGrid, List, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RefreshIconButton } from "@/components/ui/refresh-action";
 import { useCan } from "@/hooks/use-can";
@@ -14,7 +14,6 @@ export interface RoleToolbarProps {
   viewMode: "grid" | "table";
   onViewModeChange: (mode: "grid" | "table") => void;
   onCreateRole: () => void;
-  onOpenGuide?: () => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }
@@ -27,7 +26,6 @@ export function RoleToolbar({
   viewMode,
   onViewModeChange,
   onCreateRole,
-  onOpenGuide,
   onRefresh,
   isRefreshing = false,
 }: RoleToolbarProps) {
@@ -106,19 +104,6 @@ export function RoleToolbar({
         ) : null}
 
         <div className="flex items-center gap-1.5 sm:gap-2 flex-1 sm:flex-initial justify-end">
-          {/* Documentation Guide Button */}
-          {onOpenGuide && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onOpenGuide}
-              className="flex items-center justify-center gap-1 sm:gap-1.5 rounded-xl border-primary/30 h-7 sm:h-8 text-[11px] sm:text-xs font-semibold text-primary hover:bg-primary/10 px-2 sm:px-3 flex-1 sm:flex-initial"
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              <span>{t("roles.guide.button")}</span>
-            </Button>
-          )}
-
           {/* Create Role Button */}
           {canCreate ? <Button
             variant="primary"

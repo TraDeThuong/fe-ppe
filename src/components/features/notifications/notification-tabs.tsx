@@ -15,7 +15,8 @@ export function useNotificationTabAccess() {
   const can = useCan();
   const canRead = can("NOTIFICATION_READ");
   const canViewTemplates = can("NOTIFICATION_TEMPLATE_READ");
-  const canViewEmailLogs = can("NOTIFICATION_TEMPLATE_MANAGE");
+  const canViewEmailLogs =
+    can("NOTIFICATION_TEMPLATE_MANAGE") || can("NOTIFICATION_UPDATE");
   const canManageTemplates = can("NOTIFICATION_TEMPLATE_MANAGE");
   const canBroadcast = can("NOTIFICATION_CREATE");
 
