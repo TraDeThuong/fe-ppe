@@ -41,7 +41,8 @@ async function failIncidentImage({ body, window, act }: DomContext) {
   const image = body.querySelector("img[src*='missing.jpg']");
   assert.ok(image, "incident thumbnail is rendered");
   await act(() => image.dispatchEvent(new window.Event("error")));
-  assert.equal(body.querySelector("img"), null, "broken image is replaced, not swapped");
+  // So sánh số lượng: assert trực tiếp trên node DOM khiến Node in cả cây JSDOM khi fail.
+  assert.equal(body.querySelectorAll("img").length, 0, "broken image is replaced, not swapped");
   assert.doesNotMatch(body.innerHTML, /camera-live-evidence/);
   assert.ok(body.querySelector("svg.lucide-camera"), "camera placeholder icon");
 }
@@ -60,7 +61,7 @@ it("list view shows the camera placeholder, not the sample image, when a thumbna
     );
     assert.ok(listButton, "list view toggle");
     await context.act(() => listButton.click());
-    assert.equal(context.body.querySelector("table"), null);
+    assert.equal(context.body.querySelectorAll("table").length, 0);
     await failIncidentImage(context);
   });
 });

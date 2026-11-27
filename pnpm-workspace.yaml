@@ -1,0 +1,5 @@
+# pnpm 11 chặn build script của dependency chưa được phê duyệt (ERR_PNPM_IGNORED_BUILDS),
+# nên `pnpm install --frozen-lockfile` thất bại trên máy sạch như CI.
+# esbuild (tsx dùng để chạy test) cần postinstall để kiểm tra binary theo nền tảng.
+allowBuilds:
+  esbuild: true
