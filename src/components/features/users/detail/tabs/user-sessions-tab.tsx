@@ -15,6 +15,7 @@ import {
   useUserDevices,
   useDeleteUserDevice,
 } from "@/hooks/users";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import type { UserResponseDto } from "@/types";
 
@@ -25,6 +26,7 @@ export interface UserSessionsTabProps {
 export function UserSessionsTab({ user }: UserSessionsTabProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const canUpdate = useCan()("USER_UPDATE");
 
   const { data: sessions = [], isLoading: isLoadingSessions } = useUserSessions(user.id);
   const { data: devices = [], isLoading: isLoadingDevices } = useUserDevices(user.id);
@@ -91,7 +93,7 @@ export function UserSessionsTab({ user }: UserSessionsTabProps) {
             </div>
           </div>
 
-          {sessions.length > 0 && (
+          {canUpdate && sessions.length > 0 && (
             <button
               type="button"
               onClick={handleRevokeAll}
@@ -195,7 +197,7 @@ export function UserSessionsTab({ user }: UserSessionsTabProps) {
                     </div>
                   </div>
 
-                  {!session.isCurrent && (
+                  {canUpdate && !session.isCurrent && (
                     <button
                       type="button"
                       onClick={() => handleRevoke(session.id)}
@@ -296,15 +298,17 @@ export function UserSessionsTab({ user }: UserSessionsTabProps) {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteDevice(device.id)}
-                    disabled={deleteDeviceMutation.isPending}
-                    className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-background text-danger shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)] active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] disabled:opacity-50"
-                    title={isVietnamese ? "Xóa thiết bị tin cậy" : "Remove trusted device"}
-                  >
-                    <Trash2 size={13} strokeWidth={2.3} />
-                  </button>
+                  {canUpdate && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteDevice(device.id)}
+                      disabled={deleteDeviceMutation.isPending}
+                      className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-background text-danger shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[4px_4px_8px_var(--shadow-dark),-4px_-4px_8px_var(--shadow-light)] active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)] disabled:opacity-50"
+                      title={isVietnamese ? "Xóa thiết bị tin cậy" : "Remove trusted device"}
+                    >
+                      <Trash2 size={13} strokeWidth={2.3} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

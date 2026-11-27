@@ -1,36 +1,8 @@
-import {
-  clusterIncidentsByPerson,
-  projectClusterToRepresentativeIncident,
-  type IncidentAggregationMode,
-} from "@/lib/incident-cluster-engine";
 import type {
-  CameraItem,
-  IncidentItem,
   SiteContactOfficer,
   SiteItem,
   UserResponseDto,
 } from "@/types";
-
-export type PerformanceTier =
-  | "EXCELLENT"
-  | "GOOD"
-  | "AVERAGE"
-  | "NEEDS_IMPROVEMENT"
-  | "UNRATED";
-
-export interface UserIncidentStats {
-  totalIncidents: number;
-  rawTotalIncidents: number;
-  resolvedIncidents: number;
-  dismissedIncidents: number;
-  pendingIncidents: number;
-  criticalIncidents: number;
-  resolutionRate: number;
-  mttrHours: number;
-  slaComplianceRate: number;
-  hasSlaData: boolean;
-  performanceTier: PerformanceTier;
-}
 
 export interface UserSiteAssignmentInfo {
   userSites: SiteItem[];
@@ -61,8 +33,7 @@ export function parseContactOfficers(raw: unknown): SiteContactOfficer[] {
 }
 
 /**
- * Matches a user against a site's `contactOfficers` list, prioritizing exact `userId` match
- * before falling back to phone number or normalized name matching.
+ * Matches a user against a site's `contactOfficers` list strictly by `userId`.
  */
 export function findMatchingContactOfficer(
   site: SiteItem,
@@ -71,33 +42,7 @@ export function findMatchingContactOfficer(
   const officers = parseContactOfficers(site.contactOfficers);
   if (officers.length === 0) return undefined;
 
-  const byUserId = officers.find((o) => o.userId && o.userId === user.id);
-  if (byUserId) return byUserId;
-
-  const normalizedUserPhone = user.phoneNumber?.replace(/\s+/g, "").trim();
-  if (normalizedUserPhone) {
-    const byPhone = officers.find(
-      (o) =>
-        Array.isArray(o.phones) &&
-        o.phones.some((p) => p.replace(/\s+/g, "").trim() === normalizedUserPhone),
-    );
-    if (byPhone) return byPhone;
-  }
-
-  const normalizedUserName = user.fullName?.trim().toLowerCase();
-  if (normalizedUserName) {
-    return officers.find((o) => {
-      const officerName = o.name?.trim().toLowerCase();
-      if (!officerName) return false;
-      return (
-        officerName === normalizedUserName ||
-        officerName.includes(normalizedUserName) ||
-        normalizedUserName.includes(officerName)
-      );
-    });
-  }
-
-  return undefined;
+  return officers.find((o) => Boolean(o.userId && o.userId === user.id));
 }
 
 /**
@@ -174,133 +119,5 @@ export function getUserAssignedSites(
     explicitSiteIdSet,
     contactOfficerSiteIdSet,
     combinedSiteIdSet,
-  };
-}
-
-/**
- * Filters incidents relevant to the user (direct assignment, status history actor, or assigned site)
- * and enriches missing `siteName` / `cameraName` from catalog maps.
- */
-export function correlateUserIncidents(
-  allIncidents: IncidentItem[],
-  user: Pick<UserResponseDto, "id" | "email"> | undefined,
-  userSiteIds: Set<string>,
-  siteMap: Map<string, SiteItem>,
-  cameraMap: Map<string, CameraItem>,
-): IncidentItem[] {
-  if (!user) return [];
-
-  return allIncidents
-    .filter((inc) => {
-      const hasDirectAssignment = inc.assignments?.some(
-        (a) => a.assignedTo === user.id || (user.email && a.assignedToEmail === user.email),
-      );
-      if (hasDirectAssignment) return true;
-
-      const hasHistoryAction = inc.statusHistory?.some((h) => h.changedBy === user.id);
-      if (hasHistoryAction) return true;
-
-      return userSiteIds.has(inc.siteId);
-    })
-    .map((inc) => {
-      const site = siteMap.get(inc.siteId);
-      const camera = cameraMap.get(inc.cameraId);
-      return {
-        ...inc,
-        siteName: inc.siteName || site?.name,
-        cameraName: inc.cameraName || camera?.name,
-        cameraCode: inc.cameraCode || camera?.code,
-      };
-    });
-}
-
-/**
- * Computes consistent incident & SLA KPIs for a user across Overview, KPI Bar, Incidents, and Performance tabs.
- */
-export function computeUserIncidentStats(
-  userIncidents: IncidentItem[],
-  options: { mode?: IncidentAggregationMode } = {},
-): UserIncidentStats {
-  const mode: IncidentAggregationMode = options.mode ?? "clustered";
-  const effectiveIncidents =
-    mode === "clustered"
-      ? clusterIncidentsByPerson(userIncidents).map(
-          projectClusterToRepresentativeIncident,
-        )
-      : userIncidents;
-
-  const total = effectiveIncidents.length;
-  const resolved = effectiveIncidents.filter(
-    (i) => i.status === "RESOLVED" || i.status === "CLOSED",
-  ).length;
-  const dismissed = effectiveIncidents.filter((i) => i.status === "DISMISSED").length;
-  const pending = effectiveIncidents.filter(
-    (i) => i.status !== "RESOLVED" && i.status !== "CLOSED" && i.status !== "DISMISSED",
-  ).length;
-  const critical = effectiveIncidents.filter((i) => i.severity === "CRITICAL").length;
-
-  const actionableTotal = total - dismissed;
-  const resolutionRate =
-    actionableTotal > 0
-      ? Math.round((resolved / actionableTotal) * 100)
-      : total > 0
-        ? 100
-        : 0;
-
-  let totalResolveDurationHours = 0;
-  let resolvedWithDurationCount = 0;
-  let slaComplianceCount = 0;
-
-  for (const inc of effectiveIncidents) {
-    if ((inc.status === "RESOLVED" || inc.status === "CLOSED") && inc.resolvedAt) {
-      const start = new Date(inc.detectedAt).getTime();
-      const end = new Date(inc.resolvedAt).getTime();
-      const diffHours = (end - start) / (1000 * 60 * 60);
-
-      if (Number.isFinite(diffHours) && diffHours >= 0 && diffHours < 720) {
-        totalResolveDurationHours += diffHours;
-        resolvedWithDurationCount += 1;
-
-        const maxAllowed = inc.severity === "CRITICAL" ? 2 : 24;
-        if (diffHours <= maxAllowed) {
-          slaComplianceCount += 1;
-        }
-      }
-    }
-  }
-
-  const hasSlaData = resolvedWithDurationCount > 0;
-  const avgMttr = hasSlaData
-    ? Math.round((totalResolveDurationHours / resolvedWithDurationCount) * 10) / 10
-    : 0;
-  const slaRate = hasSlaData
-    ? Math.round((slaComplianceCount / resolvedWithDurationCount) * 100)
-    : 0;
-
-  let tier: PerformanceTier = "UNRATED";
-  if (total === 0) {
-    tier = "UNRATED";
-  } else if (resolutionRate >= 90 && (slaRate >= 85 || !hasSlaData)) {
-    tier = "EXCELLENT";
-  } else if (resolutionRate >= 75) {
-    tier = "GOOD";
-  } else if (resolutionRate >= 50) {
-    tier = "AVERAGE";
-  } else {
-    tier = "NEEDS_IMPROVEMENT";
-  }
-
-  return {
-    totalIncidents: total,
-    rawTotalIncidents: userIncidents.length,
-    resolvedIncidents: resolved,
-    dismissedIncidents: dismissed,
-    pendingIncidents: pending,
-    criticalIncidents: critical,
-    resolutionRate,
-    mttrHours: avgMttr,
-    slaComplianceRate: slaRate,
-    hasSlaData,
-    performanceTier: tier,
   };
 }

@@ -4,8 +4,6 @@ import { useMemo } from "react";
 import {
   User,
   Building2,
-  AlertTriangle,
-  Award,
   Laptop,
   Activity,
 } from "lucide-react";
@@ -14,8 +12,6 @@ import { useLocale } from "@/providers/locale-provider";
 export type UserDetailTabKey =
   | "overview"
   | "sites"
-  | "incidents"
-  | "performance"
   | "sessions"
   | "audit";
 
@@ -23,10 +19,8 @@ export interface UserDetailTabsProps {
   activeTab: UserDetailTabKey;
   onTabChange: (tab: UserDetailTabKey) => void;
   sitesCount?: number;
-  incidentsCount?: number;
-  pendingIncidentsCount?: number;
-  completionRate?: number;
-  performanceTier?: string;
+  canReadSites?: boolean;
+  canReadAudit?: boolean;
   className?: string;
 }
 
@@ -34,57 +28,48 @@ export function UserDetailTabs({
   activeTab,
   onTabChange,
   sitesCount = 0,
-  incidentsCount = 0,
-  pendingIncidentsCount = 0,
-  completionRate = 0,
-  performanceTier = "UNRATED",
+  canReadSites = true,
+  canReadAudit = true,
   className = "",
 }: UserDetailTabsProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  const tabs = useMemo(
-    () => [
+  const tabs = useMemo(() => {
+    const items: Array<{
+      key: UserDetailTabKey;
+      label: string;
+      icon: typeof User;
+      badge?: string;
+      hidden?: boolean;
+    }> = [
       {
-        key: "overview" as UserDetailTabKey,
+        key: "overview",
         label: isVietnamese ? "Tổng quan hồ sơ" : "Profile Overview",
         icon: User,
       },
       {
-        key: "sites" as UserDetailTabKey,
-        label: isVietnamese ? "Công trường & Chức vụ" : "Sites & Positions",
+        key: "sites",
+        label: isVietnamese ? "Công trường được gán" : "Assigned Sites",
         icon: Building2,
         badge: sitesCount > 0 ? `${sitesCount}` : undefined,
+        hidden: !canReadSites,
       },
       {
-        key: "incidents" as UserDetailTabKey,
-        label: isVietnamese ? "Xử lý sự cố PPE" : "PPE Incidents Handled",
-        icon: AlertTriangle,
-        badge: incidentsCount > 0 ? `${incidentsCount}` : undefined,
-        badgeDanger: pendingIncidentsCount > 0,
-      },
-      {
-        key: "performance" as UserDetailTabKey,
-        label: isVietnamese ? "Đánh giá quá trình làm việc" : "Performance Assessment",
-        icon: Award,
-        badge:
-          incidentsCount > 0 && performanceTier !== "UNRATED"
-            ? `${completionRate}%`
-            : "—",
-      },
-      {
-        key: "sessions" as UserDetailTabKey,
-        label: isVietnamese ? "Phiên & Thiết bị" : "Sessions & Security",
+        key: "sessions",
+        label: isVietnamese ? "Phiên & Thiết bị" : "Sessions & Devices",
         icon: Laptop,
       },
       {
-        key: "audit" as UserDetailTabKey,
+        key: "audit",
         label: isVietnamese ? "Nhật ký kiểm toán" : "Audit Trail",
         icon: Activity,
+        hidden: !canReadAudit,
       },
-    ],
-    [sitesCount, incidentsCount, pendingIncidentsCount, completionRate, performanceTier, isVietnamese],
-  );
+    ];
+
+    return items.filter((item) => !item.hidden);
+  }, [sitesCount, canReadSites, canReadAudit, isVietnamese]);
 
   return (
     <div
@@ -123,11 +108,9 @@ export function UserDetailTabs({
               <span
                 className={[
                   "px-1.5 py-0.2 rounded-md font-mono text-[10px] font-bold",
-                  tab.badgeDanger
-                    ? "bg-danger/15 text-danger border border-danger/30"
-                    : isActive
-                      ? "bg-primary/20 text-primary"
-                      : "bg-muted/60 text-muted-foreground",
+                  isActive
+                    ? "bg-primary/20 text-primary"
+                    : "bg-muted/60 text-muted-foreground",
                 ].join(" ")}
               >
                 {tab.badge}

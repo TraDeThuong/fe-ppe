@@ -2,30 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/providers/locale-provider";
+import { useCan } from "@/hooks/use-can";
 import { useUserDetail } from "@/hooks/users";
 import { useSitesCatalog } from "@/hooks/sites";
-import { useCamerasCatalog } from "@/hooks/cameras";
-import { incidentKeys } from "@/hooks/incidents";
-import { incidentService } from "@/services/incident.service";
-import { collectCatalog } from "@/lib/table-utils";
-import {
-  computeUserIncidentStats,
-  correlateUserIncidents,
-  getUserAssignedSites,
-} from "./user-detail-utils";
+import { getUserAssignedSites } from "./user-detail-utils";
 import { UserDetailHero } from "./user-detail-hero";
-import { UserDetailKpiBar } from "./user-detail-kpi-bar";
 import { UserDetailTabs, type UserDetailTabKey } from "./user-detail-tabs";
 import {
   UserOverviewTab,
   UserSitesTab,
-  UserIncidentsTab,
-  UserPerformanceTab,
   UserSessionsTab,
   UserAuditTab,
 } from "./tabs";
@@ -36,7 +25,6 @@ import {
   AdminResetPasswordModal,
   ConfirmUserDeleteModal,
 } from "../modals";
-import type { CameraItem, IncidentItem, SiteItem } from "@/types";
 
 export interface UserDetailContentProps {
   userId: string;
@@ -47,23 +35,27 @@ export function UserDetailContent({ userId }: UserDetailContentProps) {
   const searchParams = useSearchParams();
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canUpdate = can("USER_UPDATE");
+  const canReadSites = can("PPE_SITE_READ");
+  const canReadIncidents = can("PPE_INCIDENT_READ");
+  const canReadAudit = can("AUDIT_LOG_READ");
 
-  // Tab Sync with URL Search Params
+  // Tab Sync with URL Search Params (guarded by RBAC visibility)
   const resolveTab = (tabStr: string | null): UserDetailTabKey => {
-    if (!tabStr) return "overview";
-    if (tabStr === "sites") return "sites";
-    if (tabStr === "incidents") return "incidents";
-    if (tabStr === "performance") return "performance";
+    if (tabStr === "sites" && canReadSites) return "sites";
     if (tabStr === "sessions") return "sessions";
-    if (tabStr === "audit") return "audit";
+    if (tabStr === "audit" && canReadAudit) return "audit";
     return "overview";
   };
 
-  const [activeTab, setActiveTab] = useState<UserDetailTabKey>(resolveTab(searchParams.get("tab")));
+  const [activeTab, setActiveTab] = useState<UserDetailTabKey>(
+    resolveTab(searchParams.get("tab")),
+  );
 
   useEffect(() => {
     setActiveTab(resolveTab(searchParams.get("tab")));
-  }, [searchParams]);
+  }, [searchParams, canReadSites, canReadAudit]);
 
   const handleTabChange = (tab: UserDetailTabKey) => {
     setActiveTab(tab);
@@ -81,58 +73,16 @@ export function UserDetailContent({ userId }: UserDetailContentProps) {
     refetch: refetchUser,
   } = useUserDetail(userId);
 
-  const { data: allSites = [], isLoading: isLoadingSites } = useSitesCatalog();
-  const { data: allCameras = [] } = useCamerasCatalog();
+  const { data: allSites = [] } = useSitesCatalog({
+    enabled: Boolean(user) && canReadSites,
+  });
 
   // Correlate user's assigned sites from both user.siteIds and site.contactOfficers[].userId
   const {
     userSites,
     explicitSiteIdSet,
     contactOfficerSiteIdSet,
-    combinedSiteIdSet,
   } = useMemo(() => getUserAssignedSites(user, allSites), [user, allSites]);
-
-  const siteIdsKey = useMemo(
-    () => Array.from(combinedSiteIdSet).sort().join(","),
-    [combinedSiteIdSet],
-  );
-
-  // Query incidents scoped by the user's assigned sites when available, avoiding the global 100-item truncation
-  const { data: rawIncidents = [], isLoading: isLoadingIncidents } = useQuery<IncidentItem[], Error>({
-    queryKey: [...incidentKeys.lists(), "user-correlated", userId, siteIdsKey],
-    enabled: Boolean(user) && !isLoadingSites,
-    staleTime: 15 * 1000,
-    queryFn: async () => {
-      const siteIds = Array.from(combinedSiteIdSet);
-      if (siteIds.length > 0 && siteIds.length <= 5) {
-        const pages = await Promise.all(
-          siteIds.map((siteId) =>
-            collectCatalog((page, limit) =>
-              incidentService.getIncidents({ siteId, page, limit }),
-            ),
-          ),
-        );
-        const deduped = new Map<string, IncidentItem>();
-        for (const list of pages) {
-          for (const item of list) {
-            deduped.set(item.id, item);
-          }
-        }
-        return Array.from(deduped.values()).sort(
-          (a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime(),
-        );
-      }
-
-      if (siteIds.length > 5) {
-        return collectCatalog((page, limit) =>
-          incidentService.getIncidents({ page, limit }),
-        );
-      }
-
-      const firstPage = await incidentService.getIncidents({ page: 1, limit: 100 });
-      return firstPage.items;
-    },
-  });
 
   // Modals state
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -147,30 +97,7 @@ export function UserDetailContent({ userId }: UserDetailContentProps) {
     mode: "delete",
   });
 
-  const siteMap = useMemo(() => {
-    const map = new Map<string, SiteItem>();
-    for (const s of allSites) map.set(s.id, s);
-    return map;
-  }, [allSites]);
-
-  const cameraMap = useMemo(() => {
-    const map = new Map<string, CameraItem>();
-    for (const c of allCameras) map.set(c.id, c);
-    return map;
-  }, [allCameras]);
-
-  // Client-Side Correlation & Enrichment of Incidents
-  const userIncidents = useMemo<IncidentItem[]>(
-    () => correlateUserIncidents(rawIncidents, user, combinedSiteIdSet, siteMap, cameraMap),
-    [rawIncidents, user, combinedSiteIdSet, siteMap, cameraMap],
-  );
-
-  // KPI & Analytics Calculations
-  const stats = useMemo(() => computeUserIncidentStats(userIncidents), [userIncidents]);
-
-  const isLoadingMetrics = isLoadingUser || isLoadingSites || isLoadingIncidents;
-
-  // Error / Not found state (chỉ hiện khi đã tải xong nhưng lỗi)
+  // Error / Not found state
   if (!isLoadingUser && (isUserError || !user)) {
     return (
       <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 rounded-3xl border border-border/40 bg-surface p-8 text-center">
@@ -214,34 +141,16 @@ export function UserDetailContent({ userId }: UserDetailContentProps) {
         onDeleteClick={(mode) => setDeleteModalState({ open: true, mode })}
       />
 
-      {/* 2. Quick Executive KPI Metrics Bar */}
-      <UserDetailKpiBar
-        loading={isLoadingMetrics}
-        assignedSitesCount={userSites.length}
-        totalIncidents={stats.totalIncidents}
-        resolvedIncidents={stats.resolvedIncidents}
-        dismissedIncidents={stats.dismissedIncidents}
-        pendingIncidents={stats.pendingIncidents}
-        resolutionRate={stats.resolutionRate}
-        mttrHours={stats.mttrHours}
-        slaComplianceRate={stats.slaComplianceRate}
-        hasSlaData={stats.hasSlaData}
-        performanceTier={stats.performanceTier}
-        onSelectTab={handleTabChange}
-      />
-
-      {/* 3. Navigation Tabs */}
+      {/* 2. Navigation Tabs (filtered by RBAC permissions) */}
       <UserDetailTabs
         activeTab={activeTab}
         onTabChange={handleTabChange}
-        sitesCount={userSites.length}
-        incidentsCount={stats.totalIncidents}
-        pendingIncidentsCount={stats.pendingIncidents}
-        completionRate={stats.resolutionRate}
-        performanceTier={stats.performanceTier}
+        sitesCount={canReadSites ? userSites.length : (user?.siteIds?.length ?? 0)}
+        canReadSites={canReadSites}
+        canReadAudit={canReadAudit}
       />
 
-      {/* 4. Tab Content Area */}
+      {/* 3. Tab Content Area */}
       <div className="min-h-[400px]">
         {isLoadingUser ? (
           <div className="space-y-4 rounded-3xl border border-white/80 bg-background p-6 shadow-nm dark:border-white/5 dark:bg-card">
@@ -260,52 +169,38 @@ export function UserDetailContent({ userId }: UserDetailContentProps) {
             {activeTab === "overview" && user && (
               <UserOverviewTab
                 user={user}
-                sites={allSites}
                 userSites={userSites}
-                incidents={userIncidents}
-                stats={stats}
+                canReadSites={canReadSites}
+                canReadIncidents={canReadIncidents}
                 onSelectTab={handleTabChange}
-                onEditClick={() => setIsEditOpen(true)}
-                onAssignSitesClick={() => setIsAssignSitesOpen(true)}
+                onEditClick={canUpdate && !user.deletedAt ? () => setIsEditOpen(true) : undefined}
+                onAssignSitesClick={
+                  canUpdate && !user.deletedAt ? () => setIsAssignSitesOpen(true) : undefined
+                }
               />
             )}
 
-            {activeTab === "sites" && user && (
+            {activeTab === "sites" && canReadSites && user && (
               <UserSitesTab
                 user={user}
                 userSites={userSites}
                 allSites={allSites}
                 explicitSiteIdSet={explicitSiteIdSet}
                 contactOfficerSiteIdSet={contactOfficerSiteIdSet}
-                onOpenAssignSites={() => setIsAssignSitesOpen(true)}
+                onOpenAssignSites={
+                  canUpdate && !user.deletedAt ? () => setIsAssignSitesOpen(true) : undefined
+                }
               />
             )}
 
-            {activeTab === "incidents" && user && (
-              <UserIncidentsTab
-                user={user}
-                incidents={userIncidents}
-                userSites={userSites}
-                isLoading={isLoadingSites || isLoadingIncidents}
-              />
-            )}
+            {activeTab === "sessions" && user && <UserSessionsTab user={user} />}
 
-        {activeTab === "performance" && user && (
-          <UserPerformanceTab
-            user={user}
-            incidents={userIncidents}
-            stats={stats}
-          />
-        )}
-
-        {activeTab === "sessions" && user && <UserSessionsTab user={user} />}
-
-        {activeTab === "audit" && user && <UserAuditTab user={user} />}
+            {activeTab === "audit" && canReadAudit && user && <UserAuditTab user={user} />}
           </>
         )}
       </div>
 
-      {/* 5. Modals Management */}
+      {/* 4. Modals Management */}
       <EditUserModal
         open={isEditOpen}
         onOpenChange={setIsEditOpen}

@@ -6,6 +6,7 @@ import {
   getUserAccountStatus,
   getUserInitials,
 } from "../user-presentation";
+import { apiClient } from "@/lib/axios";
 import { userService } from "@/services/user.service";
 import type { UserResponseDto } from "@/types";
 
@@ -102,71 +103,78 @@ describe("user-presentation helpers", () => {
   });
 });
 
-describe("userService pure-FE 2FA filtering & role summary", () => {
-  it("scans all pages and paginates accurately when twoFactorEnabled=true", async () => {
-    const allUsers: UserResponseDto[] = Array.from({ length: 15 }, (_, idx) =>
-      makeUser({
-        id: `user-${idx + 1}`,
-        fullName: `User ${idx + 1}`,
-        email: `user${idx + 1}@example.com`,
-        role: { id: "r1", name: idx < 3 ? "ADMIN" : "SAFETY_OFFICER" },
-        // Đặt 2 user bật 2FA ở các vị trí sau trang 1 (index 11 và 14)
-        twoFactorEnabled: idx === 11 || idx === 14,
-      }),
-    );
+describe("userService server-side 2FA / isLocked filtering & summary endpoint", () => {
+  it("passes twoFactorEnabled and isLocked directly to GET /users in a single request", async () => {
+    const matchedUsers: UserResponseDto[] = [
+      makeUser({ id: "user-12", twoFactorEnabled: true }),
+      makeUser({ id: "user-15", twoFactorEnabled: true }),
+    ];
 
-    const stub = mock.method(userService, "getAllUsers", async () => ({
-      data: allUsers,
-      total: allUsers.length,
-    }));
+    let capturedUrl = "";
+    let capturedParams: unknown = null;
+    const getStub = mock.method(
+      apiClient,
+      "get",
+      async (url: string, config?: { params?: unknown }) => {
+        capturedUrl = url;
+        capturedParams = config?.params;
+        return {
+          data: matchedUsers,
+          meta: { page: 1, limit: 10, total: 2, totalPages: 1 },
+        } as never;
+      },
+    );
 
     try {
       const res = await userService.getUsers({
         page: 1,
         limit: 10,
         twoFactorEnabled: true,
+        isLocked: true,
         sortBy: "createdAt",
         order: "desc",
       });
 
+      assert.equal(getStub.mock.callCount(), 1);
+      assert.equal(capturedUrl, "/users");
+      assert.deepEqual(capturedParams, {
+        page: 1,
+        limit: 10,
+        twoFactorEnabled: true,
+        isLocked: true,
+        sortBy: "createdAt",
+        order: "desc",
+      });
       assert.equal(res.meta.total, 2);
-      assert.equal(res.meta.totalPages, 1);
       assert.deepEqual(
         res.data.map((u) => u.id),
         ["user-12", "user-15"],
       );
-
-      // Kiểm tra phân trang page 2 với limit=1
-      const page2 = await userService.getUsers({
-        page: 2,
-        limit: 1,
-        twoFactorEnabled: true,
-      });
-      assert.equal(page2.meta.total, 2);
-      assert.equal(page2.meta.totalPages, 2);
-      assert.deepEqual(
-        page2.data.map((u) => u.id),
-        ["user-15"],
-      );
     } finally {
-      stub.mock.restore();
+      getStub.mock.restore();
     }
   });
 
-  it("aggregates byRole counts in getUserSummary without extra requests", async () => {
-    const allUsers: UserResponseDto[] = [
-      makeUser({ id: "1", role: { id: "r1", name: "ADMIN" }, twoFactorEnabled: true }),
-      makeUser({ id: "2", role: { id: "r2", name: "SAFETY_OFFICER" }, twoFactorEnabled: true }),
-      makeUser({ id: "3", role: { id: "r2", name: "SAFETY_OFFICER" }, isActive: false }),
-    ];
-
-    const stub = mock.method(userService, "getAllUsers", async () => ({
-      data: allUsers,
-      total: 3,
-    }));
+  it("fetches user KPI summary and byRole counts via single GET /users/summary request", async () => {
+    let capturedUrl = "";
+    const getStub = mock.method(apiClient, "get", async (url: string) => {
+      capturedUrl = url;
+      return {
+        total: 3,
+        active: 2,
+        locked: 1,
+        twoFactor: 2,
+        byRole: {
+          ADMIN: 1,
+          SAFETY_OFFICER: 2,
+        },
+      } as never;
+    });
 
     try {
       const summary = await userService.getUserSummary();
+      assert.equal(getStub.mock.callCount(), 1);
+      assert.equal(capturedUrl, "/users/summary");
       assert.equal(summary.total, 3);
       assert.equal(summary.active, 2);
       assert.equal(summary.locked, 1);
@@ -176,7 +184,7 @@ describe("userService pure-FE 2FA filtering & role summary", () => {
         SAFETY_OFFICER: 2,
       });
     } finally {
-      stub.mock.restore();
+      getStub.mock.restore();
     }
   });
 });

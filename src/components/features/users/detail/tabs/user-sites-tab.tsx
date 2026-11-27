@@ -26,7 +26,7 @@ export interface UserSitesTabProps {
   allSites: SiteItem[];
   explicitSiteIdSet?: Set<string>;
   contactOfficerSiteIdSet?: Set<string>;
-  onOpenAssignSites: () => void;
+  onOpenAssignSites?: () => void;
 }
 
 export function UserSitesTab({
@@ -83,15 +83,17 @@ export function UserSitesTab({
           />
         </div>
 
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onOpenAssignSites}
-          className="gap-2 shadow-[2px_2px_5px_var(--shadow-dark)]"
-        >
-          <Plus size={15} />
-          <span>{isVietnamese ? "Phân công công trường mới" : "Assign New Sites"}</span>
-        </Button>
+        {onOpenAssignSites && (
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onOpenAssignSites}
+            className="gap-2 shadow-[2px_2px_5px_var(--shadow-dark)]"
+          >
+            <Plus size={15} />
+            <span>{isVietnamese ? "Phân công công trường mới" : "Assign New Sites"}</span>
+          </Button>
+        )}
       </div>
 
       {/* Sites Grid */}
@@ -118,7 +120,7 @@ export function UserSitesTab({
                   : "Click assign to designate sites supervised by this user."}
             </p>
           </div>
-          {!search.trim() && (
+          {!search.trim() && onOpenAssignSites && (
             <Button variant="outline" size="sm" onClick={onOpenAssignSites} className="gap-1.5 mt-2">
               <Plus size={14} />
               <span>{isVietnamese ? "Phân công ngay" : "Assign Now"}</span>
@@ -235,7 +237,7 @@ export function UserSitesTab({
                     <ExternalLink size={12} />
                   </Link>
 
-                  {isExplicitlyAssigned ? (
+                  {isExplicitlyAssigned && onOpenAssignSites ? (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -247,11 +249,11 @@ export function UserSitesTab({
                       <Trash2 size={12} />
                       <span>{isVietnamese ? "Rút quyền" : "Unassign"}</span>
                     </Button>
-                  ) : (
+                  ) : !isExplicitlyAssigned ? (
                     <span className="text-[10px] text-muted-foreground">
                       {isVietnamese ? "Chỉnh sửa tại trang site" : "Manage in site profile"}
                     </span>
-                  )}
+                  ) : null}
                 </div>
               </div>
             );

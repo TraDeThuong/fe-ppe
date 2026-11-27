@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuditLogs } from "@/hooks/audit";
+import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import type { UserResponseDto } from "@/types";
 
@@ -22,13 +23,17 @@ export interface UserAuditTabProps {
 export function UserAuditTab({ user }: UserAuditTabProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const canReadAudit = useCan()("AUDIT_LOG_READ");
   const [page, setPage] = useState(1);
 
-  const { data: auditData, isLoading, isError, refetch } = useAuditLogs({
-    actorId: user.id,
-    page,
-    limit: 15,
-  });
+  const { data: auditData, isLoading, isError, refetch } = useAuditLogs(
+    {
+      actorId: user.id,
+      page,
+      limit: 15,
+    },
+    { enabled: Boolean(user.id) && canReadAudit },
+  );
 
   const logs = auditData?.items || [];
   const meta = auditData?.meta;

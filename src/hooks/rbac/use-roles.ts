@@ -49,6 +49,11 @@ export function useRoleDetail(id: string, options?: UseRoleDetailOptions) {
 }
 
 /** Complete catalog for local type filtering and role pickers. */
-export function useRolesCatalog() {
-  return useQuery({ queryKey: rbacKeys.rolesList({ limit: 100, page: 0 }), queryFn: () => collectCatalog((page, limit) => rbacService.getRolesPage(page, limit)), staleTime: 60_000 });
+export function useRolesCatalog(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: rbacKeys.rolesList({ limit: 100, page: 0 }),
+    queryFn: () => collectCatalog((page, limit) => rbacService.getRolesPage(page, limit)),
+    staleTime: 60_000,
+    enabled: options?.enabled ?? true,
+  });
 }

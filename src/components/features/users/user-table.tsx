@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { ColumnDef, PaginationState, RowSelectionState, SortingState } from "@tanstack/react-table";
-import { Shield, ShieldCheck, ShieldAlert, Pencil, Trash2, Eye, RotateCcw, UserPlus, Lock, Unlock, Building2, ExternalLink, LayoutGrid, Table2 } from "lucide-react";
+import { Shield, ShieldCheck, ShieldAlert, Pencil, Trash2, RotateCcw, UserPlus, Lock, Unlock, Building2, ExternalLink, LayoutGrid, Table2 } from "lucide-react";
 
 import { Table, TableToolbar, TableContent, TablePagination, TableSelectionHeader, TableSelectionRow, TableRowActions, type TableFeatureSet, type TableRowAction, type TableBulkAction, TableBulkActions, TableFilterPanel } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -18,13 +18,14 @@ import { userKeys } from "@/hooks/users/user.query-keys";
 import { mapTableSort, settleInBatches } from "@/lib/table-utils";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { useRolesCatalog as useRoles } from "@/hooks/rbac";
+import { useCan } from "@/hooks/use-can";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
 import { toast } from "@/lib/toast";
 import type { UserResponseDto } from "@/types";
 
-import { CreateUserModal, EditUserModal, AssignUserRoleModal, AdminResetPasswordModal, ConfirmUserDeleteModal, UserDetailModal } from "./modals";
+import { CreateUserModal, EditUserModal, AssignUserRoleModal, ConfirmUserDeleteModal } from "./modals";
 import { UserRoleFilterBar } from "./user-role-filter-bar";
 import { UserCardGrid, type UserCardSortOption } from "./user-card-grid";
 import { getRoleBadgeStyle, getUserAccountStatus, getUserInitials } from "./user-presentation";
@@ -62,9 +63,11 @@ export function UserTable({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user: currentAdmin } = useAuth();
-  const { data: roles = [], isLoading: isLoadingRoles } = useRoles();
+  const can = useCan();
+  const { data: roles = [], isLoading: isLoadingRoles } = useRoles({
+    enabled: can("ROLE_READ"),
+  });
   const queryClient = useQueryClient();
-  const can = (permission: string) => (currentAdmin?.role === "ADMIN" || currentAdmin?.role === "SUPER_ADMIN") || Boolean(currentAdmin?.permissions?.includes(permission));
   const canUpdate = can("USER_UPDATE");
   const canCreate = can("USER_CREATE");
   const canAssignRole = can("USER_ROLE_ASSIGN");
@@ -194,17 +197,18 @@ export function UserTable({
 
   const apiSorting = mapTableSort(sorting, { user: "fullName", email: "email", createdAt: "createdAt" }, { sortBy: "createdAt", order: "desc" });
 
-  // Fetch Users (bao gồm lọc thuần FE theo twoFactorEnabled để quét đủ mọi trang)
+  // Fetch Users (lọc server-side theo roleName, isActive, isLocked, isDeleted, twoFactorEnabled)
   const queryParams = useMemo(() => {
     return {
       page: pagination.pageIndex + 1,
       limit: pagination.pageSize,
       search: debouncedSearch.trim() || undefined,
       roleName: roleFilter !== "all" ? roleFilter : undefined,
-      isActive:
-        statusFilter === "active"
+      isActive: statusFilter === "active" ? true : undefined,
+      isLocked:
+        statusFilter === "inactive" || statusFilter === "locked"
           ? true
-          : statusFilter === "inactive"
+          : statusFilter === "active"
             ? false
             : undefined,
       isDeleted: statusFilter === "deleted" ? true : undefined,
@@ -231,7 +235,6 @@ export function UserTable({
   };
   const [editUser, setEditUser] = useState<UserResponseDto | null>(null);
   const [assignRoleUser, setAssignRoleUser] = useState<UserResponseDto | null>(null);
-  const [resetPasswordUser, setResetPasswordUser] = useState<UserResponseDto | null>(null);
   const [deleteModalState, setDeleteModalState] = useState<{
     user: UserResponseDto | null;
     mode: "delete" | "restore" | "activate" | "deactivate";
@@ -242,7 +245,6 @@ export function UserTable({
     open: false,
 
   });
-  const [detailUser, setDetailUser] = useState<UserResponseDto | null>(null);
 
   const tableData = usersData?.data ?? [];
   const totalCount = usersData?.meta?.total ?? tableData.length;
@@ -320,13 +322,6 @@ export function UserTable({
           label: isVietnamese ? "Xem trang hồ sơ" : "View Profile Page",
           icon: <ExternalLink size={14} />,
           onClick: (u) => router.push(`/users/${u.id}`),
-        },
-        {
-          id: "view",
-          label: isVietnamese ? "Xem nhanh & Phiên" : "Quick View & Sessions",
-          icon: <Eye size={14} />,
-          onClick: (u) => setDetailUser(u),
-
         },
         {
           hidden: !canUpdate || isDeleted,
@@ -843,7 +838,6 @@ export function UserTable({
             canDelete={canDelete}
             canRestore={canRestore}
             onViewProfile={(u) => router.push(`/users/${u.id}`)}
-            onQuickView={(u) => setDetailUser(u)}
             onEdit={(u) => setEditUser(u)}
             onAssignRole={(u) => setAssignRoleUser(u)}
             onToggleActive={(u) =>
@@ -914,12 +908,6 @@ export function UserTable({
         user={assignRoleUser}
       />
 
-      <AdminResetPasswordModal
-        open={Boolean(resetPasswordUser)}
-        onOpenChange={(open) => !open && setResetPasswordUser(null)}
-        user={resetPasswordUser}
-      />
-
       <ConfirmUserDeleteModal
         open={deleteModalState.open}
         onClose={() => setDeleteModalState({
@@ -929,14 +917,6 @@ export function UserTable({
         })}
         user={deleteModalState.user}
         mode={deleteModalState.mode}
-      />
-
-      <UserDetailModal
-        open={Boolean(detailUser)}
-        onOpenChange={(open) => !open && setDetailUser(null)}
-        user={detailUser}
-        onEditClick={(u) => setEditUser(u)}
-        onResetPasswordClick={(u) => setResetPasswordUser(u)}
       />
     </div>
   );

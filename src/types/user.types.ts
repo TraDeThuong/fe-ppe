@@ -84,8 +84,10 @@ export interface UserQueryParams {
   excludeSiteId?: string;
   isActive?: boolean;
   isDeleted?: boolean;
-  /** Lọc thuần FE (quét toàn bộ trang khớp bộ lọc rồi phân trang client-side) vì BE chưa hỗ trợ query param này */
+  /** Lọc người dùng theo trạng thái bật/tắt xác thực hai bước (2FA TOTP) */
   twoFactorEnabled?: boolean;
+  /** Lọc người dùng theo trạng thái bị khóa (!isActive hoặc lockedUntil > now) */
+  isLocked?: boolean;
   sortBy?: UserSortBy;
   order?: SortOrder;
   page?: number;
@@ -109,6 +111,7 @@ export interface CreateUserPayload {
   roleId: string;
   fullName?: string;
   phoneNumber?: string;
+  siteIds?: string[];
   mustChangePassword?: boolean;
 }
 

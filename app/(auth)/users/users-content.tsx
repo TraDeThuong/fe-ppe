@@ -6,13 +6,13 @@ import { Button } from "@ui/button";
 
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { UserKpiCards, UserTable } from "@/components/features/users";
-import { useAuth } from "@/contexts/AuthContext";
+import { useCan } from "@/hooks/use-can";
 import { useUserSummary } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
 
 export default function UsersContent() {
   const { t } = useLocale();
-  const { user } = useAuth();
+  const can = useCan();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
@@ -31,9 +31,7 @@ export default function UsersContent() {
     }
   };
 
-  const canCreateUser = useMemo(() => {
-    return user?.role === "ADMIN" || user?.permissions?.includes("USER_CREATE");
-  }, [user]);
+  const canCreateUser = can("USER_CREATE");
 
   const breadcrumbs = useMemo(
     () => [

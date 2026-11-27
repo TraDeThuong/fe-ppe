@@ -51,7 +51,7 @@ export interface UserCardGridProps {
   canDelete?: boolean;
   canRestore?: boolean;
   onViewProfile: (user: UserResponseDto) => void;
-  onQuickView: (user: UserResponseDto) => void;
+  onQuickView?: (user: UserResponseDto) => void;
   onEdit: (user: UserResponseDto) => void;
   onAssignRole: (user: UserResponseDto) => void;
   onToggleActive: (user: UserResponseDto) => void;
@@ -480,19 +480,21 @@ export function UserCardGrid({
                     <span>{t("users.view.viewProfile")}</span>
                   </Button>
 
-                  <button
-                    type="button"
-                    onClick={() => onQuickView(user)}
-                    aria-label={t("users.view.quickView")}
-                    title={
-                      isVietnamese
-                        ? "Xem nhanh & Phiên đăng nhập"
-                        : "Quick View & Sessions"
-                    }
-                    className="inline-flex size-8 cursor-pointer items-center justify-center rounded-xl border border-border/45 bg-surface text-muted-foreground shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-accent/15 hover:text-primary active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
-                  >
-                    <Eye className="size-3.5" />
-                  </button>
+                  {onQuickView && (
+                    <button
+                      type="button"
+                      onClick={() => onQuickView(user)}
+                      aria-label={t("users.view.quickView")}
+                      title={
+                        isVietnamese
+                          ? "Xem nhanh & Phiên đăng nhập"
+                          : "Quick View & Sessions"
+                      }
+                      className="inline-flex size-8 cursor-pointer items-center justify-center rounded-xl border border-border/45 bg-surface text-muted-foreground shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)] transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/50 hover:bg-accent/15 hover:text-primary active:translate-y-0 active:shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_var(--shadow-light)]"
+                    >
+                      <Eye className="size-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Cụm nút quyền hạn được đặt trong khay lõm nhẹ */}

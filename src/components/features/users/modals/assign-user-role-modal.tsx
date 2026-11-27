@@ -21,7 +21,9 @@ export function AssignUserRoleModal({ open, onOpenChange, user }: AssignUserRole
   const isVietnamese = locale === "vi-VN";
 
   const { user: currentAdmin } = useAuth();
-  const { data: roles = [], isLoading: isLoadingRoles } = useRoles();
+  const { data: roles = [], isLoading: isLoadingRoles } = useRoles(undefined, {
+    enabled: open,
+  });
   const assignRoleMutation = useAssignUserRole();
 
   const [selectedRoleId, setSelectedRoleId] = useState("");

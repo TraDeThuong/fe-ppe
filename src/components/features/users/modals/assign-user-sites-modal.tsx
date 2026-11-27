@@ -5,6 +5,7 @@ import { Building2, Search, Check, AlertCircle, Loader2 } from "lucide-react";
 import { SculptedModal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useSitesCatalog } from "@/hooks/sites";
+import { useCan } from "@/hooks/use-can";
 import { useAssignUserSites } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
 import { parseContactOfficers } from "../detail/user-detail-utils";
@@ -23,8 +24,11 @@ export function AssignUserSitesModal({
 }: AssignUserSitesModalProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const canReadSites = useCan()("PPE_SITE_READ");
 
-  const { data: allSites = [], isLoading: isLoadingSites } = useSitesCatalog();
+  const { data: allSites = [], isLoading: isLoadingSites } = useSitesCatalog({
+    enabled: open && canReadSites,
+  });
   const assignSitesMutation = useAssignUserSites();
 
   const [selectedSiteIds, setSelectedSiteIds] = useState<string[]>([]);

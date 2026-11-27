@@ -22,34 +22,9 @@ import type {
 export const userService = {
   /**
    * GET /api/v1/users
-   * Lấy danh sách người dùng có phân trang, tìm kiếm và lọc vai trò/trạng thái.
-   * Khi truyền `twoFactorEnabled`, tự động quét toàn bộ danh sách khớp bộ lọc (thuần FE)
-   * rồi lọc và phân trang lại chính xác để không bỏ sót user ở các trang sau.
+   * Lấy danh sách người dùng có phân trang, tìm kiếm và lọc vai trò/trạng thái (bao gồm twoFactorEnabled và isLocked).
    */
   async getUsers(params?: UserQueryParams): Promise<UserListResponse> {
-    if (params?.twoFactorEnabled !== undefined) {
-      const { twoFactorEnabled, page: rawPage, limit: rawLimit, ...baseParams } = params;
-      const page = Math.max(1, rawPage ?? 1);
-      const limit = Math.max(1, rawLimit ?? 10);
-      const all = await this.getAllUsers(baseParams);
-      const filtered = all.data.filter(
-        (u) => Boolean(u.twoFactorEnabled) === twoFactorEnabled,
-      );
-      const total = filtered.length;
-      const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
-      const start = (page - 1) * limit;
-
-      return {
-        data: filtered.slice(start, start + limit),
-        meta: {
-          page,
-          limit,
-          total,
-          totalPages,
-        },
-      };
-    }
-
     const res = await apiClient.get<unknown, UserListResponse | UserResponseDto[]>("/users", {
       params,
     });
@@ -80,13 +55,12 @@ export const userService = {
 
   /**
    * Tải toàn bộ danh sách người dùng khớp điều kiện truy vấn (quét tối đa 20 trang x 100 bản ghi).
-   * Dùng chung cho getUserSummary() và cơ chế lọc thuần FE theo twoFactorEnabled.
    */
   async getAllUsers(
-    params?: Omit<UserQueryParams, "page" | "limit" | "twoFactorEnabled">,
+    params?: Omit<UserQueryParams, "page" | "limit">,
   ): Promise<{ data: UserResponseDto[]; total: number }> {
     const limit = 100;
-    const safeParams: Omit<UserQueryParams, "page" | "limit" | "twoFactorEnabled"> = {
+    const safeParams: Omit<UserQueryParams, "page" | "limit"> = {
       ...params,
     };
     const firstPage = await this.getUsers({ ...safeParams, page: 1, limit });
@@ -113,8 +87,8 @@ export const userService = {
   },
 
   /**
-   * Tổng hợp số liệu người dùng (total, active, twoFactor, locked, byRole) từ GET /api/v1/users
-   * (khớp với smart-ppe-identity-service trên nhánh origin/develop).
+   * GET /api/v1/users/summary
+   * Tổng hợp số liệu người dùng (total, active, twoFactor, locked, byRole) bằng 1 request từ Backend.
    */
   async getUserSummary(): Promise<{
     total: number;
@@ -123,38 +97,23 @@ export const userService = {
     locked: number;
     byRole: Record<string, number>;
   }> {
-    const { data: users, total } = await this.getAllUsers();
-
-    const nowMs = Date.now();
-    let active = 0;
-    let twoFactor = 0;
-    let locked = 0;
-    const byRole: Record<string, number> = {};
-
-    for (const user of users) {
-      const roleName = user.role?.name;
-      if (roleName) {
-        byRole[roleName] = (byRole[roleName] ?? 0) + 1;
+    const res = await apiClient.get<
+      unknown,
+      {
+        total?: number;
+        active?: number;
+        twoFactor?: number;
+        locked?: number;
+        byRole?: Record<string, number>;
       }
-
-      const lockedUntilMs = user.lockedUntil ? new Date(user.lockedUntil).getTime() : 0;
-      const isLocked = !user.isActive || (Number.isFinite(lockedUntilMs) && lockedUntilMs > nowMs);
-      if (isLocked) {
-        locked++;
-      } else {
-        active++;
-      }
-      if (user.twoFactorEnabled) {
-        twoFactor++;
-      }
-    }
+    >("/users/summary");
 
     return {
-      total,
-      active,
-      twoFactor,
-      locked,
-      byRole,
+      total: Number(res?.total ?? 0),
+      active: Number(res?.active ?? 0),
+      twoFactor: Number(res?.twoFactor ?? 0),
+      locked: Number(res?.locked ?? 0),
+      byRole: res?.byRole ?? {},
     };
   },
 

@@ -22,8 +22,7 @@ export function EditUserModal({ open, onOpenChange, user }: EditUserModalProps) 
   const isVietnamese = locale === "vi-VN";
   const can = useCan();
   const canReadSites = can("PPE_SITE_READ");
-  const canManageSites =
-    can("USER_ROLE_ASSIGN") || can("ROLE_PERMISSION_ASSIGN");
+  const canManageSites = can("USER_UPDATE");
 
   const { user: currentAdmin } = useAuth();
   const [fullName, setFullName] = useState("");
@@ -213,7 +212,7 @@ export function EditUserModal({ open, onOpenChange, user }: EditUserModalProps) 
           )}
         </div>
         {/* Phân công công trường phụ trách */}
-        {user?.role?.name !== "ADMIN" && (
+        {canReadSites && canManageSites && user?.role?.name !== "ADMIN" && (
           <div className="rounded-xl border border-border/50 bg-background p-3.5 shadow-[inset_1px_1px_2px_var(--shadow-dark),inset_-1px_-1px_2px_var(--shadow-light)] space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">

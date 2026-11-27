@@ -53,7 +53,7 @@ export function UserDetailHero({
   const can = useCan();
   const canUpdate = can("USER_UPDATE");
   const canAssignRole = can("USER_ROLE_ASSIGN");
-  const canAssignSites = can("USER_ROLE_ASSIGN") || can("ROLE_PERMISSION_ASSIGN");
+  const canAssignSites = canUpdate;
   const canDelete = can("USER_DELETE");
   const canRestore = can("USER_RESTORE") || canDelete;
 
