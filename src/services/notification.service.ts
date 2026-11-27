@@ -54,6 +54,26 @@ function sanitizeTemplateItem(
   };
 }
 
+/** Chuẩn hóa tham số ngày YYYY-MM-DD sang ISO 8601 (UTC Z) tương thích z.string().datetime({ offset: true }) của Backend */
+function normalizeNotificationDateParam(
+  raw: string | undefined,
+  endOfDay: boolean,
+): string | undefined {
+  if (!raw) return undefined;
+  const trimmed = raw.trim();
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (dateOnly) {
+    const year = Number(dateOnly[1]);
+    const month = Number(dateOnly[2]) - 1;
+    const day = Number(dateOnly[3]);
+    const date = endOfDay
+      ? new Date(year, month, day, 23, 59, 59, 999)
+      : new Date(year, month, day, 0, 0, 0, 0);
+    return Number.isNaN(date.getTime()) ? trimmed : date.toISOString();
+  }
+  return trimmed;
+}
+
 export const notificationService = {
   // ==========================================================================
   // 1. HỘP THƯ THÔNG BÁO (NOTIFICATION INBOX)
@@ -67,11 +87,24 @@ export const notificationService = {
     params?: ListNotificationsQuery,
     options?: { signal?: AbortSignal; strictPagination?: boolean },
   ): Promise<NotificationListResponse> {
+    const normalizedParams =
+      params && (params.fromDate || params.toDate)
+        ? {
+            ...params,
+            ...(params.fromDate
+              ? { fromDate: normalizeNotificationDateParam(params.fromDate, false) }
+              : {}),
+            ...(params.toDate
+              ? { toDate: normalizeNotificationDateParam(params.toDate, true) }
+              : {}),
+          }
+        : params;
+
     const res = await apiClient.get<
       unknown,
       NotificationListResponse | NotificationItemDto[]
     >("/notifications", {
-      params,
+      params: normalizedParams,
       signal: options?.signal,
     });
 
@@ -150,6 +183,42 @@ export const notificationService = {
    */
   async deleteNotification(id: string): Promise<{ message: string }> {
     return (await apiClient.delete(`/notifications/${id}`)) as {
+      message: string;
+    };
+  },
+
+  /**
+   * PATCH /api/v1/notifications/archive-read
+   * Lưu trữ toàn bộ thông báo đã đọc của người dùng hiện tại trên server.
+   */
+  async archiveAllRead(): Promise<{ archivedCount: number }> {
+    const res = await apiClient.patch<unknown, { archivedCount?: number }>(
+      "/notifications/archive-read",
+    );
+    return {
+      archivedCount:
+        res && typeof res === "object" && typeof res.archivedCount === "number"
+          ? res.archivedCount
+          : 0,
+    };
+  },
+
+  /**
+   * PATCH /api/v1/notifications/:id/archive
+   * Lưu trữ một thông báo trên server.
+   */
+  async archiveNotification(id: string): Promise<{ message: string }> {
+    return (await apiClient.patch(`/notifications/${id}/archive`)) as {
+      message: string;
+    };
+  },
+
+  /**
+   * PATCH /api/v1/notifications/:id/unarchive
+   * Khôi phục một thông báo đã lưu trữ về hộp thư trên server.
+   */
+  async unarchiveNotification(id: string): Promise<{ message: string }> {
+    return (await apiClient.patch(`/notifications/${id}/unarchive`)) as {
       message: string;
     };
   },

@@ -24,10 +24,8 @@ export interface AuditKpiSummaryProps {
   totalLogsCount: number;
   loading?: boolean;
   selectedStat?: AuditStatKey | null;
-  selectedAction?: string;
   onSelectStat?: (stat: AuditStatKey | null) => void;
   onOpenExport?: () => void;
-  onOpenHelp?: () => void;
   onSwitchTab?: (tab: "all" | "configChanges") => void;
   onFilterAction?: (action: string) => void;
 }
@@ -37,10 +35,8 @@ export function AuditKpiSummary({
   totalLogsCount,
   loading = false,
   selectedStat: propSelectedStat,
-  selectedAction = "",
   onSelectStat,
   onOpenExport,
-  onOpenHelp,
   onSwitchTab,
   onFilterAction,
 }: AuditKpiSummaryProps) {
@@ -290,10 +286,8 @@ export function AuditKpiSummary({
           activeStat={activeStat}
           summary={summary}
           totalLogsCount={totalLogsCount}
-          selectedAction={selectedAction}
           onClose={() => handleToggle(activeStat)}
           onOpenExport={onOpenExport}
-          onOpenHelp={onOpenHelp}
           onSwitchTab={onSwitchTab}
           onFilterAction={onFilterAction}
         />

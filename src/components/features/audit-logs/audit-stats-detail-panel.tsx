@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import {
   Download,
   FileText,
-  HelpCircle,
   Info,
   Settings,
   ShieldCheck,
@@ -26,10 +25,8 @@ export interface AuditStatsDetailPanelProps {
   activeStat: AuditStatKey;
   summary?: AuditSummaryDto;
   totalLogsCount: number;
-  selectedAction?: string;
   onClose: () => void;
   onOpenExport?: () => void;
-  onOpenHelp?: () => void;
   onSwitchTab?: (tab: "all" | "configChanges") => void;
   onFilterAction?: (action: string) => void;
 }
@@ -45,10 +42,8 @@ export function AuditStatsDetailPanel({
   activeStat,
   summary,
   totalLogsCount,
-  selectedAction = "",
   onClose,
   onOpenExport,
-  onOpenHelp,
   onSwitchTab,
   onFilterAction,
 }: AuditStatsDetailPanelProps) {
@@ -118,19 +113,6 @@ export function AuditStatsDetailPanel({
 
         {/* Action Controls & Close */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {onOpenHelp && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={onOpenHelp}
-              className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs text-muted-foreground hover:text-primary px-2"
-            >
-              <HelpCircle className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{t("audit.help.shortBtn")}</span>
-            </Button>
-          )}
-
           {activeStat === "totalLogs" && onOpenExport && (
             <Button
               type="button"
@@ -181,22 +163,10 @@ export function AuditStatsDetailPanel({
                   <Zap className="h-3.5 w-3.5 text-primary" />
                   {t("audit.detail.actionDistribution")}
                 </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground">
-                    {Object.keys(actionDistribution).length}{" "}
-                    {isVietnamese ? "hành động phổ biến" : "top actions"}
-                  </span>
-                  {onOpenHelp && (
-                    <button
-                      type="button"
-                      onClick={onOpenHelp}
-                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/10 transition cursor-pointer"
-                    >
-                      <HelpCircle className="h-3 w-3" />
-                      <span>{t("audit.help.shortBtn")}</span>
-                    </button>
-                  )}
-                </div>
+                <span className="text-[10px] text-muted-foreground">
+                  {Object.keys(actionDistribution).length}{" "}
+                  {isVietnamese ? "hành động phổ biến" : "top actions"}
+                </span>
               </div>
 
               {Object.keys(actionDistribution).length === 0 ? (
@@ -204,58 +174,22 @@ export function AuditStatsDetailPanel({
                   {isVietnamese ? "Chưa có dữ liệu phân bổ hành động." : "No action distribution data yet."}
                 </p>
               ) : (
-                <>
-                  <div className="flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => onFilterAction && onFilterAction("")}
-                      className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold transition cursor-pointer ${
-                        !selectedAction
-                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                          : "border-border/40 bg-background/80 text-muted-foreground hover:border-primary/50 hover:text-foreground"
-                      }`}
-                    >
-                      {t("audit.toolbar.actionAll")}
-                    </button>
-
-                    {Object.entries(actionDistribution).map(([action, count]) => {
-                      const isActive = selectedAction === action;
-                      const info = getAuditActionInfo(action, locale);
-                      return (
-                        <button
-                          key={action}
-                          type="button"
-                          onClick={() => onFilterAction && onFilterAction(isActive ? "" : action)}
-                          aria-pressed={isActive}
-                          title={`${info.code} — ${info.description}`}
-                          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition cursor-pointer ${
-                            isActive
-                              ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                              : "border-border/40 bg-background/80 text-foreground hover:border-primary/50 hover:text-primary"
-                          }`}
-                        >
-                          <span>{info.label}</span>
-                          <span
-                            className={`font-mono text-[10px] ${
-                              isActive ? "opacity-90" : "text-muted-foreground"
-                            }`}
-                          >
-                            ({count})
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    {selectedAction
-                      ? isVietnamese
-                        ? `Đang lọc theo "${getAuditActionInfo(selectedAction, locale).label}". Bấm lại để bỏ lọc.`
-                        : `Filtering by "${getAuditActionInfo(selectedAction, locale).label}". Click again to clear.`
-                      : isVietnamese
-                        ? "Bấm vào một hành động để lọc bảng bên dưới, hoặc rê chuột để xem mã kỹ thuật."
-                        : "Click an action to filter the table below, or hover to view its technical code."}
-                  </p>
-                </>
+                // Chỉ hiển thị số liệu; việc lọc theo hành động nằm ở toolbar phía trên bảng.
+                <ul className="flex flex-wrap gap-1.5">
+                  {Object.entries(actionDistribution).map(([action, count]) => {
+                    const info = getAuditActionInfo(action, locale);
+                    return (
+                      <li
+                        key={action}
+                        title={`${info.code} — ${info.description}`}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/80 px-3 py-1 text-[11px] font-semibold text-foreground"
+                      >
+                        <span>{info.label}</span>
+                        <span className="font-mono text-[10px] text-muted-foreground">({count})</span>
+                      </li>
+                    );
+                  })}
+                </ul>
               )}
             </div>
 

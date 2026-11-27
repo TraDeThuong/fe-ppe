@@ -11,7 +11,7 @@ export type UseAuditSummaryOptions = Omit<
 >;
 
 export function useAuditSummary(
-  params?: { fromDate?: string; toDate?: string; startDate?: string; endDate?: string; siteId?: string },
+  params?: { fromDate?: string; toDate?: string; startDate?: string; endDate?: string },
   options?: UseAuditSummaryOptions,
 ) {
   return useQuery<AuditSummaryDto, Error>({

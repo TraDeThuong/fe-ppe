@@ -25,11 +25,9 @@ import {
   useNotificationTabAccess,
   type NotificationTabKey,
   type NotificationFilterState,
-  type NotificationStatKey,
 } from "@/components/features/notifications";
 import {
   NotificationArchiveButton,
-  NotificationArchiveSettings,
   NotificationArchiveTab,
 } from "@/components/features/notifications/notification-archive-controls";
 import { useNotificationArchiveAccount } from "@/hooks/notifications/use-notification-archive";
@@ -38,8 +36,6 @@ import {
   useAllNotifications,
   useFilteredNotifications,
   useNotificationEnrichment,
-  useVisualFingerprints,
-  useUnreadCount,
   useMarkAsRead,
   useMarkManyAsRead,
   useMarkAllAsRead,
@@ -58,7 +54,6 @@ import {
   groupNotificationsByPerson,
   groupNotificationsIntoSections,
   paginateNotificationClusters,
-  selectVisualFingerprintCandidates,
   wrapFlatPersonClusters,
   type NotificationPersonCluster,
   type NotificationViewMode,
@@ -72,23 +67,8 @@ import {
 import { useLocale } from "@/providers/locale-provider";
 import type { NotificationItemDto, NotificationTemplateItemDto } from "@/types";
 
-const GROUPING_PREFS_STORAGE_KEY = "ppe.notifications.grouping-prefs.v1";
+const GROUPING_PREFS_STORAGE_KEY = "ppe.notifications.grouping-prefs.v2";
 const EMPTY_NOTIFICATIONS: NotificationItemDto[] = [];
-
-const STAT_TO_URL: Record<NotificationStatKey, string> = {
-  total: "total",
-  unread: "unread",
-  ppeAlerts: "ppe-alerts",
-  resolved: "resolved",
-};
-
-const URL_TO_STAT: Record<string, NotificationStatKey> = {
-  total: "total",
-  unread: "unread",
-  "ppe-alerts": "ppeAlerts",
-  ppeAlerts: "ppeAlerts",
-  resolved: "resolved",
-};
 
 export default function NotificationsContent() {
   const { t, locale } = useLocale();
@@ -192,21 +172,6 @@ export default function NotificationsContent() {
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   };
 
-  // URL state synchronization for stats (giống hệt trang role)
-  const statParam = searchParams.get("stat");
-  const selectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
-
-  const handleSelectStat = (stat: NotificationStatKey | null) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (stat) {
-      params.set("stat", STAT_TO_URL[stat]);
-    } else {
-      params.delete("stat");
-    }
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  };
-
   // Tab navigation state (derived directly from URL + RBAC access so back/forward/links always sync)
   const tabParam = searchParams.get("tab") as NotificationTabKey | null;
   const activeTab: NotificationTabKey =
@@ -231,9 +196,7 @@ export default function NotificationsContent() {
   // Filtering, Client-side Smart Grouping & Pagination
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [viewMode, setViewMode] = useState<NotificationViewMode>("person");
-  const [enableVisualDedup, setEnableVisualDedup] = useState(true);
-  const [windowSeconds, setWindowSeconds] = useState(45);
+  const [viewMode, setViewMode] = useState<NotificationViewMode>("flat");
   const [prefsHydrated, setPrefsHydrated] = useState(false);
 
   useEffect(() => {
@@ -242,25 +205,12 @@ export default function NotificationsContent() {
         localStorage.getItem(GROUPING_PREFS_STORAGE_KEY) || "null",
       ) as {
         viewMode?: NotificationViewMode;
-        enableVisualDedup?: boolean;
-        windowSeconds?: number;
       } | null;
-      if (saved) {
-        if (
-          saved.viewMode &&
-          ["flat", "person", "hour", "camera"].includes(saved.viewMode)
-        ) {
-          setViewMode(saved.viewMode);
-        }
-        if (typeof saved.enableVisualDedup === "boolean") {
-          setEnableVisualDedup(saved.enableVisualDedup);
-        }
-        if (
-          typeof saved.windowSeconds === "number" &&
-          [30, 45, 120, 300].includes(saved.windowSeconds)
-        ) {
-          setWindowSeconds(saved.windowSeconds);
-        }
+      if (
+        saved?.viewMode &&
+        ["flat", "person", "hour", "camera"].includes(saved.viewMode)
+      ) {
+        setViewMode(saved.viewMode);
       }
     } catch {
       // Ignore storage access errors
@@ -274,12 +224,12 @@ export default function NotificationsContent() {
     try {
       localStorage.setItem(
         GROUPING_PREFS_STORAGE_KEY,
-        JSON.stringify({ viewMode, enableVisualDedup, windowSeconds }),
+        JSON.stringify({ viewMode }),
       );
     } catch {
       // Ignore storage quota errors
     }
-  }, [prefsHydrated, viewMode, enableVisualDedup, windowSeconds]);
+  }, [prefsHydrated, viewMode]);
 
   const [filter, setFilter] = useState<NotificationFilterState>({
     search: "",
@@ -314,15 +264,28 @@ export default function NotificationsContent() {
     refetch: refetchNotifications,
   } = useFilteredNotifications(filterQuery, { visibility: "active" });
 
-  const shouldEnrich = activeTab === "inbox" && viewMode !== "flat";
+  const rawFilteredItems = filteredNotifications ?? EMPTY_NOTIFICATIONS;
+
+  const hasGroupableIncidentItems = useMemo(() => {
+    let incidentCount = 0;
+    for (const item of rawFilteredItems) {
+      if (item.incidentId) {
+        incidentCount += 1;
+        if (incidentCount >= 2) return true;
+      }
+    }
+    return viewMode === "camera" && incidentCount >= 1;
+  }, [rawFilteredItems, viewMode]);
+
+  const shouldEnrich =
+    activeTab === "inbox" && viewMode !== "flat" && hasGroupableIncidentItems;
   const { signalsMap } = useNotificationEnrichment({
     enabled: shouldEnrich,
-    maxIncidents: 200,
+    maxIncidents: 100,
   });
 
   const { data: allActiveNotifications } = useAllNotifications({ visibility: "active" });
   const allNotifications = allActiveNotifications ?? EMPTY_NOTIFICATIONS;
-  const { data: unreadCount = 0 } = useUnreadCount();
 
   // Mutations
   const markAsReadMutation = useMarkAsRead();
@@ -345,8 +308,6 @@ export default function NotificationsContent() {
   const [selectedNotificationId, setSelectedNotificationId] = useState<string | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
-  const rawFilteredItems = filteredNotifications ?? EMPTY_NOTIFICATIONS;
-
   useEffect(() => {
     if (selectedNotificationId && allActiveNotifications &&
       !allActiveNotifications.some((item) => item.id === selectedNotificationId)) {
@@ -358,26 +319,10 @@ export default function NotificationsContent() {
   const groupingOptions = useMemo(
     () => ({
       isVietnamese,
-      trackWindowSeconds: windowSeconds,
-      spatialWindowSeconds: Math.min(windowSeconds, 20),
-      enableVisualDedup,
-      visualWindowSeconds: Math.max(windowSeconds, 60),
+      enableVisualDedup: false,
       combinePersonInSections: true,
     }),
-    [isVietnamese, windowSeconds, enableVisualDedup],
-  );
-
-  const visualCandidates = useMemo(
-    () =>
-      shouldEnrich && enableVisualDedup
-        ? selectVisualFingerprintCandidates(rawFilteredItems, signalsMap, groupingOptions)
-        : [],
-    [shouldEnrich, enableVisualDedup, rawFilteredItems, signalsMap, groupingOptions],
-  );
-
-  const { fingerprintsMap, isComputing: isComputingVisual } = useVisualFingerprints(
-    visualCandidates,
-    shouldEnrich && enableVisualDedup,
+    [isVietnamese],
   );
 
   const allPersonClusters = useMemo<NotificationPersonCluster[]>(() => {
@@ -387,10 +332,10 @@ export default function NotificationsContent() {
     return groupNotificationsByPerson(
       rawFilteredItems,
       signalsMap,
-      fingerprintsMap,
+      undefined,
       groupingOptions,
     );
-  }, [viewMode, rawFilteredItems, signalsMap, fingerprintsMap, groupingOptions, isVietnamese]);
+  }, [viewMode, rawFilteredItems, signalsMap, groupingOptions, isVietnamese]);
 
   const sections = useMemo(() => {
     if (viewMode !== "hour" && viewMode !== "camera") return [];
@@ -398,10 +343,10 @@ export default function NotificationsContent() {
       rawFilteredItems,
       viewMode,
       signalsMap,
-      fingerprintsMap,
+      undefined,
       groupingOptions,
     );
-  }, [viewMode, rawFilteredItems, signalsMap, fingerprintsMap, groupingOptions]);
+  }, [viewMode, rawFilteredItems, signalsMap, groupingOptions]);
 
   const periodNotifications = useMemo(
     () =>
@@ -417,70 +362,12 @@ export default function NotificationsContent() {
   );
 
   const periodUnreadCount = useMemo(() => {
-    if (!hasPeriodFilter) return unreadCount;
     let count = 0;
     for (const item of periodNotifications) {
       if (!isNotificationRead(item)) count += 1;
     }
     return count;
-  }, [hasPeriodFilter, unreadCount, periodNotifications]);
-
-  const allInboxClusters = useMemo<NotificationPersonCluster[]>(() => {
-    if (viewMode === "flat") return [];
-    return groupNotificationsByPerson(
-      periodNotifications,
-      signalsMap,
-      fingerprintsMap,
-      groupingOptions,
-    );
-  }, [viewMode, periodNotifications, signalsMap, fingerprintsMap, groupingOptions]);
-
-  const kpiDualStats = useMemo(() => {
-    if (viewMode === "flat" || periodNotifications.length === 0) {
-      return { clustered: undefined, raw: undefined };
-    }
-    let rawPpe = 0;
-    for (const item of periodNotifications) {
-      if (
-        item.type === "PPE_VIOLATION" ||
-        item.severity === "CRITICAL" ||
-        item.severity === "HIGH" ||
-        item.title?.toLowerCase().includes("ppe") ||
-        item.title?.toLowerCase().includes("bảo hộ")
-      ) {
-        rawPpe += 1;
-      }
-    }
-
-    let unreadClusters = 0;
-    let ppeClusters = 0;
-    for (const cl of allInboxClusters) {
-      if (cl.unreadCount > 0) unreadClusters += 1;
-      const isPpe =
-        cl.violationCodes.length > 0 ||
-        cl.highestSeverity === "CRITICAL" ||
-        cl.highestSeverity === "HIGH" ||
-        cl.primary.type === "PPE_VIOLATION" ||
-        cl.primary.title?.toLowerCase().includes("ppe") ||
-        cl.primary.title?.toLowerCase().includes("bảo hộ");
-      if (isPpe) ppeClusters += 1;
-    }
-
-    const totalClusters = allInboxClusters.length;
-    return {
-      clustered: {
-        total: totalClusters,
-        unread: unreadClusters,
-        ppeAlerts: ppeClusters,
-        resolved: Math.max(0, totalClusters - unreadClusters),
-      },
-      raw: {
-        total: periodNotifications.length,
-        unread: periodUnreadCount,
-        ppeAlerts: rawPpe,
-      },
-    };
-  }, [viewMode, periodNotifications, allInboxClusters, periodUnreadCount]);
+  }, [periodNotifications]);
 
   const pagedClusters = useMemo(
     () => paginateNotificationClusters(allPersonClusters, page, limit),
@@ -638,26 +525,14 @@ export default function NotificationsContent() {
         </div>
       )}
 
-      {/* 2. Thẻ KPI Thống kê Neumorphism Tương tác (Sunken khi chọn + Khung chi tiết mở ra) */}
+      {/* 2. Thẻ KPI Thống kê Neumorphism đồng đều, ổn định theo bộ lọc kỳ thời gian */}
       <NotificationKpiSummary
         notifications={periodNotifications}
         totalCount={periodNotifications.length}
         unreadCount={periodUnreadCount}
-        stats={kpiDualStats.clustered}
-        rawStats={kpiDualStats.raw}
         variant="soft-extruded"
         loading={isNotificationsLoading}
         unavailable={!filteredNotifications && !!notificationsError}
-        selectedStat={selectedStat}
-        onSelectStat={handleSelectStat}
-        onOpenBroadcast={
-          canBroadcast && notificationsEnabled
-            ? () => setIsBroadcastModalOpen(true)
-            : undefined
-        }
-        onOpenPreferences={() => handleTabChange("preferences")}
-        onMarkAllAsRead={() => markAllAsReadMutation.mutate()}
-        onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
       />
 
       {/* 3. Phân nhóm Tab (Hộp thư, Cài đặt & Âm thanh, Mẫu thông báo, Nhật ký Email) */}
@@ -687,14 +562,6 @@ export default function NotificationsContent() {
             viewMode={viewMode}
             onViewModeChange={(nextMode) => {
               setViewMode(nextMode);
-              setPage(1);
-            }}
-            enableVisualDedup={enableVisualDedup}
-            onToggleVisualDedup={() => setEnableVisualDedup((prev) => !prev)}
-            isComputingVisual={isComputingVisual}
-            windowSeconds={windowSeconds}
-            onWindowSecondsChange={(sec) => {
-              setWindowSeconds(sec);
               setPage(1);
             }}
             hideDateRange={true}
@@ -855,12 +722,7 @@ export default function NotificationsContent() {
 
       {activeTab === "archive" && archiveAccount && <NotificationArchiveTab key={archiveAccount} />}
 
-      {activeTab === "preferences" && (
-        <div className="space-y-4">
-          {archiveAccount && <NotificationArchiveSettings key={archiveAccount} />}
-          <NotificationPreferencesCard />
-        </div>
-      )}
+      {activeTab === "preferences" && <NotificationPreferencesCard />}
 
       {activeTab === "templates" && (
         <NotificationTemplatesTab

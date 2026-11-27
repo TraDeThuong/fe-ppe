@@ -90,6 +90,7 @@ export interface NotificationItemDto {
   status: NotificationStatus;
   sentAt: string | Date | null;
   readAt: string | Date | null;
+  archivedAt?: string | Date | null;
   createdAt: string | Date;
   isRead?: boolean;
   type?: string;
@@ -124,6 +125,7 @@ export interface ListNotificationsQuery {
   search?: string;
   fromDate?: string;
   toDate?: string;
+  archived?: boolean;
 }
 
 export interface NotificationListResponse {
@@ -248,6 +250,7 @@ export interface EmailLogsQueryParams {
   toEmail?: string;
   fromDate?: string;
   toDate?: string;
+  archived?: boolean;
 }
 
 export interface EmailLogsListResponse {

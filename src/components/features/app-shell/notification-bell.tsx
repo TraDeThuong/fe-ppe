@@ -35,7 +35,6 @@ import { stripEmojis } from "@/lib/strip-emojis";
 import {
   useUnreadCount,
   useNotifications,
-  useNotificationEnrichment,
   useMarkAllAsRead,
   useMarkAsRead,
   useMarkManyAsRead,
@@ -108,10 +107,6 @@ export function NotificationBell() {
     { limit: 20 },
     { enabled: open && canReadNotifications, visibility: "active" },
   );
-  const { signalsMap } = useNotificationEnrichment({
-    enabled: open && canReadNotifications,
-    maxIncidents: 100,
-  });
 
   const markAllMutation = useMarkAllAsRead();
   const markAsReadMutation = useMarkAsRead();
@@ -121,14 +116,14 @@ export function NotificationBell() {
     () =>
       groupNotificationsByPerson(
         notificationData?.data || [],
-        signalsMap,
+        undefined,
         undefined,
         {
           isVietnamese,
           enableVisualDedup: false,
         },
       ),
-    [notificationData?.data, signalsMap, isVietnamese],
+    [notificationData?.data, isVietnamese],
   );
   const bellClusters = useMemo(
     () => allBellClusters.slice(0, 5),

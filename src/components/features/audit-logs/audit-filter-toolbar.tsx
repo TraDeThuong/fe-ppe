@@ -27,7 +27,8 @@ export interface AuditFilterToolbarProps {
   totalCount?: number;
   hasActiveFilters?: boolean;
   onResetFilters?: () => void;
-  onExport: () => void;
+  /** Chỉ truyền khi người dùng có quyền xuất; không truyền thì ẩn nút Export. */
+  onExport?: () => void;
 }
 
 const GROUP_ORDER: Array<{
@@ -118,15 +119,17 @@ export function AuditFilterToolbar({
 
           <TableRefresh />
 
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onExport}
-            className="h-9 flex items-center gap-2 rounded-xl px-3.5 text-xs font-semibold shrink-0 shadow-[2px_2px_6px_var(--shadow-dark)]"
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span>{t("audit.export")}</span>
-          </Button>
+          {onExport && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onExport}
+              className="h-9 flex items-center gap-2 rounded-xl px-3.5 text-xs font-semibold shrink-0 shadow-[2px_2px_6px_var(--shadow-dark)]"
+            >
+              <Download className="h-3.5 w-3.5" />
+              <span>{t("audit.export")}</span>
+            </Button>
+          )}
         </div>
       </div>
 

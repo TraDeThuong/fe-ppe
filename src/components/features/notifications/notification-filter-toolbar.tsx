@@ -314,7 +314,7 @@ export function NotificationFilterToolbar({
         )}
       </div>
 
-      {/* Client-side Smart Grouping & Visual Deduplication Strip */}
+      {/* Client-side Smart Grouping Strip */}
       {onViewModeChange && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/20 pt-2.5 text-xs">
           <div className="flex flex-wrap items-center gap-2">
@@ -375,54 +375,6 @@ export function NotificationFilterToolbar({
               })}
             </div>
           </div>
-
-          {viewMode && viewMode !== "flat" && (
-            <div className="flex flex-wrap items-center gap-2">
-              {onToggleVisualDedup && (
-                <button
-                  type="button"
-                  onClick={onToggleVisualDedup}
-                  aria-pressed={enableVisualDedup}
-                  title={
-                    isVietnamese
-                      ? "Sử dụng dHash 64-bit & Color Histogram trong Web Worker để nhận diện 2 ảnh bằng chứng gần giống nhau"
-                      : "Use 64-bit dHash & Color Histogram in Web Worker to merge visually similar snapshots"
-                  }
-                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                    enableVisualDedup
-                      ? "border-primary/40 bg-primary/10 text-primary shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
-                      : "border-border/40 bg-background text-muted-foreground hover:text-foreground shadow-[2px_2px_4px_var(--shadow-dark)]"
-                  }`}
-                >
-                  {isComputingVisual ? (
-                    <Loader2 className="size-3 animate-spin" />
-                  ) : (
-                    <ImageIcon className="size-3" />
-                  )}
-                  <span>
-                    {isVietnamese ? "So khớp ảnh (dHash)" : "Visual match (dHash)"}
-                  </span>
-                </button>
-              )}
-
-              {onWindowSecondsChange && (
-                <label className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <span>{isVietnamese ? "Cửa sổ:" : "Window:"}</span>
-                  <select
-                    value={windowSeconds}
-                    aria-label={isVietnamese ? "Cửa sổ thời gian gom cùng người" : "Same-person merge window"}
-                    onChange={(e) => onWindowSecondsChange(Number(e.target.value))}
-                    className="rounded-lg border border-border/40 bg-background px-2 py-1 font-mono text-[11px] text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
-                  >
-                    <option value={30}>30s</option>
-                    <option value={45}>45s</option>
-                    <option value={120}>{isVietnamese ? "2 phút" : "2 min"}</option>
-                    <option value={300}>{isVietnamese ? "5 phút" : "5 min"}</option>
-                  </select>
-                </label>
-              )}
-            </div>
-          )}
         </div>
       )}
     </div>

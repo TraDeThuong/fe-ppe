@@ -247,35 +247,7 @@ export const auditService = {
   async getLogs(
     params?: AuditLogQueryParams,
   ): Promise<{ items: AuditLogItem[]; meta: PaginationMeta }> {
-    const statusFilter = params?.status;
-    if (statusFilter === "SUCCESS" || statusFilter === "FAILED") {
-      const requestedPage = Math.max(1, Number(params?.page ?? 1));
-      const requestedLimit = Math.max(1, Number(params?.limit ?? 20));
-      const { status: _ignoredStatus, ...restParams } = params ?? {};
-      const res = await apiClient.get<any>("/audit-logs", {
-        params: mapAuditQueryParams({
-          ...restParams,
-          page: 1,
-          limit: 100,
-        }),
-      });
-      const unpacked = unwrapPaginated<AuditLogItem>(res, normalizeAuditItem);
-      const filtered = unpacked.items.filter((item) => item.status === statusFilter);
-      const start = (requestedPage - 1) * requestedLimit;
-      const pagedItems = filtered.slice(start, start + requestedLimit);
-      const total = filtered.length;
-      const totalPages = total > 0 ? Math.ceil(total / requestedLimit) : 0;
-      return {
-        items: pagedItems,
-        meta: {
-          page: requestedPage,
-          limit: requestedLimit,
-          total,
-          totalPages,
-        },
-      };
-    }
-
+    // Mọi bộ lọc (kể cả status) và phân trang đều do server xử lý.
     const res = await apiClient.get<any>("/audit-logs", {
       params: mapAuditQueryParams(params),
     });
@@ -296,7 +268,7 @@ export const auditService = {
    * GET /api/v1/audit-logs/summary
    * Lấy số liệu thống kê KPI kiểm toán.
    */
-  async getSummary(params?: { fromDate?: string; toDate?: string; startDate?: string; endDate?: string; siteId?: string }): Promise<AuditSummaryDto> {
+  async getSummary(params?: { fromDate?: string; toDate?: string; startDate?: string; endDate?: string }): Promise<AuditSummaryDto> {
     const res = await apiClient.get<unknown>("/audit-logs/summary", {
       params: mapAuditQueryParams(params),
     });

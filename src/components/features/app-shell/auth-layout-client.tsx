@@ -8,7 +8,6 @@ import { RealtimeProvider } from "@/providers/realtime-provider";
 import { PrefetchProvider } from "@/providers/prefetch-provider";
 import { SiteProvider } from "@/contexts/SiteContext";
 import { AppShell } from "@/components/features/app-shell/app-shell";
-import { NotificationArchiveRuntime } from "@/components/features/notifications/notification-archive-runtime";
 import { MaintenanceScreen } from "@/components/features/maintenance";
 import { useMaintenanceStatus } from "@/hooks/maintenance";
 import { Button } from "@ui/button";
@@ -155,7 +154,6 @@ export function AuthLayoutClient({ children }: { children: React.ReactNode }) {
       <SiteProvider>
         <PrefetchProvider>
           {routeGuard}
-          <NotificationArchiveRuntime />
           <AppShell>{children}</AppShell>
         </PrefetchProvider>
       </SiteProvider>

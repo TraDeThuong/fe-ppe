@@ -194,13 +194,12 @@ describe("Notifications UI & Logic", () => {
     assert.ok(html.includes("23/11/2026"));
   });
 
-  it("renders NotificationKpiSummary and detail panel consistently with full inbox stats", () => {
+  it("renders NotificationKpiSummary consistently with full inbox stats", () => {
     const html = renderNotifications(
       <NotificationKpiSummary
         notifications={SAMPLE_ITEMS}
         totalCount={SAMPLE_ITEMS.length}
         unreadCount={1}
-        selectedStat="resolved"
       />,
       ADMIN_USER,
     );
@@ -257,17 +256,13 @@ describe("Notifications UI & Logic", () => {
     assert.ok(detailHtml.includes('href="/incidents/inc-1"'));
   });
 
-  it("renders NotificationFilterToolbar with view mode switcher and visual dedup controls", () => {
+  it("renders NotificationFilterToolbar with view mode switcher", () => {
     const html = renderNotifications(
       <NotificationFilterToolbar
         filter={{ search: "" }}
         onFilterChange={() => {}}
         viewMode="person"
         onViewModeChange={() => {}}
-        enableVisualDedup={true}
-        onToggleVisualDedup={() => {}}
-        windowSeconds={45}
-        onWindowSecondsChange={() => {}}
       />,
       ADMIN_USER,
     );
@@ -276,7 +271,7 @@ describe("Notifications UI & Logic", () => {
     assert.ok(html.includes("Theo người") || html.includes("By person"));
     assert.ok(html.includes("Theo giờ") || html.includes("By hour"));
     assert.ok(html.includes("Theo camera") || html.includes("By camera"));
-    assert.ok(html.includes("dHash"));
+    assert.equal(html.includes("dHash"), false);
   });
 
   it("renders flat items as individual rows and renders synthesized Multi-Violation cluster cards in person mode", () => {

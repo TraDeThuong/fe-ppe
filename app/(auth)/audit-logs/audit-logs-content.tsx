@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { HelpCircle, ShieldCheck } from "lucide-react";
 
+import { ApiError } from "@/lib/axios";
 import { mapTableSort } from "@/lib/table-utils";
+import { useCan } from "@/hooks/use-can";
 import { useTableState } from "@/hooks/use-table-state";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/features/app-shell/page-header";
@@ -45,6 +47,8 @@ const URL_TO_STAT: Record<string, AuditStatKey> = {
 export default function AuditLogsContent() {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canExport = can("AUDIT_LOG_EXPORT");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -90,14 +94,12 @@ export default function AuditLogsContent() {
     } else {
       params.delete("tab");
     }
-    setPage(1);
+    auditTableState.resetPage();
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  // Filtering & Pagination state
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  // Filtering state (phân trang và sắp xếp nằm trong auditTableState)
   const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const [actionFilter, setActionFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<AuditLogStatus | "">("");
@@ -145,8 +147,8 @@ export default function AuditLogsContent() {
   } = useAuditLogs({
     sortBy: apiSorting.sortBy,
     order: apiSorting.order,
-    page,
-    limit,
+    page: auditTableState.pagination.pageIndex + 1,
+    limit: auditTableState.pagination.pageSize,
     search: debouncedSearch || undefined,
     category: effectiveCategory,
     action: actionFilter || undefined,
@@ -175,10 +177,16 @@ export default function AuditLogsContent() {
     setStatusFilter("");
     setStartDate("");
     setEndDate("");
-    setPage(1);
-    if (activeTab !== "all") {
-      handleTabChange("all");
-    }
+    auditTableState.resetPage();
+
+    // Xóa ?search= và ?tab= trong cùng một lần replace: nếu gọi thêm handleTabChange,
+    // lần replace đó dựng URL từ searchParams cũ và sẽ đưa ?search= trở lại.
+    if (!searchParams.has("search") && !searchParams.has("tab")) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("search");
+    params.delete("tab");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
   const handleSelectRecord = (record: AuditLogItem) => {
@@ -190,48 +198,55 @@ export default function AuditLogsContent() {
       await exportLogs(params);
       toast.success(t("audit.export.success"));
     } catch (err) {
+      // Response lỗi của request tải file là Blob nên không đọc được mã lỗi; chỉ dựa vào status.
+      const isForbidden = err instanceof ApiError && err.status === 403;
       toast.error(
-        isVietnamese
-          ? "Không thể xuất file lúc này. Vui lòng thử lại sau."
-          : "Unable to export logs at this time. Please try again later.",
+        isForbidden
+          ? t("audit.export.forbidden")
+          : isVietnamese
+            ? "Không thể xuất file lúc này. Vui lòng thử lại sau."
+            : "Unable to export logs at this time. Please try again later.",
       );
       throw err;
     }
   };
+
+  // undefined khi thiếu quyền -> toolbar và panel thống kê đều ẩn nút Export.
+  const openExportDialog = canExport ? () => setExportModalOpen(true) : undefined;
 
   const toolbar = (
     <AuditFilterToolbar
       search={search}
       onSearchChange={(val) => {
         setSearch(val);
-        setPage(1);
+        auditTableState.resetPage();
       }}
       action={actionFilter}
       onActionChange={(val) => {
         setActionFilter(val);
-        setPage(1);
+        auditTableState.resetPage();
       }}
       actionDistribution={summaryData?.byAction}
       showQuickActionFilters={activeTab === "all"}
       status={statusFilter}
       onStatusChange={(val) => {
         setStatusFilter(val as AuditLogStatus | "");
-        setPage(1);
+        auditTableState.resetPage();
       }}
       startDate={startDate}
       onStartDateChange={(val) => {
         setStartDate(val);
-        setPage(1);
+        auditTableState.resetPage();
       }}
       endDate={endDate}
       onEndDateChange={(val) => {
         setEndDate(val);
-        setPage(1);
+        auditTableState.resetPage();
       }}
       totalCount={logsData?.meta?.total ?? totalLogsCount}
       hasActiveFilters={hasActiveFilters}
       onResetFilters={handleResetFilters}
-      onExport={() => setExportModalOpen(true)}
+      onExport={openExportDialog}
     />
   );
 
@@ -264,14 +279,12 @@ export default function AuditLogsContent() {
         totalLogsCount={totalLogsCount}
         loading={isLoadingSummary}
         selectedStat={selectedStat}
-        selectedAction={actionFilter}
         onSelectStat={handleSelectStat}
-        onOpenExport={() => setExportModalOpen(true)}
-        onOpenHelp={() => setHelpModalOpen(true)}
+        onOpenExport={openExportDialog}
         onSwitchTab={handleTabChange}
         onFilterAction={(action) => {
           setActionFilter(action);
-          setPage(1);
+          auditTableState.resetPage();
         }}
       />
 
@@ -289,15 +302,6 @@ export default function AuditLogsContent() {
           items={logsData?.items ?? []}
           onSelectRecord={handleSelectRecord}
           loading={isLoadingLogs}
-          page={page}
-          limit={limit}
-          total={logsData?.meta?.total ?? totalLogsCount}
-          totalPages={logsData?.meta?.totalPages ?? Math.max(1, Math.ceil(totalLogsCount / limit))}
-          onPageChange={setPage}
-          onLimitChange={(l) => {
-            setLimit(l);
-            setPage(1);
-          }}
           tableState={{
             ...auditTableState,
             features: {
@@ -308,15 +312,6 @@ export default function AuditLogsContent() {
             manualPagination: true,
             manualSorting: true,
             manualFiltering: true,
-            pagination: { pageIndex: page - 1, pageSize: limit },
-            onPaginationChange: (update) => {
-              const next =
-                typeof update === "function"
-                  ? update({ pageIndex: page - 1, pageSize: limit })
-                  : update;
-              setPage(next.pageIndex + 1);
-              setLimit(next.pageSize);
-            },
             rowCount: logsData?.meta?.total ?? 0,
             pageCount: logsData?.meta?.totalPages ?? 1,
             fetching: isFetchingLogs || isFetchingSummary,
