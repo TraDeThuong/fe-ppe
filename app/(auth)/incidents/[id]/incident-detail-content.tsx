@@ -65,6 +65,7 @@ import {
   CloseIncidentDialog,
   EditIncidentModal,
   AttachEvidenceModal,
+  getIncidentEvidenceUrl,
 } from "@/components/features/incidents";
 import {
   useIncidentDetail,
@@ -443,12 +444,8 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         violationType: incident.violationType,
         severity: (incident.severity || "HIGH") as NotificationSeverity,
         channels: ["IN_APP", "EMAIL"],
-        evidenceUrl:
-          resolveEvidenceUrl(
-            incident.evidences?.[0]?.url ||
-              incident.evidences?.[0]?.storageKey ||
-              incident.snapshotUrl,
-          ) || undefined,
+        // Ảnh vi phạm chính, cùng quy tắc với nút ở Xem nhanh: ưu tiên SNAPSHOT, bỏ video và ảnh mẫu.
+        evidenceUrl: getIncidentEvidenceUrl(incident) || undefined,
       });
       toast.success(
         isVietnamese

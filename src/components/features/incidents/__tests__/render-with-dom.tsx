@@ -54,6 +54,8 @@ export interface DomContext {
 export async function renderWithDom(
   element: React.ReactElement,
   run: (context: DomContext) => Promise<void>,
+  /** `desktop`: media query trả `matches = true`, để trang chọn bố cục desktop thay vì mobile. */
+  { desktop = false }: { desktop?: boolean } = {},
 ) {
   const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http://localhost:3000" });
   const Observer = class {
@@ -72,6 +74,7 @@ export async function renderWithDom(
     sessionStorage: dom.window.sessionStorage,
     requestAnimationFrame: (cb: FrameRequestCallback) => setTimeout(() => cb(0), 0),
     cancelAnimationFrame: (id: ReturnType<typeof setTimeout>) => clearTimeout(id),
+    MutationObserver: dom.window.MutationObserver,
     ResizeObserver: Observer,
     IntersectionObserver: Observer,
     IS_REACT_ACT_ENVIRONMENT: true,
@@ -81,7 +84,7 @@ export async function renderWithDom(
   );
   Object.assign(globalThis, globals);
   Object.assign(dom.window, {
-    matchMedia: () => ({ matches: false, addEventListener: noop, removeEventListener: noop }),
+    matchMedia: () => ({ matches: desktop, addEventListener: noop, removeEventListener: noop }),
   });
 
   const container = dom.window.document.createElement("div");
