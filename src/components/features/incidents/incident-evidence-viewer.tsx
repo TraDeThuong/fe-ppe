@@ -19,8 +19,6 @@ import {
   Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useEntityLookup } from "@/hooks/use-entity-lookup";
-import { resolveEvidenceUrl } from "@/lib/evidence-url";
 import { useLocale } from "@/providers/locale-provider";
 import { EVIDENCE_TYPE, type BoundingBox, type EvidenceItem } from "@/types";
 import { AiBoundingBoxHud } from "./viewer/ai-bounding-box-hud";
@@ -29,11 +27,10 @@ import {
   type GalleryMediaItem,
 } from "./viewer/evidence-lightbox-modal";
 import {
-  formatConfidencePct,
-  formatViolationLabel,
-  isVideoEvidence,
   normalizeConfidenceRatio,
+  resolveIncidentSnapshot,
 } from "./viewer/evidence-media-utils";
+import { useIncidentGalleryPhotos } from "./viewer/use-incident-gallery-photos";
 import { EvidenceVideoPlayer } from "./viewer/evidence-video-player";
 
 export type GalleryPhoto = GalleryMediaItem;
@@ -50,19 +47,6 @@ export interface IncidentEvidenceViewerProps {
   defaultViewMode?: "single" | "split";
 }
 
-function isReferenceEvidenceItem(ev: EvidenceItem): boolean {
-  const evUrlLower = (ev.url || ev.storageKey || "").toLowerCase();
-  const fileNameLower = (ev.fileName || "").toLowerCase();
-  return (
-    ev.evidenceType === EVIDENCE_TYPE.REFERENCE_SNAPSHOT ||
-    ev.evidenceType === "REFERENCE" ||
-    evUrlLower.includes("reference_snapshot") ||
-    evUrlLower.includes("_ref") ||
-    fileNameLower.includes("reference") ||
-    fileNameLower.includes("_ref")
-  );
-}
-
 export function IncidentEvidenceViewer({
   evidence,
   evidences = [],
@@ -77,9 +61,6 @@ export function IncidentEvidenceViewer({
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  const { getCamera } = useEntityLookup();
-  const targetCamera = useMemo(() => getCamera(cameraId), [getCamera, cameraId]);
-
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [viewMode, setViewMode] = useState<"single" | "split">(defaultViewMode);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
@@ -87,199 +68,17 @@ export function IncidentEvidenceViewer({
   const [isPortrait, setIsPortrait] = useState(false);
   const [imgLoadFailed, setImgLoadFailed] = useState(false);
 
-  const violationLabel = formatViolationLabel(violationType, isVietnamese);
+  const { galleryPhotos, incidentFallbackUrl, violationLabel, confidencePct } =
+    useIncidentGalleryPhotos({
+      evidence,
+      evidences,
+      snapshotUrl,
+      violationType,
+      confidence,
+      cameraId,
+      incidentId,
+    });
   const normalizedConf = normalizeConfidenceRatio(confidence);
-  const confidencePct = formatConfidencePct(confidence);
-
-  const incidentFallbackUrl = useMemo(() => {
-    if (typeof window === "undefined" || !incidentId) return "";
-    const cached = sessionStorage.getItem(`ppe_incident_evidence_${incidentId}`);
-    return isVideoEvidence(null, cached) ? "" : resolveEvidenceUrl(cached);
-  }, [incidentId]);
-
-  const cameraSnapshotUrl = isVideoEvidence(null, targetCamera?.snapshotUrl)
-    ? ""
-    : resolveEvidenceUrl(targetCamera?.snapshotUrl);
-
-  const incidentRefFallbackUrl = useMemo(() => {
-    if (typeof window === "undefined" || !incidentId) return "";
-    return resolveEvidenceUrl(sessionStorage.getItem(`ppe_incident_ref_evidence_${incidentId}`));
-  }, [incidentId]);
-
-  const galleryPhotos = useMemo<GalleryMediaItem[]>(() => {
-    const list: GalleryMediaItem[] = [];
-    const resolvedSnap = isVideoEvidence(null, snapshotUrl) ? "" : resolveEvidenceUrl(snapshotUrl);
-    const allEvidences = evidences.length > 0 ? evidences : evidence ? [evidence] : [];
-
-    const imageEvidences = allEvidences.filter((e) => !isVideoEvidence(e));
-    const videoEvidences = allEvidences.filter((e) => isVideoEvidence(e));
-
-    const isSnapAnnotated =
-      resolvedSnap.includes("-evidence") ||
-      resolvedSnap.includes("evidence_") ||
-      resolvedSnap.includes("_red") ||
-      resolvedSnap.includes("annotated");
-
-    const snapshotItem =
-      imageEvidences.find((e) => e.evidenceType === EVIDENCE_TYPE.SNAPSHOT) ||
-      imageEvidences.find((e) => e.fileName?.includes("_red") || e.storageKey?.includes("_red")) ||
-      imageEvidences.find((e) => !isReferenceEvidenceItem(e));
-
-    const primaryUrl =
-      (isSnapAnnotated ? resolvedSnap : null) ||
-      (snapshotItem?.url ? resolveEvidenceUrl(snapshotItem.url) : "") ||
-      (snapshotItem?.storageKey ? resolveEvidenceUrl(snapshotItem.storageKey) : "") ||
-      resolvedSnap ||
-      incidentFallbackUrl;
-
-    if (primaryUrl || videoEvidences.length === 0) {
-      const confClauseVi =
-        confidencePct !== null ? ` với độ tin cậy ${confidencePct}%` : "";
-      const confClauseEn =
-        confidencePct !== null ? ` (${confidencePct}% confidence)` : "";
-
-      list.push({
-        id: snapshotItem?.id || "photo-annotated",
-        title: isVietnamese
-          ? "Ảnh Vi Phạm PPE (Tô Đỏ Vi Phạm)"
-          : "PPE Violation Snapshot (Red Highlight)",
-        category: "annotated",
-        badgeLabel: isVietnamese ? "TÔ ĐỎ VI PHẠM (AI)" : "VIOLATION (AI)",
-        badgeColor: "danger",
-        url: primaryUrl,
-        description: isVietnamese
-          ? `Ảnh chụp vi phạm ${violationLabel} từ camera giám sát được hệ thống AI phát hiện${confClauseVi}.`
-          : `Surveillance camera violation snapshot: ${violationLabel} detected by AI${confClauseEn}.`,
-        isAiAnnotated: true,
-        evidenceType: EVIDENCE_TYPE.SNAPSHOT,
-        evidenceItem: snapshotItem,
-      });
-    }
-
-    // 2. Bổ sung VIDEO_CLIP bằng chứng (phát trực tiếp bằng <video controls>)
-    for (const vidEv of videoEvidences) {
-      const vidUrl = vidEv.url
-        ? resolveEvidenceUrl(vidEv.url)
-        : vidEv.storageKey
-          ? resolveEvidenceUrl(vidEv.storageKey)
-          : "";
-      list.push({
-        id: vidEv.id,
-        title: isVietnamese ? "Video Clip Bằng Chứng Vi Phạm" : "Violation Evidence Video Clip",
-        category: "video",
-        badgeLabel: isVietnamese ? "VIDEO CLIP" : "VIDEO CLIP",
-        badgeColor: "info",
-        url: vidUrl,
-        description: isVietnamese
-          ? `Đoạn video clip trích xuất quanh thời điểm phát hiện vi phạm ${violationLabel} (${vidEv.fileName}).`
-          : `Recorded video clip captured around the ${violationLabel} violation (${vidEv.fileName}).`,
-        isAiAnnotated: false,
-        evidenceType: EVIDENCE_TYPE.VIDEO_CLIP,
-        evidenceItem: vidEv,
-      });
-    }
-
-    // 3. Ảnh Đối Chứng Hợp Lệ (REFERENCE_SNAPSHOT)
-    const refEvidenceItem = imageEvidences.find((e) => isReferenceEvidenceItem(e));
-    const resolvedRefUrl =
-      (refEvidenceItem?.url ? resolveEvidenceUrl(refEvidenceItem.url) : "") ||
-      (refEvidenceItem?.storageKey ? resolveEvidenceUrl(refEvidenceItem.storageKey) : "") ||
-      incidentRefFallbackUrl;
-
-    if (resolvedRefUrl && resolvedRefUrl !== primaryUrl) {
-      list.push({
-        id: refEvidenceItem?.id || "photo-reference",
-        title: isVietnamese ? "Ảnh Đối Chứng Hợp Lệ" : "Reference Snapshot",
-        category: "reference",
-        badgeLabel: isVietnamese ? "ĐỐI CHỨNG" : "REFERENCE",
-        badgeColor: "success",
-        url: resolvedRefUrl,
-        description: isVietnamese
-          ? "Ảnh đối chứng thời điểm công nhân tuân thủ bảo hộ hoặc lúc mới bước vào vùng camera (T=0s)."
-          : "Reference baseline snapshot when worker was compliant or at T=0s.",
-        isAiAnnotated: false,
-        evidenceType: EVIDENCE_TYPE.REFERENCE_SNAPSHOT,
-        evidenceItem: refEvidenceItem,
-      });
-    }
-
-    // 4. Ảnh từ camera để tham chiếu hiện trường
-    if (cameraSnapshotUrl && cameraSnapshotUrl !== primaryUrl && cameraSnapshotUrl !== resolvedRefUrl) {
-      list.push({
-        id: "photo-raw",
-        title: isVietnamese ? "Ảnh tham chiếu từ camera" : "Camera Reference Photo",
-        category: "raw",
-        badgeLabel: isVietnamese ? "ẢNH CAMERA" : "CAMERA SNAPSHOT",
-        badgeColor: "default",
-        url: cameraSnapshotUrl,
-        description: isVietnamese
-          ? "Ảnh hiện có của camera để tham chiếu hiện trường. Thời điểm chụp có thể khác thời điểm sự cố."
-          : "Available camera snapshot for scene reference. It may have been captured at a different time from the incident.",
-        isAiAnnotated: false,
-        evidenceType: "RAW_FRAME",
-      });
-    }
-
-    // 5. Các ảnh đính kèm bổ sung khác
-    for (const ev of imageEvidences) {
-      const evUrl = ev.url
-        ? resolveEvidenceUrl(ev.url)
-        : ev.storageKey
-          ? resolveEvidenceUrl(ev.storageKey)
-          : "";
-      if (
-        evUrl &&
-        evUrl !== primaryUrl &&
-        evUrl !== resolvedRefUrl &&
-        evUrl !== cameraSnapshotUrl &&
-        !list.some((item) => item.url === evUrl)
-      ) {
-        const isRef = isReferenceEvidenceItem(ev);
-        list.push({
-          id: ev.id,
-          title: isRef
-            ? isVietnamese
-              ? "Ảnh Đối Chứng Hợp Lệ"
-              : "Reference Snapshot"
-            : isVietnamese
-              ? "Ảnh Bằng Chứng Bổ Sung"
-              : "Additional Evidence",
-          category: isRef ? "reference" : "annotated",
-          badgeLabel: isRef
-            ? isVietnamese
-              ? "ĐỐI CHỨNG"
-              : "REFERENCE"
-            : isVietnamese
-              ? "BỔ SUNG"
-              : "ADDITIONAL",
-          badgeColor: isRef ? "success" : "info",
-          url: evUrl,
-          description: isRef
-            ? isVietnamese
-              ? "Ảnh đối chứng thời điểm công nhân tuân thủ bảo hộ."
-              : "Reference baseline."
-            : isVietnamese
-              ? "Ảnh bằng chứng bổ sung từ hệ thống."
-              : "Additional evidence photo.",
-          isAiAnnotated: !isRef,
-          evidenceType: ev.evidenceType,
-          evidenceItem: ev,
-        });
-      }
-    }
-
-    return list;
-  }, [
-    snapshotUrl,
-    evidences,
-    evidence,
-    incidentFallbackUrl,
-    incidentRefFallbackUrl,
-    cameraSnapshotUrl,
-    isVietnamese,
-    violationLabel,
-    confidencePct,
-  ]);
 
   const activePhoto = galleryPhotos[selectedIndex] || galleryPhotos[0];
   const isActiveVideo = activePhoto?.category === "video";
@@ -632,8 +431,8 @@ export function IncidentEvidenceViewer({
                       target.src = target.src.replace("maxresdefault.jpg", "hqdefault.jpg");
                       return;
                     }
-                    const resolvedSnap = activePhoto.category === "annotated" && !isVideoEvidence(null, snapshotUrl)
-                      ? resolveEvidenceUrl(snapshotUrl)
+                    const resolvedSnap = activePhoto.category === "annotated"
+                      ? resolveIncidentSnapshot(snapshotUrl)
                       : "";
                     if (resolvedSnap && target.getAttribute("src") !== resolvedSnap) {
                       target.src = resolvedSnap;

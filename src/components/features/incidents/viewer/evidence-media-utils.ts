@@ -37,9 +37,33 @@ export function isVideoEvidence(
   return false;
 }
 
-function resolveIncidentSnapshot(value?: string | null): string {
+/**
+ * Chuẩn hóa một đường dẫn ẢNH bằng chứng. Trả về "" khi là ảnh mẫu tĩnh
+ * `/images/camera-live-evidence.jpg`, là tệp video hoặc để trống.
+ * Mọi nơi hiển thị ảnh sự cố phải đi qua hàm này; URL video thì dùng `resolveEvidenceUrl`.
+ */
+export function resolveIncidentSnapshot(value?: string | null): string {
   const url = resolveEvidenceUrl(value);
   return SAMPLE_SNAPSHOT_RE.test(url) || isVideoEvidence(null, url) ? "" : url;
+}
+
+/** URL ảnh hiển thị được của một tệp bằng chứng: ưu tiên `url`, sau đó đến `storageKey`. */
+export function resolveEvidenceImageUrl(evidence?: Partial<EvidenceItem> | null): string {
+  return resolveIncidentSnapshot(evidence?.url) || resolveIncidentSnapshot(evidence?.storageKey);
+}
+
+/** Tệp ảnh đối chứng (trạng thái trước vi phạm), nhận diện theo loại, đường dẫn hoặc tên tệp. */
+export function isReferenceEvidenceItem(ev: EvidenceItem): boolean {
+  const evUrlLower = (ev.url || ev.storageKey || "").toLowerCase();
+  const fileNameLower = (ev.fileName || "").toLowerCase();
+  return (
+    ev.evidenceType === EVIDENCE_TYPE.REFERENCE_SNAPSHOT ||
+    ev.evidenceType === "REFERENCE" ||
+    evUrlLower.includes("reference_snapshot") ||
+    evUrlLower.includes("_ref") ||
+    fileNameLower.includes("reference") ||
+    fileNameLower.includes("_ref")
+  );
 }
 
 export function getIncidentEvidenceUrl(incident: IncidentItem): string {
@@ -49,7 +73,7 @@ export function getIncidentEvidenceUrl(incident: IncidentItem): string {
   let firstImageUrl = "";
   for (const evidence of incident.evidences ?? []) {
     if (isVideoEvidence(evidence)) continue;
-    const url = resolveIncidentSnapshot(evidence.url) || resolveIncidentSnapshot(evidence.storageKey);
+    const url = resolveEvidenceImageUrl(evidence);
     if (!url) continue;
     if (evidence.evidenceType === EVIDENCE_TYPE.SNAPSHOT) return url;
     firstImageUrl ||= url;
@@ -60,6 +84,45 @@ export function getIncidentEvidenceUrl(incident: IncidentItem): string {
     ? null
     : sessionStorage.getItem(`ppe_incident_evidence_${incident.id}`);
   return resolveIncidentSnapshot(cachedByIncident);
+}
+
+export interface QuickDetailEvidenceSources {
+  primaryEvidence: EvidenceItem | null;
+  primaryEvidenceUrl: string;
+  referenceEvidenceUrl: string;
+  videoEvidence: EvidenceItem | null;
+}
+
+/**
+ * Chọn ảnh / video cho khung "Xem nhanh". Tệp chỉ trỏ tới ảnh mẫu bị loại ngay từ đầu,
+ * nên không bao giờ được chọn làm ảnh chính, ảnh đối chứng hay dùng để xin signed URL khi ảnh lỗi.
+ */
+export function selectQuickDetailEvidence(
+  incident?: IncidentItem | null,
+  cached: { incidentUrl?: string | null; referenceUrl?: string | null } = {},
+): QuickDetailEvidenceSources {
+  const evidences = incident?.evidences ?? [];
+  const imageEvidences = evidences.filter(
+    (e) => !isVideoEvidence(e) && resolveEvidenceImageUrl(e),
+  );
+  const snapshot =
+    imageEvidences.find((e) => e.evidenceType === EVIDENCE_TYPE.SNAPSHOT) ||
+    imageEvidences.find((e) => !isReferenceEvidenceItem(e)) ||
+    null;
+  const primaryEvidenceUrl =
+    resolveEvidenceImageUrl(snapshot) ||
+    resolveIncidentSnapshot(incident?.snapshotUrl) ||
+    resolveIncidentSnapshot(cached.incidentUrl);
+  const referenceUrl =
+    resolveEvidenceImageUrl(imageEvidences.find(isReferenceEvidenceItem)) ||
+    resolveIncidentSnapshot(cached.referenceUrl);
+
+  return {
+    primaryEvidence: snapshot,
+    primaryEvidenceUrl,
+    referenceEvidenceUrl: referenceUrl !== primaryEvidenceUrl ? referenceUrl : "",
+    videoEvidence: evidences.find((e) => isVideoEvidence(e)) || null,
+  };
 }
 
 /**

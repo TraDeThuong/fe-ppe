@@ -237,7 +237,7 @@ export interface LinkSocialResponse {
 export interface UpdateProfilePayload {
   fullName?: string;
   avatarUrl?: string;
-  phoneNumber?: string;
+  phoneNumber?: string | null;
 }
 
 /** Nguồn: auth.validation.ts:67-79 (PUT /auth/password) */

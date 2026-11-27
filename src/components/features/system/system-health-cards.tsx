@@ -780,7 +780,8 @@ export function SystemHealthCards({
         {health ? (
           <>
             <AnimatedNumber value={health.healthyCount} />/
-            <AnimatedNumber value={health.totalServices} /> · TB{" "}
+            <AnimatedNumber value={health.totalServices} /> ·{" "}
+            {t("dashboard.systemCard.avgPrefix")}{" "}
             <AnimatedNumber value={Math.round(health.averageLatencyMs)} />ms
           </>
         ) : (

@@ -15,13 +15,16 @@ export interface ExportAuditDialogProps {
   loading?: boolean;
 }
 
-export function ExportAuditDialog({
-  open,
+export function ExportAuditDialog({ open, ...props }: ExportAuditDialogProps) {
+  return open ? <ExportAuditForm {...props} /> : null;
+}
+
+function ExportAuditForm({
   onOpenChange,
   onExport,
   activeFilters,
   loading = false,
-}: ExportAuditDialogProps) {
+}: Omit<ExportAuditDialogProps, "open">) {
   const { t, locale } = useLocale();
   const isVi = locale === "vi-VN";
 
@@ -77,7 +80,7 @@ export function ExportAuditDialog({
 
   return (
     <Modal
-      open={open}
+      open
       onOpenChange={onOpenChange}
       title={t("audit.export.title")}
       description={t("audit.export.prompt")}

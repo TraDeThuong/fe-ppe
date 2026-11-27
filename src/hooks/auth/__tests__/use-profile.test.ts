@@ -65,6 +65,34 @@ describe("useUpdateProfile", () => {
     assert.equal(onSuccessCalled, true);
   });
 
+  it("clears user phoneNumber in AuthContext when payload.phoneNumber is null or empty", async () => {
+    authService.updateProfile = async (payload: UpdateProfilePayload) => {
+      assert.equal(payload.phoneNumber, null);
+      return { message: "Cập nhật hồ sơ thành công!" };
+    };
+
+    let userInContext: MeDto | null = createMockUser({
+      fullName: "Nguyễn Văn A",
+      phoneNumber: "0900000000",
+    });
+
+    const { result } = renderAuthHook(() => useUpdateProfile(), {
+      authContext: {
+        user: userInContext,
+        setUser: (u) => {
+          userInContext = u;
+        },
+      },
+    });
+
+    await result.current.mutateAsync({
+      fullName: "Nguyễn Văn A",
+      phoneNumber: null,
+    });
+
+    assert.equal(userInContext?.phoneNumber, null);
+  });
+
   it("falls back to default message when updateProfile message is empty", async () => {
     authService.updateProfile = async () => ({ message: "" });
 

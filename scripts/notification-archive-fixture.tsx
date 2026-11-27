@@ -5,7 +5,6 @@ import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared
 import { PathnameContext, SearchParamsContext } from "next/dist/shared/lib/hooks-client-context.shared-runtime";
 import { AuthContext } from "@/contexts/AuthContext";
 import { NotificationBell } from "@/components/features/app-shell/notification-bell";
-import { NotificationArchiveRuntime } from "@/components/features/notifications/notification-archive-runtime";
 import { ToasterProvider } from "@/components/ui/toaster";
 import { useNotifications, useUnreadCount } from "@/hooks/notifications";
 import { apiClient } from "@/lib/axios";
@@ -47,7 +46,6 @@ function Fixture() {
       <PathnameContext value={away ? "/dashboard" : "/notifications"}>
         <SearchParamsContext value={params}>
           <AuthContext value={{ user, status: "authenticated", setUser: () => {}, logout: async () => {} }}>
-            <NotificationArchiveRuntime />
             <nav className="flex items-center gap-4 p-3">
               <label>Account <select value={account} onChange={(event) => {
                 sessionStorage.setItem(accountKey, event.target.value);

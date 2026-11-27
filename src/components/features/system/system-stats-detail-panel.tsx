@@ -425,35 +425,39 @@ export function SystemStatsDetailPanel({
 
         <p className="text-[11px] font-medium text-muted-foreground">
           {isVietnamese
-            ? "Dữ liệu được mã hóa AES-256 đối với các biến nhạy cảm."
-            : "Sensitive keys are encrypted at rest with AES-256."}
+            ? "Giá trị cấu hình nội bộ và bảo mật được tự động ẩn (redact) trong nhật ký kiểm toán."
+            : "Internal and security config values are automatically redacted in audit logs."}
         </p>
       </div>
 
       {/* Bottom Action Jump */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        {onCreateConfig && canManage && (
-          <button
-            type="button"
-            onClick={onCreateConfig}
-            className="inline-flex h-9 items-center gap-1.5 rounded-[13px] bg-primary px-3.5 text-xs font-extrabold text-primary-foreground shadow-[4px_4px_12px_rgba(var(--primary-rgb),0.35),-3px_-3px_8px_rgba(255,255,255,0.7)] transition-all hover:brightness-105 active:scale-[0.98]"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>{t("system.addConfig")}</span>
-          </button>
-        )}
+      {(onCreateConfig && canManage) || activeTab !== "configs" ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+          {onCreateConfig && canManage && (
+            <button
+              type="button"
+              onClick={onCreateConfig}
+              className="inline-flex h-9 items-center gap-1.5 rounded-[13px] bg-primary px-3.5 text-xs font-extrabold text-primary-foreground shadow-[4px_4px_12px_rgba(var(--primary-rgb),0.35),-3px_-3px_8px_rgba(255,255,255,0.7)] transition-all hover:brightness-105 active:scale-[0.98]"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>{t("system.addConfig")}</span>
+            </button>
+          )}
 
-        <button
-          type="button"
-          onClick={() => onSelectTab("configs")}
-          className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:brightness-105 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
-        >
-          <span>
-            {t("system.detail.goToTab", { tab: t("system.tabs.configs") })}
-          </span>
-          <ArrowRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
+          {activeTab !== "configs" && (
+            <button
+              type="button"
+              onClick={() => onSelectTab("configs")}
+              className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:brightness-105 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
+            >
+              <span>
+                {t("system.detail.goToTab", { tab: t("system.tabs.configs") })}
+              </span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      ) : null}
     </div>
   )}
 
@@ -548,16 +552,18 @@ export function SystemStatsDetailPanel({
             : "Heartbeat cycle: 30s interval"}
         </span>
 
-        <button
-          type="button"
-          onClick={() => onSelectTab("health")}
-          className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:brightness-105 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
-        >
-          <span>
-            {t("system.detail.goToTab", { tab: t("system.tabs.health") })}
-          </span>
-          <ArrowRight className="h-3.5 w-3.5" />
-        </button>
+        {activeTab !== "health" && (
+          <button
+            type="button"
+            onClick={() => onSelectTab("health")}
+            className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:brightness-105 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
+          >
+            <span>
+              {t("system.detail.goToTab", { tab: t("system.tabs.health") })}
+            </span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
     </div>
   )}
@@ -640,18 +646,20 @@ export function SystemStatsDetailPanel({
       </div>
 
       {/* Bottom Action Jump */}
-      <div className="flex justify-end pt-1">
-        <button
-          type="button"
-          onClick={() => onSelectTab("platform")}
-          className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:brightness-105 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
-        >
-          <span>
-            {t("system.detail.goToTab", { tab: t("system.tabs.platform") })}
-          </span>
-          <ArrowRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
+      {activeTab !== "platform" && (
+        <div className="flex justify-end pt-1">
+          <button
+            type="button"
+            onClick={() => onSelectTab("platform")}
+            className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:brightness-105 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
+          >
+            <span>
+              {t("system.detail.goToTab", { tab: t("system.tabs.platform") })}
+            </span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   )}
 </div>

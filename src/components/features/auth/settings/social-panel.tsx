@@ -21,6 +21,7 @@ import {
   handleMutationError,
   shouldToastError,
   useGoogleUrl,
+  usePublicConfig,
   useSocialAccounts,
   useUnlinkSocial,
 } from "@/hooks/auth";
@@ -30,15 +31,20 @@ import {
   getGoogleRedirectUri,
   saveOAuthState,
 } from "@/lib/oauth";
+import {
+  getConfig,
+  isFeatureFlagEnabled,
+  SYSTEM_CONFIG_KEYS,
+} from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
 import type { GoogleAuthUrlParams } from "@/types";
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, locale: string): string {
   const date = new Date(iso);
 
   if (Number.isNaN(date.getTime())) return "—";
 
-  return new Intl.DateTimeFormat("vi-VN", {
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -46,9 +52,17 @@ function formatDate(iso: string): string {
 }
 
 export function SocialPanel() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { user } = useAuth();
   const accounts = useSocialAccounts();
+  const publicConfigQuery = usePublicConfig();
+  const socialLoginEnabled = isFeatureFlagEnabled(
+    getConfig(
+      publicConfigQuery.data,
+      SYSTEM_CONFIG_KEYS.socialLoginEnabled,
+      true,
+    ),
+  );
 
   const [confirmUnlink, setConfirmUnlink] = useState<string | null>(null);
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -81,7 +95,7 @@ export function SocialPanel() {
   });
 
   function handleLinkGoogle() {
-    if (googleParams !== null) return;
+    if (!socialLoginEnabled || googleParams !== null) return;
 
     const state = `link:${generateOAuthState()}`;
 
@@ -179,21 +193,20 @@ export function SocialPanel() {
         <div className="min-w-0 flex-1 pt-0.5">
           <div className="mb-1.5 flex flex-wrap items-center gap-2">
             <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
-              Connected identities
+              {t("security.social.eyebrowPrimary")}
             </span>
             <span className="size-1 rounded-full bg-border" />
             <span className="text-[10px] text-muted-foreground">
-              Social authentication
+              {t("security.social.eyebrowSecondary")}
             </span>
           </div>
 
           <h3 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">
-            Linked accounts
+            {t("security.social.title")}
           </h3>
 
           <p className="mt-1.5 max-w-lg text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6">
-            Manage your connected sign-in methods and keep your account
-            accessible and secure.
+            {t("security.social.description")}
           </p>
         </div>
       </header>
@@ -206,7 +219,7 @@ export function SocialPanel() {
               <Fingerprint className="size-4" aria-hidden="true" />
             </div>
             <span className="text-[10px] font-semibold text-muted-foreground sm:text-xs">
-              Connected methods
+              {t("security.social.connectedMethods")}
             </span>
           </div>
 
@@ -214,7 +227,7 @@ export function SocialPanel() {
             {linkedAccounts.length.toString().padStart(2, "0")}
           </p>
           <p className="mt-0.5 text-[10px] text-muted-foreground">
-            Active linked accounts
+            {t("security.social.activeLinkedAccounts")}
           </p>
         </div>
 
@@ -224,16 +237,18 @@ export function SocialPanel() {
               <ShieldCheck className="size-4" aria-hidden="true" />
             </div>
             <span className="text-[10px] font-semibold text-muted-foreground sm:text-xs">
-              Account status
+              {t("security.social.accountStatus")}
             </span>
           </div>
 
           <p className="mt-3 flex items-center gap-2 text-base font-bold tracking-tight text-foreground sm:text-lg">
             <span className="size-2 rounded-full bg-emerald-500 shadow-[0_0_9px_rgba(16,185,129,0.45)]" />
-            {linkedAccounts.length > 0 ? "Connected" : "Not linked"}
+            {linkedAccounts.length > 0
+              ? t("security.social.statusConnected")
+              : t("security.social.statusNotLinked")}
           </p>
           <p className="mt-0.5 text-[10px] text-muted-foreground">
-            Identity overview
+            {t("security.social.identityOverview")}
           </p>
         </div>
       </div>
@@ -248,7 +263,7 @@ export function SocialPanel() {
             <AlertCircle className="size-4" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold">Unable to update linked account</p>
+            <p className="text-xs font-bold">{t("security.social.errorTitle")}</p>
             <p className="mt-1 text-xs leading-5">{linkError}</p>
           </div>
         </div>
@@ -259,16 +274,19 @@ export function SocialPanel() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h4 className="text-sm font-bold text-foreground">
-              Your connections
+              {t("security.social.connectionsTitle")}
             </h4>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              Manage the services connected to your account.
+              {t("security.social.connectionsSubtitle")}
             </p>
           </div>
 
           <span className="rounded-lg border border-border/30 bg-background px-2.5 py-1.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
-            {linkedAccounts.length}{" "}
-            {linkedAccounts.length === 1 ? "account" : "accounts"}
+            {linkedAccounts.length === 1
+              ? t("security.social.accountsCountSingular")
+              : t("security.social.accountsCount", {
+                  count: linkedAccounts.length,
+                })}
           </span>
         </div>
 
@@ -342,14 +360,14 @@ export function SocialPanel() {
                         </p>
                         <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/15 bg-emerald-500/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
                           <span className="size-1.5 rounded-full bg-emerald-500" />
-                          Linked
+                          {t("security.social.linkedBadge")}
                         </span>
                       </div>
 
                       <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         {t("security.social.linkedAt")}{" "}
                         <span className="font-medium text-foreground/75">
-                          {formatDate(account.createdAt)}
+                          {formatDate(account.createdAt, locale)}
                         </span>
                       </p>
                     </div>
@@ -365,7 +383,7 @@ export function SocialPanel() {
                         onClick={() => setConfirmUnlink(null)}
                         className="rounded-xl border-border/40 bg-background text-xs transition-all hover:bg-muted/40"
                       >
-                        Cancel
+                        {t("common.cancel")}
                       </Button>
                     )}
 
@@ -408,8 +426,7 @@ export function SocialPanel() {
                       aria-hidden="true"
                     />
                     <p className="text-[11px] leading-5 text-muted-foreground">
-                      Confirm removal of this sign-in method. Make sure
-                      another login method is available before proceeding.
+                      {t("security.social.unlinkWarning")}
                     </p>
                   </div>
                 )}
@@ -428,8 +445,7 @@ export function SocialPanel() {
               {t("security.social.empty")}
             </p>
             <p className="mx-auto mt-1.5 max-w-xs text-xs leading-5 text-muted-foreground">
-              Connect a supported account to make signing in more
-              convenient.
+              {t("security.social.emptyHint")}
             </p>
           </div>
         )}
@@ -444,7 +460,7 @@ export function SocialPanel() {
 
           <div className="min-w-0 flex-1">
             <p className="text-xs font-bold text-foreground">
-              Protect your access
+              {t("security.social.lockoutTitle")}
             </p>
             <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
               {t("security.social.lockoutWarning")}
@@ -454,7 +470,7 @@ export function SocialPanel() {
       </div>
 
       {/* Google linking */}
-      {!googleLinked && (
+      {!googleLinked && socialLoginEnabled && (
         <div className="relative overflow-hidden rounded-2xl border border-border/30 bg-transparent p-4 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] sm:p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -488,10 +504,10 @@ export function SocialPanel() {
 
               <div className="min-w-0">
                 <p className="text-sm font-bold text-foreground">
-                  Connect Google
+                  {t("security.social.connectGoogleTitle")}
                 </p>
                 <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
-                  Add Google as another sign-in option.
+                  {t("security.social.connectGoogleDesc")}
                 </p>
               </div>
             </div>
@@ -499,7 +515,7 @@ export function SocialPanel() {
             <Button
               type="button"
               variant="outline"
-              disabled={googleParams !== null}
+              disabled={!socialLoginEnabled || googleParams !== null}
               onClick={handleLinkGoogle}
               className="group/google min-h-11 w-full shrink-0 rounded-xl border-primary/20 bg-background font-semibold text-primary transition-all duration-200 hover:border-primary/40 hover:bg-primary/[0.045] disabled:opacity-60 sm:w-auto sm:min-w-44"
             >
@@ -522,7 +538,7 @@ export function SocialPanel() {
       {/* Footer */}
       <footer className="flex items-center justify-center gap-2 border-t border-border/40 pt-4 text-center">
         <p className="text-[10px] leading-4 text-muted-foreground">
-          Your linked accounts are managed through secure authentication.
+          {t("security.social.footerNote")}
         </p>
       </footer>
     </section>

@@ -3,9 +3,35 @@ import type { PaginationMeta } from "./rbac.types";
 /**
  * Contract API Keys, Webhooks & Developer Integrations theo smart-ppe-identity-service.
  * Nguồn đối chiếu:
+ * - smart-ppe-identity-service/src/common/constants/integration.constant.ts
  * - smart-ppe-identity-service/src/modules/integration/integration.dto.ts
  * - smart-ppe-identity-service/src/modules/integration/integration.validation.ts
  */
+
+export const WEBHOOK_EVENTS = {
+  ALL: "*",
+  PPE_INCIDENT_CREATED: "ppe.incident.created",
+  PPE_INCIDENT_ASSIGNED: "ppe.incident.assigned",
+  PPE_INCIDENT_RESOLVED: "ppe.incident.resolved",
+  USER_UPDATED: "user.updated",
+  SYSTEM_PING: "system.ping",
+  JOB_COMPLETED: "job.completed",
+  JOB_FAILED: "job.failed",
+} as const;
+
+export type WebhookEventName =
+  (typeof WEBHOOK_EVENTS)[keyof typeof WEBHOOK_EVENTS];
+
+export const SUPPORTED_WEBHOOK_EVENTS: readonly WebhookEventName[] = [
+  WEBHOOK_EVENTS.ALL,
+  WEBHOOK_EVENTS.PPE_INCIDENT_CREATED,
+  WEBHOOK_EVENTS.PPE_INCIDENT_ASSIGNED,
+  WEBHOOK_EVENTS.PPE_INCIDENT_RESOLVED,
+  WEBHOOK_EVENTS.USER_UPDATED,
+  WEBHOOK_EVENTS.SYSTEM_PING,
+  WEBHOOK_EVENTS.JOB_COMPLETED,
+  WEBHOOK_EVENTS.JOB_FAILED,
+];
 
 export interface ApiKeyItemDto {
   id: string;

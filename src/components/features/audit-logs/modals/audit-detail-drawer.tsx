@@ -18,6 +18,8 @@ import {
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { hasRouteAccess } from "@/config/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
 import { toast } from "@/lib/toast";
 import type { AuditLogDetail } from "@/types";
@@ -40,8 +42,10 @@ export function AuditDetailDrawer({
   loading = false,
 }: AuditDetailDrawerProps) {
   const { t, locale } = useLocale();
+  const { user } = useAuth();
   const isVietnamese = locale === "vi-VN";
   const [copied, setCopied] = useState(false);
+  const canOpenRoute = (href: string) => hasRouteAccess(href, user?.permissions, user?.role);
 
   const getRelatedResourceHref = () => {
     if (!detail?.targetType || !detail?.targetId || detail.targetId === "SYSTEM") return null;
@@ -78,6 +82,7 @@ export function AuditDetailDrawer({
   const actorRole = detail?.userRole || detail?.actor?.roleName;
   const isFailed = detail?.status === "FAILED";
   const failureDiagnosis = detail && (isFailed || detail.errorMessage) ? diagnoseAuditFailure(detail, locale) : null;
+  const actionLink = failureDiagnosis?.actionLink;
 
   return (
     <Modal
@@ -90,7 +95,7 @@ export function AuditDetailDrawer({
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            {relatedResourceHref && (
+            {relatedResourceHref && canOpenRoute(relatedResourceHref) && (
               <Link
                 href={relatedResourceHref}
                 onClick={() => onOpenChange(false)}
@@ -145,14 +150,14 @@ export function AuditDetailDrawer({
                   </div>
                 </div>
 
-                {failureDiagnosis.actionLink && (
+                {actionLink && canOpenRoute(actionLink.href) && (
                   <Link
-                    href={failureDiagnosis.actionLink.href}
+                    href={actionLink.href}
                     onClick={() => onOpenChange(false)}
                     className="inline-flex items-center gap-1 rounded-lg border border-primary/35 bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary hover:bg-primary/15 shrink-0"
                   >
                     <ExternalLink className="h-3 w-3" />
-                    <span>{failureDiagnosis.actionLink.label}</span>
+                    <span>{actionLink.label}</span>
                   </Link>
                 )}
               </div>

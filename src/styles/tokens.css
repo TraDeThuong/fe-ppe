@@ -101,6 +101,23 @@
     inset 30px 30px 50px rgba(0, 0, 0, 0.45);
 }
 
+/*
+ * Mobile (< 768px): neumorphism nhẹ. Màu bóng được kéo gần về màu nền (~50%),
+ * nên mọi bóng dùng var(--shadow-dark/--shadow-light) tự mờ đi. Desktop không đổi.
+ * Xem docs/journeys/mobile-ui-journey.md.
+ */
+@media (width < 48rem) {
+  :root {
+    --shadow-light: #faf8f5;
+    --shadow-dark: #e6e1d8;
+  }
+
+  [data-theme="dark"] {
+    --shadow-light: #222e3c;
+    --shadow-dark: #17212b;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--background);

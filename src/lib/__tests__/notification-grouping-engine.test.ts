@@ -1,13 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  getFingerprintCacheKey,
   groupNotificationsByPerson,
   groupNotificationsIntoSections,
-  selectVisualFingerprintCandidates,
 } from "../notification-grouping-engine";
 import type { NotificationEnrichedSignals } from "../notification-enrichment";
-import type { VisualFingerprint } from "../visual-fingerprint";
 import type { NotificationItemDto } from "@/types";
 
 function makeNotif(
@@ -86,9 +83,8 @@ describe("notification-grouping-engine", () => {
       ["inc-other", makeSignal("inc-other", { violationType: "NO_HELMET", personTrackId: 8, personBox: { x: 0.72, y: 0.2, width: 0.18, height: 0.48 }, detectedAtMs: Date.parse("2026-11-22T09:00:03.000Z") })],
     ]);
 
-    const clusters = groupNotificationsByPerson([nVest, nOtherPerson, nHelmet], signals, undefined, {
+    const clusters = groupNotificationsByPerson([nVest, nOtherPerson, nHelmet], signals, {
       isVietnamese: true,
-      enableVisualDedup: false,
     });
 
     assert.equal(clusters.length, 2);
@@ -113,39 +109,11 @@ describe("notification-grouping-engine", () => {
       ["inc-2", makeSignal("inc-2", { personTrackId: 7, personBox: { x: 0.2, y: 0.2, width: 0.2, height: 0.5 }, detectedAtMs: Date.parse("2026-11-22T09:00:02.000Z") })],
     ]);
 
-    const clusters = groupNotificationsByPerson([n1, n2], signals, undefined, { enableVisualDedup: false });
+    const clusters = groupNotificationsByPerson([n1, n2], signals);
     assert.equal(clusters.length, 1);
     assert.equal(clusters[0].count, 2);
     assert.ok(clusters[0].matchReasons.includes("SPATIAL_IOU"));
     assert.ok((clusters[0].bestSpatialIoUPct ?? 0) >= 85);
-  });
-
-  it("merges visually similar snapshots via VISUAL_SIMILARITY when track_id and personBox are absent", () => {
-    const n1 = makeNotif("v-1", "inc-v1", { sentAt: "2026-11-22T09:00:20.000Z", createdAt: "2026-11-22T09:00:20.000Z" });
-    const n2 = makeNotif("v-2", "inc-v2", { sentAt: "2026-11-22T09:00:05.000Z", createdAt: "2026-11-22T09:00:05.000Z" });
-
-    const sig1 = makeSignal("inc-v1", { personTrackId: null, personBox: null, detectedAtMs: Date.parse("2026-11-22T09:00:20.000Z") });
-    const sig2 = makeSignal("inc-v2", { personTrackId: null, personBox: null, detectedAtMs: Date.parse("2026-11-22T09:00:05.000Z") });
-    const signals = new Map([
-      ["inc-v1", sig1],
-      ["inc-v2", sig2],
-    ]);
-
-    const candidates = selectVisualFingerprintCandidates([n1, n2], signals, { enableVisualDedup: true });
-    assert.equal(candidates.length, 2);
-
-    const hist = Array.from({ length: 64 }, (_, i) => (i === 5 ? 0.9 : i === 12 ? 0.435 : 0));
-    const key1 = getFingerprintCacheKey(sig1)!;
-    const key2 = getFingerprintCacheKey(sig2)!;
-    const fingerprints = new Map<string, VisualFingerprint>([
-      [key1, { id: key1, dHash: "a5a5a5a5a5a5a5a5", histogram: hist, computedAt: 1, method: "dhash-hist-v1" }],
-      [key2, { id: key2, dHash: "a5a5a5a5a5a5a5a4", histogram: hist, computedAt: 1, method: "dhash-hist-v1" }],
-    ]);
-
-    const clusters = groupNotificationsByPerson([n1, n2], signals, fingerprints, { enableVisualDedup: true });
-    assert.equal(clusters.length, 1);
-    assert.ok(clusters[0].matchReasons.includes("VISUAL_SIMILARITY"));
-    assert.ok((clusters[0].bestVisualSimilarityPct ?? 0) >= 95);
   });
 
   it("groups notifications into hourly and per-camera sections with breakdown stats", () => {
@@ -170,14 +138,14 @@ describe("notification-grouping-engine", () => {
       ["inc-h2", makeSignal("inc-h2", { cameraId: "cam-1", cameraCode: "CAM-01", personTrackId: 3, detectedAtMs: Date.parse("2026-11-22T07:15:00.000Z") })],
     ]);
 
-    const hourly = groupNotificationsIntoSections([h1b, h1a, h2], "hour", signals, undefined, { enableVisualDedup: false });
+    const hourly = groupNotificationsIntoSections([h1b, h1a, h2], "hour", signals);
     assert.equal(hourly.length, 2);
     assert.equal(hourly[0].totalNotifications, 2);
     assert.equal(hourly[0].unreadCount, 2);
     assert.equal(hourly[1].totalNotifications, 1);
     assert.equal(hourly[1].unreadCount, 0);
 
-    const byCamera = groupNotificationsIntoSections([h1b, h1a, h2], "camera", signals, undefined, { enableVisualDedup: false });
+    const byCamera = groupNotificationsIntoSections([h1b, h1a, h2], "camera", signals);
     assert.equal(byCamera.length, 2);
     assert.ok(byCamera.some((s) => s.title === "CAM-01" && s.totalNotifications === 2));
     assert.ok(byCamera.some((s) => s.title === "CAM-02" && s.totalNotifications === 1));

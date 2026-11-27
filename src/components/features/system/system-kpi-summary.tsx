@@ -55,9 +55,21 @@ export function SystemKpiSummary({
 
   const [internalSelectedStat, setInternalSelectedStat] = useState<SystemStatKey | null>(null);
 
-  const activeStat = propSelectedStat !== undefined ? propSelectedStat : internalSelectedStat;
+  const activeStat =
+    propSelectedStat !== undefined ? propSelectedStat : internalSelectedStat;
+  const isHealthCardActive =
+    activeStat === "health" || (activeTab === "health" && activeStat === null);
 
   const handleToggle = (key: SystemStatKey) => {
+    if (key === "health" && onSelectTab) {
+      onSelectTab("health");
+      if (onSelectStat) {
+        onSelectStat(null);
+      } else {
+        setInternalSelectedStat(null);
+      }
+      return;
+    }
     const next = activeStat === key ? null : key;
     if (onSelectStat) {
       onSelectStat(next);
@@ -163,13 +175,13 @@ export function SystemKpiSummary({
           description={t("system.stats.servicesHealthyDesc")}
           onClick={() => handleToggle("health")}
           className={`transition-all duration-200 ${
-            activeStat === "health" ? sunkenClass : "hover:border-primary/30"
+            isHealthCardActive ? sunkenClass : "hover:border-primary/30"
           }`}
           footer={
             <span className="flex items-center text-[10px] font-semibold transition-colors gap-0.5">
-              {activeStat === "health" ? (
+              {isHealthCardActive ? (
                 <span className="flex items-center text-primary font-bold gap-0.5">
-                  {t("system.stats.collapse")} <ChevronUp className="h-3 w-3" />
+                  {t("system.tabs.health")} <ChevronUp className="h-3 w-3" />
                 </span>
               ) : (
                 <span className="flex items-center text-muted-foreground hover:text-foreground gap-0.5">
@@ -209,8 +221,8 @@ export function SystemKpiSummary({
         />
       </div>
 
-      {/* Khung thông tin chi tiết mở rộng ngay dưới stats */}
-      {activeStat && (
+      {/* Khung thông tin chi tiết mở rộng ngay dưới stats (tránh render trùng lặp khi đang ở tab health) */}
+      {activeStat && !(activeStat === "health" && (activeTab === "health" || Boolean(onSelectTab))) && (
         <SystemStatsDetailPanel
           activeStat={activeStat}
           activeTab={activeTab}

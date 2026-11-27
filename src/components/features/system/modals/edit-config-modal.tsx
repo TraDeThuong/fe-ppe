@@ -71,6 +71,15 @@ export function EditConfigModal({
     if (!config) return;
     setError(null);
 
+    if (description.trim().length > 255) {
+      setError(
+        isVietnamese
+          ? "Mô tả không được vượt quá 255 ký tự."
+          : "Description must not exceed 255 characters.",
+      );
+      return;
+    }
+
     let parsedValue: unknown = valueStr;
     if (valueType === "boolean") {
       parsedValue = valueStr === "true";
@@ -225,6 +234,7 @@ export function EditConfigModal({
           </label>
           <input
             type="text"
+            maxLength={255}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="w-full rounded-xl border border-border/40 bg-surface px-3 py-2 text-sm text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)]"

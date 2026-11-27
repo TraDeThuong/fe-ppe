@@ -55,7 +55,9 @@ export function UserMenu({ maintenanceLocked = false }: UserMenuProps = {}) {
     .slice(0, 2)
     .toUpperCase();
 
-  const roleLabelKey = ROLE_LABELS[user.role] ?? "roles.USER";
+  const roleLabel = ROLE_LABELS[user.role]
+    ? t(ROLE_LABELS[user.role])
+    : user.role;
 
   const itemClass =
     "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-foreground transition-all duration-200 hover:bg-muted/50 hover:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.035),inset_-2px_-2px_5px_rgba(255,255,255,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
@@ -148,7 +150,7 @@ export function UserMenu({ maintenanceLocked = false }: UserMenuProps = {}) {
                 {isVietnamese ? "Vai trò tài khoản" : "Account role"}
               </span>
               <span className="rounded-lg border border-primary/10 bg-primary/[0.07] px-2.5 py-1 text-[11px] font-semibold text-primary">
-                {t(roleLabelKey)}
+                {roleLabel}
               </span>
             </div>
           </div>
@@ -185,7 +187,7 @@ export function UserMenu({ maintenanceLocked = false }: UserMenuProps = {}) {
               </Link>
 
               <Link
-                href="/change-password"
+                href="/settings/security?tab=password"
                 role="menuitem"
                 onClick={() => setOpen(false)}
                 className={itemClass}

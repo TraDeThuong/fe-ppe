@@ -352,9 +352,8 @@ describe("Notifications UI & Logic", () => {
         },
       ],
     ]);
-    const clusters = groupNotificationsByPerson(repeatedItems, signals, undefined, {
+    const clusters = groupNotificationsByPerson(repeatedItems, signals, {
       isVietnamese: true,
-      enableVisualDedup: false,
     });
     const clusterHtml = renderNotifications(
       <NotificationList
@@ -377,9 +376,8 @@ describe("Notifications UI & Logic", () => {
     assert.ok(plain.includes("#7"));
 
     // 3. Hourly section list renders section header with breakdown
-    const sections = groupNotificationsIntoSections(repeatedItems, "hour", signals, undefined, {
+    const sections = groupNotificationsIntoSections(repeatedItems, "hour", signals, {
       isVietnamese: true,
-      enableVisualDedup: false,
     });
     const sectionHtml = renderNotifications(
       <NotificationSectionList

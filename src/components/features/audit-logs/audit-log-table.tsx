@@ -3,7 +3,7 @@ import { Table, TableToolbar, TableContent, TablePagination, TableRefresh } from
 import type { TableProps } from "@/components/ui/table";
 
 import { ChevronRight, Clock, Globe, XCircle } from "lucide-react";
-import type { AuditLogItem } from "@/types";
+import type { AuditLogItem, PaginationMeta } from "@/types";
 import { useLocale } from "@/providers/locale-provider";
 
 import { AuditActionBadge } from "./audit-action-badge";
@@ -14,12 +14,7 @@ export interface AuditLogTableProps {
   onSelectRecord: (record: AuditLogItem) => void;
   loading?: boolean;
   tableState?: Partial<TableProps<AuditLogItem>>;
-  page?: number;
-  totalPages?: number;
-  total?: number;
-  limit?: number;
-  onPageChange?: (page: number) => void;
-  onLimitChange?: (limit: number) => void;
+  pagination?: PaginationMeta & { onPageChange: (page: number) => void };
 }
 
 export function AuditLogTable({
@@ -27,47 +22,15 @@ export function AuditLogTable({
   onSelectRecord,
   loading = false,
   tableState,
-  page,
-  totalPages,
-  total,
-  limit,
-  onPageChange,
-  onLimitChange,
+  pagination,
 }: AuditLogTableProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  const hasLegacyPagination =
-    !tableState?.pagination &&
-    (page !== undefined || limit !== undefined || onPageChange !== undefined);
-  const currentPageIndex = Math.max(0, (page ?? 1) - 1);
-  const currentPageSize = limit ?? 20;
-  const legacyPaginationProps: Partial<TableProps<AuditLogItem>> =
-    hasLegacyPagination
-      ? {
-          pagination: {
-            pageIndex: currentPageIndex,
-            pageSize: currentPageSize,
-          },
-          rowCount: total ?? items.length,
-          pageCount: totalPages ?? 1,
-          onPaginationChange: (updater) => {
-            const next =
-              typeof updater === "function"
-                ? updater({
-                    pageIndex: currentPageIndex,
-                    pageSize: currentPageSize,
-                  })
-                : updater;
-            if (next.pageSize !== currentPageSize && onLimitChange) {
-              onLimitChange(next.pageSize);
-            }
-            if (next.pageIndex !== currentPageIndex && onPageChange) {
-              onPageChange(next.pageIndex + 1);
-            }
-          },
-        }
-      : {};
+  const paginationState = pagination && {
+    pageIndex: pagination.page - 1,
+    pageSize: pagination.limit,
+  };
 
   const formatDate = (isoStr: string) => {
     try {
@@ -227,12 +190,18 @@ export function AuditLogTable({
       manualPagination
       emptyMessage={t("audit.table.empty")}
       onRowClick={(row) => onSelectRecord(row.original)}
-      {...legacyPaginationProps}
+      pagination={paginationState}
+      rowCount={pagination?.total}
+      pageCount={pagination?.totalPages}
+      onPaginationChange={pagination && paginationState && ((updater) => {
+        const next = typeof updater === "function" ? updater(paginationState) : updater;
+        pagination.onPageChange(next.pageIndex + 1);
+      })}
       {...tableState}
     >
       {!tableState?.toolbar && <TableToolbar showSearch={false} actions={<TableRefresh />} />}
       <TableContent />
-      <TablePagination />
+      <TablePagination showPageSizeSelector={!pagination} />
     </Table>
   );
 }

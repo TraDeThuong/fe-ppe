@@ -94,9 +94,8 @@ describe("Incident Field Comments Display & Notification Flow", () => {
     assert.strictEqual(parsed.cleanBody, "Công nhân đã khắc phục chưa em?");
     assert.strictEqual(parsed.incidentHref, `/incidents/${incidentId}?focus=comments`);
 
-    const clusters = groupNotificationsByPerson([commentNotif, ppeNotif], undefined, undefined, {
+    const clusters = groupNotificationsByPerson([commentNotif, ppeNotif], undefined, {
       isVietnamese: true,
-      enableVisualDedup: false,
     });
     assert.strictEqual(clusters.length, 2);
   });

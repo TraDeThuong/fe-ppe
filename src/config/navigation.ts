@@ -358,3 +358,90 @@ export const ROLE_LABELS: Record<string, string> = {
   MANAGER: "roles.MANAGER",
   USER: "roles.USER",
 };
+
+/* -------------------------------------------------------------------------- */
+/* Mobile (< 768px): tab đáy, tiêu đề ngắn và đích quay lại theo route          */
+/* -------------------------------------------------------------------------- */
+
+export interface LocalizedLabel {
+  vi: string;
+  en: string;
+}
+
+/** Thứ tự các tab chính ở đáy màn hình; các mục còn lại nằm trong tab "Thêm". */
+export const MOBILE_PRIMARY_TAB_KEYS = [
+  "dashboard",
+  "incidents",
+  "cameras",
+  "notifications",
+] as const;
+
+/** Nhãn ngắn cho mobile khi nhãn menu desktop quá dài hoặc lẫn tiếng Anh. */
+export const MOBILE_NAV_LABELS: Partial<Record<string, LocalizedLabel>> = {
+  dashboard: { vi: "Tổng quan", en: "Overview" },
+  incidents: { vi: "Sự cố", en: "Incidents" },
+  cameras: { vi: "Camera", en: "Cameras" },
+  notifications: { vi: "Thông báo", en: "Alerts" },
+  sites: { vi: "Công trường", en: "Sites" },
+  reports: { vi: "Báo cáo", en: "Reports" },
+  settings: { vi: "Tài khoản", en: "Account" },
+  incidentAssignments: { vi: "Công việc", en: "Tasks" },
+  maintenance: { vi: "Bảo trì", en: "Maintenance" },
+  scheduledTasks: { vi: "Tác vụ định kỳ", en: "Scheduled tasks" },
+};
+
+/** Lấy nhãn hiển thị trên mobile cho một mục menu. */
+export function getMobileNavLabel(
+  item: Pick<NavItem, "key" | "i18nKey">,
+  isVietnamese: boolean,
+  t: (key: string) => string,
+): string {
+  const label = MOBILE_NAV_LABELS[item.key];
+  if (label) return isVietnamese ? label.vi : label.en;
+  return t(item.i18nKey);
+}
+
+export interface MobileRouteMeta {
+  /** Mục menu tương ứng (nếu có) — dùng lấy nhãn */
+  navItem?: NavItem;
+  /** Tiêu đề riêng (trang chi tiết, trang phụ) */
+  title?: LocalizedLabel;
+  /** Trang chi tiết: đích quay lại khi không có lịch sử trong app */
+  backHref?: string;
+}
+
+/**
+ * Trang con / trang chi tiết: hiện nút quay lại trên thanh đầu trang mobile.
+ * Thứ tự quan trọng — tiền tố dài hơn đặt trước.
+ */
+const MOBILE_SUB_ROUTES: readonly {
+  prefix: string;
+  title: LocalizedLabel;
+  backHref: string;
+}[] = [
+  { prefix: "/incidents/assignments", title: { vi: "Công việc", en: "Tasks" }, backHref: "/incidents" },
+  { prefix: "/incidents/", title: { vi: "Chi tiết sự cố", en: "Incident" }, backHref: "/incidents" },
+  { prefix: "/evidences", title: { vi: "Kho minh chứng", en: "Evidence" }, backHref: "/incidents" },
+  { prefix: "/cameras/", title: { vi: "Chi tiết camera", en: "Camera" }, backHref: "/cameras" },
+  { prefix: "/sites/", title: { vi: "Chi tiết công trường", en: "Site" }, backHref: "/sites" },
+  { prefix: "/users/", title: { vi: "Chi tiết người dùng", en: "User" }, backHref: "/users" },
+  { prefix: "/roles/", title: { vi: "Chi tiết vai trò", en: "Role" }, backHref: "/roles" },
+  { prefix: "/ai-metrics/test", title: { vi: "Thử mô hình AI", en: "AI model test" }, backHref: "/ai-metrics" },
+  { prefix: "/change-password", title: { vi: "Đổi mật khẩu", en: "Change password" }, backHref: "/settings/security" },
+];
+
+function matchesPrefix(pathname: string, prefix: string): boolean {
+  if (prefix.endsWith("/")) return pathname.startsWith(prefix) && pathname.length > prefix.length;
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+/** Tiêu đề + đích quay lại cho thanh đầu trang mobile theo pathname hiện tại. */
+export function getMobileRouteMeta(pathname: string | null | undefined): MobileRouteMeta {
+  const path = pathname ?? "";
+  const subRoute = MOBILE_SUB_ROUTES.find((route) => matchesPrefix(path, route.prefix));
+  if (subRoute) {
+    return { title: subRoute.title, backHref: subRoute.backHref };
+  }
+  const navItem = NAV_ITEMS.find((item) => isNavItemActive(path, item, NAV_ITEMS));
+  return navItem ? { navItem } : {};
+}

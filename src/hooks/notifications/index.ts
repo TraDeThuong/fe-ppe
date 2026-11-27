@@ -1,7 +1,6 @@
 export * from "./notification.query-keys";
 export * from "./use-notifications";
 export * from "./use-notification-enrichment";
-export * from "./use-visual-fingerprints";
 export * from "./use-unread-count";
 export * from "./use-notification-preferences";
 export * from "./use-notification-mutations";

@@ -37,11 +37,11 @@ export function PageHeader({
 
   return (
     <div className={`space-y-3 ${className}`}>
-      {/* Optional Breadcrumbs */}
+      {/* Optional Breadcrumbs — ẩn trên mobile (đã có nút quay lại ở thanh đầu trang) */}
       {breadcrumbs && breadcrumbs.length > 0 && (
         <nav
           aria-label="Breadcrumb"
-          className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground"
+          className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground max-md:hidden"
         >
           <Link
             href="/dashboard"
@@ -70,7 +70,8 @@ export function PageHeader({
 
       {/* Main Header */}
       <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-3">
+        {/* Mobile: tiêu đề đã hiện trên thanh đầu trang → chỉ giữ cho trình đọc màn hình */}
+        <div className="flex items-center gap-3 max-md:sr-only">
           {Icon && (
             <div className="flex size-12 sm:size-15 shrink-0 items-center justify-center rounded-2xl border border-border/40 bg-background text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
               <Icon className="size-6 sm:size-8" strokeWidth={1.8} aria-hidden="true" />
@@ -96,7 +97,7 @@ export function PageHeader({
         {(badge || actions) && (
           <div className="flex flex-wrap items-center gap-2">
             {badge && (
-              <div className="inline-flex w-fit items-center gap-2 rounded-xl border border-border/30 bg-background px-3 py-2 text-xs font-medium text-muted-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
+              <div className="inline-flex w-fit items-center gap-2 rounded-xl border border-border/30 bg-background px-3 py-2 text-xs font-medium text-muted-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] max-md:hidden">
                 {BadgeIcon && (
                   <BadgeIcon className="size-3.5 text-primary" aria-hidden="true" />
                 )}

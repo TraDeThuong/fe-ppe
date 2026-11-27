@@ -6,7 +6,7 @@ import { systemService } from "@/services";
 import type { SystemConfigItem, ToggleFeatureFlagPayload } from "@/types";
 import { systemQueryKeys } from "./system.query-keys";
 
-export function useFeatureFlags() {
+export function useFeatureFlags(options?: { enabled?: boolean }) {
   const queryClient = useQueryClient();
 
   const query = useQuery({
@@ -15,6 +15,7 @@ export function useFeatureFlags() {
       const res = await systemService.getConfigs({ category: "FEATURE_FLAG", limit: 50 });
       return res?.items ?? [];
     },
+    enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,
   });
 

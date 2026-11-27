@@ -1,14 +1,19 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { authKeys } from "@/hooks/auth/auth.query-keys";
+import { systemQueryKeys } from "@/hooks/system/system.query-keys";
+import { ApiError } from "@/lib/axios";
+import { SYSTEM_CONFIG_KEYS } from "@/lib/system-config";
 import { integrationService } from "@/services";
-import type {
-  CreateApiKeyPayload,
-  CreateWebhookPayload,
-  ListDeliveriesQuery,
-  ToggleApiKeyPayload,
-  TriggerDemoJobPayload,
-  UpdateWebhookPayload,
+import {
+  ErrorCode,
+  type CreateApiKeyPayload,
+  type CreateWebhookPayload,
+  type ListDeliveriesQuery,
+  type ToggleApiKeyPayload,
+  type TriggerDemoJobPayload,
+  type UpdateWebhookPayload,
 } from "@/types";
 import { integrationQueryKeys } from "./integration.query-keys";
 
@@ -101,6 +106,22 @@ export function useIntegrationMutations() {
     },
   });
 
+  const syncWebhooksDisabledOnError = (err: unknown) => {
+    if (err instanceof ApiError && err.code === ErrorCode.FEATURE_DISABLED) {
+      queryClient.setQueryData<Record<string, unknown>>(
+        authKeys.config(),
+        (prev) => ({
+          ...(prev ?? {}),
+          [SYSTEM_CONFIG_KEYS.webhooksEnabled]: false,
+        }),
+      );
+      void queryClient.invalidateQueries({ queryKey: authKeys.config() });
+      void queryClient.invalidateQueries({
+        queryKey: systemQueryKeys.featureFlags(),
+      });
+    }
+  };
+
   const testPingWebhook = useMutation({
     mutationFn: (id: string) => integrationService.testPingWebhook(id),
     onSuccess: (_res, id) => {
@@ -108,6 +129,7 @@ export function useIntegrationMutations() {
         queryKey: [...integrationQueryKeys.all, "deliveries", id],
       });
     },
+    onError: syncWebhooksDisabledOnError,
   });
 
   const retryDelivery = useMutation({
@@ -122,6 +144,7 @@ export function useIntegrationMutations() {
         void queryClient.invalidateQueries({ queryKey: integrationQueryKeys.all });
       }
     },
+    onError: syncWebhooksDisabledOnError,
   });
 
   const triggerDemoJob = useMutation({

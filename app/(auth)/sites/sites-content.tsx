@@ -20,6 +20,7 @@ import {
   SiteToolbar,
   SiteZonesDrawer,
   type SiteStatKey,
+  type SiteZonesTab,
 } from "@/components/features/sites";
 import {
   canSyncSiteOfficers,
@@ -176,6 +177,7 @@ export default function SitesContent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [safetyModalOpen, setSafetyModalOpen] = useState(false);
   const [zonesDrawerOpen, setZonesDrawerOpen] = useState(false);
+  const [zonesDrawerTab, setZonesDrawerTab] = useState<SiteZonesTab>("zones");
   const [selectedSite, setSelectedSite] = useState<SiteItem | null>(null);
 
   const filteredSites = sites;
@@ -195,10 +197,15 @@ export default function SitesContent() {
     setDeleteDialogOpen(true);
   };
 
-  const handleManageZones = (site: SiteItem) => {
+  const openZonesDrawer = (site: SiteItem, tab: SiteZonesTab = "zones") => {
     setSelectedSite(site);
+    setZonesDrawerTab(tab);
     setZonesDrawerOpen(true);
   };
+
+  // Grid/bảng luôn mở tab phân khu. Giữ hàm 1 tham số vì TableRowActions gọi onClick(row, rowId):
+  // nếu truyền thẳng openZonesDrawer thì rowId sẽ bị hiểu nhầm thành tab.
+  const handleManageZones = (site: SiteItem) => openZonesDrawer(site);
 
   const handleSafetyConfig = (site: SiteItem) => {
     setSelectedSite(site);
@@ -280,7 +287,7 @@ export default function SitesContent() {
         loading={catalogLoading}
         selectedStat={selectedStat}
         onSelectStat={handleSelectStat}
-        onManageZones={handleManageZones}
+        onManageZones={openZonesDrawer}
       />
 
       {/* Toolbar & Filters */}
@@ -462,6 +469,7 @@ export default function SitesContent() {
         open={zonesDrawerOpen}
         onOpenChange={setZonesDrawerOpen}
         site={selectedSite}
+        initialTab={zonesDrawerTab}
       />
     </div>
   );

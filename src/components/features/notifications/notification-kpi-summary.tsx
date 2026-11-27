@@ -220,7 +220,7 @@ export function NotificationKpiSummary({
           }
         />
 
-        {/* 3. Cảnh báo vi phạm PPE */}
+        {/* 3. Cảnh báo mức cao */}
         <StatsCard
           variant={variant}
           title={t("notifications.stats.ppeAlerts")}
@@ -237,9 +237,7 @@ export function NotificationKpiSummary({
                 ? isVietnamese
                   ? `Gom từ ${rawStats.ppeAlerts} cảnh báo gốc`
                   : `Grouped from ${rawStats.ppeAlerts} raw PPE alerts`
-                : isVietnamese
-                  ? "Cảnh báo an toàn & vi phạm PPE"
-                  : "Safety & PPE violation alerts"
+                : t("notifications.stats.ppeAlertsDesc")
           }
           loading={loading}
           depth="medium"

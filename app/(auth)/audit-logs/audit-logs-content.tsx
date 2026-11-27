@@ -11,6 +11,7 @@ import { useTableState } from "@/hooks/use-table-state";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import {
+  AUDIT_SEARCH_MAX_LENGTH,
   AuditDetailDrawer,
   AuditFilterToolbar,
   AuditHelpDialog,
@@ -100,7 +101,11 @@ export default function AuditLogsContent() {
   };
 
   // Filtering state (phân trang và sắp xếp nằm trong auditTableState)
-  const [search, setSearch] = useState(() => searchParams.get("search") || "");
+  const searchParam = searchParams.get("search");
+  const [previousSearchParam, setPreviousSearchParam] = useState(searchParam);
+  const [search, setSearch] = useState(() =>
+    (searchParam ?? "").trim().slice(0, AUDIT_SEARCH_MAX_LENGTH),
+  );
   const [actionFilter, setActionFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<AuditLogStatus | "">("");
   const [startDate, setStartDate] = useState("");
@@ -110,12 +115,22 @@ export default function AuditLogsContent() {
     [{ id: "createdAt", desc: true }],
     `${search}:${actionFilter}:${statusFilter}:${startDate}:${endDate}:${activeTab}`,
   );
+  if (previousSearchParam !== searchParam) {
+    setPreviousSearchParam(searchParam);
+    setSearch((searchParam ?? "").trim().slice(0, AUDIT_SEARCH_MAX_LENGTH));
+    auditTableState.resetPage();
+  }
+
   const apiSorting = mapTableSort(
     auditTableState.sorting,
     { createdAt: "createdAt", action: "action" },
     { sortBy: "createdAt", order: "desc" },
   );
-  const debouncedSearch = useDebounce(search, 350);
+  const normalizedSearch = search.trim();
+  const debouncedSearch = useDebounce(normalizedSearch, 350);
+  const isSearchPending = normalizedSearch !== debouncedSearch;
+  const isDateRangeInvalid = Boolean(startDate && endDate && startDate > endDate);
+  const canQueryLogs = !isDateRangeInvalid && !isSearchPending;
 
   // Modals state
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
@@ -128,10 +143,10 @@ export default function AuditLogsContent() {
     isLoading: isLoadingSummary,
     isFetching: isFetchingSummary,
     refetch: refetchSummary,
-  } = useAuditSummary({
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
-  });
+  } = useAuditSummary(
+    { startDate: startDate || undefined, endDate: endDate || undefined },
+    { enabled: !isDateRangeInvalid },
+  );
 
   const effectiveCategory = useMemo(() => {
     if (activeTab === "configChanges") return "CONFIG";
@@ -144,18 +159,21 @@ export default function AuditLogsContent() {
     isFetching: isFetchingLogs,
     error: logsError,
     refetch: refetchLogs,
-  } = useAuditLogs({
-    sortBy: apiSorting.sortBy,
-    order: apiSorting.order,
-    page: auditTableState.pagination.pageIndex + 1,
-    limit: auditTableState.pagination.pageSize,
-    search: debouncedSearch || undefined,
-    category: effectiveCategory,
-    action: actionFilter || undefined,
-    status: (statusFilter as AuditLogStatus) || undefined,
-    startDate: startDate || undefined,
-    endDate: endDate || undefined,
-  });
+  } = useAuditLogs(
+    {
+      sortBy: apiSorting.sortBy,
+      order: apiSorting.order,
+      page: auditTableState.pagination.pageIndex + 1,
+      limit: auditTableState.pagination.pageSize,
+      search: debouncedSearch || undefined,
+      category: effectiveCategory,
+      action: actionFilter || undefined,
+      status: statusFilter || undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    },
+    { enabled: canQueryLogs },
+  );
 
   const { data: detailData, isLoading: isLoadingDetail } = useAuditDetail(selectedRecordId);
   const { mutateAsync: exportLogs, isPending: isExporting } = useExportAuditLogs();
@@ -243,6 +261,7 @@ export default function AuditLogsContent() {
         setEndDate(val);
         auditTableState.resetPage();
       }}
+      isDateRangeInvalid={isDateRangeInvalid}
       totalCount={logsData?.meta?.total ?? totalLogsCount}
       hasActiveFilters={hasActiveFilters}
       onResetFilters={handleResetFilters}
@@ -308,17 +327,20 @@ export default function AuditLogsContent() {
               sorting: true,
               globalFilter: false,
               rowSelection: false,
+              pagination: !isDateRangeInvalid,
             },
             manualPagination: true,
             manualSorting: true,
             manualFiltering: true,
             rowCount: logsData?.meta?.total ?? 0,
             pageCount: logsData?.meta?.totalPages ?? 1,
-            fetching: isFetchingLogs || isFetchingSummary,
+            fetching: isFetchingLogs || isFetchingSummary || isSearchPending,
             error: logsError,
-            onRetry: () => {
-              void Promise.all([refetchLogs(), refetchSummary()]);
-            },
+            onRetry: canQueryLogs
+              ? () => {
+                  void Promise.all([refetchLogs(), refetchSummary()]);
+                }
+              : undefined,
             toolbar,
           }}
         />
@@ -338,9 +360,9 @@ export default function AuditLogsContent() {
         onExport={handleExecuteExport}
         activeFilters={{
           category: effectiveCategory,
-          search: debouncedSearch || undefined,
+          search: normalizedSearch || undefined,
           action: actionFilter || undefined,
-          status: (statusFilter as AuditLogStatus) || undefined,
+          status: statusFilter || undefined,
           startDate: startDate || undefined,
           endDate: endDate || undefined,
         }}

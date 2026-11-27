@@ -21,22 +21,25 @@ import {
   useRevokeSession,
   useSessions,
 } from "@/hooks/auth";
+import { tokenStore } from "@/lib/token";
 import { useLocale } from "@/providers/locale-provider";
 
 const SESSIONS_PER_PAGE = 5;
 
-function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat("vi-VN", {
+function formatDate(iso: string, locale: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(iso));
+  }).format(date);
 }
 
 export function SessionsPanel() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const sessions = useSessions();
   const revokeSession = useRevokeSession();
   const revokeOthers = useRevokeOtherSessions();
@@ -63,7 +66,9 @@ export function SessionsPanel() {
 
   function handleRevokeAll() {
     if (confirmRevokeAll) {
-      revokeOthers.mutate({});
+      revokeOthers.mutate({
+        refreshToken: tokenStore.getRefreshToken() ?? undefined,
+      });
       setConfirmRevokeAll(false);
     } else {
       setConfirmRevokeAll(true);
@@ -155,7 +160,7 @@ export function SessionsPanel() {
             </div>
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Active sessions
+                {t("security.sessions.activeCountLabel")}
               </p>
               <p className="text-xl font-bold tabular-nums text-foreground">
                 {sessions.data.length.toString().padStart(2, "0")}
@@ -171,10 +176,12 @@ export function SessionsPanel() {
             </div>
             <div className="min-w-0">
               <p className="text-[10px] text-muted-foreground sm:text-xs">
-                Current device
+                {t("security.sessions.currentDeviceLabel")}
               </p>
               <p className="truncate text-sm font-semibold text-foreground">
-                {currentSession ? "Protected" : "Not identified"}
+                {currentSession
+                  ? t("security.sessions.currentProtected")
+                  : t("security.sessions.currentUnidentified")}
               </p>
             </div>
           </div>
@@ -185,10 +192,12 @@ export function SessionsPanel() {
             </div>
             <div className="min-w-0">
               <p className="text-[10px] text-muted-foreground sm:text-xs">
-                Other devices
+                {t("security.sessions.otherDevicesLabel")}
               </p>
               <p className="truncate text-sm font-semibold text-foreground">
-                {otherSessions.length.toString().padStart(2, "0")} sessions
+                {t("security.sessions.otherDevicesCount", {
+                  count: otherSessions.length.toString().padStart(2, "0"),
+                })}
               </p>
             </div>
           </div>
@@ -200,11 +209,14 @@ export function SessionsPanel() {
         <div className="flex items-center justify-between px-1">
           <div>
             <h4 className="text-sm font-bold text-foreground">
-              Devices & sessions
+              {t("security.sessions.listTitle")}
             </h4>
             <p className="mt-1 text-xs text-muted-foreground">
-              {sessions.data.length} session
-              {sessions.data.length === 1 ? "" : "s"} connected to your account
+              {sessions.data.length === 1
+                ? t("security.sessions.connectedCountSingular")
+                : t("security.sessions.connectedCount", {
+                    count: sessions.data.length,
+                  })}
             </p>
           </div>
         </div>
@@ -276,7 +288,7 @@ export function SessionsPanel() {
                           <span className="truncate">{session.ipAddress}</span>
                         </p>
                         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <span>{formatDate(session.createdAt)}</span>
+                          <span>{formatDate(session.createdAt, locale)}</span>
                         </p>
                       </div>
                     </div>
@@ -318,10 +330,7 @@ export function SessionsPanel() {
                 {pendingConfirm && !revokeSession.isPending && (
                   <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-danger/15 bg-danger/[0.045] p-3 text-xs leading-5 text-muted-foreground">
                     <ShieldAlert className="mt-0.5 size-4 shrink-0 text-danger" />
-                    <p>
-                      Confirm to sign out this device. You may need to sign in
-                      again on that device to access your account.
-                    </p>
+                    <p>{t("security.sessions.revokeHint")}</p>
                   </div>
                 )}
               </li>
@@ -415,8 +424,8 @@ export function SessionsPanel() {
                 </p>
                 <p className="mt-1 max-w-md text-xs leading-5 text-muted-foreground">
                   {confirmRevokeAll
-                    ? "This action will sign out every other device. Your current session will remain active."
-                    : "End all other sessions at once while keeping this device signed in."}
+                    ? t("security.sessions.revokeAllConfirmHint")
+                    : t("security.sessions.revokeAllHint")}
                 </p>
               </div>
             </div>

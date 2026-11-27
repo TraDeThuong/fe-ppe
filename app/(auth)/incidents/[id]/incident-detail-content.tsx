@@ -22,7 +22,9 @@ import { ConfirmDialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/providers/locale-provider";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
+import { useIsDesktop } from "@/hooks/use-media-query";
 import { useUsers } from "@/hooks/users";
+import { IncidentMobileDetail } from "@/components/features/incidents/mobile";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
@@ -94,6 +96,8 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const can = useCan();
+  // Chỉ render một bản theo khổ màn hình: nội dung hiện sau khi tải dữ liệu ở client nên không bị nháy.
+  const isDesktop = useIsDesktop();
   const canRead = can("PPE_INCIDENT_READ");
   const canReadUsers = can("USER_READ");
   const groupWorkspace = useIncidentGroupWorkspace();
@@ -305,6 +309,11 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
   const [deleteEvidenceTarget, setDeleteEvidenceTarget] = useState<EvidenceItem | null>(null);
   const [isNotifying, setIsNotifying] = useState(false);
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [reviewDecision, setReviewDecision] = useState<"CONFIRMED" | "DISMISSED">("CONFIRMED");
+  const openReview = (decision: "CONFIRMED" | "DISMISSED" = "CONFIRMED") => {
+    setReviewDecision(decision);
+    setIsReviewOpen(true);
+  };
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [isResolveOpen, setIsResolveOpen] = useState(false);
   const [isCloseOpen, setIsCloseOpen] = useState(false);
@@ -587,8 +596,58 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
     hydratedAssignments.find((a) => a.status === "ACTIVE") || hydratedAssignments[0];
   const assignedOfficerName = activeAssignment?.assignedToName;
 
+  const commentsTimeline = (
+    <IncidentCommentsTimeline
+      comments={hydratedComments}
+      onSendComment={handleSendComment}
+      loading={addCommentMutation.isPending}
+      currentUserId={user?.id}
+      canComment={canUpdate}
+      isClosed={incident.status === "CLOSED"}
+      isLoadingComments={commentsQuery.isLoading}
+      isErrorComments={commentsQuery.isError}
+      onRetryComments={() => void commentsQuery.refetch()}
+      highlighted={isHighlightComments}
+    />
+  );
+
   return (
     <div className="space-y-6">
+      {/* Mobile (< 768px): ảnh trước · thông tin chính · nút quyết định cố định ở đáy */}
+      {!isDesktop && (
+        <IncidentMobileDetail
+          incident={incident}
+          primaryEvidence={primaryEvidence}
+          snapshotUrl={effectiveSnapshotUrl || undefined}
+          assignedOfficerName={assignedOfficerName}
+          awaitingDispatch={awaitingDispatch && incident.status === "CONFIRMED"}
+          actions={{
+            hasAssignments,
+            canReview,
+            canAssign,
+            canSelfOrAssignedResolve,
+            canClose,
+            canUpdate,
+            canTriggerAlert,
+            isNotifying,
+            onReview: openReview,
+            onAssign: () => setIsAssignOpen(true),
+            onResolve: () => setIsResolveOpen(true),
+            onClose: () => setIsCloseOpen(true),
+            onEdit: () => setIsEditOpen(true),
+            onAttach: () => setIsAttachOpen(true),
+            onTriggerAlert: handleTriggerAlert,
+          }}
+          onDownloadEvidence={handleDownloadEvidence}
+          comments={commentsTimeline}
+          commentCount={hydratedComments.length}
+          commentsDefaultOpen={searchParams.get("focus") === "comments"}
+        />
+      )}
+
+      {/* Desktop (≥ 768px): giữ nguyên */}
+      {isDesktop && (
+      <div className="space-y-6">
       {/* Console Detail Header (đồng bộ IncidentConsoleHeader ở /incidents) */}
       <IncidentDetailHeader
         incident={incident}
@@ -607,7 +666,7 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         }}
         onEdit={() => setIsEditOpen(true)}
         onTriggerAlert={handleTriggerAlert}
-        onReview={() => setIsReviewOpen(true)}
+        onReview={() => openReview("CONFIRMED")}
         onAssign={() => setIsAssignOpen(true)}
         onResolve={() => setIsResolveOpen(true)}
         onClose={() => setIsCloseOpen(true)}
@@ -619,7 +678,7 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         hasAssignments={hasAssignments}
         assignedOfficerName={assignedOfficerName}
         awaitingDispatch={awaitingDispatch}
-        onReview={canReview ? () => setIsReviewOpen(true) : undefined}
+        onReview={canReview ? () => openReview("CONFIRMED") : undefined}
         onAssign={canAssign ? () => setIsAssignOpen(true) : undefined}
         onResolve={canSelfOrAssignedResolve ? () => setIsResolveOpen(true) : undefined}
         onClose={canClose ? () => setIsCloseOpen(true) : undefined}
@@ -805,18 +864,7 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
             isNextAction={incident.status === "CONFIRMED" && !hasAssignments}
           />
 
-          <IncidentCommentsTimeline
-            comments={hydratedComments}
-            onSendComment={handleSendComment}
-            loading={addCommentMutation.isPending}
-            currentUserId={user?.id}
-            canComment={canUpdate}
-            isClosed={incident.status === "CLOSED"}
-            isLoadingComments={commentsQuery.isLoading}
-            isErrorComments={commentsQuery.isError}
-            onRetryComments={() => void commentsQuery.refetch()}
-            highlighted={isHighlightComments}
-          />
+          {commentsTimeline}
 
           <ResourceAuditTrailCard
             targetType="INCIDENT"
@@ -825,6 +873,8 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
           />
         </div>
       </div>
+      </div>
+      )}
 
       {/* Modals & Dialogs */}
       <ReviewIncidentModal
@@ -833,6 +883,7 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         incident={incident}
         loading={reviewMutation.isPending}
         onSubmit={handleReview}
+        initialDecision={reviewDecision}
       />
 
       <AssignIncidentModal

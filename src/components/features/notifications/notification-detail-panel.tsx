@@ -11,7 +11,6 @@ import {
   Clock,
   ExternalLink,
   Eye,
-  Image as ImageIcon,
   Inbox,
   Layers,
   Loader2,
@@ -407,16 +406,6 @@ export function NotificationDetailPanel({
                   </span>
                 )}
 
-                {cluster.matchReasons.includes("VISUAL_SIMILARITY") && (
-                  <span className="inline-flex items-center gap-1 rounded-lg border border-border/50 bg-surface px-2 py-0.5 text-[10px] font-semibold text-foreground shadow-[1.5px_1.5px_3px_var(--shadow-dark),-1.5px_-1.5px_3px_var(--shadow-light)]">
-                    <ImageIcon className="size-2.5 text-primary" />
-                    <span>
-                      {isVietnamese
-                        ? `Ảnh giống ${cluster.bestVisualSimilarityPct ?? ""}%`
-                        : `Visual ${cluster.bestVisualSimilarityPct ?? ""}%`}
-                    </span>
-                  </span>
-                )}
               </div>
 
               {cluster.unreadCount > 1 && onMarkManyAsRead && (

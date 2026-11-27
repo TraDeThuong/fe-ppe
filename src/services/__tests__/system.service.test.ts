@@ -57,7 +57,14 @@ describe("systemService.checkServicesHealth", () => {
         statusText: "OK",
         headers: {},
         config,
-        data: { success: true, data: { status: "ok", uptime: 1200 } },
+        data: {
+          success: true,
+          data: {
+            status: "ok",
+            uptime: 1200,
+            ...(config.url === "/health" ? { version: "1.0.0" } : {}),
+          },
+        },
       };
     };
 
@@ -68,10 +75,18 @@ describe("systemService.checkServicesHealth", () => {
       });
 
     const report = await systemService.checkServicesHealth();
-    assert.equal(report.totalServices, 12);
-    assert.equal(report.healthyCount, 12);
+    assert.equal(report.totalServices, 11);
+    assert.equal(report.healthyCount, 11);
     assert.equal(report.overallStatus, "HEALTHY");
     assert.ok(report.services.every((s) => s.status === "HEALTHY"));
+    assert.equal(
+      report.services.some((s) => s.serviceCode === "kafka-broker"),
+      false,
+    );
+    const identityService = report.services.find(
+      (s) => s.serviceCode === "identity-service",
+    );
+    assert.equal(identityService?.details?.version, "1.0.0");
     const aiService = report.services.find((s) => s.serviceCode === "ai-service");
     assert.equal(aiService?.endpoint, "/health (:8000)");
   });
@@ -109,7 +124,7 @@ describe("systemService.checkServicesHealth", () => {
     };
 
     const report = await systemService.checkServicesHealth();
-    assert.equal(report.healthyCount, 11);
+    assert.equal(report.healthyCount, 10);
     assert.equal(report.overallStatus, "DEGRADED");
     assert.equal(report.services[0]?.serviceCode, "minio-storage");
     assert.equal(report.services[0]?.status, "DOWN");
@@ -158,7 +173,7 @@ describe("systemService.checkServicesHealth", () => {
     );
     assert.equal(traefik?.status, "HEALTHY");
     assert.equal(traefik?.details?.verifiedVia, "active-gateway-traffic");
-    assert.equal(report.healthyCount, 12);
+    assert.equal(report.healthyCount, 11);
   });
 });
 

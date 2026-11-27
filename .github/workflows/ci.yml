@@ -1,0 +1,42 @@
+# Kiểm tra mỗi lần push lên main và mỗi pull request: kiểu, unit test và build Turbopack mặc định.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: tsc, test, build (Turbopack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # src/config/env.ts bắt buộc 2 biến này khi build; đây chỉ là giá trị giữ chỗ cho CI.
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:80/api/v1
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.10.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # next-env.d.ts và .next/types không được commit, phải sinh trước khi chạy tsc.
+      - run: pnpm exec next typegen
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm test
+      - run: pnpm build

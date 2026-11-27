@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import {
   Check,
   Copy,
@@ -13,11 +13,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Checkbox, Input } from "@/components/ui/form";
+import { AuthContext } from "@/contexts/AuthContext";
 import { usePermissions } from "@/hooks/rbac";
 import { useCan } from "@/hooks/use-can";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
 import type { ApiKeyItemDto, CreateApiKeyResponseDto } from "@/types";
+
+export function formatMinDatetimeLocal(now = new Date()): string {
+  const future = new Date(now.getTime() + 60_000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${future.getFullYear()}-${pad(future.getMonth() + 1)}-${pad(future.getDate())}T${pad(future.getHours())}:${pad(future.getMinutes())}`;
+}
 
 export interface ApiKeysTabProps {
   apiKeys: ApiKeyItemDto[];
@@ -42,6 +49,13 @@ export function ApiKeysTab({
 }: ApiKeysTabProps) {
   const { locale } = useLocale();
   const isVi = locale === "vi-VN";
+  const authUser = useContext(AuthContext)?.user;
+  const isAdmin =
+    authUser?.role === "ADMIN" || authUser?.role === "SUPER_ADMIN";
+  const userPermissions = useMemo(
+    () => authUser?.permissions ?? [],
+    [authUser?.permissions],
+  );
   const can = useCan();
   const canManage = can("API_KEY_MANAGE");
   const canReadPermissions = can("PERMISSION_READ");
@@ -58,17 +72,44 @@ export function ApiKeysTab({
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ApiKeyItemDto | null>(null);
 
+  const minExpiresAt = formatMinDatetimeLocal();
+
+  // Giới hạn danh sách quyền có thể cấp cho API Key theo đúng tập quyền thực tế của user
+  // (đồng bộ RBAC guard trên smart-ppe-identity-service#9 và hỗ trợ user không có PERMISSION_READ).
+  const availablePermissions = useMemo(() => {
+    const catalogMap = new Map(permissions.map((p) => [p.name, p]));
+    if (isAdmin) {
+      if (permissions.length > 0) return permissions;
+      return userPermissions.map((permName) => ({
+        id: permName,
+        name: permName,
+        description: null,
+      }));
+    }
+
+    const uniqueOwned = Array.from(new Set(userPermissions));
+    return uniqueOwned.map((permName) => {
+      const matched = catalogMap.get(permName);
+      return {
+        id: matched?.id ?? permName,
+        name: permName,
+        description: matched?.description ?? null,
+      };
+    });
+  }, [isAdmin, permissions, userPermissions]);
+
   const filteredPermissions = useMemo(() => {
     const q = permSearch.trim().toLowerCase();
-    if (!q) return permissions;
-    return permissions.filter(
+    if (!q) return availablePermissions;
+    return availablePermissions.filter(
       (p) =>
         p.name.toLowerCase().includes(q) ||
         (p.description || "").toLowerCase().includes(q),
     );
-  }, [permissions, permSearch]);
+  }, [availablePermissions, permSearch]);
 
   const togglePermission = (permName: string) => {
+    if (!isAdmin && !userPermissions.includes(permName)) return;
     setSelectedPerms((prev) =>
       prev.includes(permName)
         ? prev.filter((item) => item !== permName)
@@ -79,10 +120,27 @@ export function ApiKeysTab({
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    if (expiresAt) {
+      const expiresMs = new Date(expiresAt).getTime();
+      if (Number.isNaN(expiresMs) || expiresMs <= Date.now()) {
+        toast.error(
+          isVi
+            ? "Thời gian hết hạn phải nằm trong tương lai"
+            : "Expiration date must be in the future",
+        );
+        return;
+      }
+    }
     try {
+      const allowedSet = isAdmin
+        ? null
+        : new Set<string>(userPermissions);
+      const safePermissions = allowedSet
+        ? selectedPerms.filter((p) => allowedSet.has(p))
+        : selectedPerms;
       const payload = {
         name: name.trim(),
-        permissions: selectedPerms,
+        permissions: safePermissions,
         ...(expiresAt ? { expiresAt: new Date(expiresAt).toISOString() } : {}),
       };
       const created = await onCreate(payload);
@@ -115,6 +173,10 @@ export function ApiKeysTab({
   };
 
   const handleToggle = async (item: ApiKeyItemDto) => {
+    const isExpired = Boolean(
+      item.expiresAt && new Date(item.expiresAt).getTime() <= Date.now(),
+    );
+    if (isExpired) return;
     try {
       await onToggle(item.id, !item.isActive);
       toast.success(
@@ -276,8 +338,15 @@ export function ApiKeysTab({
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={mutating}
+                        disabled={mutating || isExpired}
                         onClick={() => handleToggle(item)}
+                        title={
+                          isExpired
+                            ? isVi
+                              ? "Không thể bật/tắt API Key đã hết hạn"
+                              : "Cannot toggle an expired API Key"
+                            : undefined
+                        }
                       >
                         {item.isActive
                           ? isVi
@@ -384,6 +453,7 @@ export function ApiKeysTab({
               </label>
               <Input
                 type="datetime-local"
+                min={minExpiresAt}
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
               />
@@ -406,27 +476,35 @@ export function ApiKeysTab({
               />
             </div>
             <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto rounded-2xl p-3 shadow-nm-inset sm:grid-cols-2">
-              {filteredPermissions.map((perm) => (
-                <label
-                  key={perm.id}
-                  className="flex cursor-pointer items-start gap-2 rounded-xl p-2 hover:bg-surface-elevated/40"
-                >
-                  <Checkbox
-                    checked={selectedPerms.includes(perm.name)}
-                    onCheckedChange={() => togglePermission(perm.name)}
-                  />
-                  <div className="min-w-0">
-                    <div className="truncate font-mono text-[11px] font-bold text-foreground">
-                      {perm.name}
-                    </div>
-                    {perm.description && (
-                      <div className="line-clamp-1 text-[10px] text-muted-foreground">
-                        {perm.description}
+              {filteredPermissions.length === 0 ? (
+                <div className="col-span-full py-4 text-center text-xs text-muted-foreground">
+                  {isVi
+                    ? "Không có quyền phù hợp trong phạm vi tài khoản của bạn."
+                    : "No matching permissions within your account scope."}
+                </div>
+              ) : (
+                filteredPermissions.map((perm) => (
+                  <label
+                    key={perm.id}
+                    className="flex cursor-pointer items-start gap-2 rounded-xl p-2 hover:bg-surface-elevated/40"
+                  >
+                    <Checkbox
+                      checked={selectedPerms.includes(perm.name)}
+                      onCheckedChange={() => togglePermission(perm.name)}
+                    />
+                    <div className="min-w-0">
+                      <div className="truncate font-mono text-[11px] font-bold text-foreground">
+                        {perm.name}
                       </div>
-                    )}
-                  </div>
-                </label>
-              ))}
+                      {perm.description && (
+                        <div className="line-clamp-1 text-[10px] text-muted-foreground">
+                          {perm.description}
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                ))
+              )}
             </div>
           </div>
 

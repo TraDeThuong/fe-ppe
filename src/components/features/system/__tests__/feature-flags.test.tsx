@@ -170,6 +170,23 @@ describe("System Feature Flags UI", () => {
     );
     assert.match(loadedHtml, /10/);
     assert.match(loadedHtml, /42/);
+
+    const healthTabHtml = render(
+      <SystemKpiSummary
+        totalConfigs={14}
+        featureFlags={SAMPLE_FLAGS}
+        healthReport={report}
+        activeTab="health"
+        selectedStat="health"
+        onSelectTab={() => {}}
+        loading={false}
+        healthLoading={false}
+      />,
+    );
+    assert.doesNotMatch(
+      healthTabHtml,
+      /Ma trận Nhịp tim 8 Dịch vụ Microservices|Microservices Cluster Heartbeat Matrix/,
+    );
   });
 
   it("SystemStatsDetailPanel shows all 5 flags and hides redundant tab jump when already on flags tab", () => {
@@ -190,6 +207,21 @@ describe("System Feature Flags UI", () => {
     assert.match(html, /role="switch"/);
     assert.doesNotMatch(html, /Chuyển tới Tab Công tắc Tính năng/);
     assert.doesNotMatch(html, /bg-accent|text-accent/);
+
+    const configsHtml = render(
+      <SystemStatsDetailPanel
+        activeStat="configs"
+        activeTab="configs"
+        totalConfigs={SAMPLE_FLAGS.length}
+        featureFlags={SAMPLE_FLAGS}
+        configs={SAMPLE_FLAGS}
+        onClose={() => {}}
+        onSelectTab={() => {}}
+        onRefreshHealth={() => {}}
+      />,
+    );
+    assert.doesNotMatch(configsHtml, /AES-256/);
+    assert.doesNotMatch(configsHtml, /Chuyển tới Tab Biến Cấu hình/);
   });
 
   it("ToggleFlagDialog uses unified primary/neutral styling without amber/success/danger clashes", () => {

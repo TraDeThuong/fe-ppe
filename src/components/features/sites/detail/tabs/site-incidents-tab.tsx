@@ -55,6 +55,7 @@ import {
   ReviewIncidentModal,
   getIncidentEvidenceUrl,
 } from "@/components/features/incidents";
+import { IncidentThumbnail } from "@/components/features/incidents/table/incident-thumbnail";
 import { useCameras } from "@/hooks/cameras";
 import {
   useAssignOfficer,
@@ -98,6 +99,24 @@ const SORT_OPTION_MAP: Record<
 
 const SELECT_CLASS =
   "w-full rounded-xl border border-border/40 bg-surface px-2.5 py-1.5 sm:py-2 text-xs font-medium text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:border-black/40 dark:bg-background/60 dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)] transition-colors";
+
+/** Ảnh trong thẻ sự cố: thiếu hoặc tải lỗi thì hiện icon camera, tuyệt đối không thay bằng ảnh mẫu. */
+function SiteIncidentCardImage({ src, alt }: { src: string; alt: string }) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+
+  if (!src || failedSrc === src) {
+    return <Camera className="h-5 w-5 text-muted-foreground/50" />;
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="h-full w-full object-cover"
+      onError={() => setFailedSrc(src)}
+    />
+  );
+}
 
 export function SiteIncidentsTab({
   site,
@@ -528,25 +547,10 @@ export function SiteIncidentsTab({
           const evidenceUrl = getIncidentEvidenceUrl(incident);
           return (
             <div className="flex items-center gap-3 min-w-[210px]">
-              <div className="relative flex h-11 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-slate-950/80 border border-border/40">
-                {evidenceUrl ? (
-                  <img
-                    src={evidenceUrl}
-                    alt={incident.description || incident.violationType}
-                    className="h-full w-full object-cover"
-                    onError={(e) => {
-                      const target = e.currentTarget;
-                      if (!target.src.includes("/images/camera-live-evidence.jpg")) {
-                        target.src = "/images/camera-live-evidence.jpg";
-                      } else {
-                        target.style.display = "none";
-                      }
-                    }}
-                  />
-                ) : (
-                  <Camera className="h-4 w-4 text-muted-foreground/60" />
-                )}
-              </div>
+              <IncidentThumbnail
+                src={evidenceUrl}
+                alt={incident.description || incident.violationType}
+              />
               <div className="min-w-0">
                 <Link
                   href={`/incidents/${incident.id}`}
@@ -1278,23 +1282,10 @@ export function SiteIncidentsTab({
                   >
                     <div className="flex items-start gap-3 min-w-0">
                       <div className="relative h-14 w-20 sm:h-16 sm:w-24 shrink-0 overflow-hidden rounded-xl bg-slate-950/80 border border-border/40 flex items-center justify-center">
-                        {getIncidentEvidenceUrl(incident) ? (
-                          <img
-                            src={getIncidentEvidenceUrl(incident)}
-                            alt={incident.description || incident.violationType}
-                            className="h-full w-full object-cover"
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              if (!target.src.includes("/images/camera-live-evidence.jpg")) {
-                                target.src = "/images/camera-live-evidence.jpg";
-                              } else {
-                                target.style.display = "none";
-                              }
-                            }}
-                          />
-                        ) : (
-                          <Camera className="h-5 w-5 text-muted-foreground/50" />
-                        )}
+                        <SiteIncidentCardImage
+                          src={getIncidentEvidenceUrl(incident)}
+                          alt={incident.description || incident.violationType}
+                        />
                         <AlertTriangle className="pointer-events-none absolute h-5 w-5 text-muted-foreground/40 -z-10" />
                       </div>
 

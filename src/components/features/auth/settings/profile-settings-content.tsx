@@ -147,7 +147,7 @@ export function ProfileSettingsContent() {
 
     updateProfileMutation.mutate({
       fullName: cleanName,
-      phoneNumber: cleanPhone || undefined,
+      phoneNumber: cleanPhone || null,
     });
   };
 
@@ -180,10 +180,12 @@ export function ProfileSettingsContent() {
     .slice(0, 2)
     .toUpperCase();
 
-  const roleLabelKey = ROLE_LABELS[user.role] ?? "roles.USER";
+  const roleLabel = ROLE_LABELS[user.role]
+    ? t(ROLE_LABELS[user.role])
+    : user.role;
   const roleDesc =
-    ROLE_DESCRIPTIONS[user.role]?.[isVietnamese ? "vi" : "en"] ||
-    ROLE_DESCRIPTIONS.USER[isVietnamese ? "vi" : "en"];
+    ROLE_DESCRIPTIONS[user.role]?.[isVietnamese ? "vi" : "en"] ??
+    t("profile.rbac.customRoleDesc");
 
   // Format ngày tạo tài khoản
   let formattedJoinDate = "";
@@ -321,7 +323,7 @@ export function ProfileSettingsContent() {
                 {/* Role Badge */}
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/[0.08] px-3 py-1 text-xs font-semibold text-primary shadow-[inset_1px_1px_2px_rgba(0,0,0,0.05)]">
                   <ShieldCheck className="size-3.5" />
-                  {t(roleLabelKey)}
+                  {roleLabel}
                 </span>
 
                 {/* Verified Email Badge */}
@@ -416,7 +418,7 @@ export function ProfileSettingsContent() {
               "
             >
               <span className="size-1.5 rounded-full bg-primary" />
-              Profile
+              {t("profile.personalInfo.badge")}
             </span>
           </div>
 
@@ -535,7 +537,7 @@ export function ProfileSettingsContent() {
                     }));
                   }
                 }}
-                // placeholder={t("profile.personalInfo.phonePlaceholder")}
+                placeholder={t("profile.personalInfo.phonePlaceholder")}
                 aria-invalid={!!formError.phoneNumber}
                 aria-describedby={
                   formError.phoneNumber
@@ -572,25 +574,12 @@ export function ProfileSettingsContent() {
 
           {/* Email - Read only */}
           <div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <label
-                htmlFor="profile-email"
-                className="text-xs font-semibold text-foreground"
-              >
-                {t("profile.personalInfo.email")}
-              </label>
-
-              <span
-                className="
-                  inline-flex items-center gap-1.5 rounded-full
-                  border border-primary/20 bg-primary/5
-                  px-2.5 py-1 text-[10px] font-semibold
-                  text-primary
-                "
-              >
-                {t("profile.identity.emailVerified")}
-              </span>
-            </div>
+            <label
+              htmlFor="profile-email"
+              className="block text-xs font-semibold text-foreground"
+            >
+              {t("profile.personalInfo.email")}
+            </label>
 
             <div className="relative">
               <Mail
@@ -779,7 +768,7 @@ export function ProfileSettingsContent() {
           </p>
 
           <p className="mt-1.5 text-base font-bold tracking-tight text-primary sm:text-lg">
-            {t(roleLabelKey)}
+            {roleLabel}
           </p>
 
           <p className="mt-2 text-xs leading-[1.8] text-muted-foreground sm:text-sm">
@@ -931,7 +920,7 @@ export function ProfileSettingsContent() {
 
                 {/* Đổi mật khẩu */}
                 <Link
-                  href="/change-password"
+                  href="/settings/security?tab=password"
                   className="group flex items-center justify-between rounded-xl border border-border/30 bg-background p-2.5 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] transition-all hover:-translate-y-0.5"
                 >
                   <div className="flex items-center gap-2.5">

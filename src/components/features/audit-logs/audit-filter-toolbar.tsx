@@ -11,6 +11,8 @@ import {
   type AuditActionCategory,
 } from "./audit-action-dictionary";
 
+export const AUDIT_SEARCH_MAX_LENGTH = 100;
+
 export interface AuditFilterToolbarProps {
   search: string;
   onSearchChange: (value: string) => void;
@@ -24,6 +26,7 @@ export interface AuditFilterToolbarProps {
   onStartDateChange?: (value: string) => void;
   endDate?: string;
   onEndDateChange?: (value: string) => void;
+  isDateRangeInvalid?: boolean;
   totalCount?: number;
   hasActiveFilters?: boolean;
   onResetFilters?: () => void;
@@ -63,6 +66,7 @@ export function AuditFilterToolbar({
   onStartDateChange,
   endDate = "",
   onEndDateChange,
+  isDateRangeInvalid = false,
   totalCount,
   hasActiveFilters = false,
   onResetFilters,
@@ -79,6 +83,9 @@ export function AuditFilterToolbar({
 
   const actionEntries = actionDistribution ? Object.entries(actionDistribution) : [];
   const hasCustomAction = Boolean(action && !KNOWN_ACTION_VALUES.has(action));
+  const rangeErrorProps = isDateRangeInvalid
+    ? { "aria-invalid": true, "aria-describedby": "audit-filter-range-error" }
+    : {};
 
   return (
     <div className="space-y-3">
@@ -89,6 +96,7 @@ export function AuditFilterToolbar({
           <input
             type="text"
             value={search}
+            maxLength={AUDIT_SEARCH_MAX_LENGTH}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={t("audit.toolbar.searchPlaceholder")}
             className="h-9 w-full rounded-xl border border-border/40 bg-surface pl-10 pr-4 text-xs sm:text-sm text-foreground shadow-[inset_2px_2px_4px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.3)] transition-colors"
@@ -197,6 +205,7 @@ export function AuditFilterToolbar({
               onChange={(e) => onStartDateChange(e.target.value)}
               aria-label={t("audit.toolbar.fromDate")}
               title={t("audit.toolbar.fromDate")}
+              {...rangeErrorProps}
               className="min-w-0 flex-1 bg-transparent text-xs text-foreground focus:outline-none"
             />
             <span className="text-xs text-muted-foreground">–</span>
@@ -207,11 +216,18 @@ export function AuditFilterToolbar({
               onChange={(e) => onEndDateChange(e.target.value)}
               aria-label={t("audit.toolbar.toDate")}
               title={t("audit.toolbar.toDate")}
+              {...rangeErrorProps}
               className="min-w-0 flex-1 bg-transparent text-xs text-foreground focus:outline-none"
             />
           </div>
         )}
       </div>
+
+      {isDateRangeInvalid && (
+        <p id="audit-filter-range-error" role="alert" className="text-xs font-medium text-danger">
+          {t("audit.toolbar.invalidRange")}
+        </p>
+      )}
 
       {/* Hàng 3: Dải lọc nhanh theo phân bổ hành động (1 lớp pill gọn, không lồng viền) */}
       {showQuickActionFilters && actionEntries.length > 0 && (

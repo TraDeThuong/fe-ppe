@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   Activity,
+  AlertTriangle,
   Check,
   Copy,
   Edit3,
@@ -20,28 +21,21 @@ import { Input, Switch } from "@/components/ui/form";
 import { useCan } from "@/hooks/use-can";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
-import type {
-  CreateWebhookPayload,
-  CreateWebhookResponseDto,
-  UpdateWebhookPayload,
-  WebhookEndpointDto,
+import {
+  SUPPORTED_WEBHOOK_EVENTS,
+  type CreateWebhookPayload,
+  type CreateWebhookResponseDto,
+  type UpdateWebhookPayload,
+  type WebhookEndpointDto,
 } from "@/types";
 import { WebhookDeliveriesDrawer } from "./webhook-deliveries-drawer";
 
-const SUGGESTED_EVENTS = [
-  "*",
-  "ppe.incident.created",
-  "ppe.incident.assigned",
-  "ppe.incident.resolved",
-  "user.updated",
-  "system.ping",
-  "job.completed",
-  "job.failed",
-];
+export const SUGGESTED_EVENTS: readonly string[] = SUPPORTED_WEBHOOK_EVENTS;
 
 export interface WebhooksTabProps {
   webhooks: WebhookEndpointDto[];
   loading?: boolean;
+  webhooksEnabled?: boolean;
   onCreate: (payload: CreateWebhookPayload) => Promise<CreateWebhookResponseDto>;
   onUpdate: (id: string, payload: UpdateWebhookPayload) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
@@ -53,6 +47,7 @@ export interface WebhooksTabProps {
 export function WebhooksTab({
   webhooks,
   loading = false,
+  webhooksEnabled = true,
   onCreate,
   onUpdate,
   onDelete,
@@ -120,7 +115,7 @@ export function WebhooksTab({
       } else if (modalMode === "edit" && editingItem) {
         await onUpdate(editingItem.id, {
           url: url.trim(),
-          description: description.trim() || undefined,
+          description: description.trim(),
           events: events.length > 0 ? events : ["*"],
           isActive,
           ...(secret.trim() ? { secret: secret.trim() } : {}),
@@ -134,6 +129,7 @@ export function WebhooksTab({
   };
 
   const handleTestPing = async (item: WebhookEndpointDto) => {
+    if (!webhooksEnabled) return;
     try {
       const res = await onTestPing(item.id);
       toast.success(
@@ -171,6 +167,28 @@ export function WebhooksTab({
 
   return (
     <div className="space-y-4">
+      {!webhooksEnabled && (
+        <div
+          role="alert"
+          data-testid="webhooks-disabled-banner"
+          className="flex items-start gap-3 rounded-2xl border border-amber-500/35 bg-amber-500/10 p-4 text-xs shadow-nm-inset"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div className="space-y-1">
+            <p className="font-bold text-amber-800 dark:text-amber-300">
+              {isVi
+                ? "Hạ tầng Webhook hiện đang tạm khóa (feature.webhooks.enabled = OFF)"
+                : "Webhook Dispatching Disabled (feature.webhooks.enabled = OFF)"}
+            </p>
+            <p className="text-muted-foreground">
+              {isVi
+                ? "Quản trị viên đã tắt cờ feature.webhooks.enabled. Hệ thống tạm ngừng gửi callback sự kiện, Test Ping và Retry cho đến khi tính năng được bật lại."
+                : "An administrator has disabled feature.webhooks.enabled. Event callbacks, Test Ping, and delivery retries are paused until re-enabled."}
+            </p>
+          </div>
+        </div>
+      )}
+
       {createdSecret && (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 shadow-nm-inset">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -224,7 +242,13 @@ export function WebhooksTab({
           </p>
         </div>
         {canManage && (
-          <Button variant="primary" size="sm" onClick={openCreate} className="gap-1.5">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={openCreate}
+            disabled={!webhooksEnabled}
+            className="gap-1.5"
+          >
             <Plus className="h-4 w-4" />
             <span>{isVi ? "Thêm Webhook" : "Add Webhook"}</span>
           </Button>
@@ -293,9 +317,16 @@ export function WebhooksTab({
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={mutating}
+                      disabled={mutating || !webhooksEnabled}
                       onClick={() => handleTestPing(item)}
                       className="gap-1.5"
+                      title={
+                        !webhooksEnabled
+                          ? isVi
+                            ? "Tính năng Webhook hiện đang tạm khóa bởi quản trị viên"
+                            : "Webhook feature is currently disabled by administrator"
+                          : undefined
+                      }
                     >
                       <Send className="h-3.5 w-3.5 text-primary" />
                       <span>Test Ping</span>
@@ -455,6 +486,7 @@ export function WebhooksTab({
         onClose={() => setDeliveriesTarget(null)}
         onRetry={onRetryDelivery}
         retrying={mutating}
+        webhooksEnabled={webhooksEnabled}
       />
     </div>
   );

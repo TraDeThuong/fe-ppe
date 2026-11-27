@@ -76,8 +76,8 @@ export function NotificationSectionList({
       >
         <p>
           {isVietnamese
-            ? "Không tải được đầy đủ hộp thư."
-            : "Unable to load the complete inbox."}{" "}
+            ? "Không tải được danh sách thông báo."
+            : "Unable to load notifications."}{" "}
           {error.message}
         </p>
         {onRetry && (

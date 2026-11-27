@@ -6,9 +6,8 @@
 export const notificationKeys = {
   all: ["notifications"] as const,
   lists: () => [...notificationKeys.all, "list"] as const,
-  list: (params?: unknown) => [...notificationKeys.lists(), params] as const,
-  inbox: (userId: string) => [...notificationKeys.lists(), "inbox", "v2", userId] as const,
-  archive: (userId: string) => [...notificationKeys.lists(), "archive", "v2", userId] as const,
+  inbox: (userId: string, archived = false) =>
+    [...notificationKeys.lists(), userId, archived] as const,
   unreadCount: () => [...notificationKeys.all, "unread-count"] as const,
   preferences: () => [...notificationKeys.all, "preferences"] as const,
   templates: (params?: unknown) =>

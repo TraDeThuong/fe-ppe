@@ -105,7 +105,7 @@ export function NotificationBell() {
   });
   const { data: notificationData, isLoading } = useNotifications(
     { limit: 20 },
-    { enabled: open && canReadNotifications, visibility: "active" },
+    { enabled: open && canReadNotifications },
   );
 
   const markAllMutation = useMarkAllAsRead();
@@ -117,11 +117,7 @@ export function NotificationBell() {
       groupNotificationsByPerson(
         notificationData?.data || [],
         undefined,
-        undefined,
-        {
-          isVietnamese,
-          enableVisualDedup: false,
-        },
+        { isVietnamese },
       ),
     [notificationData?.data, isVietnamese],
   );

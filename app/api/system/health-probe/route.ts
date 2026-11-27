@@ -55,6 +55,18 @@ function classifyFetchError(error: unknown): {
 }
 
 export async function GET(req: NextRequest) {
+  const hasAuthCookie = Boolean(
+    req.cookies.get("accessToken")?.value ||
+      req.cookies.get("refreshToken")?.value,
+  );
+  const hasAuthHeader = Boolean(req.headers.get("authorization")?.trim());
+  if (!hasAuthCookie && !hasAuthHeader) {
+    return NextResponse.json(
+      { ok: false, reason: "Unauthorized" },
+      { status: 401 },
+    );
+  }
+
   const targetParam = req.nextUrl.searchParams.get("target");
   if (
     targetParam !== "ai" &&

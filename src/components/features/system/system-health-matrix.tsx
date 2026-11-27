@@ -6,7 +6,6 @@ import {
   Activity,
   CheckCircle2,
   Clock,
-  Filter,
   Search,
   Server,
   XCircle,
@@ -47,7 +46,6 @@ export function SystemHealthMatrix({
   // Filter states
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<"ALL" | "SERVICE" | "INFRASTRUCTURE">("ALL");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "HEALTHY" | "DEGRADED" | "DOWN">("ALL");
   const [sorting, setSorting] = useState<SortingState>([
     { id: "status", desc: false },
   ]);
@@ -55,19 +53,17 @@ export function SystemHealthMatrix({
   const filteredServices = useMemo(() => {
     const list = rawServices.filter((svc) => {
       const matchesType = typeFilter === "ALL" || (svc.type || "SERVICE") === typeFilter;
-      const matchesStatus = statusFilter === "ALL" || svc.status === statusFilter;
       const matchesSearch =
         !search.trim() ||
         svc.name.toLowerCase().includes(search.toLowerCase()) ||
         svc.serviceCode.toLowerCase().includes(search.toLowerCase()) ||
         String(svc.port).includes(search);
 
-      return matchesType && matchesStatus && matchesSearch;
+      return matchesType && matchesSearch;
     });
 
-
     return list;
-  }, [rawServices, typeFilter, statusFilter, search]);
+  }, [rawServices, typeFilter, search]);
 
   const getStatusBadge = (status: "HEALTHY" | "DEGRADED" | "DOWN") => {
     switch (status) {
@@ -236,7 +232,7 @@ export function SystemHealthMatrix({
 
       },
     ];
-  }, [t]);
+  }, [t, locale]);
 
   return (
     <div className="space-y-4">

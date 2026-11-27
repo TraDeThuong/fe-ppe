@@ -1,52 +1,32 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Archive, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RecessedDialog } from "@/components/ui/modal";
 import { useNotificationArchiveActions } from "@/hooks/notifications/use-notification-archive";
-import { useNotifications } from "@/hooks/notifications/use-notifications";
-import { NotificationArchiveInboxUnavailable } from "@/lib/notification-archive";
-import { isNotificationRead } from "@/lib/notification-inbox";
+import type { useNotifications } from "@/hooks/notifications/use-notifications";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
-import type { NotificationItemDto } from "@/types";
 import { NotificationDetailPanel } from "./notification-detail-panel";
 import { NotificationList } from "./notification-list";
 import { NotificationSkeleton } from "./notification-skeleton";
 
-function archiveErrorKey(error: unknown) {
-  return error instanceof NotificationArchiveInboxUnavailable
-    ? "notifications.archive.inboxError"
-    : "notifications.archive.storageError";
-}
-
-export function NotificationArchiveButton({ items, inboxReady }: {
-  items: readonly NotificationItemDto[] | undefined;
-  inboxReady: boolean;
-}) {
+export function NotificationArchiveButton() {
   const { t, number } = useLocale();
   const { move } = useNotificationArchiveActions();
-  const [confirmedIds, setConfirmedIds] = useState<ReadonlySet<string> | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [errorKey, setErrorKey] = useState<string>();
-  const readIds = useMemo(() => new Set(items?.filter((item) =>
-    isNotificationRead(item) && !item.unreadIds?.length).map((item) => item.id)), [items]);
-  const ready = inboxReady && !submitting;
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   const handleConfirm = async () => {
-    if (!confirmedIds || submitting) return;
-    setSubmitting(true);
-    setErrorKey(undefined);
+    setHasError(false);
     try {
-      const count = await move({ type: "manual", ids: confirmedIds });
-      setConfirmedIds(null);
+      const count = await move({ type: "manual" });
+      setConfirmOpen(false);
       toast.success(t("notifications.archive.done", { count: number.format(count) }));
-    } catch (error) {
-      setErrorKey(archiveErrorKey(error));
-    } finally {
-      setSubmitting(false);
+    } catch {
+      setHasError(true);
     }
   };
 
@@ -56,60 +36,53 @@ export function NotificationArchiveButton({ items, inboxReady }: {
         type="button"
         variant="outline"
         size="sm"
-        disabled={!ready || readIds.size === 0}
-        onClick={() => { setConfirmedIds(readIds); setErrorKey(undefined); }}
+        onClick={() => { setConfirmOpen(true); setHasError(false); }}
         className="gap-1.5 border-border/40 text-xs font-semibold"
       >
         <Archive className="size-3.5 text-primary" aria-hidden="true" />
         {t("notifications.archive.cleanRead")}
       </Button>
       <ConfirmDialog
-        open={confirmedIds !== null}
-        onClose={() => setConfirmedIds(null)}
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
         onConfirm={handleConfirm}
         variant="default"
         icon={<Archive className="size-5" aria-hidden="true" />}
         title={t("notifications.archive.cleanRead")}
-        description={t("notifications.archive.confirm", { count: number.format(confirmedIds?.size ?? 0) })}
+        description={t("notifications.archive.confirm")}
         confirmText={t("notifications.archive.move")}
-        disabled={!ready}
       >
-        {errorKey && <p role="alert" className="text-sm text-danger">{t(errorKey)}</p>}
-        {!inboxReady && <p role="status" className="text-sm text-muted-foreground">{t("notifications.archive.inboxError")}</p>}
+        {hasError && <p role="alert" className="text-sm text-danger">{t("notifications.archive.storageError")}</p>}
       </ConfirmDialog>
     </>
   );
 }
 
-export function NotificationArchiveTab() {
+export function NotificationArchiveTab({ query, onPageChange, onLimitChange, hasActiveFilters, onResetFilters }: {
+  query: ReturnType<typeof useNotifications>;
+  onPageChange: (page: number) => void;
+  onLimitChange: (limit: number) => void;
+  hasActiveFilters: boolean;
+  onResetFilters: () => void;
+}) {
   const { t } = useLocale();
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
-  const [errorKey, setErrorKey] = useState<string>();
-  const params = useMemo(() => ({ page, limit }), [page, limit]);
-  const query = useNotifications(params, { visibility: "archived" });
+  const [hasError, setHasError] = useState(false);
   const { move } = useNotificationArchiveActions();
   const selected = query.data?.data.find((item) => item.id === selectedId);
-  const currentPage = query.data?.meta.page;
-  const showList = !query.isLoading && Boolean(query.error || query.data?.meta.total);
-  const showEmpty = query.isSuccess && query.data?.meta.total === 0;
-
-  useEffect(() => {
-    if (currentPage !== undefined && currentPage !== page) setPage(currentPage);
-  }, [currentPage, page]);
+  const showEmpty = !hasActiveFilters && query.isSuccess && query.data.meta.total === 0;
 
   const restore = async () => {
     if (!selected || restoring) return;
     setRestoring(true);
-    setErrorKey(undefined);
+    setHasError(false);
     try {
       const count = await move({ type: "restore", id: selected.id });
       setSelectedId(null);
       if (count) toast.success(t("notifications.archive.restored"));
-    } catch (error) {
-      setErrorKey(archiveErrorKey(error));
+    } catch {
+      setHasError(true);
     } finally {
       setRestoring(false);
     }
@@ -122,12 +95,13 @@ export function NotificationArchiveTab() {
       {showEmpty && (
         <p className="rounded-2xl border border-border/40 bg-surface p-5 text-sm text-muted-foreground">{t("notifications.archive.empty")}</p>
       )}
-      {showList && (
+      {!query.isLoading && !showEmpty && (
         <NotificationList
           items={query.data?.data ?? []} {...query.data?.meta} error={query.error}
           onRetry={() => void query.refetch()}
-          onPageChange={setPage} onLimitChange={(nextLimit) => { setLimit(nextLimit); setPage(1); }}
-          onSelect={(item) => { setSelectedId(item.id); setErrorKey(undefined); }}
+          onPageChange={onPageChange} onLimitChange={onLimitChange}
+          hasActiveFilters={hasActiveFilters} onResetFilters={onResetFilters}
+          onSelect={(item) => { setSelectedId(item.id); setHasError(false); }}
         />
       )}
       <RecessedDialog
@@ -142,7 +116,7 @@ export function NotificationArchiveTab() {
           </Button>
         )}
       >
-        {errorKey && <p role="alert" className="text-sm text-danger">{t(errorKey)}</p>}
+        {hasError && <p role="alert" className="text-sm text-danger">{t("notifications.archive.storageError")}</p>}
         {selected && <NotificationDetailPanel notification={selected} />}
       </RecessedDialog>
     </section>

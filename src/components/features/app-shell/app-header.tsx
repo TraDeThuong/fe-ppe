@@ -1,16 +1,13 @@
 "use client";
 
-import { useState } from "react";
 import { useLocale } from "@/providers/locale-provider";
 import { ThemeToggle } from "@ui/theme-toggle";
 import { EnglishFlag, VietnamFlag } from "@ui/flag-icons";
-import { Menu } from "lucide-react";
 
 import { NotificationBell } from "./notification-bell";
 import { SiteSelector } from "./site-selector";
 import { UserMenu } from "./user-menu";
-import { MobileHeaderSettings } from "./mobile-header-settings";
-import { MobileSidebar } from "./mobile-sidebar";
+import { MobileTopBar } from "./mobile-top-bar";
 
 const headerActionClass =
   "relative z-10 flex h-9 shrink-0 items-center justify-center " +
@@ -24,23 +21,26 @@ export interface AppHeaderProps {
 }
 
 export function AppHeader({ maintenanceLocked = false }: AppHeaderProps = {}) {
-  const { t, locale, setLocale } = useLocale();
-
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { locale, setLocale } = useLocale();
 
   const isVietnamese = locale === "vi-VN";
 
   return (
     <header className="sticky top-0 z-30 shrink-0 isolate">
+      {/* Mobile (< 768px): thanh đầu trang gọn — điều hướng nằm ở tab đáy (MobileTabBar) */}
+      <div className="md:hidden">
+        <MobileTopBar maintenanceLocked={maintenanceLocked} />
+      </div>
+
       {/* Ambient background */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-24
           bg-[radial-gradient(ellipse_at_50%_0%,color-mix(in_srgb,var(--shadow-light)_30%,transparent),transparent_72%)]
-          opacity-80"
+          opacity-80 max-md:hidden"
       />
 
-      <div className="relative px-2 pt-2 sm:px-5 sm:pt-4 lg:px-7">
+      <div className="relative px-2 pt-2 max-md:hidden sm:px-5 sm:pt-4 lg:px-7">
         {/* OUTER CONVEX SHELL */}
         <div
           className="
@@ -104,43 +104,6 @@ export function AppHeader({ maintenanceLocked = false }: AppHeaderProps = {}) {
               "
             />
 
-            {/* Mobile hamburger: nằm trong Header, trước SiteSelector */}
-            <button
-              type="button"
-              aria-label={
-                mobileMenuOpen
-                  ? isVietnamese
-                    ? "Đóng menu điều hướng"
-                    : "Close navigation menu"
-                  : isVietnamese
-                    ? "Mở menu điều hướng"
-                    : "Open navigation menu"
-              }
-              aria-expanded={mobileMenuOpen}
-              aria-controls="mobile-navigation"
-              onClick={() => setMobileMenuOpen((previous) => !previous)}
-              className="
-                relative z-20 flex h-10 w-10 shrink-0 items-center justify-center
-                rounded-xl border
-                border-[color-mix(in_srgb,var(--shadow-light)_35%,transparent)]
-                bg-background text-muted-foreground
-                shadow-[2px_2px_5px_color-mix(in_srgb,var(--shadow-dark)_20%,transparent),-2px_-2px_5px_color-mix(in_srgb,var(--shadow-light)_70%,transparent)]
-                transition-all duration-200
-                hover:text-primary
-                active:shadow-[inset_2px_2px_4px_color-mix(in_srgb,var(--shadow-dark)_25%,transparent)]
-                focus-visible:outline-none focus-visible:ring-2
-                focus-visible:ring-primary/50
-                md:hidden
-              "
-            >
-              <Menu
-                aria-hidden="true"
-                className={`h-5 w-5 transition-transform duration-200 ${
-                  mobileMenuOpen ? "rotate-90" : ""
-                }`}
-              />
-            </button>
-
             {/* Site selector */}
             {!maintenanceLocked && (
               <div className="relative z-10 min-w-0 max-w-[45%] sm:max-w-none">
@@ -200,9 +163,6 @@ export function AppHeader({ maintenanceLocked = false }: AppHeaderProps = {}) {
               <span>{isVietnamese ? "VI" : "EN"}</span>
             </button>
 
-            {/* Mobile: theme + language settings */}
-            <MobileHeaderSettings />
-
             {/* Sculpted separator */}
             <div
               aria-hidden="true"
@@ -221,15 +181,8 @@ export function AppHeader({ maintenanceLocked = false }: AppHeaderProps = {}) {
         </div>
       </div>
 
-      {/* Mobile drawer */}
-      <MobileSidebar
-        open={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-        maintenanceLocked={maintenanceLocked}
-      />
-
       {/* Sculpted transition below header */}
-      <div aria-hidden="true" className="relative h-3 sm:h-5">
+      <div aria-hidden="true" className="relative h-3 max-md:hidden sm:h-5">
         <div
           className="absolute inset-x-8 top-0 h-px
             bg-[linear-gradient(to_right,transparent,color-mix(in_srgb,var(--shadow-dark)_20%,transparent),transparent)]"

@@ -484,9 +484,10 @@ with sync_playwright() as p:
         assert edit.evaluate('(dialog) => dialog.scrollWidth <= dialog.clientWidth')
         page.screenshot(path=str(artifacts / 'mobile-dialog.png'), full_page=True)
         page.keyboard.press('Escape')
-        menu = page.get_by_role('button', name='Open navigation menu', exact=True)
+        # Mobile: menu ☰ đã thay bằng tab đáy — trang Tác vụ định kỳ nằm trong tab "More"
+        menu = page.locator('[data-mobile-tab="more"]')
         menu.click()
-        expect(page.locator('nav[aria-label="Mobile main navigation"] a[href="/scheduled-tasks"]')).to_be_visible()
+        expect(page.locator('#mobile-more-sheet a[href="/scheduled-tasks"]')).to_be_visible()
         assert not errors, errors
         context.close()
         print('PASS: English, dark theme, 390px layout, mobile modal and navigation')

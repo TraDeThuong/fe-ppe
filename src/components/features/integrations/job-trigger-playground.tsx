@@ -12,6 +12,79 @@ import type {
   TriggerDemoJobResponseDto,
 } from "@/types";
 
+export const MAX_JOB_DATA_KEYS = 50;
+export const MAX_JOB_STRING_LENGTH = 1000;
+
+/**
+ * Xác thực dữ liệu JSON phẳng khớp với triggerJobSchema trên smart-ppe-identity-service:
+ * - Object phẳng (không chứa nested object hoặc array)
+ * - Tối đa 50 trường (keys)
+ * - Giá trị chỉ gồm string (<= 1000 ký tự), number hữu hạn, boolean hoặc null
+ */
+export function parseAndValidateFlatJobData(
+  rawJson: string,
+  isVi = true,
+): Record<string, string | number | boolean | null> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson.trim() ? rawJson : "{}");
+  } catch {
+    throw new Error(
+      isVi ? "JSON payload không hợp lệ" : "Invalid JSON payload",
+    );
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(
+      isVi
+        ? "Payload phải là một đối tượng JSON phẳng"
+        : "Payload must be a flat JSON object",
+    );
+  }
+
+  const entries = Object.entries(parsed as Record<string, unknown>);
+  if (entries.length > MAX_JOB_DATA_KEYS) {
+    throw new Error(
+      isVi
+        ? `Payload không được vượt quá ${MAX_JOB_DATA_KEYS} trường (hiện có ${entries.length} trường)`
+        : `Job data payload cannot exceed ${MAX_JOB_DATA_KEYS} fields`,
+    );
+  }
+
+  const validated: Record<string, string | number | boolean | null> = {};
+  for (const [key, value] of entries) {
+    if (value === null || typeof value === "boolean") {
+      validated[key] = value;
+    } else if (typeof value === "number") {
+      if (!Number.isFinite(value)) {
+        throw new Error(
+          isVi
+            ? `Trường "${key}" có giá trị số không hợp lệ`
+            : `Field "${key}" must be a finite number`,
+        );
+      }
+      validated[key] = value;
+    } else if (typeof value === "string") {
+      if (value.length > MAX_JOB_STRING_LENGTH) {
+        throw new Error(
+          isVi
+            ? `Trường "${key}" vượt quá ${MAX_JOB_STRING_LENGTH} ký tự tối đa`
+            : `Field "${key}" cannot exceed ${MAX_JOB_STRING_LENGTH} characters`,
+        );
+      }
+      validated[key] = value;
+    } else {
+      throw new Error(
+        isVi
+          ? `Trường "${key}" không hợp lệ: chỉ cho phép giá trị nguyên thủy (string, number, boolean, null)`
+          : `Field "${key}" must be a primitive value (string, number, boolean, or null)`,
+      );
+    }
+  }
+
+  return validated;
+}
+
 export interface JobTriggerPlaygroundProps {
   onTrigger: (
     apiKey: string,
@@ -42,13 +115,19 @@ export function JobTriggerPlayground({
       return;
     }
 
+    const trimmedTask = taskName.trim();
+    if (!trimmedTask || trimmedTask.length > 50 || !/^[a-zA-Z0-9_-]+$/.test(trimmedTask)) {
+      toast.error(
+        isVi
+          ? "Tên tác vụ chỉ gồm chữ, số, gạch dưới, gạch ngang (tối đa 50 ký tự)"
+          : "Task name can only contain letters, numbers, underscores and hyphens (max 50 chars)",
+      );
+      return;
+    }
+
     let parsedData: Record<string, string | number | boolean | null> = {};
     try {
-      const parsed = JSON.parse(dataJson || "{}");
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("Payload must be a flat JSON object");
-      }
-      parsedData = parsed;
+      parsedData = parseAndValidateFlatJobData(dataJson || "{}", isVi);
     } catch (err) {
       toast.error(
         err instanceof Error

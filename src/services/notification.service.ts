@@ -115,6 +115,7 @@ export const notificationService = {
       Array.isArray((res as NotificationListResponse).data)
     ) {
       const typed = res as NotificationListResponse;
+      if (options?.strictPagination && !typed.meta) throw new Error("Thiếu metadata phân trang hộp thư.");
       return {
         ...typed,
         data: typed.data.map(sanitizeNotificationItem),

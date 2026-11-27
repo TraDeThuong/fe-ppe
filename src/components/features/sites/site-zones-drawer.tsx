@@ -9,20 +9,33 @@ import { RestrictedAreaPanel } from "./restricted-area-panel";
 import { useLocale } from "@/providers/locale-provider";
 import type { SiteItem } from "@/types";
 
+export type SiteZonesTab = "zones" | "restricted";
+
 export interface SiteZonesDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   site: SiteItem | null;
+  /** Tab hiển thị mỗi lần mở drawer (mặc định: phân khu). */
+  initialTab?: SiteZonesTab;
 }
 
 export function SiteZonesDrawer({
   open,
   onOpenChange,
   site,
+  initialTab = "zones",
 }: SiteZonesDrawerProps) {
   const { t } = useLocale();
 
-  const [activeTab, setActiveTab] = useState<"zones" | "restricted">("zones");
+  const [activeTab, setActiveTab] = useState<SiteZonesTab>(initialTab);
+
+  // Mỗi lần drawer mở lại thì chuyển về đúng tab được yêu cầu. Cập nhật ngay trong lúc render
+  // (không dùng useEffect) để không mount nhầm panel kia rồi mới đổi tab.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) setActiveTab(initialTab);
+  }
 
   if (!site) return null;
 

@@ -56,8 +56,33 @@ export function CreateConfigModal({
     e.preventDefault();
     setError(null);
 
-    if (!key.trim()) {
+    const trimmedKey = key.trim();
+    if (!trimmedKey) {
       setError(isVietnamese ? "Vui lòng nhập khóa cấu hình (Key)." : "Please enter config key.");
+      return;
+    }
+    if (trimmedKey.length < 2 || trimmedKey.length > 100) {
+      setError(
+        isVietnamese
+          ? "Khóa cấu hình (Key) phải có độ dài từ 2 đến 100 ký tự."
+          : "Config key must be between 2 and 100 characters.",
+      );
+      return;
+    }
+    if (!/^[a-z0-9_.-]+$/i.test(trimmedKey)) {
+      setError(
+        isVietnamese
+          ? "Khóa cấu hình chỉ được chứa chữ cái, chữ số, dấu chấm (.), gạch nối (-) và gạch dưới (_)."
+          : "Config key may only contain letters, numbers, dots (.), hyphens (-), and underscores (_).",
+      );
+      return;
+    }
+    if (description.trim().length > 255) {
+      setError(
+        isVietnamese
+          ? "Mô tả không được vượt quá 255 ký tự."
+          : "Description must not exceed 255 characters.",
+      );
       return;
     }
 
@@ -152,6 +177,8 @@ export function CreateConfigModal({
           <input
             type="text"
             required
+            minLength={2}
+            maxLength={100}
             value={key}
             onChange={(e) => setKey(e.target.value)}
             placeholder={isVietnamese ? "ví dụ: app.maintenance_mode" : "e.g.: app.maintenance_mode"}
@@ -228,6 +255,7 @@ export function CreateConfigModal({
           </label>
           <input
             type="text"
+            maxLength={255}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder={isVietnamese ? "Mô tả mục đích cấu hình..." : "Describe config purpose..."}

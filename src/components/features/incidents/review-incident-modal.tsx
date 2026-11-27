@@ -13,6 +13,8 @@ export interface ReviewIncidentModalProps {
   incident: IncidentItem | null;
   onSubmit: (id: string, payload: ReviewIncidentPayload) => Promise<void>;
   loading?: boolean;
+  /** Quyết định chọn sẵn khi mở (mobile: nút "Bác bỏ" mở modal ở chế độ bác bỏ) */
+  initialDecision?: "CONFIRMED" | "DISMISSED";
 }
 
 export function ReviewIncidentModal({
@@ -21,6 +23,7 @@ export function ReviewIncidentModal({
   incident,
   onSubmit,
   loading = false,
+  initialDecision = "CONFIRMED",
 }: ReviewIncidentModalProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -33,12 +36,12 @@ export function ReviewIncidentModal({
   // Reset form mỗi khi mở modal hoặc chuyển sang sự cố khác để tránh rò rỉ dữ liệu cũ
   useEffect(() => {
     if (open) {
-      setDecision("CONFIRMED");
+      setDecision(initialDecision);
       setReason("");
       setNotes("");
       setError(null);
     }
-  }, [open, incident?.id]);
+  }, [open, incident?.id, initialDecision]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

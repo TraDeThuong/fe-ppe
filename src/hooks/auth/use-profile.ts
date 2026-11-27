@@ -41,7 +41,9 @@ export function useUpdateProfile(
           fullName: variables.fullName !== undefined ? variables.fullName : auth.user.fullName,
           avatarUrl: variables.avatarUrl !== undefined ? variables.avatarUrl : auth.user.avatarUrl,
           phoneNumber:
-            variables.phoneNumber !== undefined ? variables.phoneNumber : auth.user.phoneNumber,
+            variables.phoneNumber !== undefined
+              ? variables.phoneNumber || null
+              : auth.user.phoneNumber,
         });
       }
 

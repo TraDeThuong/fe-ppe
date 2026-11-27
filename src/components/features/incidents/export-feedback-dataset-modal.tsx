@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Database, Download } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { AlertTriangle, Database, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
+import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
-import { incidentService } from "@/services/incident.service";
+import { FEEDBACK_EXPORT_MAX_SAMPLES, incidentService } from "@/services/incident.service";
 import type {
   FeedbackDatasetItem,
   FeedbackDatasetLabel,
@@ -114,19 +116,41 @@ export function ExportFeedbackDatasetModal({
   const [format, setFormat] = useState<"csv" | "json">("csv");
   const [exporting, setExporting] = useState(false);
 
+  // Dùng chung một bộ lọc cho bước đếm trước và lúc xuất, để con số cảnh báo khớp tệp tải về.
+  const exportScope = {
+    siteId: siteId || undefined,
+    cameraId: cameraId || undefined,
+    cameraIds,
+    violationType: violationType || undefined,
+    label: labelFilter || undefined,
+    fromDate: fromDate || undefined,
+    toDate: toDate || undefined,
+  };
+
+  // Đếm trước (limit=1) để cảnh báo TRƯỚC khi tải. Đếm lỗi thì im lặng, vẫn xuất bình thường.
+  const matchedCountQuery = useQuery({
+    queryKey: incidentKeys.feedbackDatasetCount(exportScope),
+    queryFn: async ({ signal }) => {
+      const { meta } = await incidentService.getFeedbackDataset(
+        { ...exportScope, page: 1, limit: 1 },
+        { signal, suppressToast: true },
+      );
+      return meta?.total ?? 0;
+    },
+    enabled: open,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+    meta: { suppressErrorToast: true },
+  });
+  const matchedTotal = matchedCountQuery.data ?? 0;
+  const exceedsExportCap = matchedTotal > FEEDBACK_EXPORT_MAX_SAMPLES;
+
   const handleExport = async (e: React.FormEvent) => {
     e.preventDefault();
     setExporting(true);
     try {
-      const { items, total } = await incidentService.exportFeedbackDatasetAll({
-        siteId: siteId || undefined,
-        cameraId: cameraId || undefined,
-        cameraIds,
-        violationType: violationType || undefined,
-        label: labelFilter || undefined,
-        fromDate: fromDate || undefined,
-        toDate: toDate || undefined,
-      });
+      const { items, total } = await incidentService.exportFeedbackDatasetAll(exportScope);
 
       if (items.length === 0) {
         toast.info(
@@ -254,6 +278,20 @@ export function ExportFeedbackDatasetModal({
             ? "Tự động kế thừa bộ lọc phạm vi đang chọn trên trang (Công trường, Phân khu/Camera, Loại vi phạm, Khoảng thời gian)."
             : "Automatically inherits active page filters (Site, Zone/Camera, Violation Type, Time Range)."}
         </p>
+
+        {exceedsExportCap && (
+          <p
+            role="status"
+            className="flex items-start gap-2 rounded-xl border border-warning/35 bg-warning/6 p-2.5 text-[11px] font-semibold text-foreground"
+          >
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
+            <span>
+              {isVietnamese
+                ? `Bộ lọc hiện khớp ${matchedTotal.toLocaleString(locale)} mẫu. Tệp chỉ gồm ${FEEDBACK_EXPORT_MAX_SAMPLES.toLocaleString(locale)} mẫu mới nhất. Hãy thu hẹp bộ lọc thời gian ở đầu trang.`
+                : `The current filters match ${matchedTotal.toLocaleString(locale)} samples. The file will only include the newest ${FEEDBACK_EXPORT_MAX_SAMPLES.toLocaleString(locale)}. Narrow the time filter at the top of the page.`}
+            </span>
+          </p>
+        )}
 
         <div className="flex items-center justify-end gap-2.5 pt-1">
           <Button

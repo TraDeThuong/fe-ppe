@@ -15,6 +15,7 @@ import {
   type IncidentViewMode,
 } from "@/components/features/incidents";
 import { IncidentDispatchResultPanel } from "@/components/features/incidents/incident-dispatch-result-panel";
+import { IncidentMobileView } from "@/components/features/incidents/mobile";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useSite } from "@/contexts/SiteContext";
@@ -32,6 +33,7 @@ import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
 import { useCan } from "@/hooks/use-can";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useIsDesktop } from "@/hooks/use-media-query";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useTableState } from "@/hooks/use-table-state";
 import { vietnamToday } from "@/lib/dashboard-data";
@@ -82,6 +84,8 @@ export default function IncidentsContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  // Chỉ render một bản theo khổ màn hình (nội dung luôn hiện sau khi xác thực xong ở client nên không bị nháy)
+  const isDesktop = useIsDesktop();
   const { siteId: globalSiteId, setSiteId: setGlobalSiteId } = useSite();
   const { cameras, getSiteName, camerasLoading, camerasError, refetchCameras } = useEntityLookup();
   const { user, status: authStatus } = useAuth();
@@ -520,68 +524,98 @@ export default function IncidentsContent() {
   });
   const { dispatchResult, setDispatchResult } = batchActions;
 
+  // Bộ xử lý bộ lọc dùng chung cho bản desktop (IncidentListControlCard) và mobile (IncidentMobileView)
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    setPage(1);
+  };
+
+  const handleCameraFilterChange = (val: string) => {
+    setCameraIdFilter(val);
+    setPage(1);
+    const params = listSearchParams();
+    if (val) params.set("cameraId", val);
+    else params.delete("cameraId");
+    const q = params.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  };
+
+  const handleSeverityFilterChange = (val: string) => {
+    setSeverityFilter(val);
+    setPage(1);
+  };
+
+  const handleViolationFilterChange = (val: string) => {
+    setViolationFilter(val);
+    setPage(1);
+  };
+
+  const handleAssignedToMeChange = (val: boolean) => {
+    setAssignedToMeFilter(val);
+    setPage(1);
+    const params = listSearchParams();
+    if (val) params.set("assignedToMe", "true");
+    else params.delete("assignedToMe");
+    const q = params.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  };
+
+  const handleResetFilters = () => {
+    setPage(1);
+    setSearch("");
+    setSeverityFilter("");
+    setViolationFilter("");
+    setZoneIdFilter("");
+    setCameraIdFilter("");
+    setSiteIdFilter("");
+    setAssignedToMeFilter(false);
+    setGlobalSiteId(null);
+    setPeriodFilter(createDefaultIncidentPeriodFilter(today));
+    const params = new URLSearchParams({ scope, siteId: "" });
+    if (scope === "work" && listStatus) params.set("status", listStatus);
+    if (urlView) params.set("view", urlView);
+    router.replace(`${pathname}?${params}`, { scroll: false });
+  };
+
+  /** Mobile: "Đặt lại" trong sheet Bộ lọc — giữ nguyên công trường (chọn ở thanh đầu trang) và hàng trạng thái. */
+  const handleResetMobileSheetFilters = () => {
+    setPage(1);
+    setSeverityFilter("");
+    setViolationFilter("");
+    setZoneIdFilter("");
+    setCameraIdFilter("");
+    setAssignedToMeFilter(false);
+    setPeriodFilter(createDefaultIncidentPeriodFilter(today));
+    const params = listSearchParams();
+    for (const key of ["zoneId", "cameraId", "assignedToMe", "period", "fromDate", "toDate", "stat"]) {
+      params.delete(key);
+    }
+    if (scope === "work" && listStatus && listStatus !== "CLOSED") params.set("status", listStatus);
+    router.replace(`${pathname}?${params}`, { scroll: false });
+  };
+
   const renderListControls = (quickSelect: ReactNode) => (
     <IncidentListControlCard
       scope={scope}
       queue={listStatus}
       onScopeChange={changeListScope}
       search={search}
-      onSearchChange={(val) => {
-        setSearch(val);
-        setPage(1);
-      }}
+      onSearchChange={handleSearchChange}
       siteFilter={siteIdFilter}
       onSiteFilterChange={handleSiteFilterChange}
       zoneFilter={zoneIdFilter}
       onZoneFilterChange={handleZoneFilterChange}
       cameraIdFilter={cameraIdFilter}
-      onCameraIdFilterChange={(val) => {
-        setCameraIdFilter(val);
-        setPage(1);
-        const params = listSearchParams();
-        if (val) params.set("cameraId", val);
-        else params.delete("cameraId");
-        const q = params.toString();
-        router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-      }}
+      onCameraIdFilterChange={handleCameraFilterChange}
       severityFilter={severityFilter}
-      onSeverityFilterChange={(val) => {
-        setSeverityFilter(val);
-        setPage(1);
-      }}
+      onSeverityFilterChange={handleSeverityFilterChange}
       violationFilter={violationFilter}
-      onViolationFilterChange={(val) => {
-        setViolationFilter(val);
-        setPage(1);
-      }}
+      onViolationFilterChange={handleViolationFilterChange}
       assignedToMe={assignedToMeFilter}
-      onAssignedToMeChange={(val) => {
-        setAssignedToMeFilter(val);
-        setPage(1);
-        const params = listSearchParams();
-        if (val) params.set("assignedToMe", "true");
-        else params.delete("assignedToMe");
-        const q = params.toString();
-        router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-      }}
+      onAssignedToMeChange={handleAssignedToMeChange}
       onRefresh={handleRefreshAll}
       isRefreshing={isRefreshingAll}
-      onResetFilters={() => {
-        setPage(1);
-        setSearch("");
-        setSeverityFilter("");
-        setViolationFilter("");
-        setZoneIdFilter("");
-        setCameraIdFilter("");
-        setSiteIdFilter("");
-        setAssignedToMeFilter(false);
-        setGlobalSiteId(null);
-        setPeriodFilter(createDefaultIncidentPeriodFilter(today));
-        const params = new URLSearchParams({ scope, siteId: "" });
-        if (scope === "work" && listStatus) params.set("status", listStatus);
-        if (urlView) params.set("view", urlView);
-        router.replace(`${pathname}?${params}`, { scroll: false });
-      }}
+      onResetFilters={handleResetFilters}
     >
       {quickSelect}
     </IncidentListControlCard>
@@ -630,6 +664,51 @@ export default function IncidentsContent() {
         />
       )}
 
+      {/* Mobile (< 768px): chip trạng thái · tìm kiếm + Lọc · danh sách thẻ */}
+      {!isDesktop && (
+      <div className="md:hidden">
+        <IncidentMobileView
+          scope={scope}
+          queue={listStatus}
+          onScopeChange={changeListScope}
+          statusCounts={statusCounts}
+          isOfficer={isOfficerRole}
+          search={search}
+          onSearchChange={handleSearchChange}
+          today={today}
+          filterValues={{
+            periodFilter,
+            siteFilter: siteIdFilter,
+            zoneFilter: zoneIdFilter,
+            cameraIdFilter,
+            severityFilter,
+            violationFilter,
+            assignedToMe: assignedToMeFilter,
+          }}
+          filterHandlers={{
+            onPeriodFilterChange: handlePeriodFilterChange,
+            onZoneFilterChange: handleZoneFilterChange,
+            onCameraIdFilterChange: handleCameraFilterChange,
+            onSeverityFilterChange: handleSeverityFilterChange,
+            onViolationFilterChange: handleViolationFilterChange,
+            onAssignedToMeChange: handleAssignedToMeChange,
+            onReset: handleResetMobileSheetFilters,
+          }}
+          incidents={incidents}
+          loading={isListLoading}
+          error={zoneError || error}
+          onRetry={handleRefreshAll}
+          highlightedId={highlightedIncidentId}
+          page={page}
+          totalPages={lastPage}
+          onPageChange={setPage}
+        />
+      </div>
+      )}
+
+      {/* Desktop (≥ 768px): giữ nguyên */}
+      {isDesktop && (
+      <div className="hidden space-y-5 md:block">
       <IncidentConsoleHeader
         isConnected={isConnected}
         isRefreshing={isLoading || isRefreshingAll}
@@ -789,6 +868,8 @@ export default function IncidentsContent() {
           }}
         />
       </div>
+      </div>
+      )}
 
       <IncidentActionModals
         selectedIncident={selectedIncident}

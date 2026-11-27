@@ -146,11 +146,13 @@ export function RoleAuditTab({ role }: RoleAuditTabProps) {
             items={logs}
             onSelectRecord={handleSelectRecord}
             loading={isLoading}
-            page={page}
-            totalPages={meta.totalPages}
-            total={meta.total}
-            limit={meta.limit}
-            onPageChange={setPage}
+            pagination={{
+              page,
+              limit: meta.limit,
+              total: meta.total,
+              totalPages: meta.totalPages,
+              onPageChange: setPage,
+            }}
           />
         </div>
       )}

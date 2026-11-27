@@ -6,7 +6,6 @@ import {
   CheckCheck,
   Clock,
   Filter,
-  Image as ImageIcon,
   List,
   Loader2,
   RefreshCw,
@@ -41,11 +40,6 @@ export interface NotificationFilterToolbarProps {
   isRefreshing?: boolean;
   viewMode?: NotificationViewMode;
   onViewModeChange?: (mode: NotificationViewMode) => void;
-  enableVisualDedup?: boolean;
-  onToggleVisualDedup?: () => void;
-  isComputingVisual?: boolean;
-  windowSeconds?: number;
-  onWindowSecondsChange?: (seconds: number) => void;
   /** Ẩn ô chọn ngày cục bộ khi header trang đã tích hợp bộ lọc thời gian toàn trang */
   hideDateRange?: boolean;
   className?: string;
@@ -61,11 +55,6 @@ export function NotificationFilterToolbar({
   isRefreshing = false,
   viewMode,
   onViewModeChange,
-  enableVisualDedup = true,
-  onToggleVisualDedup,
-  isComputingVisual = false,
-  windowSeconds = 45,
-  onWindowSecondsChange,
   hideDateRange = false,
   className = "",
 }: NotificationFilterToolbarProps) {
@@ -139,6 +128,7 @@ export function NotificationFilterToolbar({
 
           <input
             type="text"
+            maxLength={200}
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder={t("notifications.searchPlaceholder")}
@@ -259,6 +249,7 @@ export function NotificationFilterToolbar({
           <option value="IN_APP">Web (In-App)</option>
           <option value="WEB">Web</option>
           <option value="EMAIL">Email</option>
+          <option value="WEBHOOK">Webhook</option>
         </select>
 
         {/* Date Range with explicit labels */}

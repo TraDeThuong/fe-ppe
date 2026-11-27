@@ -9,7 +9,16 @@ const model = { name: "best", path: "models/best.pt", size_mb: 18.3, is_default:
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { "content-type": "application/json" },
 });
-const probe = async (target = "ai") => (await GET(new NextRequest(`http://localhost:3000/api/system/health-probe?target=${target}`))).json();
+const authHeaders = { authorization: "Bearer test-access-token" };
+const probe = async (target = "ai") =>
+  (
+    await GET(
+      new NextRequest(
+        `http://localhost:3000/api/system/health-probe?target=${target}`,
+        { headers: authHeaders },
+      ),
+    )
+  ).json();
 
 beforeEach(() => { process.env.AI_ENGINE_URL = "http://ai.internal:8000/"; });
 afterEach(() => {
@@ -103,12 +112,39 @@ describe("AI health compatibility in the frontend proxy", () => {
     assert.equal(result.failureKind, "TIMEOUT");
   });
 
+  it("rejects unauthenticated probe requests with 401", async () => {
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      return json({ status: "ok" });
+    };
+    const unauthRes = await GET(
+      new NextRequest("http://localhost:3000/api/system/health-probe?target=ai"),
+    );
+    assert.equal(unauthRes.status, 401);
+    const body = await unauthRes.json();
+    assert.equal(body.ok, false);
+    assert.equal(calls, 0);
+
+    const cookieAuthRes = await GET(
+      new NextRequest("http://localhost:3000/api/system/health-probe?target=ai", {
+        headers: { cookie: "accessToken=session-cookie-token" },
+      }),
+    );
+    assert.equal(cookieAuthRes.status, 200);
+    assert.equal(calls, 1);
+  });
+
   it("does not use the AI fallback for MinIO or accept arbitrary targets", async () => {
     let calls = 0;
     globalThis.fetch = async () => { calls++; return json({}, 404); };
     assert.equal((await probe("minio")).ok, false);
     assert.equal(calls, 1);
-    const invalid = await GET(new NextRequest("http://localhost:3000/api/system/health-probe?target=arbitrary"));
+    const invalid = await GET(
+      new NextRequest("http://localhost:3000/api/system/health-probe?target=arbitrary", {
+        headers: authHeaders,
+      }),
+    );
     assert.equal(invalid.status, 400);
     assert.equal(calls, 1);
   });

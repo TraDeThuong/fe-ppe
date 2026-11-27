@@ -1,4 +1,4 @@
-import type { IncidentQueryParams } from "@/types";
+import type { FeedbackDatasetQueryParams, IncidentQueryParams } from "@/types";
 
 export interface IncidentStatusCountsQueryParams {
   siteId?: string | null;
@@ -45,6 +45,8 @@ export const incidentKeys = {
       },
     ] as const;
   },
+  feedbackDatasetCount: (params: FeedbackDatasetQueryParams) =>
+    [...incidentKeys.all, "feedback-dataset-count", params] as const,
   details: () => [...incidentKeys.all, "detail"] as const,
   detail: (id: string) => [...incidentKeys.details(), id] as const,
   assignments: (id: string) => [...incidentKeys.all, "assignments", id] as const,

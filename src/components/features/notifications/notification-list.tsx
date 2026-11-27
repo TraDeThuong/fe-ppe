@@ -81,8 +81,8 @@ export function NotificationList({
     >
       <p>
         {isVietnamese
-          ? "Không tải được đầy đủ hộp thư."
-          : "Unable to load the complete inbox."}{" "}
+          ? "Không tải được danh sách thông báo."
+          : "Unable to load notifications."}{" "}
         {error.message}
       </p>
       {onRetry && (
@@ -105,9 +105,21 @@ export function NotificationList({
 
   if (rowCount === 0) {
     return (
-      <NotificationEmptyState
-        onResetFilters={hasActiveFilters ? onResetFilters : undefined}
-      />
+      <div className="space-y-2.5">
+        <NotificationEmptyState
+          onResetFilters={hasActiveFilters ? onResetFilters : undefined}
+        />
+        {totalPages > 1 && (
+          <NotificationPagination
+            page={page}
+            limit={limit}
+            limitOptions={limitOptions}
+            totalPages={totalPages}
+            onPageChange={onPageChange}
+            onLimitChange={onLimitChange}
+          />
+        )}
+      </div>
     );
   }
 
@@ -117,7 +129,6 @@ export function NotificationList({
   const unreadInPage = hasClusters
     ? (clusters ?? []).reduce((sum, cl) => sum + cl.unreadCount, 0)
     : items.filter((item) => !isNotificationRead(item)).length;
-  const showPagination = Boolean((totalPages > 1 && onPageChange) || onLimitChange);
 
   return (
     <div className={`space-y-2.5 ${className}`}>
@@ -192,106 +203,128 @@ export function NotificationList({
             ))}
       </div>
 
-      {/* Neumorphic Pagination Footer */}
-      {showPagination && (
-        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-border/30 bg-background p-2.5 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] sm:px-3.5 sm:py-2.5">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <p className="text-xs font-medium text-muted-foreground">
-              {isVietnamese ? (
-                <>
-                  Trang <span className="font-bold text-foreground">{page}</span> /{" "}
-                  <span className="font-bold text-foreground">{Math.max(1, totalPages)}</span>
-                </>
-              ) : (
-                <>
-                  Page <span className="font-bold text-foreground">{page}</span> of{" "}
-                  <span className="font-bold text-foreground">{Math.max(1, totalPages)}</span>
-                </>
-              )}
-            </p>
+      <NotificationPagination
+        page={page}
+        limit={limit}
+        limitOptions={limitOptions}
+        totalPages={totalPages}
+        onPageChange={onPageChange}
+        onLimitChange={onLimitChange}
+      />
+    </div>
+  );
+}
 
-            {onLimitChange && (
-              <div
-                role="group"
-                aria-label={isVietnamese ? "Số thông báo mỗi trang" : "Items per page"}
-                className="inline-flex items-center gap-1 rounded-xl border border-border/30 bg-background/80 p-1 shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]"
-              >
-                <span className="px-1.5 text-[10px] font-semibold text-muted-foreground">
-                  {isVietnamese ? "Hiển thị:" : "Show:"}
-                </span>
-                {limitOptions.map((opt) => {
-                  const active = opt === limit;
-                  return (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => onLimitChange(opt)}
-                      aria-pressed={active}
-                      className={`min-w-[26px] cursor-pointer rounded-lg px-1.5 py-0.5 font-mono text-[11px] font-bold transition-all ${
-                        active
-                          ? "bg-primary text-primary-foreground shadow-xs"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+export function NotificationPagination({
+  page = 1,
+  limit = 20,
+  limitOptions = [5, 10, 20, 50],
+  totalPages = 1,
+  onPageChange,
+  onLimitChange,
+}: Pick<NotificationListProps, "page" | "limit" | "limitOptions" | "totalPages" | "onPageChange" | "onLimitChange">) {
+  const isVietnamese = useLocale().locale === "vi-VN";
+  if (!(totalPages > 1 && onPageChange) && !onLimitChange) return null;
 
-          {totalPages > 1 && onPageChange && (
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => onPageChange(page - 1)}
-                disabled={page <= 1}
-                className="flex size-8 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_1px_1px_3px_var(--shadow-dark)] disabled:pointer-events-none disabled:opacity-40"
-                aria-label={isVietnamese ? "Trang trước" : "Previous page"}
-              >
-                <ChevronLeft className="size-4" />
-              </button>
+  const pageNumbers = [...new Set([1, page - 1, page, page + 1, totalPages])]
+    .filter((number) => number >= 1 && number <= totalPages)
+    .sort((a, b) => a - b);
 
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-                .map((p, idx, arr) => {
-                  const prev = arr[idx - 1];
-                  const showEllipsis = prev && p - prev > 1;
-
-                  return (
-                    <div key={p} className="flex items-center gap-1.5">
-                      {showEllipsis && (
-                        <span className="px-1 text-xs text-muted-foreground">
-                          ...
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => onPageChange(p)}
-                        className={`flex size-8 items-center justify-center rounded-xl text-xs font-bold transition-all ${
-                          p === page
-                            ? "border border-primary/40 bg-background text-primary shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]"
-                            : "border border-border/30 bg-background text-foreground shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] hover:text-primary active:shadow-[inset_1px_1px_3px_var(--shadow-dark)]"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    </div>
-                  );
-                })}
-
-              <button
-                type="button"
-                onClick={() => onPageChange(page + 1)}
-                disabled={page >= totalPages}
-                className="flex size-8 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_1px_1px_3px_var(--shadow-dark)] disabled:pointer-events-none disabled:opacity-40"
-                aria-label={isVietnamese ? "Trang tiếp theo" : "Next page"}
-              >
-                <ChevronRight className="size-4" />
-              </button>
-            </div>
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-border/30 bg-background p-2.5 shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] sm:px-3.5 sm:py-2.5">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <p className="text-xs font-medium text-muted-foreground">
+          {isVietnamese ? (
+            <>
+              Trang <span className="font-bold text-foreground">{page}</span> /{" "}
+              <span className="font-bold text-foreground">{Math.max(1, totalPages)}</span>
+            </>
+          ) : (
+            <>
+              Page <span className="font-bold text-foreground">{page}</span> of{" "}
+              <span className="font-bold text-foreground">{Math.max(1, totalPages)}</span>
+            </>
           )}
+        </p>
+
+        {onLimitChange && (
+          <div
+            role="group"
+            aria-label={isVietnamese ? "Số thông báo mỗi trang" : "Items per page"}
+            className="inline-flex items-center gap-1 rounded-xl border border-border/30 bg-background/80 p-1 shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark),inset_-1.5px_-1.5px_3px_var(--shadow-light)]"
+          >
+            <span className="px-1.5 text-[10px] font-semibold text-muted-foreground">
+              {isVietnamese ? "Hiển thị:" : "Show:"}
+            </span>
+            {limitOptions.map((opt) => {
+              const active = opt === limit;
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => onLimitChange(opt)}
+                  aria-pressed={active}
+                  className={`min-w-[26px] cursor-pointer rounded-lg px-1.5 py-0.5 font-mono text-[11px] font-bold transition-all ${
+                    active
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {totalPages > 1 && onPageChange && (
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => onPageChange(page - 1)}
+            disabled={page <= 1}
+            className="flex size-8 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_1px_1px_3px_var(--shadow-dark)] disabled:pointer-events-none disabled:opacity-40"
+            aria-label={isVietnamese ? "Trang trước" : "Previous page"}
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+
+          {pageNumbers.map((p, idx, arr) => {
+              const prev = arr[idx - 1];
+              const showEllipsis = prev && p - prev > 1;
+
+              return (
+                <div key={p} className="flex items-center gap-1.5">
+                  {showEllipsis && (
+                    <span className="px-1 text-xs text-muted-foreground">
+                      ...
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onPageChange(p)}
+                    className={`flex size-8 items-center justify-center rounded-xl text-xs font-bold transition-all ${
+                      p === page
+                        ? "border border-primary/40 bg-background text-primary shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]"
+                        : "border border-border/30 bg-background text-foreground shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] hover:text-primary active:shadow-[inset_1px_1px_3px_var(--shadow-dark)]"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                </div>
+              );
+            })}
+
+          <button
+            type="button"
+            onClick={() => onPageChange(page + 1)}
+            disabled={page >= totalPages}
+            className="flex size-8 items-center justify-center rounded-xl border border-border/40 bg-background text-foreground shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] transition-all hover:text-primary active:shadow-[inset_1px_1px_3px_var(--shadow-dark)] disabled:pointer-events-none disabled:opacity-40"
+            aria-label={isVietnamese ? "Trang tiếp theo" : "Next page"}
+          >
+            <ChevronRight className="size-4" />
+          </button>
         </div>
       )}
     </div>

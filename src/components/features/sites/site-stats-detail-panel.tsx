@@ -12,6 +12,7 @@ import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import { useAllRestrictedAreas, useAllZones } from "@/hooks/sites";
 import type { SiteItem } from "@/types";
+import type { SiteZonesTab } from "./site-zones-drawer";
 
 export type SiteStatKey = "totalZones" | "restrictedAreas";
 
@@ -19,7 +20,7 @@ export interface SiteStatsDetailPanelProps {
   activeStat: SiteStatKey;
   sites: SiteItem[];
   onClose: () => void;
-  onManageZones?: (site: SiteItem) => void;
+  onManageZones?: (site: SiteItem, tab?: SiteZonesTab) => void;
 }
 
 export function SiteStatsDetailPanel({
@@ -53,6 +54,9 @@ export function SiteStatsDetailPanel({
   const sitesMap = useMemo(() => {
     return new Map<string, SiteItem>(sites.map((s) => [s.id, s]));
   }, [sites]);
+
+  // Nút ở đầu panel mở drawer của công trường đang lọc; khi xem "Tất cả" thì lấy công trường đầu tiên.
+  const headerTargetSite = sitesMap.get(selectedSiteFilter) ?? sites[0];
 
   const totalZones = sites.reduce(
     (acc, s) =>
@@ -246,10 +250,10 @@ export function SiteStatsDetailPanel({
 
           {/* Tactile Action Controls & Close */}
           <div className="flex items-center gap-2 shrink-0">
-            {activeStat === "totalZones" && sites[0] && onManageZones && (
+            {activeStat === "totalZones" && canReadZones && headerTargetSite && onManageZones && (
               <button
                 type="button"
-                onClick={() => onManageZones(sites[0])}
+                onClick={() => onManageZones(headerTargetSite, "zones")}
                 className="inline-flex h-8 sm:h-9 items-center gap-1.5 rounded-full border border-primary/30 bg-background px-3.5 text-[11px] sm:text-xs font-extrabold text-primary shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all hover:-translate-y-0.5 hover:border-transparent hover:bg-gradient-to-r hover:from-primary hover:to-accent hover:text-primary-foreground hover:shadow-[0_4px_14px_hsl(var(--primary)/0.35)] cursor-pointer"
               >
                 <Layers className="h-3.5 w-3.5" />
@@ -259,10 +263,10 @@ export function SiteStatsDetailPanel({
               </button>
             )}
 
-            {activeStat === "restrictedAreas" && sites[0] && onManageZones && (
+            {activeStat === "restrictedAreas" && canReadRestricted && headerTargetSite && onManageZones && (
               <button
                 type="button"
-                onClick={() => onManageZones(sites[0])}
+                onClick={() => onManageZones(headerTargetSite, "restricted")}
                 className="inline-flex h-8 sm:h-9 items-center gap-1.5 rounded-full border border-accent/35 bg-background px-3.5 text-[11px] sm:text-xs font-extrabold text-accent shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] transition-all hover:-translate-y-0.5 hover:bg-accent hover:text-white hover:shadow-[0_4px_14px_hsl(var(--accent)/0.35)] cursor-pointer"
               >
                 <AlertOctagon className="h-3.5 w-3.5" />
@@ -358,10 +362,10 @@ export function SiteStatsDetailPanel({
                           </div>
                         </div>
 
-                        {onManageZones && (
+                        {canReadZones && onManageZones && (
                           <button
                             type="button"
-                            onClick={() => onManageZones(zone.site)}
+                            onClick={() => onManageZones(zone.site, "zones")}
                             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/60 bg-background text-muted-foreground shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] transition-all group-hover/zone:border-primary/30 group-hover/zone:text-primary cursor-pointer dark:border-white/10"
                           >
                             <ChevronRight className="h-4 w-4" />
@@ -451,10 +455,10 @@ export function SiteStatsDetailPanel({
                           </div>
                         </div>
 
-                        {onManageZones && (
+                        {canReadRestricted && onManageZones && (
                           <button
                             type="button"
-                            onClick={() => onManageZones(area.site)}
+                            onClick={() => onManageZones(area.site, "restricted")}
                             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/60 bg-background text-muted-foreground shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] transition-all group-hover/area:border-accent/40 group-hover/area:text-accent cursor-pointer dark:border-white/10"
                           >
                             <ChevronRight className="h-4 w-4" />

@@ -39,6 +39,18 @@ function unwrapData<T>(res: any): T {
   return res as T;
 }
 
+/**
+ * site-service không quản lý camera nên /sites và /sites/:id thường không có số camera.
+ * Giữ undefined khi BE không gửi để UI hiển thị "--" thay vì báo nhầm 0 camera.
+ */
+function resolveCameraCount(s: any): number | undefined {
+  return (
+    s.cameraCount ??
+    s._count?.cameras ??
+    (Array.isArray(s.cameras) ? s.cameras.length : undefined)
+  );
+}
+
 function mapSiteResponse(res: any): { items: SiteItem[]; meta?: PaginationMeta } {
   if (res && typeof res === "object") {
     const rawItems = Array.isArray(res.data)
@@ -55,7 +67,7 @@ function mapSiteResponse(res: any): { items: SiteItem[]; meta?: PaginationMeta }
       zoneCount: s.zoneCount ?? s._count?.zones ?? (s.zones?.length || 0),
       restrictedAreaCount:
         s.restrictedAreaCount ?? s._count?.restrictedAreas ?? (s.restrictedAreas?.length || 0),
-      cameraCount: s.cameraCount ?? s._count?.cameras ?? (s.cameras?.length || 0),
+      cameraCount: resolveCameraCount(s),
     }));
     const meta = res.meta ?? res.data?.meta;
     return { items, meta };
@@ -114,7 +126,7 @@ export const siteService = {
       ...s,
       zoneCount: s.zoneCount ?? s._count?.zones ?? (s.zones?.length || 0),
       restrictedAreaCount: s.restrictedAreaCount ?? s._count?.restrictedAreas ?? (s.restrictedAreas?.length || 0),
-      cameraCount: s.cameraCount ?? s._count?.cameras ?? (s.cameras?.length || 0),
+      cameraCount: resolveCameraCount(s),
     };
   },
 

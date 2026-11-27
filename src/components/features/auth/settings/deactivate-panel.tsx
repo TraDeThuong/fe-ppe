@@ -104,7 +104,7 @@ export function DeactivatePanel() {
         ) {
           setFailure({
             kind: "generic",
-            message: error.message,
+            message: error.message || t("security.deactivate.genericError"),
           });
         }
         return;
@@ -123,9 +123,17 @@ export function DeactivatePanel() {
         return;
       }
 
+      if (error instanceof ApiError && error.message) {
+        setFailure({
+          kind: "generic",
+          message: error.message,
+        });
+        return;
+      }
+
       setFailure({
         kind: "generic",
-        message: t("changePassword.genericError"),
+        message: t("security.deactivate.genericError"),
       });
     },
   });
@@ -168,7 +176,7 @@ export function DeactivatePanel() {
           <div className="space-y-2">
             <div className="mx-auto inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400">
               <ShieldCheck className="size-3.5" />
-              Request submitted
+              {t("security.deactivate.requestSubmittedBadge")}
             </div>
 
             <h3 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">
@@ -183,8 +191,7 @@ export function DeactivatePanel() {
           <div className="flex w-full max-w-md items-start gap-3 rounded-2xl border border-border/30 bg-transparent p-4 text-left shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]">
             <Clock3 className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
             <p className="text-xs leading-5 text-muted-foreground">
-              Check your inbox and follow the confirmation link to
-              complete the process. The link expires after 15 minutes.
+              {t("security.deactivate.inboxHint")}
             </p>
           </div>
         </div>
@@ -222,11 +229,11 @@ export function DeactivatePanel() {
           <div className="min-w-0 flex-1 pt-0.5">
             <div className="mb-1.5 flex flex-wrap items-center gap-2">
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-danger">
-                Account control
+                {t("security.deactivate.eyebrowPrimary")}
               </span>
               <span className="size-1 rounded-full bg-border" />
               <span className="text-[10px] font-medium text-muted-foreground">
-                Security settings
+                {t("security.deactivate.eyebrowSecondary")}
               </span>
             </div>
 
@@ -256,12 +263,10 @@ export function DeactivatePanel() {
 
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-danger sm:text-sm">
-                Please review before continuing
+                {t("security.deactivate.reviewTitle")}
               </p>
               <p className="mt-1.5 text-xs leading-5 text-muted-foreground">
-                Your request requires email confirmation. You can
-                review your decision before completing the process
-                through the confirmation link.
+                {t("security.deactivate.reviewMessage")}
               </p>
             </div>
           </div>
@@ -281,10 +286,10 @@ export function DeactivatePanel() {
           </div>
           <div>
             <h4 className="text-sm font-bold text-foreground">
-              Verify your identity
+              {t("security.deactivate.verifyTitle")}
             </h4>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              Confirm your credentials to proceed securely.
+              {t("security.deactivate.verifySubtitle")}
             </p>
           </div>
         </div>
@@ -305,7 +310,7 @@ export function DeactivatePanel() {
             />
           </FormField>
           <p className="mt-2 flex items-center gap-1.5 text-[10px] leading-4 text-muted-foreground">
-            Your password is used only to verify your identity.
+            {t("security.deactivate.passwordHint")}
           </p>
         </div>
 
@@ -328,7 +333,7 @@ export function DeactivatePanel() {
 
           <div className="mt-2.5 flex items-center justify-between gap-3">
             <p className="text-[10px] leading-4 text-muted-foreground">
-              Optional · Help us understand your decision.
+              {t("security.deactivate.reasonHint")}
             </p>
             <span
               className={`shrink-0 rounded-lg border border-border/30 px-2 py-1 font-mono text-[10px] tabular-nums shadow-[inset_1px_1px_3px_var(--shadow-dark),inset_-1px_-1px_3px_var(--shadow-light)] ${
@@ -365,12 +370,10 @@ export function DeactivatePanel() {
             </div>
             <div>
               <p className="text-xs font-semibold text-foreground">
-                Email confirmation required
+                {t("security.deactivate.emailRequiredTitle")}
               </p>
               <p className="mt-1 text-[11px] leading-5 text-muted-foreground">
-                A confirmation email will be sent to you. The link
-                expires in 15 minutes. Your account is not deactivated
-                by submitting this form alone.
+                {t("security.deactivate.emailRequiredMessage")}
               </p>
             </div>
           </div>
@@ -411,7 +414,7 @@ export function DeactivatePanel() {
           </Button>
 
           <p className="flex items-center justify-center gap-1.5 text-center text-[10px] leading-4 text-muted-foreground">
-            Protected by your account security verification
+            {t("security.deactivate.footerNote")}
           </p>
         </div>
       </form>

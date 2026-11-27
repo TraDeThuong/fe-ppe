@@ -32,6 +32,7 @@ import {
   useSystemHealth,
   useSystemMutations,
 } from "@/hooks";
+import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
 import { toast } from "@/lib/toast";
@@ -57,20 +58,17 @@ const URL_TO_STAT: Record<string, SystemStatKey> = {
 export default function SystemContent() {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
-  const { user, status: authStatus } = useAuth();
+  const { status: authStatus } = useAuth();
+  const can = useCan();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Kiểm tra quyền RBAC quản trị hệ thống
-  const canManage = useMemo(() => {
-    const role = (user?.role || "").toUpperCase();
-    return (
-      role === "ADMIN" ||
-      role === "SUPER_ADMIN" ||
-      Boolean(user?.permissions?.includes("SYSTEM_CONFIG_MANAGE"))
-    );
-  }, [user]);
+  // Kiểm tra quyền RBAC quản trị hệ thống & điều hướng liên quan
+  const canManage = can("SYSTEM_CONFIG_MANAGE");
+  const canAccessMaintenance =
+    can("MAINTENANCE_READ") || can("MAINTENANCE_MANAGE");
+  const canReadAuditLogs = can("AUDIT_LOG_READ");
   const showReadOnlyWarning = authStatus !== "loading" && !canManage;
 
   // URL state synchronization for active tab
@@ -81,6 +79,14 @@ export default function SystemContent() {
   const handleTabChange = (nextTab: SystemTabKey) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", nextTab);
+    if (
+      params.get("stat") === "health" ||
+      (nextTab === "flags" && params.get("stat") === "flags") ||
+      (nextTab === "configs" && params.get("stat") === "configs") ||
+      (nextTab === "platform" && params.get("stat") === "latency")
+    ) {
+      params.delete("stat");
+    }
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
@@ -95,12 +101,17 @@ export default function SystemContent() {
   };
 
   // URL state synchronization for selected stat (tương tự như trang /roles)
+  // Riêng thẻ KPI "Cụm Dịch vụ" (health) chuyển thẳng xuống tab "health", không mở panel rút gọn trùng lặp
   const statParam = searchParams.get("stat");
-  const selectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
+  const rawSelectedStat = statParam && URL_TO_STAT[statParam] ? URL_TO_STAT[statParam] : null;
+  const selectedStat = rawSelectedStat === "health" ? null : rawSelectedStat;
 
   const handleSelectStat = (stat: SystemStatKey | null) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (stat) {
+    if (stat === "health") {
+      params.set("tab", "health");
+      params.delete("stat");
+    } else if (stat) {
       params.set("stat", STAT_TO_URL[stat]);
     } else {
       params.delete("stat");
@@ -151,7 +162,17 @@ export default function SystemContent() {
     isPublic: isPublicFilter === "all" ? undefined : isPublicFilter === "true",
     page,
     limit,
+  });
 
+  // Truy vấn danh sách cấu hình tổng thể (tối đa 100 bản ghi) để thống kê đúng phân bổ Category và Public/Private
+  const {
+    data: allConfigsData,
+    isLoading: isLoadingAllConfigs,
+    isFetching: allConfigsFetching,
+    refetch: refetchAllConfigs,
+  } = useSystemConfigs({
+    page: 1,
+    limit: 100,
   });
 
   const {
@@ -164,13 +185,19 @@ export default function SystemContent() {
     isToggling,
   } = useFeatureFlags();
 
+  const shouldPollHealth =
+    activeTab === "health" ||
+    activeTab === "platform" ||
+    rawSelectedStat === "health" ||
+    selectedStat === "latency";
+
   const {
     data: healthReport,
     isLoading: isLoadingHealth,
     isError: isHealthError,
     refetch: refetchHealth,
     isFetching: isRefreshingHealth,
-  } = useSystemHealth(30000);
+  } = useSystemHealth(shouldPollHealth ? 30000 : false);
 
   const {
     createConfig,
@@ -181,7 +208,15 @@ export default function SystemContent() {
     isDeleting,
   } = useSystemMutations();
 
-  const totalConfigsCount = configsData?.meta?.total ?? configsData?.items?.length ?? 0;
+  const allConfigs = allConfigsData?.items ?? configsData?.items ?? [];
+  const totalConfigsCount =
+    allConfigsData?.meta?.total ??
+    allConfigsData?.items?.length ??
+    configsData?.meta?.total ??
+    configsData?.items?.length ??
+    0;
+  const filteredConfigsCount =
+    configsData?.meta?.total ?? configsData?.items?.length ?? 0;
 
   // Handlers
   const handleOpenToggleDialog = (flag: SystemConfigItem, enabled: boolean) => {
@@ -265,35 +300,45 @@ export default function SystemContent() {
     [t, isVietnamese],
   );
 
-  const isRefreshingAll = isRefreshingHealth || isFetchingFlags || configsFetching;
+  const isRefreshingAll =
+    isRefreshingHealth || isFetchingFlags || configsFetching || allConfigsFetching;
 
   const handleRefreshAll = () => {
-    void Promise.all([refetchHealth(), refetchFlags(), refetchConfigs()]);
+    void Promise.all([
+      refetchHealth(),
+      refetchFlags(),
+      refetchConfigs(),
+      refetchAllConfigs(),
+    ]);
   };
 
   const headerActions = (
     <div className="flex items-center gap-2 flex-wrap">
-      <Link href="/maintenance">
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-1.5 rounded-xl text-xs h-8 hover:text-primary transition-colors"
-        >
-          <Wrench className="h-3.5 w-3.5 text-primary" />
-          <span>{t("nav.maintenance")}</span>
-        </Button>
-      </Link>
+      {canAccessMaintenance && (
+        <Link href="/maintenance">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-1.5 rounded-xl text-xs h-8 hover:text-primary transition-colors"
+          >
+            <Wrench className="h-3.5 w-3.5 text-primary" />
+            <span>{t("nav.maintenance")}</span>
+          </Button>
+        </Link>
+      )}
 
-      <Link href="/audit-logs?search=SYSTEM_CONFIG">
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-1.5 rounded-xl text-xs h-8"
-        >
-          <ScrollText className="h-3.5 w-3.5 text-muted-foreground" />
-          <span>{t("system.auditLogsBtn")}</span>
-        </Button>
-      </Link>
+      {canReadAuditLogs && (
+        <Link href="/audit-logs?search=SYSTEM_CONFIG">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-1.5 rounded-xl text-xs h-8"
+          >
+            <ScrollText className="h-3.5 w-3.5 text-muted-foreground" />
+            <span>{t("system.auditLogsBtn")}</span>
+          </Button>
+        </Link>
+      )}
 
       <RefreshButton
         variant="outline"
@@ -345,8 +390,8 @@ export default function SystemContent() {
         totalConfigs={totalConfigsCount}
         healthReport={healthReport}
         featureFlags={featureFlags}
-        configs={configsData?.items ?? []}
-        loading={isLoadingConfigs || isLoadingFlags}
+        configs={allConfigs}
+        loading={isLoadingConfigs || isLoadingAllConfigs || isLoadingFlags}
         healthLoading={isLoadingHealth}
         selectedStat={selectedStat}
         onSelectStat={handleSelectStat}
@@ -401,7 +446,7 @@ export default function SystemContent() {
 
             pageSize={limit}
 
-            totalItems={totalConfigsCount}
+            totalItems={filteredConfigsCount}
 
             onPageChange={setPage}
 

@@ -190,7 +190,11 @@ export function TwoFactorPanel() {
         regenerateForm.setValue("password", "");
         return;
       }
-      setRegenerateError({ kind: "generic", message: t("changePassword.genericError") });
+      if (error instanceof ApiError && error.message) {
+        setRegenerateError({ kind: "generic", message: error.message });
+        return;
+      }
+      setRegenerateError({ kind: "generic", message: t("security.2fa.genericError") });
     },
   });
 
@@ -249,7 +253,11 @@ export function TwoFactorPanel() {
         disableForm.setValue("password", "");
         return;
       }
-      setDisableError({ kind: "generic", message: t("changePassword.genericError") });
+      if (error instanceof ApiError && error.message) {
+        setDisableError({ kind: "generic", message: error.message });
+        return;
+      }
+      setDisableError({ kind: "generic", message: t("security.2fa.genericError") });
     },
   });
 

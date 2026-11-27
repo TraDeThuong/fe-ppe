@@ -461,8 +461,8 @@ function SiteAnalyticsContent({ site }: SiteAnalyticsTabProps) {
         {canExport && (
           <p className="px-1 text-[11px] text-muted-foreground">
             {vi
-              ? "Tệp PDF/Excel sử dụng nguồn thống kê của máy chủ và có thể khác số liệu sự cố trên các card."
-              : "PDF/Excel uses server statistics and may differ from the incident-based cards."}
+              ? "Card hiển thị thống kê thời gian thực; tệp PDF/Excel dùng dữ liệu tổng hợp nên có thể chênh lệch nếu dữ liệu trong ngày chưa được tổng hợp."
+              : "Cards show real-time statistics; PDF/Excel uses aggregated data and may differ if today's data has not been aggregated yet."}
           </p>
         )}
       </section>

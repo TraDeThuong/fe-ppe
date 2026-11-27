@@ -33,8 +33,8 @@ import {
 import { useNotificationArchiveAccount } from "@/hooks/notifications/use-notification-archive";
 import { usePublicConfig } from "@/hooks/auth";
 import {
-  useAllNotifications,
-  useFilteredNotifications,
+  useNotifications,
+  useNotificationTotal,
   useNotificationEnrichment,
   useMarkAsRead,
   useMarkManyAsRead,
@@ -44,20 +44,16 @@ import {
 import { vietnamToday } from "@/lib/dashboard-data";
 import {
   createDefaultIncidentPeriodFilter,
-  filterItemsByDateRange,
   parseIncidentPeriodFromUrl,
   resolveIncidentPeriod,
   type IncidentPeriodFilter,
 } from "@/lib/incident-period";
-import { isNotificationRead } from "@/lib/notification-inbox";
 import {
   groupNotificationsByPerson,
   groupNotificationsIntoSections,
-  paginateNotificationClusters,
-  wrapFlatPersonClusters,
-  type NotificationPersonCluster,
   type NotificationViewMode,
 } from "@/lib/notification-grouping-engine";
+import { NotificationPagination } from "@/components/features/notifications/notification-list";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import {
   getConfig,
@@ -188,14 +184,17 @@ export default function NotificationsContent() {
     }
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-    if (tab === "inbox") {
-      refetchNotifications();
-    }
   };
 
-  // Filtering, Client-side Smart Grouping & Pagination
+  // Filtering and server-side pagination
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+  const listScope = JSON.stringify([activeTab, periodFromDate, periodToDate]);
+  const [previousListScope, setPreviousListScope] = useState(listScope);
+  if (previousListScope !== listScope) {
+    setPreviousListScope(listScope);
+    setPage(1);
+  }
   const [viewMode, setViewMode] = useState<NotificationViewMode>("flat");
   const [prefsHydrated, setPrefsHydrated] = useState(false);
 
@@ -243,7 +242,7 @@ export default function NotificationsContent() {
 
   const filterQuery = useMemo(
     () => ({
-      search: filter.search || undefined,
+      search: filter.search.trim() || undefined,
       isRead: filter.isRead,
       severity: filter.severity,
       channel: filter.channel,
@@ -255,27 +254,54 @@ export default function NotificationsContent() {
   );
 
   // Queries
+  const isListTab = activeTab === "inbox" || activeTab === "archive";
+  const notificationsQuery = useNotifications({
+    ...filterQuery,
+    page,
+    limit,
+    archived: activeTab === "archive",
+  }, { enabled: isListTab });
   const {
-    data: filteredNotifications,
+    data: notificationsPage,
     isLoading: isNotificationsLoading,
     isFetching: isNotificationsFetching,
-    fetchStatus: notificationsFetchStatus,
     error: notificationsError,
     refetch: refetchNotifications,
-  } = useFilteredNotifications(filterQuery, { visibility: "active" });
+  } = notificationsQuery;
 
-  const rawFilteredItems = filteredNotifications ?? EMPTY_NOTIFICATIONS;
+  const meta = notificationsPage?.meta;
+  const lastPage = meta ? Math.max(1, meta.totalPages) : undefined;
+  useEffect(() => {
+    if (lastPage !== undefined && !isNotificationsFetching && page > lastPage) {
+      setPage(lastPage);
+    }
+  }, [lastPage, isNotificationsFetching, page]);
+
+  const items = notificationsPage?.data ?? EMPTY_NOTIFICATIONS;
+  const period = { fromDate: periodFromDate, toDate: periodToDate };
+  const totalQuery = useNotificationTotal(period);
+  const unreadQuery = useNotificationTotal({ ...period, isRead: false });
+  const alertsQuery = useNotificationTotal({ ...period, type: "ALERT" });
+  const periodTotal = totalQuery.data;
+  const periodUnreadCount = unreadQuery.data;
+  const periodAlertCount = alertsQuery.data;
+  const isStatsLoading = totalQuery.isLoading || unreadQuery.isLoading || alertsQuery.isLoading;
+
+  const handleRefresh = () => {
+    if (isListTab) void refetchNotifications();
+    void Promise.all([totalQuery.refetch(), unreadQuery.refetch(), alertsQuery.refetch()]);
+  };
 
   const hasGroupableIncidentItems = useMemo(() => {
     let incidentCount = 0;
-    for (const item of rawFilteredItems) {
+    for (const item of items) {
       if (item.incidentId) {
         incidentCount += 1;
         if (incidentCount >= 2) return true;
       }
     }
     return viewMode === "camera" && incidentCount >= 1;
-  }, [rawFilteredItems, viewMode]);
+  }, [items, viewMode]);
 
   const shouldEnrich =
     activeTab === "inbox" && viewMode !== "flat" && hasGroupableIncidentItems;
@@ -283,9 +309,6 @@ export default function NotificationsContent() {
     enabled: shouldEnrich,
     maxIncidents: 100,
   });
-
-  const { data: allActiveNotifications } = useAllNotifications({ visibility: "active" });
-  const allNotifications = allActiveNotifications ?? EMPTY_NOTIFICATIONS;
 
   // Mutations
   const markAsReadMutation = useMarkAsRead();
@@ -309,100 +332,40 @@ export default function NotificationsContent() {
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
   useEffect(() => {
-    if (selectedNotificationId && allActiveNotifications &&
-      !allActiveNotifications.some((item) => item.id === selectedNotificationId)) {
+    if (isListTab && notificationsPage && selectedNotificationId &&
+      !items.some((item) => item.id === selectedNotificationId)) {
       setSelectedNotificationId(null);
       setMobileDetailOpen(false);
     }
-  }, [allActiveNotifications, selectedNotificationId]);
+  }, [isListTab, notificationsPage, items, selectedNotificationId]);
 
-  const groupingOptions = useMemo(
-    () => ({
-      isVietnamese,
-      enableVisualDedup: false,
-      combinePersonInSections: true,
-    }),
-    [isVietnamese],
+  const groupingOptions = useMemo(() => ({ isVietnamese }), [isVietnamese]);
+
+  const personClusters = useMemo(
+    () => activeTab === "inbox" && viewMode === "person"
+      ? groupNotificationsByPerson(items, signalsMap, groupingOptions)
+      : undefined,
+    [activeTab, viewMode, items, signalsMap, groupingOptions],
   );
-
-  const allPersonClusters = useMemo<NotificationPersonCluster[]>(() => {
-    if (viewMode === "flat") {
-      return wrapFlatPersonClusters(rawFilteredItems, undefined, isVietnamese);
-    }
-    return groupNotificationsByPerson(
-      rawFilteredItems,
-      signalsMap,
-      undefined,
-      groupingOptions,
-    );
-  }, [viewMode, rawFilteredItems, signalsMap, groupingOptions, isVietnamese]);
 
   const sections = useMemo(() => {
-    if (viewMode !== "hour" && viewMode !== "camera") return [];
-    return groupNotificationsIntoSections(
-      rawFilteredItems,
-      viewMode,
-      signalsMap,
-      undefined,
-      groupingOptions,
-    );
-  }, [viewMode, rawFilteredItems, signalsMap, groupingOptions]);
+    if (activeTab !== "inbox" || (viewMode !== "hour" && viewMode !== "camera")) return [];
+    return groupNotificationsIntoSections(items, viewMode, signalsMap, groupingOptions);
+  }, [activeTab, viewMode, items, signalsMap, groupingOptions]);
 
-  const periodNotifications = useMemo(
-    () =>
-      hasPeriodFilter
-        ? filterItemsByDateRange(
-            allNotifications,
-            (item) => item.createdAt,
-            periodFromDate,
-            periodToDate,
-          )
-        : allNotifications,
-    [allNotifications, hasPeriodFilter, periodFromDate, periodToDate],
-  );
+  const selectedNotification =
+    items.find((item) => item.id === selectedNotificationId) ??
+    personClusters?.[0]?.primary ??
+    sections[0]?.clusters[0]?.primary ??
+    items[0] ??
+    null;
 
-  const periodUnreadCount = useMemo(() => {
-    let count = 0;
-    for (const item of periodNotifications) {
-      if (!isNotificationRead(item)) count += 1;
-    }
-    return count;
-  }, [periodNotifications]);
-
-  const pagedClusters = useMemo(
-    () => paginateNotificationClusters(allPersonClusters, page, limit),
-    [allPersonClusters, page, limit],
-  );
-  const visibleClusters = pagedClusters.data;
-  const items = useMemo(
-    () =>
-      viewMode === "hour" || viewMode === "camera"
-        ? rawFilteredItems
-        : visibleClusters.flatMap((cluster) => cluster.items),
-    [viewMode, rawFilteredItems, visibleClusters],
-  );
-  const meta = pagedClusters.meta;
-
-  useEffect(() => {
-    if (!isNotificationsLoading && page !== meta.page) setPage(meta.page);
-  }, [isNotificationsLoading, meta.page, page]);
-
-  const selectedNotification = useMemo(
-    () =>
-      items.find((item) => item.id === selectedNotificationId) ??
-      visibleClusters[0]?.primary ??
-      items[0] ??
-      null,
-    [items, visibleClusters, selectedNotificationId],
-  );
-
-  const selectedCluster = useMemo(() => {
-    if (!selectedNotification || viewMode === "flat") return null;
-    const found = allPersonClusters.find((cl) =>
-      cl.items.some((m) => m.id === selectedNotification.id),
-    );
-    return found && found.count > 1 ? found : null;
-  }, [selectedNotification, viewMode, allPersonClusters]);
+  const sectionClusters = useMemo(() => sections.flatMap((section) => section.clusters), [sections]);
+  const selectedCluster = selectedNotification
+    ? (personClusters ?? sectionClusters).find((cluster) =>
+        cluster.count > 1 && cluster.items.some((item) => item.id === selectedNotification.id),
+      )
+    : undefined;
 
   const showMobileDetail = mobileDetailOpen && selectedNotification?.id === selectedNotificationId;
 
@@ -468,10 +431,10 @@ export default function NotificationsContent() {
       {/* 1. Console Header Trang, Trạng thái Realtime SSE & Bộ lọc thời gian toàn trang */}
       <NotificationConsoleHeader
         isConnected={isConnected}
-        isRefreshing={isNotificationsLoading || isNotificationsFetching}
-        onRefresh={() => void refetchNotifications()}
-        totalCount={periodNotifications.length}
-        unreadCount={periodUnreadCount}
+        isRefreshing={isNotificationsFetching || totalQuery.isFetching || unreadQuery.isFetching || alertsQuery.isFetching}
+        onRefresh={handleRefresh}
+        totalCount={periodTotal ?? 0}
+        unreadCount={periodUnreadCount ?? 0}
         canBroadcast={canBroadcast}
         notificationsEnabled={notificationsEnabled}
         onOpenCustomDispatch={() => {
@@ -527,12 +490,12 @@ export default function NotificationsContent() {
 
       {/* 2. Thẻ KPI Thống kê Neumorphism đồng đều, ổn định theo bộ lọc kỳ thời gian */}
       <NotificationKpiSummary
-        notifications={periodNotifications}
-        totalCount={periodNotifications.length}
-        unreadCount={periodUnreadCount}
+        stats={periodTotal !== undefined && periodUnreadCount !== undefined && periodAlertCount !== undefined
+          ? { total: periodTotal, unread: periodUnreadCount, ppeAlerts: periodAlertCount, resolved: periodTotal - periodUnreadCount }
+          : undefined}
         variant="soft-extruded"
-        loading={isNotificationsLoading}
-        unavailable={!filteredNotifications && !!notificationsError}
+        loading={isStatsLoading}
+        unavailable={!isStatsLoading && (periodTotal === undefined || periodUnreadCount === undefined || periodAlertCount === undefined)}
       />
 
       {/* 3. Phân nhóm Tab (Hộp thư, Cài đặt & Âm thanh, Mẫu thông báo, Nhật ký Email) */}
@@ -551,11 +514,7 @@ export default function NotificationsContent() {
             onMarkAllRead={() => markAllAsReadMutation.mutate()}
             isMarkingAllRead={markAllAsReadMutation.isPending}
             archiveAction={archiveAccount && (
-              <NotificationArchiveButton
-                key={archiveAccount}
-                items={allActiveNotifications}
-                inboxReady={Boolean(allActiveNotifications) && notificationsFetchStatus === "idle" && !notificationsError}
-              />
+              <NotificationArchiveButton key={archiveAccount} />
             )}
             onRefresh={() => refetchNotifications()}
             isRefreshing={isNotificationsFetching}
@@ -567,13 +526,13 @@ export default function NotificationsContent() {
             hideDateRange={true}
           />
 
-          {!isNotificationsLoading && rawFilteredItems.length === 0 ? (
+          {!isNotificationsLoading && items.length === 0 ? (
             <NotificationList
               items={[]}
-              total={0}
-              page={1}
-              limit={limit}
-              totalPages={1}
+              total={meta?.total}
+              page={meta?.page ?? page}
+              limit={meta?.limit ?? limit}
+              totalPages={meta?.totalPages}
               isLoading={isNotificationsLoading}
               error={notificationsError}
               onRetry={() => void refetchNotifications()}
@@ -586,35 +545,45 @@ export default function NotificationsContent() {
             <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-12">
               <div className="xl:col-span-4">
                 {viewMode === "hour" || viewMode === "camera" ? (
-                  <NotificationSectionList
-                    sections={sections}
-                    totalRawItems={rawFilteredItems.length}
-                    isLoading={isNotificationsLoading}
-                    error={notificationsError}
-                    onRetry={() => void refetchNotifications()}
-                    selectedId={selectedNotification?.id ?? null}
-                    onSelect={handleSelectNotification}
-                    onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
-                    onMarkManyAsRead={(ids) => markManyAsReadMutation.mutate(ids)}
-                    isMarkingManyRead={markManyAsReadMutation.isPending}
-                    markingReadId={markAsReadMutation.isPending ? markAsReadMutation.variables : null}
-                    onDelete={(id) => {
-                      const target = items.find((item) => item.id === id);
-                      if (target) setDeletingNotification(target);
-                    }}
-                    deletingId={deleteMutation.isPending ? deleteMutation.variables : null}
-                    onResetFilters={handleResetFilters}
-                    hasActiveFilters={hasActiveFilters}
-                  />
+                  <>
+                    <NotificationSectionList
+                      sections={sections}
+                      totalRawItems={items.length}
+                      isLoading={isNotificationsLoading}
+                      error={notificationsError}
+                      onRetry={() => void refetchNotifications()}
+                      selectedId={selectedNotification?.id ?? null}
+                      onSelect={handleSelectNotification}
+                      onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
+                      onMarkManyAsRead={(ids) => markManyAsReadMutation.mutate(ids)}
+                      isMarkingManyRead={markManyAsReadMutation.isPending}
+                      markingReadId={markAsReadMutation.isPending ? markAsReadMutation.variables : null}
+                      onDelete={(id) => {
+                        const target = items.find((item) => item.id === id);
+                        if (target) setDeletingNotification(target);
+                      }}
+                      deletingId={deleteMutation.isPending ? deleteMutation.variables : null}
+                      onResetFilters={handleResetFilters}
+                      hasActiveFilters={hasActiveFilters}
+                    />
+                    {items.length > 0 && meta && (
+                      <NotificationPagination
+                        page={meta.page}
+                        limit={meta.limit}
+                        totalPages={meta.totalPages}
+                        onPageChange={setPage}
+                        onLimitChange={handleLimitChange}
+                      />
+                    )}
+                  </>
                 ) : (
                   <NotificationList
                     items={items}
-                    clusters={viewMode === "person" ? visibleClusters : undefined}
-                    totalRawItems={rawFilteredItems.length}
-                    total={meta.total}
-                    page={meta.page}
-                    limit={limit}
-                    totalPages={meta.totalPages}
+                    clusters={personClusters}
+                    total={meta?.total}
+                    page={meta?.page ?? page}
+                    limit={meta?.limit ?? limit}
+                    totalPages={meta?.totalPages}
                     isLoading={isNotificationsLoading}
                     error={notificationsError}
                     onRetry={() => void refetchNotifications()}
@@ -720,7 +689,25 @@ export default function NotificationsContent() {
         </div>
       )}
 
-      {activeTab === "archive" && archiveAccount && <NotificationArchiveTab key={archiveAccount} />}
+      {activeTab === "archive" && archiveAccount && (
+        <div className="space-y-4">
+          <NotificationFilterToolbar
+            filter={filter}
+            onFilterChange={handleFilterChange}
+            onRefresh={() => refetchNotifications()}
+            isRefreshing={isNotificationsFetching}
+            hideDateRange
+          />
+          <NotificationArchiveTab
+            key={archiveAccount}
+            query={notificationsQuery}
+            onPageChange={setPage}
+            onLimitChange={handleLimitChange}
+            hasActiveFilters={hasActiveFilters}
+            onResetFilters={handleResetFilters}
+          />
+        </div>
+      )}
 
       {activeTab === "preferences" && <NotificationPreferencesCard />}
 

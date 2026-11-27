@@ -9,12 +9,6 @@ import {
   computeBoxIoU,
   type NotificationEnrichedSignals,
 } from "@/lib/notification-enrichment";
-import {
-  compareVisualFingerprints,
-  DEFAULT_VISUAL_MAX_HAMMING,
-  DEFAULT_VISUAL_MIN_HIST_SIM,
-  type VisualFingerprint,
-} from "@/lib/visual-fingerprint";
 import type {
   NotificationChannel,
   NotificationItemDto,
@@ -25,8 +19,7 @@ export type NotificationViewMode = "flat" | "person" | "hour" | "camera";
 
 export type ClusterMatchReason =
   | "EXACT_TRACK"
-  | "SPATIAL_IOU"
-  | "VISUAL_SIMILARITY";
+  | "SPATIAL_IOU";
 
 export interface NotificationGroupingOptions {
   /** Ngôn ngữ hiển thị để trích xuất & đặt nhãn */
@@ -37,14 +30,6 @@ export interface NotificationGroupingOptions {
   spatialWindowSeconds?: number;
   /** Ngưỡng IoU tối thiểu cho tầng SPATIAL_IOU (mặc định 0.45) */
   minSpatialIoU?: number;
-  /** Bật tầng so sánh hình ảnh (dHash + Color Histogram) */
-  enableVisualDedup?: boolean;
-  /** Cửa sổ thời gian gom theo tương đồng hình ảnh (giây, mặc định 60s) */
-  visualWindowSeconds?: number;
-  /** Khoảng cách Hamming tối đa trên 64-bit dHash (mặc định 10) */
-  visualMaxHamming?: number;
-  /** Độ tương đồng Cosine tối thiểu của Color Histogram (mặc định 0.82) */
-  visualMinHistogramSim?: number;
   /** Ở chế độ Theo giờ / Theo camera: có đồng thời gom đa vi phạm của cùng 1 người bên trong mỗi section không */
   combinePersonInSections?: boolean;
 }
@@ -70,8 +55,6 @@ export interface NotificationPersonCluster {
   siteName: string | null;
   /** Lý do giải thích minh bạch tại sao FE gom các thông báo này lại */
   matchReasons: ClusterMatchReason[];
-  /** % tương đồng ảnh cao nhất (nếu khớp nhờ VISUAL_SIMILARITY) */
-  bestVisualSimilarityPct: number | null;
   /** % trùng khớp khung người cao nhất (nếu khớp nhờ SPATIAL_IOU) */
   bestSpatialIoUPct: number | null;
   earliestAt: string | Date;
@@ -91,23 +74,11 @@ export interface NotificationSectionGroup {
   unreadNotificationIds: string[];
 }
 
-export interface VisualCandidateItem {
-  notificationId: string;
-  incidentId: string;
-  cacheKey: string;
-  imageUrl: string;
-  cropBox: NotificationEnrichedSignals["personBox"];
-}
-
 export const DEFAULT_GROUPING_OPTIONS: Required<NotificationGroupingOptions> = {
   isVietnamese: true,
   trackWindowSeconds: 45,
   spatialWindowSeconds: 15,
   minSpatialIoU: 0.45,
-  enableVisualDedup: true,
-  visualWindowSeconds: 60,
-  visualMaxHamming: DEFAULT_VISUAL_MAX_HAMMING,
-  visualMinHistogramSim: DEFAULT_VISUAL_MIN_HIST_SIM,
   combinePersonInSections: true,
 };
 
@@ -128,16 +99,6 @@ function getItemTimestampMs(
   }
   const ts = Date.parse(String(item.sentAt || item.createdAt));
   return Number.isFinite(ts) ? ts : 0;
-}
-
-export function getFingerprintCacheKey(
-  signal?: NotificationEnrichedSignals,
-): string | null {
-  if (!signal) return null;
-  if (signal.evidenceChecksum) return `sha256:${signal.evidenceChecksum}`;
-  if (signal.evidenceId) return `ev:${signal.evidenceId}`;
-  if (signal.evidenceUrl) return `inc:${signal.incidentId}`;
-  return null;
 }
 
 function getCameraScopeKey(
@@ -197,7 +158,6 @@ interface IndexedNotification {
   isPpeAlert: boolean;
   cameraKey: string | null;
   timestampMs: number;
-  fingerprintKey: string | null;
 }
 
 function indexNotifications(
@@ -219,7 +179,6 @@ function indexNotifications(
       isPpeAlert,
       cameraKey,
       timestampMs: getItemTimestampMs(item, signal),
-      fingerprintKey: getFingerprintCacheKey(signal),
     };
   });
 }
@@ -227,7 +186,6 @@ function indexNotifications(
 function buildCluster(
   members: IndexedNotification[],
   reasons: Set<ClusterMatchReason>,
-  bestVisualPct: number | null,
   bestSpatialPct: number | null,
 ): NotificationPersonCluster {
   // Đảm bảo thứ tự mới nhất -> cũ nhất theo thứ tự gốc
@@ -292,7 +250,6 @@ function buildCluster(
     cameraCode,
     siteName,
     matchReasons: Array.from(reasons),
-    bestVisualSimilarityPct: bestVisualPct,
     bestSpatialIoUPct: bestSpatialPct,
     latestAt: primaryEntry.item.sentAt || primaryEntry.item.createdAt,
     earliestAt: oldestEntry.item.sentAt || oldestEntry.item.createdAt,
@@ -308,88 +265,17 @@ export function wrapFlatPersonClusters(
   isVietnamese = true,
 ): NotificationPersonCluster[] {
   const indexed = indexNotifications(items, signalsMap, isVietnamese);
-  return indexed.map((entry) => buildCluster([entry], new Set(), null, null));
-}
-
-/**
- * Lọc trước các cặp thông báo PPE ứng viên cần tính Visual Fingerprint (cùng camera,
- * gần nhau về thời gian, có ảnh bằng chứng, và chưa trùng exact track_id).
- * Giúp tiết kiệm băng thông & CPU: thông báo đứng một mình không bao giờ bị tải ảnh.
- */
-export function selectVisualFingerprintCandidates(
-  items: readonly NotificationItemDto[],
-  signalsMap?: ReadonlyMap<string, NotificationEnrichedSignals>,
-  options?: NotificationGroupingOptions,
-): VisualCandidateItem[] {
-  const opts = { ...DEFAULT_GROUPING_OPTIONS, ...options };
-  if (!opts.enableVisualDedup || !signalsMap || signalsMap.size === 0) {
-    return [];
-  }
-
-  const indexed = indexNotifications(items, signalsMap, opts.isVietnamese);
-  const byCamera = new Map<string, IndexedNotification[]>();
-
-  for (const entry of indexed) {
-    if (!entry.isPpeAlert || !entry.cameraKey || !entry.signal?.evidenceUrl || !entry.fingerprintKey) {
-      continue;
-    }
-    const list = byCamera.get(entry.cameraKey) ?? [];
-    list.push(entry);
-    byCamera.set(entry.cameraKey, list);
-  }
-
-  const visualWindowMs = opts.visualWindowSeconds * 1000;
-  const candidates = new Map<string, VisualCandidateItem>();
-
-  for (const group of byCamera.values()) {
-    if (group.length < 2) continue;
-    for (let i = 0; i < group.length; i++) {
-      const a = group[i];
-      for (let j = i + 1; j < group.length; j++) {
-        const b = group[j];
-        const deltaMs = Math.abs(a.timestampMs - b.timestampMs);
-        if (deltaMs > visualWindowMs) continue;
-
-        // Nếu đã chắc chắn cùng track_id rồi thì không cần tốn tài nguyên tải ảnh để so khớp nữa
-        const sameTrack =
-          a.signal?.personTrackId !== null &&
-          a.signal?.personTrackId !== undefined &&
-          a.signal.personTrackId === b.signal?.personTrackId &&
-          deltaMs <= opts.trackWindowSeconds * 1000;
-        if (sameTrack) continue;
-
-        for (const target of [a, b]) {
-          if (
-            target.signal?.evidenceUrl &&
-            target.fingerprintKey &&
-            !candidates.has(target.fingerprintKey)
-          ) {
-            candidates.set(target.fingerprintKey, {
-              notificationId: target.item.id,
-              incidentId: target.signal.incidentId,
-              cacheKey: target.fingerprintKey,
-              imageUrl: target.signal.evidenceUrl,
-              cropBox: target.signal.personBox,
-            });
-          }
-        }
-      }
-    }
-  }
-
-  return Array.from(candidates.values());
+  return indexed.map((entry) => buildCluster([entry], new Set(), null));
 }
 
 /**
  * Gom nhóm thông báo vi phạm PPE của CÙNG 1 NGƯỜI / ĐA VI PHẠM bằng Union-Find đa tín hiệu:
  * 1. EXACT_TRACK: Cùng camera + cùng personTrackId trong cửa sổ trackWindowSeconds (gộp NO_HELMET + NO_VEST).
  * 2. SPATIAL_IOU: Cùng camera + bounding box người trùng khớp cao (chống ByteTrack ID-switch).
- * 3. VISUAL_SIMILARITY: Cùng camera + dHash 64-bit & Color Histogram tương đồng cao (nếu bật).
  */
 export function groupNotificationsByPerson(
   items: readonly NotificationItemDto[],
   signalsMap?: ReadonlyMap<string, NotificationEnrichedSignals>,
-  fingerprintsMap?: ReadonlyMap<string, VisualFingerprint>,
   options?: NotificationGroupingOptions,
 ): NotificationPersonCluster[] {
   const opts = { ...DEFAULT_GROUPING_OPTIONS, ...options };
@@ -403,7 +289,6 @@ export function groupNotificationsByPerson(
     a: number;
     b: number;
     reason: ClusterMatchReason;
-    visualPct?: number;
     spatialPct?: number;
   }> = [];
 
@@ -417,7 +302,6 @@ export function groupNotificationsByPerson(
 
   const trackWindowMs = opts.trackWindowSeconds * 1000;
   const spatialWindowMs = opts.spatialWindowSeconds * 1000;
-  const visualWindowMs = opts.visualWindowSeconds * 1000;
 
   for (const camEntries of byCamera.values()) {
     if (camEntries.length < 2) continue;
@@ -466,33 +350,6 @@ export function groupNotificationsByPerson(
             continue;
           }
         }
-
-        // Tầng 3: So khớp độ tương đồng hình ảnh (dHash 64-bit + Color Histogram)
-        if (
-          opts.enableVisualDedup &&
-          fingerprintsMap &&
-          a.fingerprintKey &&
-          b.fingerprintKey &&
-          deltaMs <= visualWindowMs
-        ) {
-          const fpA = fingerprintsMap.get(a.fingerprintKey);
-          const fpB = fingerprintsMap.get(b.fingerprintKey);
-          if (fpA && fpB) {
-            const cmp = compareVisualFingerprints(fpA, fpB, {
-              maxHamming: opts.visualMaxHamming,
-              minHistogramSim: opts.visualMinHistogramSim,
-            });
-            if (cmp.isMatch) {
-              dsu.union(a.index, b.index);
-              edgeMeta.push({
-                a: a.index,
-                b: b.index,
-                reason: "VISUAL_SIMILARITY",
-                visualPct: Math.round(cmp.combinedScore * 100),
-              });
-            }
-          }
-        }
       }
     }
   }
@@ -507,7 +364,6 @@ export function groupNotificationsByPerson(
   }
 
   const reasonsByRoot = new Map<number, Set<ClusterMatchReason>>();
-  const bestVisualByRoot = new Map<number, number>();
   const bestSpatialByRoot = new Map<number, number>();
 
   for (const edge of edgeMeta) {
@@ -516,10 +372,6 @@ export function groupNotificationsByPerson(
     rSet.add(edge.reason);
     reasonsByRoot.set(root, rSet);
 
-    if (edge.visualPct !== undefined) {
-      const prev = bestVisualByRoot.get(root) ?? 0;
-      bestVisualByRoot.set(root, Math.max(prev, edge.visualPct));
-    }
     if (edge.spatialPct !== undefined) {
       const prev = bestSpatialByRoot.get(root) ?? 0;
       bestSpatialByRoot.set(root, Math.max(prev, edge.spatialPct));
@@ -532,7 +384,6 @@ export function groupNotificationsByPerson(
     buildCluster(
       buckets.get(root)!,
       reasonsByRoot.get(root) ?? new Set(),
-      bestVisualByRoot.get(root) ?? null,
       bestSpatialByRoot.get(root) ?? null,
     ),
   );
@@ -590,14 +441,13 @@ export function groupNotificationsIntoSections(
   items: readonly NotificationItemDto[],
   mode: "hour" | "camera",
   signalsMap?: ReadonlyMap<string, NotificationEnrichedSignals>,
-  fingerprintsMap?: ReadonlyMap<string, VisualFingerprint>,
   options?: NotificationGroupingOptions,
 ): NotificationSectionGroup[] {
   const opts = { ...DEFAULT_GROUPING_OPTIONS, ...options };
   if (items.length === 0) return [];
 
   const baseClusters = opts.combinePersonInSections
-    ? groupNotificationsByPerson(items, signalsMap, fingerprintsMap, opts)
+    ? groupNotificationsByPerson(items, signalsMap, opts)
     : wrapFlatPersonClusters(items, signalsMap, opts.isVietnamese);
 
   const sectionOrder: string[] = [];
@@ -683,24 +533,4 @@ export function groupNotificationsIntoSections(
       unreadNotificationIds: unreadIds,
     };
   });
-}
-
-export function paginateNotificationClusters(
-  clusters: readonly NotificationPersonCluster[],
-  page = 1,
-  limit = 20,
-) {
-  const safeLimit = Math.max(1, limit);
-  const total = clusters.length;
-  const totalPages = Math.max(1, Math.ceil(total / safeLimit));
-  const safePage = Math.min(Math.max(1, page), totalPages);
-  return {
-    data: clusters.slice((safePage - 1) * safeLimit, safePage * safeLimit),
-    meta: {
-      page: safePage,
-      limit: safeLimit,
-      total,
-      totalPages,
-    },
-  };
 }

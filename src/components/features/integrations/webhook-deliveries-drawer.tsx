@@ -23,6 +23,7 @@ export interface WebhookDeliveriesDrawerProps {
   onClose: () => void;
   onRetry: (deliveryId: string, webhookId: string) => Promise<void>;
   retrying?: boolean;
+  webhooksEnabled?: boolean;
 }
 
 export function WebhookDeliveriesDrawer({
@@ -30,6 +31,7 @@ export function WebhookDeliveriesDrawer({
   onClose,
   onRetry,
   retrying = false,
+  webhooksEnabled = true,
 }: WebhookDeliveriesDrawerProps) {
   const { locale } = useLocale();
   const isVi = locale === "vi-VN";
@@ -65,7 +67,7 @@ export function WebhookDeliveriesDrawer({
   ];
 
   const handleRetry = async (deliveryId: string) => {
-    if (!webhook) return;
+    if (!webhook || !webhooksEnabled) return;
     try {
       await onRetry(deliveryId, webhook.id);
       toast.success(
@@ -161,8 +163,15 @@ export function WebhookDeliveriesDrawer({
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={retrying}
+                        disabled={retrying || !webhooksEnabled}
                         onClick={() => handleRetry(d.id)}
+                        title={
+                          !webhooksEnabled
+                            ? isVi
+                              ? "Tính năng Webhook hiện đang tạm khóa bởi quản trị viên"
+                              : "Webhook feature is currently disabled by administrator"
+                            : undefined
+                        }
                       >
                         <RotateCcw className="mr-1 h-3 w-3" />
                         {isVi ? "Gửi lại" : "Retry"}

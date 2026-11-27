@@ -153,7 +153,7 @@ function useComputeSidebarBadges(): SidebarBadgesMap {
 }
 
 /**
- * Provider đặt tại AppShell để AppSidebar và MobileSidebar dùng chung
+ * Provider đặt tại AppShell để AppSidebar, MobileTabBar và MobileMoreSheet dùng chung
  * đúng một tập subscription/query thay vì nhân đôi.
  */
 export function SidebarBadgesProvider({ children }: { children: ReactNode }) {

@@ -1,5 +1,6 @@
 import { apiClient } from "@/lib/axios";
 import { pickLocaleText } from "@/lib/i18n-runtime";
+import { tokenStore } from "@/lib/token";
 import { env } from "@/config/env";
 import type {
   CreateSystemConfigPayload,
@@ -176,7 +177,6 @@ export const systemService = {
 
     const infraTargets: HealthTarget[] = [
       { name: "PostgreSQL Database", code: "postgres-db", port: 5432, path: "/health/readiness", type: "INFRASTRUCTURE", isDbProbe: true },
-      { name: "Apache Kafka EventBus", code: "kafka-broker", port: 9092, path: "/incidents/health", type: "INFRASTRUCTURE" },
       {
         name: "MinIO S3 Object Storage",
         code: "minio-storage",
@@ -268,8 +268,13 @@ export const systemService = {
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), 2500);
             try {
+              const accessToken = tokenStore.getAccessToken();
               const response = await fetch(tgt.path, {
                 cache: "no-store",
+                credentials: "same-origin",
+                ...(accessToken
+                  ? { headers: { Authorization: `Bearer ${accessToken}` } }
+                  : {}),
                 signal: controller.signal,
               });
               probeLatency = Math.round(performance.now() - start);
@@ -396,6 +401,9 @@ export const systemService = {
             lastChecked: new Date().toISOString(),
             details: {
               thresholdMs: HEALTHY_THRESHOLD_MS,
+              ...(typeof resData?.version === "string" && resData.version.trim()
+                ? { version: resData.version.trim() }
+                : {}),
               ...(status === "DOWN" ? { probeDurationMs: latencyMs } : {}),
               ...(failureKind ? { failureKind } : {}),
               ...(failureReason ? { reason: failureReason } : {}),

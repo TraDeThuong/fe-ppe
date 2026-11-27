@@ -24,6 +24,13 @@ import type {
   UpdateIncidentPayload,
 } from "@/types";
 
+/** Số mẫu mỗi trang khi xuất feedback dataset (BE giới hạn `limit` tối đa 100). */
+export const FEEDBACK_EXPORT_PAGE_SIZE = 100;
+/** Số trang tối đa gom cho một lần xuất. */
+export const FEEDBACK_EXPORT_MAX_PAGES = 10;
+/** Trần số mẫu trong một tệp xuất; vượt trần thì tệp chỉ gồm các mẫu mới nhất. */
+export const FEEDBACK_EXPORT_MAX_SAMPLES = FEEDBACK_EXPORT_PAGE_SIZE * FEEDBACK_EXPORT_MAX_PAGES;
+
 interface ApiResponse<T> {
   success: boolean;
   message?: string;
@@ -268,8 +275,8 @@ export const incidentService = {
     params?: Omit<FeedbackDatasetQueryParams, "page" | "limit">,
     options?: { maxPages?: number; signal?: AbortSignal },
   ): Promise<{ items: FeedbackDatasetItem[]; total: number }> {
-    const limit = 100;
-    const maxPages = Math.max(1, Math.min(20, options?.maxPages ?? 10));
+    const limit = FEEDBACK_EXPORT_PAGE_SIZE;
+    const maxPages = Math.max(1, Math.min(20, options?.maxPages ?? FEEDBACK_EXPORT_MAX_PAGES));
     const first = await incidentService.getFeedbackDataset(
       { ...params, page: 1, limit },
       { signal: options?.signal },

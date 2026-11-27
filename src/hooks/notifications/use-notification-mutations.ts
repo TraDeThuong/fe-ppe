@@ -26,10 +26,19 @@ function useInboxAction(action: "read" | "read-many" | "read-all" | "delete") {
   const client = useQueryClient();
   const userId = useContext(AuthContext)?.user?.id || "";
   return async (arg?: string | string[]) => {
-    const key = notificationKeys.inbox(userId);
-    const snapshot = await applyNotificationInboxAction(
+    const rows = new Map<string, NotificationInboxSnapshot["items"][number]>();
+    const pages = client.getQueriesData<NotificationInboxSnapshot>({ queryKey: notificationKeys.inbox(userId) });
+    for (const [, snapshot] of pages) {
+      for (const row of snapshot?.items ?? []) {
+        const previous = rows.get(row.id);
+        if (!previous || (row.mergedIds?.length ?? 0) > (previous.mergedIds?.length ?? 0)) {
+          rows.set(row.id, row);
+        }
+      }
+    }
+    await applyNotificationInboxAction(
       {
-        snapshot: client.getQueryData<NotificationInboxSnapshot>(key),
+        snapshot: { items: [...rows.values()], rawTotal: rows.size },
         userId,
         action,
         id: typeof arg === "string" ? arg : undefined,
@@ -37,7 +46,6 @@ function useInboxAction(action: "read" | "read-many" | "read-all" | "delete") {
       },
       notificationService,
     );
-    client.setQueryData(key, snapshot);
     return { message: "OK" };
   };
 }

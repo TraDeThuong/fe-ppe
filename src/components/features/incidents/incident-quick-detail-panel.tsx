@@ -7,18 +7,14 @@ import {
   BellRing,
   Building2,
   Calendar,
-  Camera,
   Check,
   CheckCircle2,
   CheckSquare,
   Clock,
-  Columns2,
   Edit3,
   ExternalLink,
   FileCheck2,
-  Image as ImageIcon,
   MapPin,
-  Maximize2,
   RefreshCw,
   ShieldAlert,
   Trash2,
@@ -36,22 +32,21 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCan } from "@/hooks/use-can";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useIncidentDetail } from "@/hooks/incidents/use-incident-detail";
-import { isDockerInternalMinioUrl, resolveEvidenceUrl } from "@/lib/evidence-url";
+import { isDockerInternalMinioUrl } from "@/lib/evidence-url";
 import { isIncidentAssignedToUser } from "@/lib/incident-workflow";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
 import { incidentService, notificationService } from "@/services";
+import { type IncidentItem, type NotificationSeverity } from "@/types";
 import {
-  EVIDENCE_TYPE,
-  type EvidenceItem,
-  type IncidentItem,
-  type NotificationSeverity,
-} from "@/types";
-import {
-  isVideoEvidence,
   resolveIncidentTelemetry,
+  selectQuickDetailEvidence,
 } from "./viewer/evidence-media-utils";
-import { EvidenceVideoPlayer } from "./viewer/evidence-video-player";
+import {
+  QuickEvidenceLightbox,
+  QuickEvidenceMonitor,
+  type QuickEvidenceTab,
+} from "./viewer/quick-evidence-monitor";
 
 export interface IncidentQuickDetailPanelProps {
   incident: IncidentItem | null;
@@ -63,19 +58,6 @@ export interface IncidentQuickDetailPanelProps {
   onDelete?: (incident: IncidentItem) => void;
   onCloseDrawer?: () => void;
   className?: string;
-}
-
-function isReferenceEvidenceItem(ev: EvidenceItem): boolean {
-  const evUrlLower = (ev.url || ev.storageKey || "").toLowerCase();
-  const fileNameLower = (ev.fileName || "").toLowerCase();
-  return (
-    ev.evidenceType === EVIDENCE_TYPE.REFERENCE_SNAPSHOT ||
-    ev.evidenceType === "REFERENCE" ||
-    evUrlLower.includes("reference_snapshot") ||
-    evUrlLower.includes("_ref") ||
-    fileNameLower.includes("reference") ||
-    fileNameLower.includes("_ref")
-  );
 }
 
 export function IncidentQuickDetailPanel({
@@ -97,7 +79,7 @@ export function IncidentQuickDetailPanel({
   const { getSiteName, getZoneName, getCameraCode, getCameraName, getCamera } =
     useEntityLookup();
 
-  const [evidenceTab, setEvidenceTab] = useState<"violation" | "compare" | "video">("violation");
+  const [evidenceTab, setEvidenceTab] = useState<QuickEvidenceTab>("violation");
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [signedSnapshotUrl, setSignedSnapshotUrl] = useState<string | null>(null);
   const [imgError, setImgError] = useState(false);
@@ -166,47 +148,11 @@ export function IncidentQuickDetailPanel({
     referenceEvidenceUrl,
     videoEvidence,
   } = useMemo(() => {
-    if (!current) {
-      return {
-        primaryEvidence: null as EvidenceItem | null,
-        primaryEvidenceUrl: "",
-        referenceEvidenceUrl: "",
-        videoEvidence: null as EvidenceItem | null,
-      };
-    }
-
-    const evidences = current.evidences ?? [];
-    const vid = evidences.find((e) => isVideoEvidence(e)) || null;
-    const imageEvidences = evidences.filter((e) => !isVideoEvidence(e));
-    const snap =
-      imageEvidences.find((e) => e.evidenceType === EVIDENCE_TYPE.SNAPSHOT) ||
-      imageEvidences.find((e) => !isReferenceEvidenceItem(e)) ||
-      null;
-    const ref = imageEvidences.find((e) => isReferenceEvidenceItem(e)) || null;
-
-    let cachedIncidentImg = "";
-    let cachedRefImg = "";
-    if (typeof window !== "undefined") {
-      cachedIncidentImg = sessionStorage.getItem(`ppe_incident_evidence_${current.id}`) || "";
-      cachedRefImg = sessionStorage.getItem(`ppe_incident_ref_evidence_${current.id}`) || "";
-    }
-
-    const resolvedPrimary =
-      resolveEvidenceUrl(snap?.url || snap?.storageKey) ||
-      (!isVideoEvidence(null, current.snapshotUrl) ? resolveEvidenceUrl(current.snapshotUrl) : "") ||
-      (!isVideoEvidence(null, cachedIncidentImg) ? resolveEvidenceUrl(cachedIncidentImg) : "");
-
-    const resolvedRef =
-      (ref?.url ? resolveEvidenceUrl(ref.url) : "") ||
-      (ref?.storageKey ? resolveEvidenceUrl(ref.storageKey) : "") ||
-      (cachedRefImg ? resolveEvidenceUrl(cachedRefImg) : "");
-
-    return {
-      primaryEvidence: snap,
-      primaryEvidenceUrl: resolvedPrimary,
-      referenceEvidenceUrl: resolvedRef && resolvedRef !== resolvedPrimary ? resolvedRef : "",
-      videoEvidence: vid,
-    };
+    if (!current || typeof window === "undefined") return selectQuickDetailEvidence(current);
+    return selectQuickDetailEvidence(current, {
+      incidentUrl: sessionStorage.getItem(`ppe_incident_evidence_${current.id}`),
+      referenceUrl: sessionStorage.getItem(`ppe_incident_ref_evidence_${current.id}`),
+    });
   }, [current]);
 
   const effectivePrimaryUrl = signedSnapshotUrl || primaryEvidenceUrl;
@@ -292,9 +238,6 @@ export function IncidentQuickDetailPanel({
   const zoneName =
     current.zoneName || getZoneName(current.siteId, resolvedZoneId) || "—";
   const telemetry = resolveIncidentTelemetry(current);
-  const showVideoPlayer =
-    Boolean(videoEvidence) &&
-    (evidenceTab === "video" || (!effectivePrimaryUrl && evidenceTab === "violation"));
   const cameraCode = current.cameraCode || getCameraCode(current.cameraId);
   const cameraName = current.cameraName || getCameraName(current.cameraId);
   const detectedDate = new Date(current.detectedAt).toLocaleString(locale, {
@@ -700,160 +643,22 @@ export function IncidentQuickDetailPanel({
       <div className="grid grid-cols-1 items-stretch gap-3.5 lg:grid-cols-12">
         {/* CỘT TRÁI (8/12): MÀN HÌNH BẰNG CHỨNG AI CỠ LỚN */}
         <div className="flex flex-col gap-3 lg:col-span-8">
-          <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-white/40 bg-surface p-2.5 shadow-nm-sm dark:border-white/[0.06]">
-            {/* Monitor Header */}
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 px-1 text-[11px]">
-              <div className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-background/85 text-primary shadow-nm-inset">
-                  <ImageIcon className="h-3.5 w-3.5" />
-                </span>
-                <span className="font-extrabold tracking-tight text-foreground">
-                  {isVietnamese ? "Bằng chứng AI" : "AI Evidence"}
-                </span>
-                {telemetry.trackId !== null && (
-                  <span className="rounded-lg border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-black text-primary">
-                    Track #{telemetry.trackId}
-                  </span>
-                )}
-                {telemetry.confidencePct !== null && (
-                  <span className="rounded-lg border border-danger/25 bg-danger/10 px-2 py-0.5 font-mono text-[10px] font-black text-danger">
-                    AI {telemetry.confidencePct}%
-                  </span>
-                )}
-                {evidenceCount > 0 && (
-                  <span className="rounded-lg border border-border/30 bg-background/85 px-2 py-0.5 font-mono text-[10px] font-bold text-muted-foreground shadow-nm-inset">
-                    {evidenceCount} {isVietnamese ? "tệp" : "files"}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                {(referenceEvidenceUrl || videoEvidence) && (
-                  <div className="inline-flex items-center rounded-xl border border-border/30 bg-background/85 p-0.5 text-[10px] shadow-nm-inset">
-                    <button
-                      type="button"
-                      onClick={() => setEvidenceTab("violation")}
-                      className={`rounded-lg px-2.5 py-0.5 font-extrabold transition-all ${evidenceTab === "violation"
-                          ? "bg-primary text-primary-foreground shadow-xs"
-                          : "text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                      {isVietnamese ? "Vi phạm" : "Violation"}
-                    </button>
-                    {videoEvidence && (
-                      <button
-                        type="button"
-                        onClick={() => setEvidenceTab("video")}
-                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-0.5 font-extrabold transition-all ${evidenceTab === "video"
-                            ? "bg-primary text-primary-foreground shadow-xs"
-                            : "text-muted-foreground hover:text-foreground"
-                          }`}
-                      >
-                        <Video className="h-3 w-3" />
-                        <span>Video</span>
-                      </button>
-                    )}
-                    {referenceEvidenceUrl && (
-                      <button
-                        type="button"
-                        onClick={() => setEvidenceTab("compare")}
-                        className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-0.5 font-extrabold transition-all ${evidenceTab === "compare"
-                            ? "bg-primary text-primary-foreground shadow-xs"
-                            : "text-muted-foreground hover:text-foreground"
-                          }`}
-                      >
-                        <Columns2 className="h-3 w-3" />
-                        <span>{isVietnamese ? "Đối chứng" : "Compare"}</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {effectivePrimaryUrl && !imgError && !showVideoPlayer && (
-                  <button
-                    type="button"
-                    onClick={() => setLightboxOpen(true)}
-                    title={isVietnamese ? "Phóng to toàn màn hình" : "Zoom fullscreen"}
-                    aria-label={isVietnamese ? "Phóng to ảnh" : "Zoom image"}
-                    className="inline-flex h-7 items-center gap-1 rounded-xl border border-white/40 bg-surface px-2 text-[10px] font-bold text-muted-foreground shadow-nm-sm transition-all hover:text-primary active:scale-95 active:shadow-nm-inset dark:border-white/[0.06]"
-                  >
-                    <Maximize2 className="h-3 w-3" />
-                    <span className="hidden sm:inline">
-                      {isVietnamese ? "Phóng to" : "Zoom"}
-                    </span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Expanded Tactical Screen (16:10 taller viewport) */}
-            <div className="group/screen relative flex-1 overflow-hidden rounded-xl border border-border/40 bg-[#070b14] shadow-nm-inset">
-              {/* HUD Corner Brackets */}
-              <span className="pointer-events-none absolute left-2.5 top-2.5 z-10 h-3.5 w-3.5 border-l-2 border-t-2 border-primary/75" />
-              <span className="pointer-events-none absolute right-2.5 top-2.5 z-10 h-3.5 w-3.5 border-r-2 border-t-2 border-primary/75" />
-              <span className="pointer-events-none absolute bottom-2.5 left-2.5 z-10 h-3.5 w-3.5 border-b-2 border-l-2 border-primary/75" />
-              <span className="pointer-events-none absolute bottom-2.5 right-2.5 z-10 h-3.5 w-3.5 border-b-2 border-r-2 border-primary/75" />
-
-              {showVideoPlayer && videoEvidence ? (
-                <div className="relative flex aspect-[16/10] w-full items-center justify-center">
-                  <EvidenceVideoPlayer
-                    evidence={videoEvidence}
-                    poster={effectivePrimaryUrl || undefined}
-                    title={`Video #${current.id.slice(0, 8)}`}
-                    className="h-full w-full object-contain"
-                  />
-                </div>
-              ) : evidenceTab === "compare" && referenceEvidenceUrl ? (
-                <div className="grid h-full min-h-[260px] grid-cols-2 gap-1.5 p-1.5 sm:min-h-[320px]">
-                  <div className="relative overflow-hidden rounded-lg bg-slate-900">
-                    <span className="absolute left-2 top-2 z-10 rounded-md bg-danger/90 px-1.5 py-0.5 font-mono text-[9px] font-black tracking-wider text-white shadow">
-                      {isVietnamese ? "VI PHẠM" : "VIOLATION"}
-                    </span>
-                    <img
-                      src={effectivePrimaryUrl}
-                      alt="Violation"
-                      className="h-full w-full object-contain"
-                      onError={() => void handleImageError()}
-                    />
-                  </div>
-                  <div className="relative overflow-hidden rounded-lg bg-slate-900">
-                    <span className="absolute left-2 top-2 z-10 rounded-md bg-emerald-600/90 px-1.5 py-0.5 font-mono text-[9px] font-black tracking-wider text-white shadow">
-                      {isVietnamese ? "ĐỐI CHỨNG" : "REFERENCE"}
-                    </span>
-                    <img
-                      src={referenceEvidenceUrl}
-                      alt="Reference"
-                      className="h-full w-full object-contain"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="relative flex aspect-[16/10] w-full items-center justify-center">
-                  {/* Live Camera Watermark */}
-                  <span className="pointer-events-none absolute bottom-3 left-4 z-10 rounded-md bg-black/65 px-2 py-0.5 font-mono text-[10px] font-bold tracking-widest text-slate-200 backdrop-blur-xs">
-                    CAM • {cameraCode}
-                  </span>
-
-                  {effectivePrimaryUrl && !imgError ? (
-                    <img
-                      src={effectivePrimaryUrl}
-                      alt={`Evidence #${current.id.slice(0, 8)}`}
-                      onClick={() => setLightboxOpen(true)}
-                      className="h-full w-full cursor-zoom-in object-contain transition-transform duration-300 group-hover/screen:scale-[1.015]"
-                      onError={() => void handleImageError()}
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center gap-2 py-12 text-slate-400">
-                      <Camera className="h-8 w-8 opacity-50" />
-                      <span className="text-xs">
-                        {isVietnamese ? "Chưa có ảnh bằng chứng" : "No evidence snapshot available"}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+          <QuickEvidenceMonitor
+            incidentId={current.id}
+            cameraCode={cameraCode}
+            isVietnamese={isVietnamese}
+            trackId={telemetry.trackId}
+            confidencePct={telemetry.confidencePct}
+            evidenceCount={evidenceCount}
+            imageUrl={effectivePrimaryUrl}
+            imageFailed={imgError}
+            referenceUrl={referenceEvidenceUrl}
+            videoEvidence={videoEvidence}
+            activeTab={evidenceTab}
+            onTabChange={setEvidenceTab}
+            onZoom={() => setLightboxOpen(true)}
+            onImageError={() => void handleImageError()}
+          />
 
           {/* Recessed Notes / Description Well */}
           {current.description && (
@@ -1025,32 +830,12 @@ export function IncidentQuickDetailPanel({
 
       {/* Fullscreen Evidence Lightbox */}
       {lightboxOpen && effectivePrimaryUrl && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label={isVietnamese ? "Xem ảnh bằng chứng phóng to" : "Zoomed evidence viewer"}
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
-          onClick={() => setLightboxOpen(false)}
-        >
-          <div
-            className="relative max-h-[90dvh] max-w-5xl overflow-hidden rounded-2xl border border-white/15 bg-slate-950 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setLightboxOpen(false)}
-              aria-label={isVietnamese ? "Đóng" : "Close"}
-              className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/70 text-white transition hover:bg-black"
-            >
-              <X className="h-5 w-5" />
-            </button>
-            <img
-              src={effectivePrimaryUrl}
-              alt={`Evidence #${current.id.slice(0, 8)}`}
-              className="max-h-[88dvh] w-auto object-contain"
-            />
-          </div>
-        </div>
+        <QuickEvidenceLightbox
+          incidentId={current.id}
+          imageUrl={effectivePrimaryUrl}
+          isVietnamese={isVietnamese}
+          onClose={() => setLightboxOpen(false)}
+        />
       )}
     </section>
   );

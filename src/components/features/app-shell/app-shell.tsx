@@ -16,6 +16,8 @@ import { NavigationProgressBar } from "@/components/ui/navigation-progress-bar";
 import { AppSidebar } from "./app-sidebar";
 import { AppHeader } from "./app-header";
 import { ForbiddenView } from "./forbidden-view";
+import { MobileTabBar } from "./mobile-tab-bar";
+import { MobileChromeProvider } from "./mobile-chrome-context";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -48,6 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarBadgesProvider>
+    <MobileChromeProvider>
       <div className="flex h-[100dvh] overflow-hidden bg-background">
         {/* Top navigation progress bar */}
         <Suspense fallback={null}>
@@ -82,7 +85,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <main
             data-page-scroll
-            className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden bg-background p-3 sm:p-6 lg:p-8"
+            className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden bg-background px-3 pb-8 pt-3 sm:p-6 lg:p-8"
           >
             {maintenanceLocked && !isMaintenanceRoute ? null : forbidden ? (
               <ForbiddenView />
@@ -90,8 +93,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               children
             )}
           </main>
+
+          {/* Mobile (< 768px): thanh tab ở đáy thay menu ☰ */}
+          <MobileTabBar maintenanceLocked={maintenanceLocked} />
         </div>
       </div>
+    </MobileChromeProvider>
     </SidebarBadgesProvider>
   );
 }

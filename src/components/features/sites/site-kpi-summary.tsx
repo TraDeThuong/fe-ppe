@@ -16,6 +16,7 @@ import {
   SiteStatsDetailPanel,
   type SiteStatKey,
 } from "./site-stats-detail-panel";
+import type { SiteZonesTab } from "./site-zones-drawer";
 
 export type { SiteStatKey };
 
@@ -24,7 +25,7 @@ export interface SiteKpiSummaryProps {
   loading?: boolean;
   selectedStat?: SiteStatKey | null;
   onSelectStat?: (stat: SiteStatKey | null) => void;
-  onManageZones?: (site: SiteItem) => void;
+  onManageZones?: (site: SiteItem, tab?: SiteZonesTab) => void;
 }
 
 export function SiteKpiSummary({

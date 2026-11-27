@@ -75,7 +75,7 @@ export function BackToTop() {
             : "smooth",
         });
       }}
-      className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-[max(1.5rem,env(safe-area-inset-right))] z-40 inline-flex size-12 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-primary text-primary-foreground shadow-[6px_6px_14px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-[8px_8px_18px_var(--shadow-dark),-5px_-5px_12px_var(--shadow-light)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary active:translate-y-0 motion-reduce:transform-none motion-reduce:transition-none"
+      className="max-md:hidden fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-[max(1.5rem,env(safe-area-inset-right))] z-40 inline-flex size-12 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-primary text-primary-foreground shadow-[6px_6px_14px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)] transition-[transform,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-[8px_8px_18px_var(--shadow-dark),-5px_-5px_12px_var(--shadow-light)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary active:translate-y-0 motion-reduce:transform-none motion-reduce:transition-none"
     >
       <ArrowUp className="size-5" aria-hidden="true" />
     </button>

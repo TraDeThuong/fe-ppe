@@ -15,6 +15,7 @@ export const SYSTEM_CONFIG_KEYS = {
   registrationEnabled: "feature.registration.enabled",
   socialLoginEnabled: "feature.social_login.enabled",
   notificationsEnabled: "feature.notifications.enabled",
+  webhooksEnabled: "feature.webhooks.enabled",
   aiLiveMaxSessions: "ai.live_max_sessions",
 } as const;
 

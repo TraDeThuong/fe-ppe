@@ -4,7 +4,6 @@ import { useContext } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AuthContext } from "@/contexts/AuthContext";
 import { useCan } from "@/hooks/use-can";
-import { NotificationArchiveInboxUnavailable } from "@/lib/notification-archive";
 import { notificationService } from "@/services/notification.service";
 import { notificationKeys } from "./notification.query-keys";
 
@@ -15,7 +14,7 @@ export function useNotificationArchiveAccount() {
 }
 
 type ServerArchiveAction =
-  | { type: "manual"; ids?: ReadonlySet<string> }
+  | { type: "manual" }
   | { type: "restore"; id: string };
 
 export function useNotificationArchiveActions() {
@@ -31,7 +30,7 @@ export function useNotificationArchiveActions() {
 
   return {
     move: async (action: ServerArchiveAction): Promise<number> => {
-      if (!userId) throw new NotificationArchiveInboxUnavailable();
+      if (!userId) throw new Error("Vui lòng đăng nhập để cập nhật lưu trữ thông báo.");
       if (action.type === "restore") {
         await notificationService.unarchiveNotification(action.id);
         await invalidateAll();
@@ -39,7 +38,7 @@ export function useNotificationArchiveActions() {
       }
       const res = await notificationService.archiveAllRead();
       await invalidateAll();
-      return res.archivedCount || action.ids?.size || 0;
+      return res.archivedCount;
     },
   };
 }
