@@ -12,7 +12,7 @@ import {
 import { AnimatedNumber, useAnimatedProgress } from "@/components/ui/animated-number";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/providers/locale-provider";
-import type { CronJobItem, CronJobName, CronScheduleFilter } from "@/types/cron.types";
+import type { CronJobItem, CronScheduleFilter } from "@/types/cron.types";
 import {
   CronStatsDetailPanel,
   type CronStatKey,
@@ -24,12 +24,8 @@ export interface CronKpiSummaryProps {
   jobs: CronJobItem[];
   loading?: boolean;
   hasData?: boolean;
-  canManage?: boolean;
-  blockedJobs?: ReadonlySet<CronJobName>;
   selectedStat?: CronStatKey | null;
   onSelectStat?: (stat: CronStatKey | null) => void;
-  onTrigger?: (job: CronJobItem) => void;
-  onToggle?: (job: CronJobItem) => void;
   onFilterChange?: (filter: CronScheduleFilter) => void;
   className?: string;
 }
@@ -38,12 +34,8 @@ export function CronKpiSummary({
   jobs,
   loading = false,
   hasData = true,
-  canManage = false,
-  blockedJobs = new Set(),
   selectedStat: propSelectedStat,
   onSelectStat,
-  onTrigger,
-  onToggle,
   onFilterChange,
   className = "",
 }: CronKpiSummaryProps) {
@@ -63,6 +55,8 @@ export function CronKpiSummary({
     } else {
       setInternalSelectedStat(next);
     }
+    // Mở thẻ KPI → lọc bảng/lưới chính theo trạng thái tương ứng; đóng thẻ → bỏ lọc.
+    onFilterChange?.(next === "enabled" || next === "disabled" ? next : "all");
   };
 
   const {
@@ -480,11 +474,7 @@ export function CronKpiSummary({
           <CronStatsDetailPanel
             activeStat={activeStat}
             jobs={jobs}
-            canManage={canManage}
-            blockedJobs={blockedJobs}
             onClose={() => handleToggle(activeStat)}
-            onTrigger={(job) => onTrigger?.(job)}
-            onToggle={(job) => onToggle?.(job)}
             onFilterChange={onFilterChange}
           />
         </div>

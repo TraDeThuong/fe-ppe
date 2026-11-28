@@ -117,7 +117,7 @@ export function CronJobDetailModal({
         <div className="flex flex-wrap items-center justify-between gap-3 w-full">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Cpu className="size-3.5 text-primary" />
-            <span>Asia/Ho_Chi_Minh (UTC+7)</span>
+            <span>{CRON_TIMEZONE} (UTC+7)</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

@@ -37,51 +37,45 @@ export function ReportsArchiveKpiSummary({
   const sunkenClass =
     "!translate-y-1.5 !shadow-[inset_6px_6px_14px_var(--shadow-dark),inset_-6px_-6px_14px_var(--shadow-light),inset_2px_2px_4px_rgba(0,0,0,0.18)] dark:!shadow-[inset_6px_6px_16px_rgba(0,0,0,0.7),inset_-4px_-4px_10px_rgba(255,255,255,0.03)] hover:!translate-y-1.5 hover:!shadow-[inset_6px_6px_14px_var(--shadow-dark),inset_-6px_-6px_14px_var(--shadow-light),inset_2px_2px_4px_rgba(0,0,0,0.18)]";
 
-  // Giá trị chính: "..." khi đang tải, "–" khi không có dữ liệu. Số phụ: "–" khi không có dữ liệu.
-  const main = (pick: (s: ReportArchiveStats) => number | string) =>
-    loading ? "..." : stats ? pick(stats) : "–";
-  const sub = (pick: (s: ReportArchiveStats) => number) =>
-    stats ? String(pick(stats)) : "–";
+  const count = (value?: number) => value ?? (loading ? "..." : "–");
 
   const cards = [
     {
       key: "all" as const,
-      title: isVietnamese ? "Hồ sơ Đã Phát hành" : "Published Reports",
-      value: main((s) => s.totalReports),
+      title: isVietnamese ? "Tổng hồ sơ báo cáo" : "Total report records",
+      value: count(stats?.totalReports),
       icon: FileText,
       tone: "primary" as const,
       description: isVietnamese
-        ? `${sub((s) => s.completedCount)} hoàn tất · ${sub((s) => s.processingCount)} đang xử lý`
-        : `${sub((s) => s.completedCount)} completed · ${sub((s) => s.processingCount)} active`,
-      // API hiện có không lọc theo định dạng tệp nên không đếm PDF/Excel chính xác được;
-      // dùng số hồ sơ lỗi (đếm được theo trạng thái) để thẻ vẫn đủ thông tin.
+        ? `${count(stats?.completedCount)} hoàn tất · ${count(stats?.processingCount)} đang xử lý`
+        : `${count(stats?.completedCount)} completed · ${count(stats?.processingCount)} in progress`,
       footer: isVietnamese
-        ? `${sub((s) => s.failedCount)} thất bại`
-        : `${sub((s) => s.failedCount)} failed`,
+        ? `${count(stats?.failedCount)} thất bại`
+        : `${count(stats?.failedCount)} failed`,
     },
     {
       key: "periodic" as const,
       title: isVietnamese ? "Báo cáo Định kỳ" : "Periodic Reports",
-      value: main((s) => s.periodicCount),
+      value: count(stats?.periodicCount),
       icon: CalendarClock,
       tone: "success" as const,
       description: isVietnamese
         ? "Ca ngày, tổng kết tuần & kiểm toán tháng"
         : "Daily shift, weekly & monthly audits",
-      footer: `D:${sub((s) => s.byType.DAILY ?? 0)} · W:${sub((s) => s.byType.WEEKLY ?? 0)} · M:${sub((s) => s.byType.MONTHLY ?? 0)}`,
+      footer: `D:${count(stats?.byType.DAILY)} · W:${count(stats?.byType.WEEKLY)} · M:${count(stats?.byType.MONTHLY)}`,
     },
     {
       key: "specialized" as const,
       title: isVietnamese ? "Báo cáo Chuyên đề & AI" : "Specialized & AI",
-      value: main((s) => s.specializedCount),
+      value: count(stats?.specializedCount),
       icon: Cpu,
       tone: "warning" as const,
       description: isVietnamese
         ? "Tổng hợp vi phạm PPE & hiệu năng mô hình"
         : "Violation summary & AI telemetry",
       footer: isVietnamese
-        ? `${sub((s) => s.byType.VIOLATION_SUMMARY ?? 0)} vi phạm · ${sub((s) => s.byType.AI_PERFORMANCE ?? 0)} AI`
-        : `${sub((s) => s.byType.VIOLATION_SUMMARY ?? 0)} violation · ${sub((s) => s.byType.AI_PERFORMANCE ?? 0)} AI`,
+        ? `${count(stats?.byType.VIOLATION_SUMMARY)} vi phạm · ${count(stats?.byType.AI_PERFORMANCE)} AI`
+        : `${count(stats?.byType.VIOLATION_SUMMARY)} violation · ${count(stats?.byType.AI_PERFORMANCE)} AI`,
     },
     {
       key: "templates" as const,
@@ -103,6 +97,7 @@ export function ReportsArchiveKpiSummary({
   return (
     <section
       aria-label={isVietnamese ? "Chỉ số kho báo cáo" : "Reports archive KPIs"}
+      aria-busy={loading || templatesLoading}
       className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4"
     >
       {cards.map((card) => {

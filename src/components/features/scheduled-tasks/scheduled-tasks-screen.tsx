@@ -339,12 +339,8 @@ export function ScheduledTasksScreen() {
         jobs={jobs}
         loading={query.isPending}
         hasData={Boolean(query.data)}
-        canManage={canManage}
-        blockedJobs={blockedJobs}
         selectedStat={selectedStat}
         onSelectStat={setSelectedStat}
-        onTrigger={(job) => openTrigger(job)}
-        onToggle={(job) => openToggle(job)}
         onFilterChange={setFilter}
       />
 
@@ -354,8 +350,7 @@ export function ScheduledTasksScreen() {
         <div className="space-y-1 leading-relaxed">
           <p className="font-semibold text-foreground flex items-center gap-1.5">
             <Sparkles className="size-3.5 text-primary" />
-            {t("cron.apiConnected")} (
-            {locale === "vi-VN" ? `${jobs.length} tác vụ được định thời` : `${jobs.length} scheduled jobs`})
+            {t("cron.apiConnected")} ({t("cron.scheduledJobCount", { count: jobs.length })})
           </p>
           <p>{t("cron.stateNote")}</p>
           <p className="text-xs text-muted-foreground/80">{t("cron.schedulerNote")}</p>

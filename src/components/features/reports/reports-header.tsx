@@ -125,7 +125,7 @@ export function ReportsHeader({
                     className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-xs font-semibold text-accent ${NM.recessed}`}
                   >
                     <FileText className="size-3 text-accent" />
-                    {totalReports} {isVietnamese ? "hồ sơ đã xuất" : "reports exported"}
+                    {totalReports} {isVietnamese ? "hồ sơ báo cáo" : "report records"}
                   </span>
                 ) : null}
 

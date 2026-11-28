@@ -2003,6 +2003,7 @@
   "cron.resetFilters": "Khôi phục bộ lọc",
   "cron.lastSynced": "Đồng bộ lúc {time}",
   "cron.apiConnected": "API Gateway Sẵn sàng",
+  "cron.scheduledJobCount": "{count} tác vụ được định thời",
   "cron.justRan": "Vừa chạy",
   "cron.ready": "Sẵn sàng",
   "cron.running": "Đang thực thi…",

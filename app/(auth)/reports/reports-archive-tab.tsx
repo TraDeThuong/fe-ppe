@@ -25,15 +25,9 @@ import type { ReportGenerationDto, ReportTemplateDto, SiteItem } from "@/types";
 const HISTORY_PAGE_SIZE = 10;
 const EMPTY_TEMPLATES: ReportTemplateDto[] = [];
 
-// Thẻ KPI ↔ nhóm loại báo cáo. Trạng thái "đang chọn" của thẻ được suy ra từ bộ lọc loại,
-// nên đổi bộ lọc ở strip hay danh sách thì thẻ tự đồng bộ (không giữ state riêng).
 const KPI_TYPE_GROUP: Partial<Record<ReportArchiveKpiKey, ReportTypeGroup>> = {
   periodic: "PERIODIC",
   specialized: "SPECIALIZED",
-};
-const TYPE_GROUP_KPI: Record<ReportTypeGroup, ReportArchiveKpiKey> = {
-  PERIODIC: "periodic",
-  SPECIALIZED: "specialized",
 };
 
 export function useReportsArchive({
@@ -53,12 +47,15 @@ export function useReportsArchive({
   const canReadReports = can("PPE_REPORTING_READ");
   const [reportsSiteId, setReportsSiteId] = useState(() => siteIdParam);
   const [historyType, setHistoryType] = useState("");
+  // Highlight the KPI shortcut until a filter is changed directly in the strip or list.
+  const [archiveKpiFilter, setArchiveKpiFilter] = useState<ReportArchiveKpiKey | null>(null);
   const [historyStatus, setHistoryStatus] = useState("");
   const [historyPage, setHistoryPage] = useState(1);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
 
   useEffect(() => {
     setReportsSiteId(siteIdParam);
+    setArchiveKpiFilter(null);
     setHistoryPage(1);
   }, [siteIdParam]);
 
@@ -66,6 +63,7 @@ export function useReportsArchive({
     data: templatesData,
     isLoading: isTemplatesLoading,
     isFetching: isTemplatesFetching,
+    isError: isTemplatesError,
     refetch: refetchTemplates,
   } = useReportTemplates({
     enabled: enabled || loadTemplates,
@@ -80,6 +78,7 @@ export function useReportsArchive({
     data: historyResult,
     isLoading: isHistoryLoading,
     isFetching: isHistoryFetching,
+    isPlaceholderData: isHistoryPlaceholder,
     refetch: refetchHistory,
   } = useReportHistory(
     {
@@ -98,6 +97,7 @@ export function useReportsArchive({
     { enabled },
   );
   const refetchArchiveCounts = archiveCountsQuery.refetch;
+  const isHistoryRefreshing = isHistoryFetching || archiveCountsQuery.isFetching;
   const archiveStats = useMemo(
     () => toReportArchiveStats(archiveCountsQuery.data),
     [archiveCountsQuery.data],
@@ -117,35 +117,49 @@ export function useReportsArchive({
   }, [historyResult, sitesById]);
 
   // Auto-toast notification when queued report finishes
-  const prevProcessingIdsRef = useRef<Set<string>>(new Set());
+  const historyScope = JSON.stringify([reportsSiteId, historyType, historyStatus, historyPage]);
+  const prevProcessing = useRef<{ scope: string; ids: Set<string> } | null>(null);
 
   useEffect(() => {
-    const items = historyResult?.items || [];
-    const currentlyProcessing = new Set(
-      items
-        .filter((item) => item.status === "PENDING" || item.status === "PROCESSING")
-        .map((item) => item.id)
-    );
+    if (!enabled || !historyResult || isHistoryPlaceholder) {
+      prevProcessing.current = null;
+      return;
+    }
 
+    const previous = prevProcessing.current;
+    const items = historyResult.items;
+    const currentlyProcessing = new Set<string>();
     let statusChanged = false;
-    for (const id of prevProcessingIdsRef.current) {
-      if (!currentlyProcessing.has(id)) {
-        const finished = items.find((item) => item.id === id);
-        // Hồ sơ vẫn trong danh sách nhưng đã xong/lỗi → số đếm theo trạng thái đã đổi.
-        if (finished) statusChanged = true;
-        if (finished && finished.status === "COMPLETED") {
-          const toastMsg = t("reports.queue.completedToast").replace(
-            "{fileName}",
-            finished.fileName || (locale === "vi-VN" ? "báo cáo mới" : "new report")
-          );
-          toast.success(toastMsg);
-        }
+    for (const item of items) {
+      if (item.status === "PENDING" || item.status === "PROCESSING") {
+        currentlyProcessing.add(item.id);
+      } else if (previous?.scope === historyScope && previous.ids.has(item.id)) {
+        statusChanged = true;
+        if (item.status !== "COMPLETED") continue;
+        const toastMsg = t("reports.queue.completedToast").replace(
+          "{fileName}",
+          item.fileName || (locale === "vi-VN" ? "báo cáo mới" : "new report"),
+        );
+        toast.success(toastMsg);
       }
     }
 
-    prevProcessingIdsRef.current = currentlyProcessing;
+    // With a status filter, a report can leave the page as soon as it changes status.
+    if (previous?.scope === historyScope && historyStatus) {
+      statusChanged ||= [...previous.ids].some((id) => !currentlyProcessing.has(id));
+    }
+    prevProcessing.current = { scope: historyScope, ids: currentlyProcessing };
     if (statusChanged) void refetchArchiveCounts();
-  }, [historyResult?.items, locale, t, refetchArchiveCounts]);
+  }, [
+    enabled,
+    historyResult,
+    historyScope,
+    historyStatus,
+    isHistoryPlaceholder,
+    locale,
+    t,
+    refetchArchiveCounts,
+  ]);
 
   const isAdminUser = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const userSiteIds = useMemo(() => {
@@ -183,11 +197,6 @@ export function useReportsArchive({
     [history, selectedReportId],
   );
 
-  const archiveKpiFilter: ReportArchiveKpiKey | null =
-    historyType === "PERIODIC" || historyType === "SPECIALIZED"
-      ? TYPE_GROUP_KPI[historyType]
-      : null;
-
   const handleSelectArchiveKpi = (key: ReportArchiveKpiKey) => {
     if (key === "templates") {
       document
@@ -197,31 +206,44 @@ export function useReportsArchive({
     }
     const group = KPI_TYPE_GROUP[key];
     if (group) {
-      // Lọc cả nhóm (Ngày + Tuần + Tháng / Vi phạm + AI); bấm lại để bỏ lọc.
-      setHistoryType((prev) => (prev === group ? "" : group));
+      const toggleOff = historyType === group;
+      setHistoryType(toggleOff ? "" : group);
+      setArchiveKpiFilter(toggleOff ? null : key);
     } else {
       setHistoryType("");
       setHistoryStatus("");
+      setArchiveKpiFilter(null);
     }
     setHistoryPage(1);
   };
 
   function refresh() {
-    void Promise.all([refetchTemplates(), refetchHistory(), refetchArchiveCounts()]);
+    void refetchTemplates();
+    refreshHistory();
+  }
+
+  function refreshHistory() {
+    void Promise.all([
+      refetchHistory({ cancelRefetch: false }),
+      refetchArchiveCounts({ cancelRefetch: false }),
+    ]);
   }
 
   function selectHistorySite(siteId: string) {
     setReportsSiteId(siteId);
+    setArchiveKpiFilter(null);
     setHistoryPage(1);
   }
 
   function selectHistoryType(type: string) {
     setHistoryType(type);
+    setArchiveKpiFilter(null);
     setHistoryPage(1);
   }
 
   function selectHistoryStatus(status: string) {
     setHistoryStatus(status);
+    setArchiveKpiFilter(null);
     setHistoryPage(1);
   }
 
@@ -236,21 +258,23 @@ export function useReportsArchive({
     templates,
     archiveStats,
     isArchiveStatsLoading: archiveCountsQuery.isLoading,
+    hasArchiveStatsError: archiveCountsQuery.isError && !archiveCountsQuery.isFetching,
     templateCounts,
     isTemplatesLoading,
+    hasTemplateCountsError: isTemplatesError && !isTemplatesFetching,
     selectedReport,
     setSelectedReportId,
     selectHistorySite,
     selectHistoryType,
     selectHistoryStatus,
     handleSelectArchiveKpi,
-    refetchHistory,
+    refreshHistory,
     historyTotal: historyResult?.meta?.total ?? history.length,
     historyPageCount: Math.max(1, historyResult?.meta?.totalPages ?? 1),
     setHistoryPage,
     isHistoryLoading,
-    isHistoryFetching,
-    isRefreshing: isTemplatesFetching || isHistoryFetching || archiveCountsQuery.isFetching,
+    isHistoryRefreshing,
+    isRefreshing: isTemplatesFetching || isHistoryRefreshing,
     currentUserId: user?.id,
     isAdminUser,
     canReadReports,
@@ -274,12 +298,15 @@ export function ReportsArchiveTab({
   onCreateTemplate: () => void;
   onDeleteTemplate: (template: ReportTemplateDto) => void;
 }) {
+  const { t } = useLocale();
   const {
     archiveStats,
     archiveKpiFilter,
     isArchiveStatsLoading,
+    hasArchiveStatsError,
     templateCounts,
     isTemplatesLoading,
+    hasTemplateCountsError,
     canReadReports,
     currentUserId,
     handleSelectArchiveKpi,
@@ -290,9 +317,9 @@ export function ReportsArchiveTab({
     historyTotal,
     historyType,
     isAdminUser,
-    isHistoryFetching,
     isHistoryLoading,
-    refetchHistory,
+    isHistoryRefreshing,
+    refreshHistory,
     reportsSiteId,
     selectedReport,
     selectHistorySite,
@@ -304,6 +331,11 @@ export function ReportsArchiveTab({
     templates,
     userSiteIds,
   } = archive;
+
+  const countErrors = [
+    hasArchiveStatsError ? t("reports.archive.countsError") : "",
+    hasTemplateCountsError ? t("reports.archive.templatesError") : "",
+  ].filter(Boolean);
 
   const handleQuickGenerateForType = (reportType: string) => {
     const active = templates.filter(
@@ -333,12 +365,19 @@ export function ReportsArchiveTab({
         onSelectCard={handleSelectArchiveKpi}
       />
 
+      {countErrors.length > 0 && (
+        <p role="status" className="px-1 text-xs font-medium text-destructive">
+          {countErrors.join(" ")} {t("reports.archive.refreshHint")}
+        </p>
+      )}
+
       {/* Danh mục 5 Loại Báo cáo Hệ thống */}
       <ReportTypeOverviewStrip
         selectedType={historyType}
         onSelectType={selectHistoryType}
         countsByType={archiveStats?.byType}
         totalCount={archiveStats?.totalReports}
+        countsLoading={isArchiveStatsLoading}
         templates={templates}
         canExportReports={canExportReports}
         onQuickGenerateForType={handleQuickGenerateForType}
@@ -352,10 +391,8 @@ export function ReportsArchiveTab({
             selectedReportId={selectedReport?.id ?? null}
             onSelectReport={(report) => setSelectedReportId(report.id)}
             loading={isHistoryLoading}
-            fetching={isHistoryFetching}
-            onRefresh={() => {
-              void refetchHistory();
-            }}
+            fetching={isHistoryRefreshing}
+            onRefresh={refreshHistory}
             sites={sites}
             selectedSiteId={reportsSiteId}
             onSiteChange={selectHistorySite}

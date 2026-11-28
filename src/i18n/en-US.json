@@ -2003,6 +2003,7 @@
   "cron.resetFilters": "Reset filters",
   "cron.lastSynced": "Synced at {time}",
   "cron.apiConnected": "API Gateway Ready",
+  "cron.scheduledJobCount": "{count} scheduled jobs",
   "cron.justRan": "Just ran",
   "cron.ready": "Ready",
   "cron.running": "Executing…",

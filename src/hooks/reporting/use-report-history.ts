@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  keepPreviousData,
+  hashKey,
   useQuery,
   type UseQueryOptions,
 } from "@tanstack/react-query";
@@ -36,13 +36,11 @@ export function useReportHistory(
   options?: UseReportHistoryOptions,
 ) {
   const { scopeUserId, reportTypes, ...queryOptions } = options ?? {};
-  const multiTypes = reportTypes && reportTypes.length > 0 ? [...reportTypes] : undefined;
+  const multiTypes = reportTypes?.length ? reportTypes : undefined;
+  const queryKey = reportingKeys.history(params, multiTypes, scopeUserId);
+  const scopeHash = hashKey(queryKey.slice(0, -1));
   return useQuery<UseReportHistoryResult, Error>({
-    queryKey: [
-      ...reportingKeys.history(params),
-      ...(multiTypes ? [{ reportTypes: multiTypes }] : []),
-      ...(scopeUserId ? [scopeUserId] : []),
-    ],
+    queryKey,
     queryFn: ({ signal }) =>
       multiTypes
         ? fetchReportHistoryForTypes(
@@ -51,7 +49,10 @@ export function useReportHistory(
             params,
           )
         : reportingService.getReportHistory(params, { signal }),
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) =>
+      previousQuery && hashKey(previousQuery.queryKey.slice(0, -1)) === scopeHash
+        ? previousData
+        : undefined,
     staleTime: 5 * 1000,
     refetchInterval: (query) => {
       const items = query.state.data?.items ?? [];
@@ -83,7 +84,6 @@ export function useReportArchiveCounts(
         params,
       ),
     enabled: options?.enabled ?? true,
-    placeholderData: keepPreviousData,
     staleTime: 30 * 1000,
   });
 }

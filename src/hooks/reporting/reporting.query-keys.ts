@@ -26,8 +26,11 @@ export const reportingKeys = {
   templates: () => [...reportingKeys.all, "templates"] as const,
   template: (id: string) => [...reportingKeys.templates(), id] as const,
   historyAll: () => [...reportingKeys.all, "history"] as const,
-  history: (params?: ReportHistoryQueryDto) =>
-    [...reportingKeys.historyAll(), params] as const,
+  history: (
+    { page, ...filters }: ReportHistoryQueryDto = {},
+    reportTypes?: readonly string[],
+    scopeUserId?: string,
+  ) => [...reportingKeys.historyAll(), { filters, reportTypes, scopeUserId }, page] as const,
   // Nằm dưới historyAll: tạo báo cáo mới (invalidate historyAll) sẽ làm mới luôn số đếm của kho.
   archiveCounts: (params?: { siteId?: string }) =>
     [...reportingKeys.historyAll(), "counts", params] as const,

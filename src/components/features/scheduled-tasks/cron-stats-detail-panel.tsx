@@ -7,28 +7,22 @@ import {
   CirclePause,
   CirclePlay,
   Filter,
-  Play,
-  Power,
   Sparkles,
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CRON_SCHEDULE_FREQUENCIES, getCronJobSchedule, getCronScheduleLabel } from "@/lib/cron";
+import { CRON_SCHEDULE_FREQUENCIES, getCronJobSchedule } from "@/lib/cron";
 import { useLocale } from "@/providers/locale-provider";
 import { AnimatedNumber } from "@/components/ui/animated-number";
-import type { CronJobItem, CronJobName, CronScheduleFilter } from "@/types/cron.types";
+import type { CronJobItem, CronScheduleFilter } from "@/types/cron.types";
 
 export type CronStatKey = "total" | "enabled" | "disabled";
 
 export interface CronStatsDetailPanelProps {
   activeStat: CronStatKey;
   jobs: CronJobItem[];
-  canManage: boolean;
-  blockedJobs: ReadonlySet<CronJobName>;
   onClose: () => void;
-  onTrigger: (job: CronJobItem) => void;
-  onToggle: (job: CronJobItem) => void;
   onFilterChange?: (filter: CronScheduleFilter) => void;
   className?: string;
 }
@@ -36,11 +30,7 @@ export interface CronStatsDetailPanelProps {
 export function CronStatsDetailPanel({
   activeStat,
   jobs,
-  canManage,
-  blockedJobs,
   onClose,
-  onTrigger,
-  onToggle,
   onFilterChange,
   className = "",
 }: CronStatsDetailPanelProps) {
@@ -50,13 +40,17 @@ export function CronStatsDetailPanel({
   const enabledJobs = useMemo(() => jobs.filter((j) => j.isEnabled), [jobs]);
   const disabledJobs = useMemo(() => jobs.filter((j) => !j.isEnabled), [jobs]);
 
+  // Thống kê tính theo nhóm job của thẻ KPI đang mở; danh sách job & thao tác
+  // nằm ở bảng/lưới chính (bấm thẻ KPI sẽ lọc bảng chính theo trạng thái).
+  const scopedJobs =
+    activeStat === "enabled" ? enabledJobs : activeStat === "disabled" ? disabledJobs : jobs;
   const cleanupJobs = useMemo(
-    () => jobs.filter((j) => j.name.startsWith("cleanup-")),
-    [jobs]
+    () => scopedJobs.filter((j) => j.name.startsWith("cleanup-")),
+    [scopedJobs]
   );
   const digestJobs = useMemo(
-    () => jobs.filter((j) => j.name.includes("digest") || j.name.includes("summary")),
-    [jobs]
+    () => scopedJobs.filter((j) => j.name.includes("digest") || j.name.includes("summary")),
+    [scopedJobs]
   );
 
   const enabledRatio = jobs.length > 0 ? Math.round((enabledJobs.length / jobs.length) * 100) : 0;
@@ -184,9 +178,25 @@ export function CronStatsDetailPanel({
       </div>
 
       {/* ===================================================================== */}
-      {/* BODY 1: TOTAL JOBS                                                    */}
+      {/* BODY: THỐNG KÊ THEO NHÓM (tổng / đang bật / đã tắt)                   */}
       {/* ===================================================================== */}
-      {activeStat === "total" && (
+      {activeStat === "disabled" && scopedJobs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-black/[0.04] bg-background/50 p-7 text-center shadow-[inset_5px_5px_12px_var(--shadow-dark),inset_-5px_-5px_12px_var(--shadow-light)] dark:border-white/[0.04]">
+          <div className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]">
+            <Sparkles className="h-5 w-5" />
+          </div>
+          <p className="font-semibold text-foreground text-sm">
+            {isVietnamese
+              ? "Tất cả các tác vụ đang được bật tự động."
+              : "All scheduled tasks are currently enabled."}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {isVietnamese
+              ? "Hệ thống đang vận hành ở trạng thái tự động hóa tối đa."
+              : "System is operating at full automation capacity."}
+          </p>
+        </div>
+      ) : (
         <div className="space-y-4">
           {/* Recessed Telemetry Wells */}
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3.5">
@@ -203,7 +213,7 @@ export function CronStatsDetailPanel({
               },
               ...CRON_SCHEDULE_FREQUENCIES.map((frequency, index) => ({
                 label: t("cron.edit.frequency." + frequency),
-                value: jobs.filter((job) => getCronJobSchedule(job)?.frequency === frequency).length,
+                value: scopedJobs.filter((job) => getCronJobSchedule(job)?.frequency === frequency).length,
                 accent: index % 2 === 0,
               })),
             ].map((metric, idx) => (
@@ -246,194 +256,6 @@ export function CronStatsDetailPanel({
               />
             </div>
           </div>
-
-          {/* Extruded Neumorphic Job Cards Grid */}
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
-            {jobs.map((job) => {
-              const blocked = blockedJobs.has(job.name);
-              return (
-                <div
-                  key={job.name}
-                  className="group/card relative flex items-center justify-between gap-3 rounded-2xl border border-white/75 bg-surface/90 p-3 sm:p-3.5 shadow-[5px_5px_12px_var(--shadow-dark),-5px_-5px_12px_var(--shadow-light)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 dark:border-white/[0.07] dark:bg-card/85"
-                >
-                  {/* Status Indicator Strip */}
-                  <span
-                    aria-hidden="true"
-                    className={`h-8 w-1 shrink-0 rounded-full transition-all ${
-                      job.isEnabled
-                        ? "bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.6)]"
-                        : "bg-accent/60"
-                    }`}
-                  />
-
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-xs sm:text-[13px] text-foreground truncate group-hover/card:text-primary transition-colors">
-                      {t(`cron.jobs.${job.name}`)}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground">
-                      <code className="font-mono text-[10px] font-medium text-primary bg-primary/[0.07] border border-primary/15 px-1.5 py-0.5 rounded-md shadow-[inset_1px_1px_3px_var(--shadow-dark)]">
-                        {job.cron}
-                      </code>
-                      <span className="truncate">
-                        {getCronScheduleLabel(job, t)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {canManage && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={blocked}
-                      onClick={() => onTrigger(job)}
-                      className="h-8 gap-1.5 rounded-xl border-primary/25 bg-surface px-2.5 text-[11px] font-semibold text-primary shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)] transition-all hover:bg-primary hover:text-primary-foreground hover:shadow-[0_4px_14px_hsl(var(--primary)/0.35)] active:shadow-[inset_2px_2px_5px_var(--shadow-dark)] shrink-0"
-                      aria-label={`${t("cron.runNow")}: ${job.name}`}
-                    >
-                      <Play className="h-3 w-3 fill-current" />
-                      <span>{t("cron.runNow")}</span>
-                    </Button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* BODY 2: ENABLED JOBS                                                  */}
-      {/* ===================================================================== */}
-      {activeStat === "enabled" && (
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
-          {enabledJobs.map((job) => {
-            const blocked = blockedJobs.has(job.name);
-            return (
-              <div
-                key={job.name}
-                className="group/card relative flex items-center justify-between gap-3 rounded-2xl border border-white/75 bg-surface/90 p-3 sm:p-3.5 shadow-[5px_5px_12px_var(--shadow-dark),-5px_-5px_12px_var(--shadow-light)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/35 dark:border-white/[0.07] dark:bg-card/85"
-              >
-                <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                  {/* Pulsing Primary Beacon */}
-                  <span className="relative flex h-2.5 w-2.5 shrink-0">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
-                  </span>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-xs sm:text-[13px] text-foreground truncate">
-                      {t(`cron.jobs.${job.name}`)}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                      {getCronScheduleLabel(job, t)}
-                    </p>
-                  </div>
-                </div>
-
-                {canManage && (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={blocked}
-                      onClick={() => onTrigger(job)}
-                      className="h-8 gap-1 rounded-xl border-primary/25 bg-surface px-2.5 text-[11px] font-semibold text-primary shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] hover:bg-primary hover:text-primary-foreground active:shadow-[inset_2px_2px_4px_var(--shadow-dark)]"
-                      aria-label={`${t("cron.runNow")}: ${job.name}`}
-                    >
-                      <Play className="h-3 w-3 fill-current" />
-                      <span>{t("cron.runNow")}</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={blocked}
-                      onClick={() => onToggle(job)}
-                      className="h-8 gap-1 rounded-xl border border-transparent bg-background/50 px-2.5 text-[11px] font-medium text-muted-foreground shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)] hover:border-accent/40 hover:text-foreground"
-                      aria-label={`${t("cron.disable")}: ${job.name}`}
-                    >
-                      <Power className="h-3 w-3" />
-                      <span>{t("cron.disable")}</span>
-                    </Button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ===================================================================== */}
-      {/* BODY 3: DISABLED JOBS                                                 */}
-      {/* ===================================================================== */}
-      {activeStat === "disabled" && (
-        <div>
-          {disabledJobs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-black/[0.04] bg-background/50 p-7 text-center shadow-[inset_5px_5px_12px_var(--shadow-dark),inset_-5px_-5px_12px_var(--shadow-light)] dark:border-white/[0.04]">
-              <div className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-[3px_3px_8px_var(--shadow-dark),-3px_-3px_8px_var(--shadow-light)]">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <p className="font-semibold text-foreground text-sm">
-                {isVietnamese
-                  ? "Tất cả các tác vụ đang được bật tự động."
-                  : "All scheduled tasks are currently enabled."}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isVietnamese
-                  ? "Hệ thống đang vận hành ở trạng thái tự động hóa tối đa."
-                  : "System is operating at full automation capacity."}
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
-              {disabledJobs.map((job) => {
-                const blocked = blockedJobs.has(job.name);
-                return (
-                  <div
-                    key={job.name}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-black/[0.04] bg-background/60 p-3 sm:p-3.5 shadow-[inset_4px_4px_9px_var(--shadow-dark),inset_-4px_-4px_9px_var(--shadow-light)] dark:border-white/[0.04]"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-accent border border-primary/20" />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-xs sm:text-[13px] text-foreground/85 truncate">
-                          {t(`cron.jobs.${job.name}`)}
-                        </p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                          {getCronScheduleLabel(job, t)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {canManage && (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={blocked}
-                          onClick={() => onTrigger(job)}
-                          className="h-8 gap-1 rounded-xl border-white/60 bg-surface px-2.5 text-[11px] font-medium text-foreground shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_var(--shadow-light)] hover:text-primary dark:border-white/10"
-                          aria-label={`${t("cron.runNow")}: ${job.name}`}
-                        >
-                          <Play className="h-3 w-3" />
-                          <span>{t("cron.runNow")}</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          disabled={blocked}
-                          onClick={() => onToggle(job)}
-                          className="h-8 gap-1 rounded-xl bg-gradient-to-r from-primary to-primary/90 px-2.5 text-[11px] font-semibold text-primary-foreground shadow-[0_4px_12px_hsl(var(--primary)/0.35)] hover:brightness-110"
-                          aria-label={`${t("cron.enable")}: ${job.name}`}
-                        >
-                          <Power className="h-3 w-3" />
-                          <span>{t("cron.enable")}</span>
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
       )}
     </div>

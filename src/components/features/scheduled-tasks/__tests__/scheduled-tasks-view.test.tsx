@@ -10,6 +10,7 @@ import { CronToolbar } from "../cron-toolbar";
 import { CronJobTable } from "../cron-job-table";
 import { CronJobCardGrid } from "../cron-job-card-grid";
 import { CronKpiSummary } from "../cron-kpi-summary";
+import { CronStatsDetailPanel } from "../cron-stats-detail-panel";
 
 function render(element: React.ReactElement) {
   const client = new QueryClient({
@@ -221,5 +222,22 @@ describe("Scheduled Tasks views", () => {
     assert.match(html, /67%/);
     assert.doesNotMatch(html, /Hạ tầng Scheduler/);
     assert.doesNotMatch(html, /UTC\+7/);
+  });
+
+  it("CronStatsDetailPanel shows scoped stats only, without duplicating job list or row actions", () => {
+    for (const activeStat of ["total", "enabled", "disabled"] as const) {
+      const html = render(
+        <CronStatsDetailPanel activeStat={activeStat} jobs={SAMPLE_JOBS} onClose={() => {}} />
+      );
+      assert.doesNotMatch(html, /Chạy ngay/);
+      assert.doesNotMatch(html, /Bật lịch|Tắt lịch/);
+      assert.doesNotMatch(html, /Dọn audit log cũ/);
+    }
+
+    const enabledHtml = render(
+      <CronStatsDetailPanel activeStat="enabled" jobs={SAMPLE_JOBS} onClose={() => {}} />
+    );
+    assert.match(enabledHtml, /2 \/ 3/);
+    assert.match(enabledHtml, /67%/);
   });
 });
