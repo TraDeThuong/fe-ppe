@@ -2,8 +2,10 @@ import {
   EVIDENCE_TYPE,
   type BoundingBox,
   type ChecksumVerifyResult,
+  type EvidenceFilterParams,
   type EvidenceIncidentSummary,
   type EvidenceItem,
+  type EvidenceLifecycleQuery,
   type IncidentItem,
 } from "@/types";
 
@@ -13,19 +15,17 @@ export type EvidenceLifecycleScope =
   | "all"
   | "active"
   | "closed"
-  | "dismissed"
-  | "archived";
+  | "dismissed";
 
-export const ARCHIVED_EVIDENCES_STORAGE_KEY = "ppe_archived_evidence_ids_v1";
-
-export interface EvidenceClientFilterCriteria {
+export interface EvidenceFilterCriteria {
   search?: string;
   siteId?: string;
+  cameraId?: string;
+  evidenceType?: string;
   violationType?: string;
   checksumFilter?: EvidenceChecksumFilter;
   datePreset?: EvidenceDatePreset;
   lifecycleScope?: EvidenceLifecycleScope;
-  archivedIds?: ReadonlySet<string>;
 }
 
 export interface EvidenceIncidentGroup {
@@ -280,111 +280,55 @@ export function groupEvidencesByIncident(
   );
 }
 
-/**
- * Apply rich client-side filtering on hydrated EvidenceItems (search, site, violation, checksum, date preset).
- */
-export function filterEvidencesClientSide(
-  evidences: EvidenceItem[],
-  criteria: EvidenceClientFilterCriteria,
-  helpers: {
-    incidentsMap?: Map<string, IncidentItem>;
-    getCameraSiteId?: (cameraId: string) => string | undefined;
-    getCameraLabel?: (cameraId: string) => string;
-    getSiteLabel?: (siteId?: string) => string;
-    nowMs?: number;
-  } = {},
-): EvidenceItem[] {
-  const {
-    search = "",
-    siteId = "",
-    violationType = "",
-    checksumFilter = "all",
-    datePreset = "all",
-    lifecycleScope = "all",
-    archivedIds,
-  } = criteria;
-  const nowMs = helpers.nowMs ?? Date.now();
-  const normalizedQuery = search.trim().toLowerCase();
+const LIFECYCLE_SCOPE_TO_QUERY: Record<
+  Exclude<EvidenceLifecycleScope, "all">,
+  EvidenceLifecycleQuery
+> = {
+  active: "ACTIVE",
+  closed: "CLOSED",
+  dismissed: "DISMISSED",
+};
 
-  let minTimestampMs: number | null = null;
+/**
+ * Mốc bắt đầu (ISO) cho preset thời gian. Làm tròn xuống đầu phút để query key ổn định giữa các lần render.
+ */
+export function getEvidenceDatePresetFromIso(
+  datePreset: EvidenceDatePreset,
+  nowMs = Date.now(),
+): string | undefined {
+  if (datePreset === "all") return undefined;
   if (datePreset === "today") {
     const startOfToday = new Date(nowMs);
     startOfToday.setHours(0, 0, 0, 0);
-    minTimestampMs = startOfToday.getTime();
-  } else if (datePreset === "7d") {
-    minTimestampMs = nowMs - 7 * 24 * 60 * 60 * 1000;
-  } else if (datePreset === "30d") {
-    minTimestampMs = nowMs - 30 * 24 * 60 * 60 * 1000;
+    return startOfToday.toISOString();
   }
+  const days = datePreset === "7d" ? 7 : 30;
+  const fromMs = nowMs - days * 24 * 60 * 60 * 1000;
+  return new Date(Math.floor(fromMs / 60_000) * 60_000).toISOString();
+}
 
-  return evidences.filter((ev) => {
-    const isArchived = Boolean(archivedIds?.has(ev.id));
-
-    if (lifecycleScope === "archived") {
-      if (!isArchived) return false;
-    } else {
-      // Khi ở chế độ xem chính (all, active, closed, dismissed), tự động ẩn các mục đã đưa vào Kho Lưu trữ
-      if (isArchived) return false;
-    }
-
-    const inc = ev.incident ?? helpers.incidentsMap?.get(ev.incidentId);
-    const incStatus = inc?.status;
-
-    if (lifecycleScope === "active") {
-      if (incStatus === "CLOSED" || incStatus === "DISMISSED") return false;
-    } else if (lifecycleScope === "closed") {
-      if (incStatus !== "CLOSED") return false;
-    } else if (lifecycleScope === "dismissed") {
-      if (incStatus !== "DISMISSED") return false;
-    }
-
-    const resolvedSiteId = inc?.siteId ?? helpers.getCameraSiteId?.(ev.cameraId) ?? "";
-
-    if (siteId && resolvedSiteId !== siteId) {
-      return false;
-    }
-
-    if (violationType) {
-      if (!inc || inc.violationType !== violationType) {
-        return false;
-      }
-    }
-
-    const hasHash = Boolean(ev.metadata?.checksum);
-    if (checksumFilter === "has_hash" && !hasHash) return false;
-    if (checksumFilter === "missing_hash" && hasHash) return false;
-
-    if (minTimestampMs !== null) {
-      const capturedMs = Date.parse(ev.capturedAt);
-      if (!Number.isNaN(capturedMs) && capturedMs < minTimestampMs) {
-        return false;
-      }
-    }
-
-    if (normalizedQuery) {
-      const cameraLabel = helpers.getCameraLabel?.(ev.cameraId) || "";
-      const siteLabel = helpers.getSiteLabel?.(resolvedSiteId) || "";
-      const haystack = [
-        ev.fileName,
-        ev.id,
-        ev.incidentId,
-        ev.cameraId,
-        ev.evidenceType,
-        ev.metadata?.checksum || "",
-        cameraLabel,
-        siteLabel,
-        inc?.violationType || "",
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      if (!haystack.includes(normalizedQuery)) {
-        return false;
-      }
-    }
-
-    return true;
-  });
+/**
+ * Chuyển state bộ lọc của trang /evidences thành query server-side cho
+ * `GET /evidences` và `GET /evidences/summary` (lọc + phân trang 100% ở BE).
+ */
+export function buildEvidenceServerFilters(
+  criteria: EvidenceFilterCriteria,
+  nowMs = Date.now(),
+): EvidenceFilterParams {
+  const params: EvidenceFilterParams = {};
+  const search = criteria.search?.trim();
+  if (search) params.search = search.slice(0, 200);
+  if (criteria.siteId) params.siteId = criteria.siteId;
+  if (criteria.cameraId) params.cameraId = criteria.cameraId;
+  if (criteria.evidenceType) params.evidenceType = criteria.evidenceType;
+  if (criteria.violationType) params.violationType = criteria.violationType;
+  if (criteria.checksumFilter === "has_hash") params.hasChecksum = true;
+  else if (criteria.checksumFilter === "missing_hash") params.hasChecksum = false;
+  const fromDate = getEvidenceDatePresetFromIso(criteria.datePreset ?? "all", nowMs);
+  if (fromDate) params.fromDate = fromDate;
+  const scope = criteria.lifecycleScope ?? "all";
+  if (scope !== "all") params.lifecycle = LIFECYCLE_SCOPE_TO_QUERY[scope];
+  return params;
 }
 
 export function sumEvidenceBytes(evidences: EvidenceItem[]): number {
@@ -398,31 +342,23 @@ export function sumEvidenceBytes(evidences: EvidenceItem[]): number {
   return total;
 }
 
-export function loadArchivedEvidenceIds(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const raw = window.localStorage.getItem(ARCHIVED_EVIDENCES_STORAGE_KEY);
-    if (!raw) return new Set();
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return new Set(parsed.filter((item): item is string => typeof item === "string"));
-    }
-  } catch {
-    // Ignore storage read errors
-  }
-  return new Set();
-}
+const CSV_FORMULA_PREFIX_RE = /^[=+\-@\t\r]/;
 
-export function saveArchivedEvidenceIds(ids: ReadonlySet<string>): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(
-      ARCHIVED_EVIDENCES_STORAGE_KEY,
-      JSON.stringify(Array.from(ids)),
-    );
-  } catch {
-    // Ignore storage write errors
+/**
+ * Escape một ô CSV và vô hiệu hóa công thức (CWE-1236 CSV/Formula Injection):
+ * ô văn bản bắt đầu bằng `=`, `+`, `-`, `@`, tab hoặc CR được thêm tiền tố `'` để Excel/Sheets
+ * hiển thị như chuỗi thay vì thực thi.
+ */
+export function escapeEvidenceCsvCell(val: unknown): string {
+  if (val === null || val === undefined) return "";
+  let str = String(val);
+  if (typeof val === "string" && CSV_FORMULA_PREFIX_RE.test(str)) {
+    str = `'${str}`;
   }
+  if (/[",\r\n]/.test(str) || str.startsWith("'")) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
 }
 
 export function exportEvidencesToCsv(
@@ -432,17 +368,9 @@ export function exportEvidencesToCsv(
     getCameraCode?: (cameraId: string) => string | undefined;
     getSiteCode?: (siteId?: string | null) => string | undefined;
   } = {},
-  fileNamePrefix = "ppe-evidence-archive",
+  fileNamePrefix = "ppe-evidence-manifest",
 ): void {
   if (typeof window === "undefined" || evidences.length === 0) return;
-
-  const escapeCsv = (val: unknown): string => {
-    const str = String(val ?? "");
-    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-      return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
-  };
 
   const headers = [
     "EvidenceID",
@@ -481,7 +409,7 @@ export function exportEvidencesToCsv(
       ev.capturedAt,
       ev.storageKey,
     ]
-      .map(escapeCsv)
+      .map(escapeEvidenceCsvCell)
       .join(",");
   });
 
@@ -496,4 +424,21 @@ export function exportEvidencesToCsv(
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+/**
+ * Tải tệp qua thẻ <a> ẩn thay vì `window.open`: không mở tab mới nên không bị popup blocker chặn
+ * khi gọi sau `await` hoặc lặp nhiều tệp. Presigned DOWNLOAD URL của BE đã có
+ * `Content-Disposition: attachment` nên trình duyệt tải về mà không rời trang.
+ */
+export function triggerEvidenceFileDownload(url: string, fileName?: string): void {
+  if (typeof document === "undefined" || !url) return;
+  const link = document.createElement("a");
+  link.href = url;
+  link.rel = "noopener noreferrer";
+  if (fileName) link.setAttribute("download", fileName);
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }

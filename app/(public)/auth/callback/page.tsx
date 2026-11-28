@@ -14,10 +14,24 @@ import {
   consumeOAuthState,
   getGoogleRedirectUri,
 } from "@/lib/oauth";
+import { consumePendingNext, stripQueryParams } from "@/lib/safe-redirect";
 import { useLocale } from "@/providers/locale-provider";
 
 /** Tiền tố state của luồng "liên kết tài khoản Google" (sinh ở SocialPanel) */
 const LINK_STATE_PREFIX = "link:";
+
+/** Tham số Google trả về ở query — xóa khỏi thanh địa chỉ ngay sau khi đọc */
+const OAUTH_CALLBACK_PARAMS = [
+  "code",
+  "state",
+  "scope",
+  "authuser",
+  "prompt",
+  "hd",
+  "error",
+  "error_description",
+  "error_uri",
+] as const;
 
 /**
  * Callback Google OAuth2 — Google redirect về đây sau khi user đồng ý/ từ chối.
@@ -49,11 +63,12 @@ export default function GoogleCallbackPage() {
     onSuccess: (data) => {
       if (data.requires2FA) {
         // Luồng 2FA: giữ tempToken trong sessionStorage — trang /2fa đọc lại
+        // (next đã lưu ở login-form vẫn được giữ cho /2fa dùng)
         sessionStorage.setItem(TEMP_TOKEN_STORAGE_KEY, data.tempToken);
         router.replace("/2fa");
         return;
       }
-      router.replace("/");
+      router.replace(consumePendingNext());
     },
     onError: (error) => {
       setStatus({
@@ -91,9 +106,12 @@ export default function GoogleCallbackPage() {
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     const state = params.get("state");
+    const oauthError = params.get("error");
+    // Authorization code dùng 1 lần nhưng vẫn không để lại trong history/Referer
+    stripQueryParams(OAUTH_CALLBACK_PARAMS);
 
     // User từ chối cấp quyền trên màn hình Google (error=access_denied...)
-    if (params.get("error")) {
+    if (oauthError) {
       clearOAuthState();
       setStatus({
         kind: "error",

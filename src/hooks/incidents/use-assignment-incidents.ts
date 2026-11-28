@@ -17,6 +17,13 @@ export interface AssignmentIncidentTotals {
   total: number;
 }
 
+export type AssignmentBucketKey =
+  | "pendingReview"
+  | "confirmed"
+  | "resolved"
+  | "closed"
+  | "dismissed";
+
 export interface StatusBucketResult {
   items: IncidentItem[];
   total: number;
@@ -38,6 +45,13 @@ export interface UseAssignmentIncidentsParams {
   closedLimit?: number;
   /** Giới hạn bản ghi tải cho trạng thái DISMISSED (mặc định: 20) */
   dismissedLimit?: number;
+  /**
+   * Chỉ tải những trạng thái màn hình đang cần (mặc định: tải đủ 5 trạng thái).
+   * Trạng thái tắt không gửi request; KPI tổng lấy từ `/incidents/status-counts`.
+   */
+  buckets?: Partial<Record<AssignmentBucketKey, boolean>>;
+  /** Lọc ở server các sự cố đang/đã giao cho chính người dùng (`assignedToMe=true`) — dùng cho SAFETY_OFFICER. */
+  assignedToMe?: boolean;
   enabled?: boolean;
   staleTime?: number;
   refetchInterval?: number | false;
@@ -79,6 +93,7 @@ export async function fetchIncidentStatusBucket(
     maxPages?: number;
     includeAssignments?: boolean;
     includeAllAssignments?: boolean;
+    assignedToMe?: boolean;
   },
   signal?: AbortSignal,
 ): Promise<StatusBucketResult> {
@@ -99,6 +114,7 @@ export async function fetchIncidentStatusBucket(
       sortOrder: "desc",
       ...(params.includeAssignments ? { includeAssignments: true } : {}),
       ...(params.includeAllAssignments ? { includeAllAssignments: true } : {}),
+      ...(params.assignedToMe ? { assignedToMe: true } : {}),
     },
     { signal },
   );
@@ -132,6 +148,7 @@ export async function fetchIncidentStatusBucket(
             sortOrder: "desc",
             ...(params.includeAssignments ? { includeAssignments: true } : {}),
             ...(params.includeAllAssignments ? { includeAllAssignments: true } : {}),
+            ...(params.assignedToMe ? { assignedToMe: true } : {}),
           },
           { signal, suppressToast: true },
         );
@@ -254,6 +271,8 @@ export function useAssignmentIncidents(
     maxConfirmedPages = 3,
     closedLimit = includeClosedAssignments ? 100 : 50,
     dismissedLimit = 20,
+    buckets,
+    assignedToMe = false,
     enabled = true,
     staleTime = 30 * 1000,
     refetchInterval,
@@ -266,8 +285,9 @@ export function useAssignmentIncidents(
       violationType: violationType || undefined,
       fromDate: fromDate || undefined,
       toDate: toDate || undefined,
+      assignedToMe: assignedToMe || undefined,
     }),
-    [siteId, cameraId, violationType, fromDate, toDate],
+    [siteId, cameraId, violationType, fromDate, toDate, assignedToMe],
   );
 
   const bucketSpecs = useMemo(
@@ -349,16 +369,17 @@ export function useAssignmentIncidents(
           },
           signal,
         ),
-      enabled,
+      enabled: enabled && buckets?.[spec.key] !== false,
       staleTime,
       retry: false,
       refetchOnWindowFocus: false,
       refetchIntervalInBackground: false,
+      // SSE online → trang tự invalidate khi có sự kiện, không poll thêm; chỉ poll 30s khi mất SSE.
       refetchInterval: (query: { state: { error: unknown } }) => {
         if (refetchInterval === false) return false;
         if (isRateLimitError(query.state.error)) return false;
         if (typeof refetchInterval === "number") return refetchInterval;
-        return isConnected ? 60 * 1000 : 30 * 1000;
+        return isConnected ? false : 30 * 1000;
       },
     })),
   });

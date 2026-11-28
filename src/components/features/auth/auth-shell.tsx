@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { HardHat, Languages } from "lucide-react";
 
@@ -13,6 +13,7 @@ import {
   CardDescription,
 } from "@ui/card";
 
+import { useIsDesktop, useResponsiveVariant } from "@/hooks/use-media-query";
 import { useLocale } from "@/providers/locale-provider";
 import { ThemeToggle } from "@ui/theme-toggle";
 
@@ -28,9 +29,18 @@ export interface AuthShellProps {
    AUTH IMAGE SLIDESHOW CONFIG
 ======================================== */
 
-const IMAGE_PREFIX = "/images/auth-illustration-";
-const IMAGE_EXTENSION = ".jpg";
-const MAX_IMAGES = 5;
+/**
+ * Danh sách ảnh tĩnh có thật trong public/images — thay cho việc dò tuần tự
+ * auth-illustration-1..N bằng new Image() (luôn sinh 1 request 404 ở ảnh
+ * không tồn tại đầu tiên mỗi lần tải trang). Thêm/bớt ảnh: sửa mảng này.
+ */
+const AUTH_IMAGES = [
+  "/images/auth-illustration-1.jpg",
+  "/images/auth-illustration-2.jpg",
+  "/images/auth-illustration-3.jpg",
+  "/images/auth-illustration-4.jpg",
+  "/images/auth-illustration-5.jpg",
+] as const;
 
 const IMAGE_INTERVAL = 10_000;
 const IMAGE_FADE_DURATION = 2_000;
@@ -97,15 +107,29 @@ function createTiles(): Tile[] {
   return tiles;
 }
 
+/** Seed cố định → bố cục tile luôn giống nhau: tính 1 lần cho cả module */
+const TILES = createTiles();
+
+/**
+ * Tối ưu (giữ nguyên hình ảnh):
+ * - Mobile: gỡ hẳn ~120 node sau khi hydrate (trước đây chỉ ẩn bằng CSS
+ *   `hidden md:block` nên DOM + animation vẫn tồn tại).
+ * - Bỏ `will-change: filter` của từng tile: 120 compositor layer riêng tốn
+ *   bộ nhớ GPU trong khi animation brightness chỉ đổi 6% trong 40-90s.
+ * - Tile là nền trang trí: aria-hidden + tabIndex -1 — trước đây mỗi tile là
+ *   1 role="button" có tabIndex 0, bàn phím phải Tab qua ~120 tile mới tới form.
+ *   Chuột vẫn bấm đổi kiểu tile như cũ.
+ */
 function NeumorphicTileWall() {
-  const tiles = useMemo(() => createTiles(), []);
+  const { showDesktop } = useResponsiveVariant();
+  if (!showDesktop) return null;
 
   return (
     <div
-      aria-label="Interactive Neumorphism tiles"
+      aria-hidden="true"
       className="pointer-events-none absolute inset-0 z-0 overflow-hidden hidden md:block"
     >
-      {tiles.map((tile) => {
+      {TILES.map((tile) => {
         const tileStyle = {
           left: `${tile.x}%`,
           top: `${tile.y}%`,
@@ -113,6 +137,7 @@ function NeumorphicTileWall() {
           transform: `translate(-50%, -50%) rotate(${tile.rotation}deg)`,
           "--tile-delay": `${(tile.id % 13) * -2.5}s`,
           "--tile-duration": `${40 + (tile.id % 11) * 5}s`,
+          willChange: "auto",
         } as CSSProperties;
 
         return (
@@ -127,7 +152,7 @@ function NeumorphicTileWall() {
               radius={8}
               defaultLevel={tile.level}
               cycleLevels={TILE_LEVELS}
-              aria-label={`Neumorphic tile ${tile.id + 1}`}
+              tabIndex={-1}
               className="border-0"
             />
           </div>
@@ -138,66 +163,39 @@ function NeumorphicTileWall() {
 }
 
 /* ========================================
-   AUTOMATIC IMAGE DISCOVERY
+   AUTH IMAGE SLIDESHOW
 ======================================== */
 
-function AuthImageSlideshow() {
-  const [images, setImages] = useState<string[]>([]);
+function AuthImageSlideshow({ label, alt }: { label: string; alt: string }) {
+  // Chỉ tải ảnh trên desktop (panel ảnh ẩn trên mobile) — tiết kiệm băng thông
+  const isDesktop = useIsDesktop();
+  const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set());
   const [activeIndex, setActiveIndex] = useState(0);
+  // Chỉ gắn <img> cho ảnh đang hiện + ảnh kế tiếp (preload trước 1 nhịp),
+  // không tải cả 5 ảnh ngay khi mở trang
+  const [mountedCount, setMountedCount] = useState(2);
 
-  // Automatically discover images numbered from 1 to MAX_IMAGES on desktop screen.
-  useEffect(() => {
-    // Tiết kiệm băng thông và RAM trên mobile: không tải ảnh khi ở màn hình nhỏ
-    if (typeof window !== "undefined" && window.innerWidth < 768) {
-      return;
-    }
+  const images = isDesktop ? AUTH_IMAGES.filter((src) => !failed.has(src)) : [];
 
-    let cancelled = false;
-
-    async function discoverImages() {
-      const foundImages: string[] = [];
-
-      for (let number = 1; number <= MAX_IMAGES; number += 1) {
-        if (cancelled) return;
-        const src = `${IMAGE_PREFIX}${number}${IMAGE_EXTENSION}`;
-        const exists = await new Promise<boolean>((resolve) => {
-          const image = new window.Image();
-          image.onload = () => resolve(true);
-          image.onerror = () => resolve(false);
-          image.src = src;
-        });
-        if (!exists) break;
-        foundImages.push(src);
-        if (foundImages.length === 1 && !cancelled) {
-          // Render the first illustration immediately instead of waiting for remaining checks
-          setImages([...foundImages]);
-          setActiveIndex(0);
-        }
-      }
-
-      if (!cancelled) {
-        setImages(foundImages);
-        setActiveIndex(0);
-      }
-    }
-
-    void discoverImages();
-
-    return () => {
-      cancelled = true;
-    };
+  const handleError = useCallback((src: string) => {
+    setFailed((current) => new Set(current).add(src));
   }, []);
 
   // Change image every 10 seconds.
   useEffect(() => {
     if (images.length <= 1) return;
 
+    const total = images.length;
     const interval = window.setInterval(() => {
-      setActiveIndex((current) => (current + 1) % images.length);
+      setActiveIndex((current) => (current + 1) % total);
+      // Mỗi nhịp tiến 1 ảnh → gắn thêm đúng 1 ảnh kế tiếp (giữ ảnh cũ để fade-out)
+      setMountedCount((count) => Math.min(total, count + 1));
     }, IMAGE_INTERVAL);
 
     return () => window.clearInterval(interval);
-  }, [images]);
+  }, [images.length]);
+
+  const safeActiveIndex = images.length > 0 ? activeIndex % images.length : 0;
 
   return (
     <>
@@ -225,19 +223,19 @@ function AuthImageSlideshow() {
         }
       `}</style>
 
-      <div
-        className="absolute inset-0"
-        aria-label="Construction safety illustrations"
-      >
-        {images.map((src, index) => (
+      <div className="absolute inset-0" aria-label={label}>
+        {images.slice(0, mountedCount).map((src, index) => (
           <img
             key={src}
             src={src}
-            alt="Construction site safety"
-            aria-hidden={index !== activeIndex}
+            alt={alt}
+            aria-hidden={index !== safeActiveIndex}
             className={`auth-image-layer ${
-              index === activeIndex ? "is-active" : ""
+              index === safeActiveIndex ? "is-active" : ""
             }`}
+            decoding="async"
+            fetchPriority={index === 0 ? "high" : "low"}
+            onError={() => handleError(src)}
             draggable={false}
           />
         ))}
@@ -268,7 +266,7 @@ export function AuthShell({
   footer,
   cardClassName,
 }: AuthShellProps) {
-  const { locale, setLocale } = useLocale();
+  const { locale, setLocale, t } = useLocale();
 
   const isVietnamese = locale === "vi-VN";
 
@@ -304,7 +302,7 @@ export function AuthShell({
                 SMART PPE
               </span>
               <span className="text-[9px] sm:text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
-                {isVietnamese ? "Hệ thống giám sát" : "Monitoring System"}
+                {t("authShell.brandSubtitle")}
               </span>
             </div>
           </div>
@@ -314,12 +312,8 @@ export function AuthShell({
             <button
               type="button"
               onClick={toggleLocale}
-              aria-label={
-                isVietnamese ? "Switch to English" : "Chuyển sang tiếng Việt"
-              }
-              title={
-                isVietnamese ? "Switch to English" : "Chuyển sang tiếng Việt"
-              }
+              aria-label={t("authShell.switchLanguage")}
+              title={t("authShell.switchLanguage")}
               className={`${controlClassName} px-2.5 sm:px-3`}
             >
               <Languages className="size-3.5 sm:size-4" aria-hidden="true" />
@@ -364,7 +358,10 @@ export function AuthShell({
                     "shadow-[inset_2px_2px_5px_rgba(0,0,0,0.2),inset_-2px_-2px_5px_rgba(255,255,255,0.12)]",
                   ].join(" ")}
                 >
-                  <AuthImageSlideshow />
+                  <AuthImageSlideshow
+                    label={t("authShell.imagesLabel")}
+                    alt={t("authShell.imageAlt")}
+                  />
 
                   {/* Image overlay */}
                   <div
@@ -383,25 +380,24 @@ export function AuthShell({
                     <div className="mb-5 flex items-center gap-3">
                       <span className="h-px w-8 bg-white/70" />
                       <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/80">
-                        Intelligent Safety System
+                        {t("authShell.eyebrow")}
                       </span>
                     </div>
 
                     <h2 className="max-w-md text-2xl font-semibold leading-tight tracking-tight text-white sm:text-3xl lg:text-4xl">
-                      Safety starts
+                      {t("authShell.headlineLine1")}
                       <br />
-                      with awareness.
+                      {t("authShell.headlineLine2")}
                     </h2>
 
                     <p className="mt-4 max-w-sm text-sm leading-6 text-white/75">
-                      Monitor protective equipment and help create a safer,
-                      smarter construction environment.
+                      {t("authShell.description")}
                     </p>
 
                     <div className="mt-7 flex items-center gap-2">
                       <span className="size-1.5 rounded-full bg-emerald-300" />
                       <span className="text-xs tracking-wide text-white/65">
-                        Protect people. Prevent incidents.
+                        {t("authShell.tagline")}
                       </span>
                     </div>
                   </div>

@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
+import { useCan } from "@/hooks/use-can";
 import type { IncidentWorkGroup } from "@/lib/incident-assignment-groups";
 import type { IncidentItem } from "@/types";
 import { PaginatedIncidentRows } from "./assignment-pagination";
@@ -104,16 +105,26 @@ export function AssignmentWorkGroupCard({
   batchActionPending = false,
   onToggleSelectOne,
   onToggleSelectMany,
-  onBatchConfirmOnly,
-  onBatchDispatch,
-  onBatchClose,
-  onBatchResolve,
+  onBatchConfirmOnly: onBatchConfirmOnlyProp,
+  onBatchDispatch: onBatchDispatchProp,
+  onBatchClose: onBatchCloseProp,
+  onBatchResolve: onBatchResolveProp,
   responsibilityContext,
   formatters,
   rowActions,
 }: AssignmentWorkGroupCardProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  // Nút hàng loạt chỉ hiện khi có đúng permission BE yêu cầu, bất kể role nào render thẻ.
+  const can = useCan();
+  const canReview = can("PPE_INCIDENT_REVIEW");
+  const canManage = can("PPE_INCIDENT_MANAGE");
+  const hasPendingInGroup = group.items.some((i) => i.status === "PENDING_REVIEW");
+  const onBatchConfirmOnly = canReview ? onBatchConfirmOnlyProp : undefined;
+  const onBatchDispatch =
+    canManage && (canReview || !hasPendingInGroup) ? onBatchDispatchProp : undefined;
+  const onBatchClose = canManage ? onBatchCloseProp : undefined;
+  const onBatchResolve = can("PPE_INCIDENT_UPDATE") ? onBatchResolveProp : undefined;
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   const GroupIcon = getGroupIcon(group.groupBy);

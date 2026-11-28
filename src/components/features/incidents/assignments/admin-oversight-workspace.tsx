@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
+import { useCan } from "@/hooks/use-can";
 import {
   filterAssignmentIncidents,
   groupIncidentsForAssignment,
@@ -110,6 +111,12 @@ export function AdminOversightWorkspace({
 }: AdminOversightWorkspaceProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  // Nút giao/đóng của Admin cũng theo permission (giao → MANAGE, giao hồ sơ chờ duyệt → thêm REVIEW).
+  const can = useCan();
+  const canManage = can("PPE_INCIDENT_MANAGE");
+  const canReview = can("PPE_INCIDENT_REVIEW");
+  const canDispatch = (items: readonly IncidentItem[]) =>
+    canManage && (canReview || items.every((i) => i.status !== "PENDING_REVIEW"));
   const [filter, setFilter] = useState<AssignmentFilterState>({
     violationType: "",
     severity: "",
@@ -389,7 +396,7 @@ export function AdminOversightWorkspace({
                             </span>
                           )}
 
-                          {dispatchable.length > 0 && (
+                          {dispatchable.length > 0 && canDispatch(dispatchable) && (
                             <Button
                               type="button"
                               size="sm"
@@ -406,7 +413,7 @@ export function AdminOversightWorkspace({
                             </Button>
                           )}
 
-                          {mGrp.awaitingAcceptanceItems.length > 0 && (
+                          {mGrp.awaitingAcceptanceItems.length > 0 && canManage && (
                             <Button
                               type="button"
                               size="sm"
@@ -686,7 +693,7 @@ export function AdminOversightWorkspace({
                         {isVietnamese ? "chờ nghiệm thu" : "resolved"}
                       </span>
                     )}
-                    {dispatchable.length > 0 && (
+                    {dispatchable.length > 0 && canDispatch(dispatchable) && (
                       <Button
                         type="button"
                         size="sm"
@@ -801,7 +808,7 @@ export function AdminOversightWorkspace({
                         {isVietnamese ? "chờ đóng" : "resolved"}
                       </span>
                     )}
-                    {dispatchable.length > 0 && (
+                    {dispatchable.length > 0 && canDispatch(dispatchable) && (
                       <Button
                         type="button"
                         size="sm"

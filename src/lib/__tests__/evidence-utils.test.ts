@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildEvidenceServerFilters,
+  escapeEvidenceCsvCell,
   extractEvidenceBoundingBoxes,
-  filterEvidencesClientSide,
   formatEvidenceFileSize,
   formatMediaDuration,
   groupEvidencesByIncident,
   isChecksumVerifyValid,
   sumEvidenceBytes,
 } from "../evidence-utils";
-import type { EvidenceItem, IncidentItem } from "@/types";
+import type { EvidenceItem } from "@/types";
 
 function makeEvidence(overrides: Partial<EvidenceItem> = {}): EvidenceItem {
   return {
@@ -136,82 +137,55 @@ test("groupEvidencesByIncident pairs reference and snapshot per incident", () =>
   assert.equal(groups[1].reference?.id, "ev-ref");
 });
 
-test("filterEvidencesClientSide filters by site, violation, checksum, date preset, and search", () => {
-  const nowMs = Date.parse("2026-11-17T12:00:00.000Z");
-  const incidentsMap = new Map<string, IncidentItem>([
-    [
-      "inc-1",
+test("buildEvidenceServerFilters maps every page filter to the server-side query", () => {
+  const nowMs = Date.parse("2026-11-17T12:00:30.500Z");
+  assert.deepEqual(buildEvidenceServerFilters({}, nowMs), {});
+  assert.deepEqual(
+    buildEvidenceServerFilters(
       {
-        id: "inc-1",
+        search: "  north  ",
         siteId: "site-a",
         cameraId: "cam-1",
+        evidenceType: "SNAPSHOT",
         violationType: "NO_HELMET",
-        severity: "CRITICAL",
-        status: "PENDING_REVIEW",
-        detectedAt: "2026-11-17T10:00:00.000Z",
-        createdAt: "2026-11-17T10:00:00.000Z",
-        updatedAt: "2026-11-17T10:00:00.000Z",
+        checksumFilter: "has_hash",
+        datePreset: "7d",
+        lifecycleScope: "dismissed",
       },
-    ],
-    [
-      "inc-2",
-      {
-        id: "inc-2",
-        siteId: "site-b",
-        cameraId: "cam-2",
-        violationType: "NO_VEST",
-        severity: "LOW",
-        status: "RESOLVED",
-        detectedAt: "2026-10-01T10:00:00.000Z",
-        createdAt: "2026-10-01T10:00:00.000Z",
-        updatedAt: "2026-10-01T10:00:00.000Z",
-      },
-    ],
-  ]);
-
-  const items = [
-    makeEvidence({
-      id: "ev-1",
-      incidentId: "inc-1",
-      cameraId: "cam-1",
-      fileName: "gate_north_helmet.jpg",
-      capturedAt: "2026-11-17T10:00:00.000Z",
-    }),
-    makeEvidence({
-      id: "ev-2",
-      incidentId: "inc-2",
-      cameraId: "cam-2",
-      fileName: "old_vest.jpg",
-      capturedAt: "2026-10-01T10:00:00.000Z",
-      metadata: null,
-    }),
-  ];
-
-  const filtered = filterEvidencesClientSide(
-    items,
-    {
-      siteId: "site-a",
-      violationType: "NO_HELMET",
-      checksumFilter: "has_hash",
-      datePreset: "today",
-      search: "north",
-    },
-    {
-      incidentsMap,
       nowMs,
-      getCameraLabel: () => "CAM-01",
+    ),
+    {
+      search: "north",
+      siteId: "site-a",
+      cameraId: "cam-1",
+      evidenceType: "SNAPSHOT",
+      violationType: "NO_HELMET",
+      hasChecksum: true,
+      // làm tròn xuống đầu phút để query key ổn định
+      fromDate: "2026-11-10T12:00:00.000Z",
+      lifecycle: "DISMISSED",
     },
   );
-  assert.equal(filtered.length, 1);
-  assert.equal(filtered[0].id, "ev-1");
-
-  const missingHash = filterEvidencesClientSide(
-    items,
-    { checksumFilter: "missing_hash" },
-    { incidentsMap, nowMs },
+  assert.equal(
+    buildEvidenceServerFilters({ checksumFilter: "missing_hash" }, nowMs).hasChecksum,
+    false,
   );
-  assert.equal(missingHash.length, 1);
-  assert.equal(missingHash[0].id, "ev-2");
+  assert.equal(buildEvidenceServerFilters({ lifecycleScope: "active" }).lifecycle, "ACTIVE");
+  assert.equal(buildEvidenceServerFilters({ lifecycleScope: "closed" }).lifecycle, "CLOSED");
+  assert.equal(buildEvidenceServerFilters({ search: "x".repeat(300) }).search?.length, 200);
+});
+
+test("escapeEvidenceCsvCell neutralises spreadsheet formulas (CWE-1236)", () => {
+  assert.equal(escapeEvidenceCsvCell("=HYPERLINK(\"http://evil\")"), `"'=HYPERLINK(""http://evil"")"`);
+  assert.equal(escapeEvidenceCsvCell("+cmd"), `"'+cmd"`);
+  assert.equal(escapeEvidenceCsvCell("-2+3"), `"'-2+3"`);
+  assert.equal(escapeEvidenceCsvCell("@SUM(A1)"), `"'@SUM(A1)"`);
+  assert.equal(escapeEvidenceCsvCell("\tcam"), `"'\tcam"`);
+  assert.equal(escapeEvidenceCsvCell("\rcam"), `"'\rcam"`);
+  assert.equal(escapeEvidenceCsvCell("a,b"), `"a,b"`);
+  assert.equal(escapeEvidenceCsvCell("snap.jpg"), "snap.jpg");
+  assert.equal(escapeEvidenceCsvCell(1024), "1024");
+  assert.equal(escapeEvidenceCsvCell(null), "");
 });
 
 test("formatEvidenceFileSize and formatMediaDuration format edge cases cleanly", () => {
@@ -223,92 +197,11 @@ test("formatEvidenceFileSize and formatMediaDuration format edge cases cleanly",
   assert.equal(formatMediaDuration(null), "--");
 });
 
-test("filterEvidencesClientSide handles lifecycleScope, archivedIds, and sumEvidenceBytes", () => {
-  const incidentsMap = new Map<string, IncidentItem>([
-    [
-      "inc-active",
-      {
-        id: "inc-active",
-        siteId: "site-a",
-        cameraId: "cam-1",
-        violationType: "NO_HELMET",
-        severity: "HIGH",
-        status: "CONFIRMED",
-        detectedAt: "2026-11-17T10:00:00.000Z",
-        createdAt: "2026-11-17T10:00:00.000Z",
-        updatedAt: "2026-11-17T10:00:00.000Z",
-      },
-    ],
-    [
-      "inc-dismissed",
-      {
-        id: "inc-dismissed",
-        siteId: "site-a",
-        cameraId: "cam-1",
-        violationType: "NO_VEST",
-        severity: "LOW",
-        status: "DISMISSED",
-        detectedAt: "2026-11-17T10:00:00.000Z",
-        createdAt: "2026-11-17T10:00:00.000Z",
-        updatedAt: "2026-11-17T10:00:00.000Z",
-      },
-    ],
-    [
-      "inc-closed",
-      {
-        id: "inc-closed",
-        siteId: "site-a",
-        cameraId: "cam-1",
-        violationType: "NO_HELMET",
-        severity: "MEDIUM",
-        status: "CLOSED",
-        detectedAt: "2026-11-17T10:00:00.000Z",
-        createdAt: "2026-11-17T10:00:00.000Z",
-        updatedAt: "2026-11-17T10:00:00.000Z",
-      },
-    ],
-  ]);
-
+test("sumEvidenceBytes sums numeric and string file sizes", () => {
   const items = [
-    makeEvidence({ id: "ev-active", incidentId: "inc-active", fileSize: 1000 }),
-    makeEvidence({ id: "ev-dismissed", incidentId: "inc-dismissed", fileSize: "2500" }),
-    makeEvidence({ id: "ev-closed", incidentId: "inc-closed", fileSize: 500 }),
+    makeEvidence({ id: "a", fileSize: 1000 }),
+    makeEvidence({ id: "b", fileSize: "2500" }),
+    makeEvidence({ id: "c", fileSize: 500 }),
   ];
-
   assert.equal(sumEvidenceBytes(items), 4000);
-
-  const archivedIds = new Set(["ev-closed"]);
-
-  // Main vault hides archived items automatically
-  const allVisible = filterEvidencesClientSide(
-    items,
-    { lifecycleScope: "all", archivedIds },
-    { incidentsMap },
-  );
-  assert.deepEqual(
-    allVisible.map((i) => i.id),
-    ["ev-active", "ev-dismissed"],
-  );
-
-  // Dismissed scope
-  const dismissedOnly = filterEvidencesClientSide(
-    items,
-    { lifecycleScope: "dismissed", archivedIds },
-    { incidentsMap },
-  );
-  assert.deepEqual(
-    dismissedOnly.map((i) => i.id),
-    ["ev-dismissed"],
-  );
-
-  // Archived scope
-  const archivedOnly = filterEvidencesClientSide(
-    items,
-    { lifecycleScope: "archived", archivedIds },
-    { incidentsMap },
-  );
-  assert.deepEqual(
-    archivedOnly.map((i) => i.id),
-    ["ev-closed"],
-  );
 });

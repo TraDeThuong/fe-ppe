@@ -37,59 +37,57 @@ export function AssignIncidentModal({
     [incident?.siteId, getSite]
   );
 
-  const { data: usersData, isLoading: usersLoading } = useUsers(
-    { limit: 100 },
-    { enabled: open && canReadUsers },
+  // Chỉ lấy nhân sự đang hoạt động thuộc đúng công trường của sự cố (BE lọc theo siteId), vì BE từ chối
+  // giao cho người ngoài công trường. Không giữ dữ liệu của sự cố trước để tránh chọn nhầm công trường khác.
+  const siteId = incident?.siteId;
+  const { data: usersData, isLoading: usersQueryLoading } = useUsers(
+    { siteId, isActive: true, limit: 100, sortBy: "fullName", order: "asc" },
+    { enabled: open && canReadUsers && Boolean(siteId), placeholderData: undefined },
   );
-  const allUsers: UserResponseDto[] = useMemo(() => usersData?.data ?? [], [usersData]);
+  const usersLoading = canReadUsers && usersQueryLoading;
 
-  // Group users into site-specific officers, safety personnel, and general personnel
+  // Thiếu USER_READ → dùng cán bộ liên hệ khai báo ở công trường (có userId) làm danh sách chọn.
+  const allUsers: UserResponseDto[] = useMemo(() => {
+    if (canReadUsers) return usersData?.data ?? [];
+    return (currentSite?.contactOfficers || [])
+      .filter((o): o is typeof o & { userId: string } => Boolean(o.userId))
+      .map((o) => ({
+        id: o.userId,
+        email: null,
+        fullName: o.name,
+        phoneNumber: o.phones?.[0] ?? null,
+        roleId: "",
+        role: { name: o.roleTitle || "SAFETY_OFFICER" } as UserResponseDto["role"],
+        siteIds: siteId ? [siteId] : [],
+        isActive: true,
+        createdAt: "",
+        updatedAt: "",
+      }));
+  }, [canReadUsers, usersData, currentSite, siteId]);
+
+  // Chỉ cán bộ an toàn của công trường: bỏ tài khoản role USER / ADMIN và người không gắn công trường này.
   const { siteOfficers, safetyOfficers, generalOfficers } = useMemo(() => {
-    const siteAssigned: UserResponseDto[] = [];
-    const safety: UserResponseDto[] = [];
-    const general: UserResponseDto[] = [];
-
-    const siteOfficerUserIds = new Set(
-      (currentSite?.contactOfficers || [])
-        .map((o) => o.userId)
-        .filter((id): id is string => Boolean(id))
-    );
-    const siteOfficerNames = new Set(
-      (currentSite?.contactOfficers || [])
-        .map((o) => o.name?.trim().toLowerCase())
-        .filter(Boolean)
-    );
-
-    allUsers.forEach((u) => {
-      const isSiteAssigned =
-        siteOfficerUserIds.has(u.id) ||
-        (u.fullName && siteOfficerNames.has(u.fullName.trim().toLowerCase()));
-
-      if (isSiteAssigned) {
-        siteAssigned.push(u);
-        return;
-      }
-
-      const roleName = u.role?.name?.toUpperCase() || "";
-      if (
-        roleName.includes("SAFETY") ||
+    const isEligibleRole = (roleName: string) =>
+      !roleName.includes("ADMIN") &&
+      (roleName.includes("SAFETY") ||
         roleName.includes("OFFICER") ||
         roleName.includes("MANAGER") ||
-        roleName.includes("ADMIN") ||
-        roleName.includes("SUPERVISOR")
-      ) {
-        safety.push(u);
-      } else {
-        general.push(u);
-      }
-    });
+        roleName.includes("SUPERVISOR"));
+    const officerFirst = (u: UserResponseDto) =>
+      (u.role?.name || "").toUpperCase() === "SAFETY_OFFICER" ? 0 : 1;
+
+    const siteAssigned = allUsers
+      .filter((u) => u.isActive !== false)
+      .filter((u) => !siteId || !Array.isArray(u.siteIds) || u.siteIds.length === 0 || u.siteIds.includes(siteId))
+      .filter((u) => isEligibleRole((u.role?.name || "").toUpperCase()))
+      .sort((a, b) => officerFirst(a) - officerFirst(b));
 
     return {
       siteOfficers: siteAssigned,
-      safetyOfficers: safety,
-      generalOfficers: general,
+      safetyOfficers: [] as UserResponseDto[],
+      generalOfficers: [] as UserResponseDto[],
     };
-  }, [allUsers, currentSite]);
+  }, [allUsers, siteId]);
 
   const [assignedToUserId, setAssignedToUserId] = useState<string>("");
   const [note, setNote] = useState("");
@@ -105,16 +103,8 @@ export function AssignIncidentModal({
     if (!open) return;
     setNote("");
     setError(null);
-    if (siteOfficers.length > 0) {
-      setAssignedToUserId(siteOfficers[0].id);
-    } else if (safetyOfficers.length > 0) {
-      setAssignedToUserId(safetyOfficers[0].id);
-    } else if (allUsers.length > 0) {
-      setAssignedToUserId(allUsers[0].id);
-    } else {
-      setAssignedToUserId("");
-    }
-  }, [open, incident?.id, siteOfficers, safetyOfficers, allUsers]);
+    setAssignedToUserId(siteOfficers[0]?.id ?? "");
+  }, [open, incident?.id, siteOfficers]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -225,7 +215,7 @@ export function AssignIncidentModal({
                 {isVietnamese ? "Đang tải danh sách nhân sự..." : "Loading personnel directory..."}
               </option>
             )}
-            {!usersLoading && allUsers.length === 0 && (
+            {!usersLoading && siteOfficers.length === 0 && (
               <option value="">
                 {isVietnamese
                   ? "-- Chưa có danh sách nhân sự khả dụng --"

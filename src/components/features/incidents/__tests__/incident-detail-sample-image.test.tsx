@@ -92,7 +92,8 @@ it("incident detail page neither shows the sample image nor sends it when re-sen
       await act(() => resend.click());
 
       assert.equal(sent.length, 1);
-      assert.match(sent[0].evidenceUrl ?? "", /\/violation\.jpg$/, "sends the violation snapshot");
+      // Gửi đường dẫn nội bộ của đúng ảnh vi phạm (notification-service tự tải qua M2M), không phải link bucket thô.
+      assert.equal(sent[0].evidenceUrl, "/api/v1/incidents/evidences/violation/download", "sends the violation snapshot");
     },
     { desktop: true },
   );

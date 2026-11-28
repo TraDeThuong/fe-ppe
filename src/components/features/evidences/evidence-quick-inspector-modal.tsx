@@ -37,8 +37,8 @@ import {
   useIncidentDetail,
   useVerifyEvidenceMutation,
 } from "@/hooks/incidents";
+import { fetchEvidenceViewUrl, useEvidenceViewUrl } from "@/hooks/incidents/use-evidences";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
-import { resolveEvidenceUrl } from "@/lib/evidence-url";
 import {
   extractEvidenceBoundingBoxes,
   formatEvidenceFileSize,
@@ -50,7 +50,6 @@ import {
 } from "@/lib/evidence-utils";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
-import { incidentService } from "@/services";
 import {
   EVIDENCE_TYPE,
   type EvidenceItem,
@@ -109,8 +108,7 @@ export function EvidenceQuickInspectorModal({
   const [showAiHud, setShowAiHud] = useState(true);
   const [displayMode, setDisplayMode] = useState<InspectorDisplayMode>("single");
   const [sliderPos, setSliderPos] = useState(50);
-  const [resolvedVideoUrl, setResolvedVideoUrl] = useState<string>("");
-  const [loadingVideoUrl, setLoadingVideoUrl] = useState(false);
+  const [isCopyingLink, setIsCopyingLink] = useState(false);
 
   const verifyMutation = useVerifyEvidenceMutation();
   const { data: cachedIntegrity } = useEvidenceIntegrity(current?.id ?? "", false);
@@ -150,38 +148,16 @@ export function EvidenceQuickInspectorModal({
     }
   }, [current?.id, initialCompare, hasComparePair]);
 
-  // Fetch presigned VIEW URL for video clips cleanly
-  useEffect(() => {
-    let active = true;
-    if (!open || !current || !isVideo) {
-      setResolvedVideoUrl("");
-      return;
-    }
-    const fallbackUrl = resolveEvidenceUrl(current.url || current.storageKey);
-    setResolvedVideoUrl(fallbackUrl);
-    setLoadingVideoUrl(true);
-
-    incidentService
-      .getEvidenceDownloadUrl(current.id, { action: "VIEW" })
-      .then((res) => {
-        if (active && res?.downloadUrl) {
-          setResolvedVideoUrl(resolveEvidenceUrl(res.downloadUrl) || res.downloadUrl);
-        }
-      })
-      .catch(() => {
-        // Fallback URL already set
-      })
-      .finally(() => {
-        if (active) setLoadingVideoUrl(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [open, current?.id, isVideo, current?.url, current?.storageKey]);
+  // Ảnh/video xem trước qua presigned VIEW URL (bucket private, giữ chữ ký SigV4, BE ghi EvidenceAccessLog)
+  const currentView = useEvidenceViewUrl(current, open);
+  const beforeView = useEvidenceViewUrl(beforeEvidence, open && hasComparePair);
+  const afterView = useEvidenceViewUrl(afterEvidence, open && hasComparePair);
+  const resolvedVideoUrl = isVideo ? currentView.url : "";
+  const loadingVideoUrl = isVideo && currentView.isLoading;
 
   const handleVerifyNow = useCallback(() => {
-    if (!current) return;
+    // Cùng guard với nút "Giám định": tệp chưa có SHA-256 gốc thì BE trả 400.
+    if (!current?.metadata?.checksum) return;
     verifyMutation.mutate(current.id);
   }, [current, verifyMutation]);
 
@@ -251,13 +227,9 @@ export function EvidenceQuickInspectorModal({
 
   if (!current) return null;
 
-  const currentUrl = resolveEvidenceUrl(current.url || current.storageKey);
-  const beforeUrl = beforeEvidence
-    ? resolveEvidenceUrl(beforeEvidence.url || beforeEvidence.storageKey)
-    : "";
-  const afterUrl = afterEvidence
-    ? resolveEvidenceUrl(afterEvidence.url || afterEvidence.storageKey)
-    : "";
+  const currentUrl = currentView.url;
+  const beforeUrl = beforeEvidence ? beforeView.url : "";
+  const afterUrl = afterEvidence ? afterView.url : "";
 
   const violationLabel = incident?.violationType
     ? getViolationLabel(incident.violationType, isVi)
@@ -326,6 +298,22 @@ export function EvidenceQuickInspectorModal({
     toast.success(message);
   };
 
+  // Sao chép presigned VIEW URL mới (có hạn 60 phút) thay vì URL thô của bucket.
+  const handleCopyLink = async () => {
+    if (isCopyingLink) return;
+    setIsCopyingLink(true);
+    try {
+      const signedUrl = await fetchEvidenceViewUrl(current.id);
+      if (!signedUrl) throw new Error(t("evidences.actions.downloadError"));
+      await navigator.clipboard.writeText(signedUrl);
+      toast.success(t("evidences.actions.linkCopied"));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("evidences.actions.downloadError"));
+    } finally {
+      setIsCopyingLink(false);
+    }
+  };
+
   return (
     <Modal
       open={open}
@@ -374,10 +362,15 @@ export function EvidenceQuickInspectorModal({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => handleCopyText(currentUrl, t("evidences.actions.linkCopied"))}
+              onClick={() => void handleCopyLink()}
+              disabled={isCopyingLink}
               className="gap-1.5 text-xs"
             >
-              <Link2 className="h-3.5 w-3.5" />
+              {isCopyingLink ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Link2 className="h-3.5 w-3.5" />
+              )}
               <span>{t("evidences.actions.copyLink")}</span>
             </Button>
             <Button

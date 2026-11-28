@@ -35,19 +35,39 @@ function warnUnreachableSignedEvidenceUrl() {
   if (warnedSignedInternalUrl) return;
   warnedSignedInternalUrl = true;
   console.warn(
-    "[evidence] Presigned URL đang được ký cho host nội bộ ppe-minio nên ảnh bằng chứng sẽ lỗi 403. " +
-      "Đặt PPE_MINIO_PUBLIC_ENDPOINT=http://localhost:9000 cho incident-service rồi khởi động lại container.",
+    "[evidence] Presigned URL đang được ký cho host nội bộ ppe-minio nên trình duyệt không tải được (403). " +
+      "Cần cấu hình PPE_MINIO_PUBLIC_ENDPOINT cho incident-service để BE ký theo host public.",
   );
+}
+
+/**
+ * Gốc URL công khai của bucket bằng chứng (VD: `https://cdn.example.com/ppe-evidences`), cấu hình qua
+ * `NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL`. Không có giá trị mặc định: khi bucket private (production),
+ * ảnh phải đi qua presigned URL lấy từ `GET /evidences/:id/download-url`.
+ * Đọc lúc gọi (không cache) để test có thể đổi biến môi trường.
+ */
+export function getEvidencePublicBaseUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL;
+  return typeof raw === "string" ? raw.trim().replace(/\/+$/, "") : "";
+}
+
+function publicOriginOf(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).origin;
+  } catch {
+    return "";
+  }
 }
 
 /**
  * Chuẩn hóa URL ảnh bằng chứng vi phạm PPE để tải chính xác trên trình duyệt.
  *
  * Xử lý an toàn các định dạng:
- * 1. URL tuyệt đối (http://, https://, blob:, data:) -> Giữ nguyên
+ * 1. URL tuyệt đối (http://, https://, blob:, data:) -> Giữ nguyên. URL đã ký (SigV4) không bao giờ bị đổi host.
  * 2. Đường dẫn API tương đối (/api/v1/...) -> Nối với Host API Gateway (Traefik)
  * 3. Đường dẫn tĩnh công khai (/images/..., /evidence/...) -> Giữ nguyên dưới dạng static asset Next.js
- * 4. Storage Key MinIO S3 (chưa có domain) -> Chuyển thành link MinIO ppe-evidences
+ * 4. Storage Key thô -> Chỉ ghép khi có `NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL`, ngược lại trả "" để
+ *    nơi gọi dùng presigned URL (xem `useEvidenceViewUrl`).
  */
 export function resolveEvidenceUrl(keyOrUrl?: string | null): string {
   if (!keyOrUrl || typeof keyOrUrl !== "string") return "";
@@ -55,11 +75,17 @@ export function resolveEvidenceUrl(keyOrUrl?: string | null): string {
   const trimmed = keyOrUrl.trim();
   if (!trimmed) return "";
 
-  // 1. URL chứa hostname nội bộ Docker (ppe-minio:9000) -> Chuyển thành localhost cho trình duyệt.
-  // Lưu ý: URL đã ký (presigned) gắn chữ ký với host, đổi host sẽ bị MinIO trả 403.
-  if (isSignedInternalMinioUrl(trimmed)) warnUnreachableSignedEvidenceUrl();
-  if (trimmed.includes("ppe-minio:9000")) {
-    return trimmed.replace(/http:\/\/ppe-minio:9000/g, "http://localhost:9000");
+  // 1. URL trỏ host nội bộ Docker (ppe-minio). URL đã ký gắn chữ ký với host nên giữ nguyên
+  // (đổi host chỉ làm hỏng chữ ký); URL chưa ký thì đổi sang origin public nếu đã cấu hình.
+  if (isDockerInternalMinioUrl(trimmed)) {
+    if (isSignedInternalMinioUrl(trimmed)) {
+      warnUnreachableSignedEvidenceUrl();
+      return trimmed;
+    }
+    const publicOrigin = publicOriginOf(getEvidencePublicBaseUrl());
+    return publicOrigin
+      ? trimmed.replace(/^https?:\/\/(?:ppe-minio|minio)(?::\d+)?/i, publicOrigin)
+      : trimmed;
   }
 
   // 1b. URL tuyệt đối hoặc base64 / blob
@@ -104,6 +130,7 @@ export function resolveEvidenceUrl(keyOrUrl?: string | null): string {
     return `/${trimmed}`;
   }
 
-  // 4. Fallback cho MinIO Storage key dạng thô
-  return `http://localhost:9000/ppe-evidences/${trimmed.replace(/^\/+/, "")}`;
+  // 4. Storage key thô: chỉ ghép khi bucket công khai được cấu hình rõ ràng
+  const publicBase = getEvidencePublicBaseUrl();
+  return publicBase ? `${publicBase}/${trimmed.replace(/^\/+/, "")}` : "";
 }

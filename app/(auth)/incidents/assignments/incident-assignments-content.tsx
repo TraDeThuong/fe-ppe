@@ -13,7 +13,8 @@ import {
   useReviewIncident,
 } from "@/hooks/incidents";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
-import { useNotifications } from "@/hooks/notifications";
+import { useIncidentStatusCounts } from "@/hooks/incidents/use-incident-status-counts";
+import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
 import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
 import { useCan } from "@/hooks/use-can";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
@@ -34,14 +35,13 @@ import {
   type OfficerTabKey,
 } from "@/components/features/incidents/assignments";
 import {
+  closeIncidentsBatch,
   dispatchIncidentsWithSignal,
   resolveIncidentsWithReport,
   type DispatchIncidentsResult,
 } from "@/lib/incident-actions";
-import {
-  isGroupIncidentResolved,
-  notificationIncidentTarget,
-} from "@/lib/incident-group";
+import { deriveDispatchBatches } from "@/lib/incident-dispatch-batches";
+import { isGroupIncidentResolved } from "@/lib/incident-group";
 import {
   groupIncidentsByCamera,
   groupIncidentsByResponsibility,
@@ -71,6 +71,11 @@ export default function IncidentAssignmentsContent() {
     : isOfficerRole
       ? "SAFETY_OFFICER"
       : "SAFETY_MANAGER";
+  // Quyền thao tác lấy từ permission, không suy ra từ tên role: role lạ chỉ có PPE_INCIDENT_READ
+  // vẫn xem được bàn điều phối nhưng không thấy nút Duyệt / Giao / Bác bỏ / Đóng.
+  const canReview = can("PPE_INCIDENT_REVIEW");
+  const canManage = can("PPE_INCIDENT_MANAGE");
+  const canUpdate = can("PPE_INCIDENT_UPDATE");
 
   // Navigation & filter states
   const [adminInterventionMode, setAdminInterventionMode] = useState(false);
@@ -97,19 +102,60 @@ export default function IncidentAssignmentsContent() {
   const { sites, getSiteName, getCameraCode, getCameraName } =
     useEntityLookup();
 
-  // Tải sự cố tách riêng theo từng trạng thái (PENDING_REVIEW, CONFIRMED, RESOLVED, CLOSED, DISMISSED)
-  // để cảnh báo AI mới (>100 bản ghi) không đẩy trôi hồ sơ Đang giao / Chờ Nghiệm thu / Đã Khép Hồ Sơ
+  // Chỉ tải các trạng thái mà màn hình đang cần:
+  // - Officer: lọc ở server `assignedToMe` (CONFIRMED đang giao, RESOLVED/CLOSED đã từng giao cho mình).
+  // - Quản lý: Chờ duyệt + Đã xác nhận luôn cần cho KPI; Đã khắc phục chỉ khi mở bước Đang giao/Nghiệm thu.
+  // - Admin: giám sát toàn cục nên tải đủ.
+  // KPI tổng dùng `/incidents/status-counts` (1 request) nên không cần tải hết danh sách để đếm.
+  const bucketPlan = isOfficerRole
+    ? { pendingReview: false, confirmed: true, resolved: true, closed: true, dismissed: false }
+    : isAdminRole
+      ? undefined
+      : {
+          pendingReview: true,
+          confirmed: true,
+          resolved: managerTab !== "triage",
+          closed: false,
+          dismissed: false,
+        };
   const {
     items: rawIncidents,
-    totals: assignmentTotals,
+    totals: bucketTotals,
     isLoading,
     isRefetching,
   } = useAssignmentIncidents({
     siteId: siteFilter || undefined,
     includeAssignments: true,
     includeClosedAssignments: isOfficerRole,
+    assignedToMe: isOfficerRole,
+    buckets: bucketPlan,
   });
 
+  const statusCountsQuery = useIncidentStatusCounts(
+    { siteId: siteFilter || undefined },
+    {
+      enabled: !isOfficerRole,
+      // SSE online → hook tự invalidate khi có sự kiện; chỉ poll khi mất SSE.
+      refetchInterval: isConnected ? false : 30 * 1000,
+    },
+  );
+  const statusCounts = statusCountsQuery.data;
+  const assignmentTotals = useMemo<AssignmentIncidentTotals>(() => {
+    if (isOfficerRole || !statusCounts) return bucketTotals;
+    const closed = statusCounts.closed ?? 0;
+    const dismissed = statusCounts.dismissed ?? 0;
+    return {
+      pendingReview: statusCounts.pendingReview ?? 0,
+      confirmed: statusCounts.confirmed ?? 0,
+      resolved: statusCounts.resolved ?? 0,
+      closed,
+      dismissed,
+      closedOrDismissed: closed + dismissed,
+      total: statusCounts.total ?? 0,
+    };
+  }, [isOfficerRole, statusCounts, bucketTotals]);
+
+  // Danh sách đã kèm `assignments` (includeAssignments) nên không gọi N+1 GET /:id/assignments.
   const {
     incidents,
     isHydratingAssignments,
@@ -117,14 +163,8 @@ export default function IncidentAssignmentsContent() {
     siteManagersBySiteId,
   } = useHydratedIncidents(rawIncidents, {
     includeClosed: isOfficerRole,
+    fetchMissingAssignments: false,
   });
-
-  const canReadNotifications = can("NOTIFICATION_READ");
-  const { data: notificationsData, refetch: refetchNotifications } =
-    useNotifications(
-      { page: 1, limit: 100, channel: "IN_APP" },
-      { enabled: canReadNotifications },
-    );
 
   // Tự động làm mới khi có SSE event (debounce 1.5s để tránh bão request khi AI phát hiện liên tiếp)
   useEffect(() => {
@@ -138,13 +178,10 @@ export default function IncidentAssignmentsContent() {
         void queryClient.invalidateQueries({
           queryKey: incidentKeys.statusCountsRoot(),
         });
-        if (canReadNotifications) {
-          void refetchNotifications();
-        }
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [lastAlert, queryClient, refetchNotifications, canReadNotifications]);
+  }, [lastAlert, queryClient]);
 
   // Chỉ invalidate danh sách, bộ đếm & đúng các incidentId vừa thay đổi; khi người dùng bấm Làm mới toàn trang (không truyền affectedIds) thì làm mới thêm cache phân công
   const invalidateAll = (affectedIds?: readonly string[]) => {
@@ -166,9 +203,6 @@ export default function IncidentAssignmentsContent() {
       void queryClient.invalidateQueries({
         queryKey: [...incidentKeys.all, "assignments"],
       });
-    }
-    if (canReadNotifications) {
-      void refetchNotifications();
     }
   };
 
@@ -268,22 +302,15 @@ export default function IncidentAssignmentsContent() {
     };
   }, [incidents, responsibilityContext, user?.id]);
 
-  // Trích xuất các Nhóm điều phối (IncidentGroupContext) từ thông báo [ĐIỀU PHỐI]
+  // Đợt giao việc dựng từ dữ liệu phân công (cùng cán bộ, cùng lần giao) — không đọc text thông báo,
+  // nên không mất đợt khi thông báo trôi hoặc người dùng thiếu quyền NOTIFICATION_READ.
   const dispatchedGroups = useMemo<DispatchedGroupView[]>(() => {
-    const rawNotifications = notificationsData?.data ?? [];
-    const groupMap = new Map<string, DispatchedGroupView>();
     const incidentById = new Map(incidents.map((i) => [i.id, i]));
+    const batches = deriveDispatchBatches(incidents, {
+      assignedTo: isOfficerRole ? user?.id : undefined,
+    });
 
-    for (const notif of rawNotifications) {
-      const target = notificationIncidentTarget({
-        incidentId: notif.incidentId,
-        content: notif.content,
-      });
-      if (!target.group) continue;
-      const grp = target.group;
-      if (isOfficerRole && user?.id && grp.assignedTo !== user.id) continue;
-      if (groupMap.has(grp.groupId)) continue;
-
+    return batches.map((grp) => {
       const memberIncidents = grp.incidentIds
         .map((id) => incidentById.get(id))
         .filter((item): item is IncidentItem => Boolean(item));
@@ -298,17 +325,15 @@ export default function IncidentAssignmentsContent() {
           (!isOfficerRole || !user?.id || isIncidentAssignedToUser(item, user.id)),
       );
 
-      groupMap.set(grp.groupId, {
+      return {
         group: grp,
-        message: target.content,
+        message: "",
         memberIncidents,
         resolvedCount,
         remainingEditableItems,
-      });
-    }
-
-    return Array.from(groupMap.values());
-  }, [notificationsData?.data, incidents, isOfficerRole, user?.id]);
+      };
+    });
+  }, [incidents, isOfficerRole, user?.id]);
 
   // Dữ liệu gom nhóm cho ADMIN & Stats
   const responsibilityGroups = useMemo(
@@ -401,17 +426,36 @@ export default function IncidentAssignmentsContent() {
   };
 
   // Row quick actions
+  // Chặn thêm ở handler (phòng khi nút bị render nhầm): BE cũng từ chối nếu thiếu quyền.
+  const canDispatchItems = (items: readonly IncidentItem[]) =>
+    canManage &&
+    (canReview || items.every((i) => i.status !== "PENDING_REVIEW"));
+  const openBatchDispatch = (items: IncidentItem[]) => {
+    if (canDispatchItems(items)) setBatchDispatchItems(items);
+  };
+  const openBatchClose = (items: IncidentItem[]) => {
+    if (!canManage) return;
+    setBatchCloseItems(items);
+    setBatchCloseNote("");
+  };
+  const openBatchResolve = (items: IncidentItem[]) => {
+    if (canUpdate) setBatchResolveItems(items);
+  };
+
   const rowActions = {
     onReview: (inc: IncidentItem) => {
+      if (!canReview) return;
       setSelectedIncident(inc);
       setIsReviewOpen(true);
     },
-    onDispatch: (items: IncidentItem[]) => setBatchDispatchItems(items),
+    onDispatch: (items: IncidentItem[]) => openBatchDispatch(items),
     onClose: (inc: IncidentItem) => {
+      if (!canManage) return;
       setSelectedIncident(inc);
       setIsCloseOpen(true);
     },
     onResolve: (inc: IncidentItem) => {
+      if (!canUpdate) return;
       setSelectedIncident(inc);
       setIsResolveOpen(true);
     },
@@ -419,7 +463,7 @@ export default function IncidentAssignmentsContent() {
 
   // Batch handlers
   const handleBatchConfirmOnly = async (ids: string[]) => {
-    if (ids.length === 0) return;
+    if (ids.length === 0 || !canReview) return;
     await batchReviewMutation.mutateAsync({ ids, action: "CONFIRM" });
     setSelectedIds(new Set());
     invalidateAll();
@@ -518,8 +562,15 @@ export default function IncidentAssignmentsContent() {
       if (res.failedCount > 0) {
         toast.error(
           isVietnamese
-            ? `${res.failedCount} sự cố chưa thể cập nhật (kiểm tra tệp ảnh hoặc quyền phân công).`
+            ? `${res.failedCount} sự cố chưa thể cập nhật${res.firstError ? `: ${res.firstError}` : " (kiểm tra tệp ảnh hoặc quyền phân công)."}`
             : `${res.failedCount} incidents failed to resolve.`,
+        );
+      }
+      if (res.closeFailedCount > 0) {
+        toast.error(
+          isVietnamese
+            ? `${res.closeFailedCount} sự cố đã khắc phục nhưng chưa đóng được hồ sơ.`
+            : `${res.closeFailedCount} incidents were resolved but could not be closed.`,
         );
       }
       setBatchResolveItems(null);
@@ -538,28 +589,28 @@ export default function IncidentAssignmentsContent() {
         (isVietnamese
           ? "Nghiệm thu và đóng hồ sơ sự cố an toàn (hàng loạt)"
           : "Batch accepted and closed safety incident records");
-      const { succeeded, failed } = await runInBatches(
-        batchCloseItems,
-        4,
-        (inc) => incidentService.closeIncident(inc.id, { closeNote }),
+      // 1 request POST /incidents/batch-close (tối đa 100 id/lần); BE cũ chưa có endpoint → gọi từng sự cố.
+      const res = await closeIncidentsBatch(
+        batchCloseItems.map((inc) => inc.id),
+        closeNote,
       );
       const closedIds = batchCloseItems.map((i) => i.id);
       setBatchCloseItems(null);
       setBatchCloseNote("");
       setSelectedIds(new Set());
       invalidateAll(closedIds);
-      if (succeeded.length > 0) {
+      if (res.closedIds.length > 0) {
         toast.success(
           isVietnamese
-            ? `Đã nghiệm thu và đóng ${succeeded.length} hồ sơ sự cố.`
-            : `Accepted and closed ${succeeded.length} incidents.`,
+            ? `Đã nghiệm thu và đóng ${res.closedIds.length} hồ sơ sự cố.`
+            : `Accepted and closed ${res.closedIds.length} incidents.`,
         );
       }
-      if (failed.length > 0) {
+      if (res.failedIds.length > 0) {
         toast.error(
           isVietnamese
-            ? `${failed.length} sự cố chưa thể đóng.`
-            : `${failed.length} incidents failed to close.`,
+            ? `${res.failedIds.length} sự cố chưa thể đóng${res.firstError ? `: ${res.firstError}` : "."}`
+            : `${res.failedIds.length} incidents failed to close.`,
         );
       }
     } finally {
@@ -590,7 +641,7 @@ export default function IncidentAssignmentsContent() {
                   : "No records remain eligible for assignment.",
               );
             }
-            setBatchDispatchItems(eligible);
+            openBatchDispatch(eligible);
           }}
         />
       )}
@@ -659,11 +710,8 @@ export default function IncidentAssignmentsContent() {
           responsibilityContext={responsibilityContext}
           formatters={formatters}
           rowActions={rowActions}
-          onBatchDispatch={(items) => setBatchDispatchItems(items)}
-          onBatchClose={(items) => {
-            setBatchCloseItems(items);
-            setBatchCloseNote("");
-          }}
+          onBatchDispatch={openBatchDispatch}
+          onBatchClose={openBatchClose}
         />
       ) : isOfficerRole ? (
         <OfficerTasksWorkspace
@@ -675,7 +723,7 @@ export default function IncidentAssignmentsContent() {
           onToggleSelectOne={toggleSelectOne}
           onToggleSelectMany={toggleSelectMany}
           batchActionPending={batchActionPending}
-          onBatchResolve={(items) => setBatchResolveItems(items)}
+          onBatchResolve={openBatchResolve}
           currentUserId={user?.id}
           responsibilityContext={responsibilityContext}
           formatters={formatters}
@@ -697,15 +745,13 @@ export default function IncidentAssignmentsContent() {
           batchActionPending={batchActionPending}
           onBatchConfirmOnly={(ids) => void handleBatchConfirmOnly(ids)}
           onBatchReject={(ids) => {
+            if (!canReview) return;
             setBatchRejectIds(ids);
             setBatchRejectNote("");
             setBatchRejectError(null);
           }}
-          onBatchDispatch={(items) => setBatchDispatchItems(items)}
-          onBatchClose={(items) => {
-            setBatchCloseItems(items);
-            setBatchCloseNote("");
-          }}
+          onBatchDispatch={openBatchDispatch}
+          onBatchClose={openBatchClose}
           currentUserId={user?.id}
           responsibilityContext={responsibilityContext}
           formatters={formatters}
@@ -753,7 +799,7 @@ export default function IncidentAssignmentsContent() {
         }}
         isResolveOpen={isResolveOpen}
         onResolveOpenChange={setIsResolveOpen}
-        canClose={!isOfficerRole && can("PPE_INCIDENT_MANAGE")}
+        canClose={!isOfficerRole && canManage}
         onSubmitResolve={async (_id, payload) => {
           if (!selectedIncident) return;
           setSingleActionPending(true);
@@ -768,9 +814,17 @@ export default function IncidentAssignmentsContent() {
             invalidateAll([selectedIncident.id]);
             if (res.failedCount > 0) {
               throw new Error(
+                res.firstError ||
+                  (isVietnamese
+                    ? "Không thể báo cáo khắc phục sự cố."
+                    : "Unable to resolve incident."),
+              );
+            }
+            if (res.closeFailedCount > 0) {
+              toast.error(
                 isVietnamese
-                  ? "Không thể báo cáo khắc phục sự cố."
-                  : "Unable to resolve incident.",
+                  ? "Đã khắc phục nhưng chưa đóng được hồ sơ (kiểm tra quyền hoặc trạng thái)."
+                  : "Resolved, but the record could not be closed.",
               );
             }
           } finally {

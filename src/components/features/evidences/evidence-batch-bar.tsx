@@ -1,8 +1,6 @@
 "use client";
 
 import {
-  Archive,
-  ArchiveRestore,
   CheckSquare,
   Download,
   FileSpreadsheet,
@@ -21,13 +19,11 @@ export interface EvidenceBatchBarProps {
   selectedTotalBytes?: number;
   allVisibleSelected: boolean;
   canDelete?: boolean;
-  isArchiveView?: boolean;
   onSelectAllVisible: () => void;
   onClearSelection: () => void;
   onBatchVerify: () => void;
   onBatchDownload: () => void;
   onBatchExportCsv?: () => void;
-  onBatchArchive?: () => void;
   onBatchDelete?: () => void;
   isBatchVerifying: boolean;
   batchProgress: BatchVerifyProgress | null;
@@ -40,13 +36,11 @@ export function EvidenceBatchBar({
   selectedTotalBytes = 0,
   allVisibleSelected,
   canDelete = false,
-  isArchiveView = false,
   onSelectAllVisible,
   onClearSelection,
   onBatchVerify,
   onBatchDownload,
   onBatchExportCsv,
-  onBatchArchive,
   onBatchDelete,
   isBatchVerifying,
   batchProgress,
@@ -162,46 +156,12 @@ export function EvidenceBatchBar({
               className="gap-1.5 text-xs"
               title={
                 isVi
-                  ? "Xuất bản kê lưu trữ CSV cho các bằng chứng đang chọn"
-                  : "Export CSV archive manifest for selected evidences"
+                  ? "Xuất bản kê CSV cho các bằng chứng đang chọn"
+                  : "Export CSV manifest for selected evidences"
               }
             >
               <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>{isVi ? "Xuất CSV" : "Export CSV"}</span>
-            </Button>
-          )}
-
-          {onBatchArchive && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onBatchArchive}
-              disabled={isBusy || selectedCount === 0}
-              className="gap-1.5 text-xs"
-              title={
-                isArchiveView
-                  ? isVi
-                    ? "Khôi phục các mục đã chọn về Kho chính"
-                    : "Restore selected items to Active Vault"
-                  : isVi
-                    ? "Cất gọn các mục đã chọn vào Kho Lưu trữ (ẩn khỏi danh sách chính)"
-                    : "Move selected items to Archive Vault"
-              }
-            >
-              {isArchiveView ? (
-                <ArchiveRestore className="h-3.5 w-3.5 text-primary" />
-              ) : (
-                <Archive className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-              )}
-              <span>
-                {isArchiveView
-                  ? isVi
-                    ? "Khôi phục"
-                    : "Restore"
-                  : isVi
-                    ? "Lưu trữ"
-                    : "Archive"}
-              </span>
             </Button>
           )}
 

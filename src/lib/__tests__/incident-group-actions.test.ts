@@ -9,6 +9,12 @@ import { ensureIncidentGroupCompletion, loadIncidentGroup, resolveIncidentGroupM
 import { appendIncidentGroupLink, notificationIncidentTarget } from "../incident-group";
 import { RESOLVED_REPORT_PREFIX } from "../incident-workflow";
 import { uuid, fixtureGroup, fixtureIncident } from "./incident-group.fixtures";
+import { ApiError } from "@/lib/axios";
+
+/** BE đang chạy chưa có POST /incidents/batch-assign → FE chuyển sang giao từng sự cố. */
+function batchAssignMissing() {
+  return mock.method(incidentService, "batchAssignIncidents", async () => { throw new ApiError(404, "NOT_FOUND", "Not found"); });
+}
 
 afterEach(() => mock.restoreAll());
 function delivered(payload: DispatchIncidentNotificationPayload): DispatchIncidentNotificationResult {
@@ -21,6 +27,7 @@ function emptyInbox() {
 
 describe("dispatch exact successful group membership", () => {
   it("excludes review and assignment failures, sorts stably and retains exact notification for retry", async () => {
+    batchAssignMissing();
     const inputs = [fixtureIncident(3, "PENDING_REVIEW"), fixtureIncident(1, "PENDING_REVIEW"), fixtureIncident(4), fixtureIncident(2, "PENDING_REVIEW")];
     mock.method(incidentService, "batchReviewIncidents", async () => ({ updatedIds: [uuid(1), uuid(3)], updatedCount: 2 }));
     const reads = mock.method(incidentService, "getIncidentById", async (id: string) => inputs.find((incident) => incident.id === id) && { ...inputs.find((incident) => incident.id === id)!, status: "CONFIRMED" as const });
@@ -49,12 +56,44 @@ describe("dispatch exact successful group membership", () => {
     assert.equal(review.mock.callCount(), 0);
   });
   it("does not announce dispatch when a 200 response creates no notifications", async () => {
+    batchAssignMissing();
     mock.method(incidentService, "assignOfficer", async () => fixtureIncident(1).assignments![0]);
     mock.method(notificationService, "triggerIncidentNotification", async () => ({ incidentId: uuid(1), dispatchedCount: 0, channels: [], notifications: [] }));
     const result = await dispatchIncidentsWithSignal({ incidents: [fixtureIncident(1)], assignedTo: uuid(201) });
     assert.equal(result.group, undefined, "single legacy actions retain single-record behavior");
     assert.equal(result.assignedCount, 1);
     assert.equal(result.signalSent, false);
+  });
+});
+
+describe("dispatch through POST /incidents/batch-assign", () => {
+  it("assigns in one request, reports skipped ids and lets the server send the notification", async () => {
+    const inputs = [fixtureIncident(1, "PENDING_REVIEW"), fixtureIncident(2), fixtureIncident(3)];
+    mock.method(incidentService, "batchReviewIncidents", async () => ({ updatedIds: [uuid(1)], updatedCount: 1 }));
+    const batch = mock.method(incidentService, "batchAssignIncidents", async (payload: { ids: string[] }) => ({
+      total: payload.ids.length, assignedCount: 2, assignedTo: uuid(201), assignedIds: [uuid(1), uuid(2)], skippedIds: [uuid(3)],
+    }));
+    const single = mock.method(incidentService, "assignOfficer", async () => { throw new Error("must not be called"); });
+    const reads = mock.method(incidentService, "getIncidentById", async () => { throw new Error("must not be called"); });
+    const trigger = mock.method(notificationService, "triggerIncidentNotification", async () => { throw new Error("must not be called"); });
+    const result = await dispatchIncidentsWithSignal({ incidents: inputs, assignedTo: uuid(201), managerId: uuid(200), groupDispatch: true, note: "Đội mũ" });
+    assert.equal(batch.mock.callCount(), 1);
+    assert.deepEqual(batch.mock.calls[0].arguments[0], { ids: [uuid(1), uuid(2), uuid(3)], assignedTo: uuid(201), note: "Đội mũ" });
+    assert.deepEqual(result.assignedIds, [uuid(1), uuid(2)]);
+    assert.deepEqual(result.failedItems.map((row) => [row.id, row.stage]), [[uuid(3), "assignment"]]);
+    assert.equal(result.notifiedByServer, true);
+    assert.equal(result.signalSent, true);
+    assert.equal(result.notificationPayload, undefined);
+    assert.deepEqual(result.group!.incidentIds, [uuid(1), uuid(2)]);
+    assert.equal(single.mock.callCount() + reads.mock.callCount() + trigger.mock.callCount(), 0);
+  });
+  it("reports a batch error without falling back when the endpoint exists", async () => {
+    mock.method(incidentService, "batchAssignIncidents", async () => { throw new ApiError(400, "VALIDATION_ERROR", "Người được phân công không thuộc công trường"); });
+    const single = mock.method(incidentService, "assignOfficer", async () => fixtureIncident(1).assignments![0]);
+    const result = await dispatchIncidentsWithSignal({ incidents: [fixtureIncident(1)], assignedTo: uuid(201) });
+    assert.equal(result.assignedCount, 0);
+    assert.equal(result.failedItems[0]?.message, "Người được phân công không thuộc công trường");
+    assert.equal(single.mock.callCount(), 0);
   });
 });
 

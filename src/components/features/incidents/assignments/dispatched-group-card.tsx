@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
+import { useCan } from "@/hooks/use-can";
 import { incidentGroupHref } from "@/lib/incident-group";
 import { summarizeIncidentGroup } from "@/lib/incident-assignment-groups";
 import type { ResponsiblePersonRef } from "@/lib/incident-workflow";
@@ -36,6 +37,7 @@ export function DispatchedGroupCard({
   onBatchResolve,
 }: DispatchedGroupCardProps) {
   const { locale } = useLocale();
+  const canResolve = useCan()("PPE_INCIDENT_UPDATE");
   const isVietnamese = locale === "vi-VN";
   const { group, message, memberIncidents, resolvedCount, remainingEditableItems } =
     entry;
@@ -152,7 +154,7 @@ export function DispatchedGroupCard({
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
-        {onBatchResolve && remainingEditableItems.length > 0 && (
+        {onBatchResolve && canResolve && remainingEditableItems.length > 0 && (
           <Button
             type="button"
             size="sm"

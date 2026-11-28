@@ -3,11 +3,14 @@
 import { useCallback, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatEvidenceFileSize } from "@/lib/evidence-utils";
+import { isDockerInternalMinioUrl, resolveEvidenceUrl } from "@/lib/evidence-url";
 import { pickLocaleText } from "@/lib/i18n-runtime";
 import { toast } from "@/lib/toast";
 import { incidentService } from "@/services/incident.service";
 import {
   EVIDENCE_TYPE,
+  type EvidenceFilterParams,
+  type EvidenceItem,
   type EvidenceQueryParams,
   type EvidenceType,
   type EvidenceVaultCounts,
@@ -24,41 +27,92 @@ export function useEvidences(params?: EvidenceQueryParams, enabled = true) {
 }
 
 /**
- * Fetch exact vault-wide totals per evidence type using lightweight limit=1 queries.
- * Avoids misreporting page-level counts on KPI cards without requiring backend changes.
+ * KPI toàn kho bằng 1 request `GET /evidences/summary`, truyền đúng bộ lọc server-side đang áp dụng
+ * (công trường, camera, vi phạm, vòng đời, checksum, thời gian, tìm kiếm). Không truyền `evidenceType`
+ * để 4 thẻ KPI luôn hiện đủ số theo từng loại.
  */
 export function useEvidenceVaultCounts(
-  scope?: Pick<EvidenceQueryParams, "cameraId" | "incidentId">,
+  filters?: Omit<EvidenceFilterParams, "evidenceType">,
   enabled = true,
 ) {
   return useQuery<EvidenceVaultCounts>({
-    queryKey: [...incidentKeys.evidences(), "vault-counts", scope ?? {}] as const,
+    queryKey: [...incidentKeys.evidences(), "summary", filters ?? {}] as const,
     enabled,
     staleTime: 30_000,
     queryFn: async () => {
-      const base: EvidenceQueryParams = {
-        page: 1,
-        limit: 1,
-        cameraId: scope?.cameraId || undefined,
-        incidentId: scope?.incidentId || undefined,
-      };
-      const [allRes, snapRes, refRes, clipRes] = await Promise.all([
-        incidentService.getAllEvidences(base),
-        incidentService.getAllEvidences({ ...base, evidenceType: EVIDENCE_TYPE.SNAPSHOT }),
-        incidentService.getAllEvidences({
-          ...base,
-          evidenceType: EVIDENCE_TYPE.REFERENCE_SNAPSHOT,
-        }),
-        incidentService.getAllEvidences({ ...base, evidenceType: EVIDENCE_TYPE.VIDEO_CLIP }),
-      ]);
+      const summary = await incidentService.getEvidencesSummary(filters);
       return {
-        total: allRes.meta?.total ?? allRes.items.length,
-        snapshot: snapRes.meta?.total ?? snapRes.items.length,
-        referenceSnapshot: refRes.meta?.total ?? refRes.items.length,
-        videoClip: clipRes.meta?.total ?? clipRes.items.length,
+        total: summary.total,
+        snapshot: summary.byType[EVIDENCE_TYPE.SNAPSHOT] ?? 0,
+        referenceSnapshot: summary.byType[EVIDENCE_TYPE.REFERENCE_SNAPSHOT] ?? 0,
+        videoClip: summary.byType[EVIDENCE_TYPE.VIDEO_CLIP] ?? 0,
+        totalBytes: summary.totalBytes,
+        withChecksumCount: summary.withChecksumCount,
       };
     },
   });
+}
+
+/** Thời hạn presigned VIEW URL xin từ BE (giây) và thời gian cache an toàn trước khi hết hạn. */
+const EVIDENCE_VIEW_URL_TTL_SECONDS = 3600;
+const EVIDENCE_VIEW_URL_STALE_MS = 45 * 60 * 1000;
+
+export const evidenceViewUrlKey = (evidenceId: string) =>
+  [...incidentKeys.all, "evidence-view-url", evidenceId] as const;
+
+function directEvidenceUrl(evidence?: Pick<EvidenceItem, "url"> | null): string {
+  const url = evidence?.url?.trim();
+  if (!url) return "";
+  if (isDockerInternalMinioUrl(url)) return "";
+  return /^(https?:|blob:|data:)/i.test(url) ? url : "";
+}
+
+/**
+ * Lấy presigned VIEW URL (`GET /evidences/:id/download-url?action=VIEW`) cho ảnh/video xem trước:
+ * dùng được với bucket private, giữ nguyên chữ ký SigV4 và để BE ghi EvidenceAccessLog (VIEW).
+ * URL được cache 45 phút theo từng bằng chứng (BE ký 60 phút) nên chuyển trang qua lại không gọi lại;
+ * key nằm ngoài `incidentKeys.evidences()` để invalidate danh sách không kéo theo ký lại URL.
+ */
+export function useEvidenceViewUrl(
+  evidence?: Pick<EvidenceItem, "id" | "url" | "storageKey"> | null,
+  enabled = true,
+) {
+  const direct = directEvidenceUrl(evidence);
+  const evidenceId = evidence?.id ?? "";
+  const query = useQuery({
+    queryKey: evidenceViewUrlKey(evidenceId),
+    enabled: enabled && Boolean(evidenceId) && !direct,
+    staleTime: EVIDENCE_VIEW_URL_STALE_MS,
+    gcTime: EVIDENCE_VIEW_URL_STALE_MS,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    queryFn: async ({ signal }) => {
+      const res = await incidentService.getEvidenceDownloadUrl(
+        evidenceId,
+        { action: "VIEW", expiresInSeconds: EVIDENCE_VIEW_URL_TTL_SECONDS },
+        { signal, suppressToast: true },
+      );
+      return resolveEvidenceUrl(res?.downloadUrl) || res?.downloadUrl || "";
+    },
+  });
+  // Khi chưa có presigned URL (đang tải/lỗi) chỉ dùng bucket công khai nếu được cấu hình qua env.
+  const fallback = evidence ? resolveEvidenceUrl(evidence.storageKey) : "";
+  return {
+    url: direct || query.data || (query.isLoading ? "" : fallback),
+    isLoading: !direct && query.isLoading,
+    isError: query.isError,
+  };
+}
+
+/**
+ * Xin presigned VIEW URL mới ngay lúc cần (VD: nút "Sao chép Link"), không dùng URL thô của bucket.
+ */
+export async function fetchEvidenceViewUrl(evidenceId: string): Promise<string> {
+  const res = await incidentService.getEvidenceDownloadUrl(evidenceId, {
+    action: "VIEW",
+    expiresInSeconds: EVIDENCE_VIEW_URL_TTL_SECONDS,
+  });
+  return resolveEvidenceUrl(res?.downloadUrl) || res?.downloadUrl || "";
 }
 
 export function useEvidenceDetail(evidenceId: string | null, enabled = true) {
@@ -189,15 +243,19 @@ export interface BatchDeleteProgress {
   freedBytes: number;
 }
 
+/** BE giới hạn 100 ID mỗi lần gọi `POST /evidences/batch-delete`. */
+const BATCH_DELETE_CHUNK = 100;
+
 /**
- * Execute parallel evidence deletions with bounded concurrency (4 workers)
- * and live progress tracking without requiring Backend changes.
+ * Xóa hàng loạt qua `POST /evidences/batch-delete` (chia lô 100 ID), theo dõi tiến độ theo từng lô.
+ * BE bỏ qua bằng chứng ngoài phạm vi công trường hoặc thuộc sự cố CLOSED (trả về `skippedIds`).
  */
 export function useBatchDeleteEvidences() {
   const queryClient = useQueryClient();
   const [isRunning, setIsRunning] = useState(false);
   const [progress, setProgress] = useState<BatchDeleteProgress | null>(null);
   const abortRef = useRef(false);
+  const runningRef = useRef(false);
 
   const reset = useCallback(() => {
     abortRef.current = true;
@@ -209,55 +267,50 @@ export function useBatchDeleteEvidences() {
     async (
       targets: Array<{ id: string; fileSize?: number | string }>,
     ): Promise<BatchDeleteProgress> => {
+      const uniqueTargets = Array.from(new Map(targets.map((t) => [t.id, t])).values());
       const summary: BatchDeleteProgress = {
-        total: targets.length,
+        total: uniqueTargets.length,
         done: 0,
         deleted: 0,
         failed: 0,
         freedBytes: 0,
       };
-      if (targets.length === 0 || isRunning) return summary;
+      if (uniqueTargets.length === 0 || runningRef.current) return summary;
 
+      runningRef.current = true;
       abortRef.current = false;
       setIsRunning(true);
       setProgress({ ...summary });
 
-      const queue = [...targets];
-      const concurrency = 4;
+      const sizeById = new Map(
+        uniqueTargets.map((t) => {
+          const n = typeof t.fileSize === "string" ? Number(t.fileSize) : Number(t.fileSize ?? 0);
+          return [t.id, Number.isFinite(n) && n > 0 ? n : 0] as const;
+        }),
+      );
 
-      const worker = async () => {
-        while (queue.length > 0 && !abortRef.current) {
-          const item = queue.shift();
-          if (!item) break;
+      try {
+        for (let i = 0; i < uniqueTargets.length && !abortRef.current; i += BATCH_DELETE_CHUNK) {
+          const chunk = uniqueTargets.slice(i, i + BATCH_DELETE_CHUNK).map((t) => t.id);
           try {
-            await incidentService.deleteEvidence(item.id);
-            summary.deleted += 1;
-            const sizeNum =
-              typeof item.fileSize === "string"
-                ? Number(item.fileSize)
-                : Number(item.fileSize ?? 0);
-            if (Number.isFinite(sizeNum) && sizeNum > 0) {
-              summary.freedBytes += sizeNum;
-            }
+            const res = await incidentService.batchDeleteEvidences(chunk);
+            summary.deleted += res.deletedIds.length || res.deletedCount;
+            summary.failed += chunk.length - (res.deletedIds.length || res.deletedCount);
+            for (const id of res.deletedIds) summary.freedBytes += sizeById.get(id) ?? 0;
           } catch {
-            summary.failed += 1;
+            summary.failed += chunk.length;
           } finally {
-            summary.done += 1;
+            summary.done += chunk.length;
             setProgress({ ...summary });
           }
         }
-      };
-
-      await Promise.all(
-        Array.from({ length: Math.min(concurrency, targets.length) }, () =>
-          worker(),
-        ),
-      );
-
-      setIsRunning(false);
-      void queryClient.invalidateQueries({ queryKey: incidentKeys.evidences() });
-      void queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
-      void queryClient.invalidateQueries({ queryKey: incidentKeys.details() });
+      } finally {
+        runningRef.current = false;
+        setIsRunning(false);
+        void queryClient.invalidateQueries({ queryKey: incidentKeys.evidences() });
+        void queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
+        void queryClient.invalidateQueries({ queryKey: incidentKeys.details() });
+      }
 
       if (!abortRef.current) {
         const sizeLabel =
@@ -274,15 +327,15 @@ export function useBatchDeleteEvidences() {
         } else if (summary.deleted > 0 && summary.failed > 0) {
           toast.success(
             pickLocaleText(
-              `Đã xóa ${summary.deleted}/${summary.total} tệp${sizeLabel} (${summary.failed} lỗi).`,
-              `Deleted ${summary.deleted}/${summary.total} files${sizeLabel} (${summary.failed} failed).`,
+              `Đã xóa ${summary.deleted}/${summary.total} tệp${sizeLabel}; ${summary.failed} tệp bị bỏ qua (sự cố đã đóng, ngoài phạm vi hoặc lỗi).`,
+              `Deleted ${summary.deleted}/${summary.total} files${sizeLabel}; ${summary.failed} skipped (closed incident, out of scope or failed).`,
             ),
           );
         } else {
           toast.error(
             pickLocaleText(
-              "Không thể xóa các tệp bằng chứng đã chọn.",
-              "Failed to delete selected evidence files.",
+              "Không xóa được tệp nào (bằng chứng thuộc sự cố đã đóng, ngoài phạm vi hoặc lỗi).",
+              "No files were deleted (closed incident, out of scope or failed).",
             ),
           );
         }
@@ -290,7 +343,7 @@ export function useBatchDeleteEvidences() {
 
       return summary;
     },
-    [isRunning, queryClient],
+    [queryClient],
   );
 
   return {
@@ -300,5 +353,3 @@ export function useBatchDeleteEvidences() {
     reset,
   };
 }
-
-

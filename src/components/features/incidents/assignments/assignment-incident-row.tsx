@@ -20,6 +20,7 @@ import {
   IncidentThumbnail,
 } from "@/components/features/incidents/table/incident-thumbnail";
 import { useLocale } from "@/providers/locale-provider";
+import { useCan } from "@/hooks/use-can";
 import {
   isIncidentAssignedToUser,
   resolveIncidentResponsibility,
@@ -131,6 +132,13 @@ export function AssignmentIncidentRow({
 }: AssignmentIncidentRowProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const can = useCan();
+  const canReview = allowManagerActions && can("PPE_INCIDENT_REVIEW");
+  const canManage = allowManagerActions && can("PPE_INCIDENT_MANAGE");
+  const canResolve = allowOfficerResolve && can("PPE_INCIDENT_UPDATE");
+  // Giao sự cố chờ duyệt = xác nhận (REVIEW) + giao (MANAGE)
+  const canDispatch =
+    canManage && (incident.status !== "PENDING_REVIEW" || canReview);
 
   const siteName = formatters.resolveSiteLabel(
     incident.siteId,
@@ -196,7 +204,7 @@ export function AssignmentIncidentRow({
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-        {allowManagerActions && incident.status === "PENDING_REVIEW" && (
+        {canReview && incident.status === "PENDING_REVIEW" && (
           <Button
             type="button"
             size="sm"
@@ -209,7 +217,7 @@ export function AssignmentIncidentRow({
           </Button>
         )}
 
-        {allowManagerActions &&
+        {canDispatch &&
           (incident.status === "PENDING_REVIEW" ||
             incident.status === "CONFIRMED") && (
             <Button
@@ -232,7 +240,7 @@ export function AssignmentIncidentRow({
             </Button>
           )}
 
-        {allowManagerActions &&
+        {canManage &&
           (incident.status === "RESOLVED" ||
             incident.status === "DISMISSED") && (
             <Button
@@ -249,7 +257,7 @@ export function AssignmentIncidentRow({
             </Button>
           )}
 
-        {allowOfficerResolve &&
+        {canResolve &&
           incident.status === "CONFIRMED" &&
           isAssignedToMe && (
             <Button

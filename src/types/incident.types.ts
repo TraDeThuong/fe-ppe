@@ -321,6 +321,45 @@ export interface CreateAssignmentPayload {
   note?: string;
 }
 
+/** Kết quả POST /incidents/batch-assign */
+export interface BatchAssignIncidentsResult {
+  total: number;
+  assignedCount: number;
+  assignedTo: string;
+  assignedToName?: string;
+  assignedIds: string[];
+  skippedIds: string[];
+}
+
+/** Tệp đã tải lên một lần, gắn chung cho nhiều sự cố khi khắc phục hàng loạt */
+export interface SharedResolutionEvidencePayload {
+  cameraId?: string;
+  evidenceType?: EvidenceType;
+  storageKey: string;
+  fileName: string;
+  mimeType: string;
+  fileSize?: number;
+}
+
+/** Kết quả POST /incidents/batch-resolve */
+export interface BatchResolveIncidentsResult {
+  total: number;
+  resolvedCount: number;
+  newStatus: string;
+  resolvedIds: string[];
+  skippedIds: string[];
+  sharedEvidenceStorageKey?: string;
+}
+
+/** Kết quả POST /incidents/batch-close */
+export interface BatchCloseIncidentsResult {
+  total: number;
+  closedCount: number;
+  newStatus: string;
+  closedIds: string[];
+  skippedIds: string[];
+}
+
 export interface ChecksumVerifyResult {
   evidenceId?: string;
   isValid?: boolean;
@@ -371,14 +410,48 @@ export interface EvidenceUploadUrlResponse {
   expiresIn: number;
 }
 
-export interface EvidenceQueryParams {
-  page?: number;
-  limit?: number;
+/**
+ * Bộ lọc vòng đời gửi lên `GET /evidences` (`lifecycle`).
+ * BE: ACTIVE/OPEN = sự cố chưa CLOSED; ARCHIVED = sự cố CLOSED; còn lại = đúng trạng thái sự cố.
+ */
+export type EvidenceLifecycleQuery =
+  | "ACTIVE"
+  | "OPEN"
+  | "ARCHIVED"
+  | "PENDING_REVIEW"
+  | "CONFIRMED"
+  | "DISMISSED"
+  | "RESOLVED"
+  | "CLOSED";
+
+/** Bộ lọc server-side dùng chung cho `GET /evidences` và `GET /evidences/summary`. */
+export interface EvidenceFilterParams {
   incidentId?: string;
+  siteId?: string;
   cameraId?: string;
   evidenceType?: EvidenceType | string;
-  sortBy?: "capturedAt" | "createdAt";
+  violationType?: ViolationType | string;
+  incidentStatus?: string;
+  lifecycle?: EvidenceLifecycleQuery;
+  hasChecksum?: boolean;
+  search?: string;
+  fromDate?: string;
+  toDate?: string;
+}
+
+export interface EvidenceQueryParams extends EvidenceFilterParams {
+  page?: number;
+  limit?: number;
+  sortBy?: "capturedAt" | "createdAt" | "fileSize";
   sortOrder?: "asc" | "desc";
+}
+
+/** `GET /evidences/summary` — tổng hợp toàn kho theo đúng bộ lọc (không phụ thuộc phân trang). */
+export interface EvidenceSummary {
+  total: number;
+  byType: Record<string, number>;
+  totalBytes: number;
+  withChecksumCount: number;
 }
 
 export interface EvidenceVaultCounts {
@@ -386,6 +459,18 @@ export interface EvidenceVaultCounts {
   snapshot: number;
   referenceSnapshot: number;
   videoClip: number;
+  /** Tổng dung lượng (byte) toàn bộ bằng chứng khớp bộ lọc */
+  totalBytes?: number;
+  /** Số bằng chứng có SHA-256 trong toàn bộ tập khớp bộ lọc */
+  withChecksumCount?: number;
+}
+
+/** `POST /evidences/batch-delete` */
+export interface BatchDeleteEvidencesResult {
+  total: number;
+  deletedCount: number;
+  deletedIds: string[];
+  skippedIds: string[];
 }
 
 /**

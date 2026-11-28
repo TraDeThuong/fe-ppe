@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import {
-  Archive,
-  ArchiveRestore,
   Check,
   Copy,
   Download,
@@ -19,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IncidentSeverityBadge } from "@/components/features/incidents/incident-severity-badge";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
-import { resolveEvidenceUrl } from "@/lib/evidence-url";
+import { useEvidenceViewUrl } from "@/hooks/incidents/use-evidences";
 import {
   extractEvidenceBoundingBoxes,
   formatEvidenceFileSize,
@@ -39,13 +37,11 @@ export interface EvidenceCardProps {
   selected: boolean;
   isVerifying: boolean;
   canDelete: boolean;
-  isArchived?: boolean;
   showAiOverlay?: boolean;
   onToggleSelect: (id: string) => void;
   onInspect: (evidence: EvidenceItem) => void;
   onVerify: (evidence: EvidenceItem) => void;
   onDownload: (evidence: EvidenceItem) => void;
-  onToggleArchive?: (evidence: EvidenceItem) => void;
   onDelete: (evidence: EvidenceItem) => void;
 }
 
@@ -55,13 +51,11 @@ export function EvidenceCard({
   selected,
   isVerifying,
   canDelete,
-  isArchived = false,
   showAiOverlay = true,
   onToggleSelect,
   onInspect,
   onVerify,
   onDownload,
-  onToggleArchive,
   onDelete,
 }: EvidenceCardProps) {
   const { t, locale } = useLocale();
@@ -69,7 +63,8 @@ export function EvidenceCard({
   const { getCamera, getCameraCode, getSiteCode } = useEntityLookup();
 
   const isVideo = isVideoEvidenceItem(evidence);
-  const thumbUrl = resolveEvidenceUrl(evidence.url || evidence.storageKey);
+  // Ảnh xem trước qua presigned VIEW URL (bucket private, có ghi EvidenceAccessLog); video không cần thumbnail.
+  const { url: thumbUrl } = useEvidenceViewUrl(evidence, !isVideo);
   const cam = getCamera(evidence.cameraId);
   const resolvedSiteId = incident?.siteId ?? cam?.siteId;
   const siteCode = getSiteCode(resolvedSiteId);
@@ -295,30 +290,6 @@ export function EvidenceCard({
             <ExternalLink className="h-3.5 w-3.5" />
           </Button>
         </Link>
-
-        {onToggleArchive && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onToggleArchive(evidence)}
-            title={
-              isArchived
-                ? isVi
-                  ? "Khôi phục từ Kho Lưu trữ"
-                  : "Restore from Archive"
-                : isVi
-                  ? "Chuyển vào Kho Lưu trữ"
-                  : "Move to Archive"
-            }
-            className="h-7 px-2 text-amber-600 hover:text-amber-700 dark:text-amber-400"
-          >
-            {isArchived ? (
-              <ArchiveRestore className="h-3.5 w-3.5" />
-            ) : (
-              <Archive className="h-3.5 w-3.5" />
-            )}
-          </Button>
-        )}
 
         {canDelete && (
           <Button

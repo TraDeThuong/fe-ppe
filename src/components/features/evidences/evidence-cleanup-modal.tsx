@@ -26,7 +26,12 @@ import {
 } from "@/lib/evidence-utils";
 import { useLocale } from "@/providers/locale-provider";
 import { incidentService } from "@/services/incident.service";
-import type { EvidenceItem, IncidentItem } from "@/types";
+import {
+  EVIDENCE_TYPE,
+  type EvidenceItem,
+  type EvidenceQueryParams,
+  type IncidentItem,
+} from "@/types";
 
 export type CleanupPresetMode =
   | "DISMISSED_ONLY"
@@ -34,18 +39,41 @@ export type CleanupPresetMode =
   | "CLOSED_INCIDENTS"
   | "OLDER_THAN_DAYS";
 
-export type CleanupActionMode = "ARCHIVE" | "DELETE";
+/** Mỗi kịch bản quét sâu tối đa 5 trang × 100 bản ghi lọc sẵn ở BE. */
+const DEEP_SCAN_PAGE_SIZE = 100;
+const DEEP_SCAN_MAX_PAGES = 5;
+
+function presetServerQueries(
+  preset: CleanupPresetMode,
+  olderThanDays: number,
+): EvidenceQueryParams[] {
+  switch (preset) {
+    case "DISMISSED_ONLY":
+      return [{ lifecycle: "DISMISSED" }];
+    case "REFERENCE_ONLY":
+      return [{ evidenceType: EVIDENCE_TYPE.REFERENCE_SNAPSHOT }];
+    case "CLOSED_INCIDENTS":
+      // BE không cho xóa bằng chứng của sự cố CLOSED nên chỉ quét RESOLVED
+      return [{ lifecycle: "RESOLVED" }];
+    case "OLDER_THAN_DAYS":
+      return [
+        {
+          toDate: new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString(),
+        },
+      ];
+    default:
+      return [];
+  }
+}
 
 export interface EvidenceCleanupModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialEvidences: EvidenceItem[];
   incidentsMap: Map<string, IncidentItem>;
-  archivedIds: ReadonlySet<string>;
   canDelete: boolean;
   isDeleting: boolean;
   deleteProgress: BatchDeleteProgress | null;
-  onArchiveItems: (ids: string[]) => void;
   onDeleteItems: (targets: EvidenceItem[]) => Promise<void>;
 }
 
@@ -56,11 +84,9 @@ export function EvidenceCleanupModal({
   onOpenChange,
   initialEvidences,
   incidentsMap,
-  archivedIds,
   canDelete,
   isDeleting,
   deleteProgress,
-  onArchiveItems,
   onDeleteItems,
 }: EvidenceCleanupModalProps) {
   const { locale } = useLocale();
@@ -70,13 +96,9 @@ export function EvidenceCleanupModal({
   const [preset, setPreset] = useState<CleanupPresetMode>("DISMISSED_ONLY");
   const [olderThanDays, setOlderThanDays] = useState<number>(7);
   const [protectActiveIncidents, setProtectActiveIncidents] = useState<boolean>(true);
-  const [actionMode, setActionMode] = useState<CleanupActionMode>("ARCHIVE");
   const [exportCsvBeforeDelete, setExportCsvBeforeDelete] = useState<boolean>(true);
 
   const [scannedEvidences, setScannedEvidences] = useState<EvidenceItem[]>([]);
-  const [extraIncidentsMap, setExtraIncidentsMap] = useState<Map<string, IncidentItem>>(
-    () => new Map(),
-  );
   const [isScanningDeep, setIsScanningDeep] = useState(false);
   const [scannedPages, setScannedPages] = useState(1);
 
@@ -88,69 +110,51 @@ export function EvidenceCleanupModal({
     }
   }, [open, initialEvidences]);
 
-  // Cho phép quét sâu tối đa 3 trang (300 bằng chứng) từ API GET /evidences hiện có mà không đụng BE
+  // Quét sâu theo đúng kịch bản đang chọn bằng bộ lọc server-side của GET /evidences
+  // (BE trả kèm tóm tắt sự cố nên không cần tải thêm /incidents).
   const handleDeepScan = async () => {
     if (isScanningDeep) return;
     setIsScanningDeep(true);
     try {
-      const [evPage1, evPage2, evPage3, closedInc, dismissedInc, resolvedInc] =
-        await Promise.all([
-          incidentService.getAllEvidences({ page: 1, limit: 100, sortBy: "capturedAt", sortOrder: "desc" }),
-          incidentService.getAllEvidences({ page: 2, limit: 100, sortBy: "capturedAt", sortOrder: "desc" }),
-          incidentService.getAllEvidences({ page: 3, limit: 100, sortBy: "capturedAt", sortOrder: "desc" }),
-          incidentService.getIncidents({ page: 1, limit: 100, status: "CLOSED", sortBy: "detectedAt", sortOrder: "desc" }),
-          incidentService.getIncidents({ page: 1, limit: 100, status: "DISMISSED", sortBy: "detectedAt", sortOrder: "desc" }),
-          incidentService.getIncidents({ page: 1, limit: 100, status: "RESOLVED", sortBy: "detectedAt", sortOrder: "desc" }),
-        ]);
-
-      const mergedEvMap = new Map<string, EvidenceItem>();
-      for (const item of [
-        ...initialEvidences,
-        ...(evPage1.items ?? []),
-        ...(evPage2.items ?? []),
-        ...(evPage3.items ?? []),
-      ]) {
-        mergedEvMap.set(item.id, item);
+      const merged = new Map<string, EvidenceItem>();
+      for (const item of scannedEvidences) merged.set(item.id, item);
+      let pagesFetched = 0;
+      for (const query of presetServerQueries(preset, olderThanDays)) {
+        for (let page = 1; page <= DEEP_SCAN_MAX_PAGES; page += 1) {
+          const res = await incidentService.getAllEvidences({
+            ...query,
+            page,
+            limit: DEEP_SCAN_PAGE_SIZE,
+            sortBy: "capturedAt",
+            sortOrder: "desc",
+          });
+          pagesFetched += 1;
+          for (const item of res.items ?? []) merged.set(item.id, item);
+          const totalPages = res.meta?.totalPages ?? 1;
+          if (page >= totalPages || (res.items ?? []).length < DEEP_SCAN_PAGE_SIZE) break;
+        }
       }
-      setScannedEvidences(Array.from(mergedEvMap.values()));
-
-      const nextIncMap = new Map<string, IncidentItem>();
-      for (const inc of [
-        ...(closedInc.items ?? []),
-        ...(dismissedInc.items ?? []),
-        ...(resolvedInc.items ?? []),
-      ]) {
-        nextIncMap.set(inc.id, inc);
-      }
-      setExtraIncidentsMap(nextIncMap);
-      setScannedPages(3);
+      setScannedEvidences(Array.from(merged.values()));
+      setScannedPages((prev) => prev + pagesFetched);
     } catch {
-      // Fallback giữ nguyên danh sách hiện tại nếu mạng lỗi
+      // Giữ nguyên danh sách đã quét nếu mạng lỗi
     } finally {
       setIsScanningDeep(false);
     }
   };
 
-  const mergedIncidentsMap = useMemo(() => {
-    const map = new Map<string, IncidentItem>(incidentsMap);
-    for (const [k, v] of extraIncidentsMap.entries()) {
-      map.set(k, v);
-    }
-    return map;
-  }, [incidentsMap, extraIncidentsMap]);
+  const mergedIncidentsMap = incidentsMap;
 
   const matchedEvidences = useMemo(() => {
     const nowMs = Date.now();
     const cutoffMs = nowMs - olderThanDays * 24 * 60 * 60 * 1000;
 
     return scannedEvidences.filter((ev) => {
-      // Nếu đang chọn chế độ Lưu trữ, bỏ qua các mục đã nằm trong Kho Lưu trữ
-      if (actionMode === "ARCHIVE" && archivedIds.has(ev.id)) {
-        return false;
-      }
-
       const inc = ev.incident ?? mergedIncidentsMap.get(ev.incidentId);
       const status = inc?.status;
+      // BE từ chối xóa bằng chứng của sự cố đã CLOSED (DELETE /evidences/:id và batch-delete đều bỏ qua),
+      // nên không đưa vào danh sách xóa để số tệp hiển thị khớp với số thực sự xóa được.
+      if (status === "CLOSED") return false;
       // Fail-closed: nếu chưa xác minh được trạng thái sự cố (ngoài phạm vi incident đã tải),
       // coi như đang hoạt động để Khóa bảo vệ không bao giờ xóa nhầm bằng chứng sự cố chưa đóng.
       const isActiveOrUnknownIncident =
@@ -176,7 +180,7 @@ export function EvidenceCleanupModal({
       }
 
       if (preset === "CLOSED_INCIDENTS") {
-        return status === "CLOSED" || status === "RESOLVED";
+        return status === "RESOLVED";
       }
 
       if (preset === "OLDER_THAN_DAYS") {
@@ -188,8 +192,6 @@ export function EvidenceCleanupModal({
     });
   }, [
     scannedEvidences,
-    actionMode,
-    archivedIds,
     mergedIncidentsMap,
     protectActiveIncidents,
     preset,
@@ -208,12 +210,6 @@ export function EvidenceCleanupModal({
 
   const handleExecute = async () => {
     if (matchedEvidences.length === 0 || isDeleting) return;
-
-    if (actionMode === "ARCHIVE") {
-      onArchiveItems(matchedEvidences.map((e) => e.id));
-      onOpenChange(false);
-      return;
-    }
 
     if (exportCsvBeforeDelete) {
       exportEvidencesToCsv(
@@ -263,11 +259,11 @@ export function EvidenceCleanupModal({
     {
       id: "CLOSED_INCIDENTS",
       title: isVi
-        ? "Dọn bằng chứng Sự cố Đã xử lý / Đã đóng"
-        : "Clean Resolved / Closed Incident Evidences",
+        ? "Dọn bằng chứng Sự cố Đã xử lý (RESOLVED)"
+        : "Clean Resolved (RESOLVED) Incident Evidences",
       desc: isVi
-        ? "Lưu trữ hoặc xóa tệp của các hồ sơ sự cố đã nghiệm thu hoàn tất (RESOLVED / CLOSED)."
-        : "Archive or delete files belonging to resolved or closed incidents.",
+        ? "Xóa tệp của các hồ sơ sự cố đã xử lý (RESOLVED). Bằng chứng của sự cố đã đóng (CLOSED) luôn được giữ lại."
+        : "Delete files belonging to resolved (RESOLVED) incidents. Evidence of CLOSED incidents is always kept.",
       badge: isVi ? "Hồ sơ cũ" : "Completed",
       icon: Archive,
     },
@@ -277,7 +273,7 @@ export function EvidenceCleanupModal({
         ? "Dọn theo Độ tuổi Dữ liệu (Retention Policy)"
         : "Clean by Age (Retention Policy)",
       desc: isVi
-        ? "Lọc toàn bộ bằng chứng cũ hơn số ngày chỉ định để lưu trữ hoặc giải phóng bộ nhớ."
+        ? "Lọc toàn bộ bằng chứng cũ hơn số ngày chỉ định để xóa và giải phóng bộ nhớ."
         : "Filter evidences older than the specified number of days.",
       badge: `> ${olderThanDays} ${isVi ? "ngày" : "days"}`,
       icon: Clock,
@@ -293,13 +289,13 @@ export function EvidenceCleanupModal({
       size="lg"
       title={
         isVi
-          ? "Trợ lý Dọn dẹp & Lưu trữ Kho Bằng Chứng"
-          : "Smart Evidence Vault Cleanup & Archive"
+          ? "Trợ lý Dọn dẹp Kho Bằng Chứng"
+          : "Smart Evidence Vault Cleanup"
       }
       description={
         isVi
-          ? "Giảm tải dữ liệu trên bảng bằng cách cất gọn vào Kho Lưu trữ hoặc xóa hàng loạt các bằng chứng dư thừa."
-          : "Reduce vault clutter by moving redundant items to Archive or batch deleting them."
+          ? "Giảm tải dữ liệu bằng cách xóa hàng loạt các bằng chứng dư thừa."
+          : "Reduce vault clutter by batch deleting redundant evidence."
       }
       icon={<Sparkles className="h-5 w-5 text-primary" />}
       footer={
@@ -342,7 +338,7 @@ export function EvidenceCleanupModal({
             <Button
               type="button"
               size="sm"
-              variant={actionMode === "DELETE" ? "danger" : "primary"}
+              variant="danger"
               disabled={matchedEvidences.length === 0 || isDeleting}
               onClick={() => void handleExecute()}
               className="gap-1.5"
@@ -354,15 +350,6 @@ export function EvidenceCleanupModal({
                     {isVi
                       ? `Đang xóa ${deleteProgress?.done ?? 0}/${deleteProgress?.total ?? matchedEvidences.length} (${deletePct}%)`
                       : `Deleting ${deletePct}%`}
-                  </span>
-                </>
-              ) : actionMode === "ARCHIVE" ? (
-                <>
-                  <Archive className="h-4 w-4" />
-                  <span>
-                    {isVi
-                      ? `Chuyển ${matchedEvidences.length} tệp vào Lưu trữ`
-                      : `Archive ${matchedEvidences.length} files`}
                   </span>
                 </>
               ) : (
@@ -454,63 +441,6 @@ export function EvidenceCleanupModal({
           </div>
         )}
 
-        {/* Bước 2: Chọn hình thức xử lý (Lưu trữ gọn vs Xóa vĩnh viễn) */}
-        <div className="space-y-2">
-          <label className="block text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-            {isVi ? "2. Chọn phương thức xử lý" : "2. Select Action Mode"}
-          </label>
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => setActionMode("ARCHIVE")}
-              className={`flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-all cursor-pointer ${
-                actionMode === "ARCHIVE"
-                  ? "border-primary bg-primary/8 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]"
-                  : "border-border/40 bg-background hover:border-primary/40"
-              }`}
-            >
-              <Archive className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-              <div className="space-y-0.5">
-                <p className="text-xs font-bold text-foreground">
-                  {isVi
-                    ? "Cất vào Kho Lưu trữ (Khuyên dùng)"
-                    : "Move to Archive Vault (Recommended)"}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {isVi
-                    ? "Ẩn ngay khỏi bảng chính để giao diện nhẹ nhàng, vẫn giữ nguyên file gốc và khôi phục được mọi lúc."
-                    : "Hide from main table immediately while keeping original files intact."}
-                </p>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              disabled={!canDelete}
-              onClick={() => setActionMode("DELETE")}
-              className={`flex items-start gap-3 rounded-2xl border p-3.5 text-left transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
-                actionMode === "DELETE"
-                  ? "border-danger bg-danger/10 shadow-[inset_2px_2px_5px_var(--shadow-dark),inset_-2px_-2px_5px_var(--shadow-light)]"
-                  : "border-border/40 bg-background hover:border-danger/40"
-              }`}
-            >
-              <Trash2 className="mt-0.5 h-5 w-5 shrink-0 text-danger" />
-              <div className="space-y-0.5">
-                <p className="text-xs font-bold text-foreground">
-                  {isVi
-                    ? "Xóa vĩnh viễn khỏi Hệ thống & MinIO"
-                    : "Permanently Delete from DB & MinIO"}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {isVi
-                    ? "Xóa hẳn bản ghi và tệp ảnh/video trên Object Storage để giải phóng dung lượng ổ cứng."
-                    : "Permanently remove records and MinIO objects to free up storage."}
-                </p>
-              </div>
-            </button>
-          </div>
-        </div>
-
         {/* Khóa bảo vệ an toàn & Xuất CSV */}
         <div className="space-y-2 rounded-2xl border border-border/40 bg-surface/70 p-3.5 text-xs">
           <label className="flex cursor-pointer items-center gap-2.5">
@@ -528,7 +458,7 @@ export function EvidenceCleanupModal({
             </span>
           </label>
 
-          {actionMode === "DELETE" && (
+          {canDelete && (
             <label className="flex cursor-pointer items-center gap-2.5 pt-1">
               <input
                 type="checkbox"
@@ -539,8 +469,8 @@ export function EvidenceCleanupModal({
               <FileSpreadsheet className="h-4 w-4 shrink-0 text-primary" />
               <span className="font-medium text-foreground">
                 {isVi
-                  ? "Tự động tải về Bản kê Lưu trữ (CSV kèm SHA-256 & mã sự cố) trước khi xóa"
-                  : "Automatically download CSV Archive Manifest before deleting"}
+                  ? "Tự động tải về Bản kê CSV (kèm SHA-256 & mã sự cố) trước khi xóa"
+                  : "Automatically download CSV manifest before deleting"}
               </span>
             </label>
           )}

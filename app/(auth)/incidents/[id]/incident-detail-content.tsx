@@ -23,7 +23,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLocale } from "@/providers/locale-provider";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useIsDesktop } from "@/hooks/use-media-query";
-import { useUsers } from "@/hooks/users";
 import { IncidentMobileDetail } from "@/components/features/incidents/mobile";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,9 +30,10 @@ import { useRealtime } from "@/contexts/RealtimeContext";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
 import { toast } from "@/lib/toast";
-import { isDockerInternalMinioUrl, resolveEvidenceUrl } from "@/lib/evidence-url";
+import { resolveEvidenceUrl } from "@/lib/evidence-url";
 import {
   dispatchIncidentsWithSignal,
+  getTrustedEvidenceDownloadPath,
   resolveIncidentsWithReport,
 } from "@/lib/incident-actions";
 import { isIncidentAssignedToUser } from "@/lib/incident-workflow";
@@ -66,7 +66,6 @@ import {
   CloseIncidentDialog,
   EditIncidentModal,
   AttachEvidenceModal,
-  getIncidentEvidenceUrl,
 } from "@/components/features/incidents";
 import {
   useIncidentDetail,
@@ -101,11 +100,10 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
   // Chỉ render một bản theo khổ màn hình: nội dung hiện sau khi tải dữ liệu ở client nên không bị nháy.
   const isDesktop = useIsDesktop();
   const canRead = can("PPE_INCIDENT_READ");
-  const canReadUsers = can("USER_READ");
   const groupWorkspace = useIncidentGroupWorkspace();
   const markSingleDirty = useCallback((dirty: boolean) => groupWorkspace?.markDirty("single", dirty), [groupWorkspace?.markDirty]);
+  // GET /incidents/:id đã trả tên người bình luận / người được giao, nên không tải thêm danh sách user.
   const { getCamera, sites } = useEntityLookup();
-  const { data: usersData } = useUsers({ limit: 100 }, { enabled: canRead && canReadUsers });
 
   const [isHighlightCompare, setIsHighlightCompare] = useState(false);
   const [isHighlightComments, setIsHighlightComments] = useState(false);
@@ -159,7 +157,10 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
   const groupRefresh = groupWorkspace?.refresh;
   const refetch = useCallback(() => groupRefresh ? groupRefresh() : detailQuery.refetch(), [groupRefresh, detailQuery.refetch]);
 
-  const commentsQuery = useIncidentComments(id, canRead);
+  // Bình luận lấy từ `incident.comments` (BE đã enrich tên). Chỉ gọi GET /:id/comments sau khi có
+  // sự kiện SSE bình luận mới; bình luận mình vừa gửi được ghi thẳng vào cache bởi mutation.
+  const [commentsLive, setCommentsLive] = useState(false);
+  const commentsQuery = useIncidentComments(id, canRead && commentsLive);
 
   // Truy vấn nhẹ các sự cố cùng camera trong cửa sổ ±2 phút để phát hiện cụm đa vi phạm cùng 1 đối tượng
   const nearbyWindow = useMemo(() => {
@@ -208,13 +209,13 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
     if (alertIncidentId !== id) return;
 
     if (lastAlert.type === "notification:incident_comment") {
+      setCommentsLive(true);
       void queryClient.invalidateQueries({ queryKey: incidentKeys.comments(id) });
       return;
     }
 
     if (!groupRefresh) {
       void refetch();
-      void queryClient.invalidateQueries({ queryKey: incidentKeys.comments(id) });
     }
   }, [lastAlert, id, refetch, canRead, groupRefresh, queryClient]);
 
@@ -231,13 +232,6 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         }
       }
     }
-    for (const u of usersData?.data ?? []) {
-      map.set(u.id, {
-        name: u.fullName || u.email || `#${u.id.slice(0, 8)}`,
-        email: u.email || undefined,
-        role: (u.role?.name || "").toUpperCase() || undefined,
-      });
-    }
     if (user?.id) {
       map.set(user.id, {
         name: user.fullName || user.email || `#${user.id.slice(0, 8)}`,
@@ -246,11 +240,16 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
       });
     }
     return map;
-  }, [sites, usersData?.data, user]);
+  }, [sites, user]);
 
   const hydratedComments = useMemo<IncidentCommentItem[]>(() => {
-    const rawComments =
-      commentsQuery.data !== undefined ? commentsQuery.data : incident?.comments || [];
+    // Gộp bình luận từ hồ sơ với bình luận trong cache (SSE hoặc vừa gửi), bỏ trùng theo id.
+    const merged = new Map<string, IncidentCommentItem>();
+    for (const c of incident?.comments || []) merged.set(c.id, c);
+    for (const c of commentsQuery.data || []) merged.set(c.id, { ...merged.get(c.id), ...c });
+    const rawComments = [...merged.values()].sort(
+      (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt),
+    );
     return rawComments.map((c) => {
       const resolved = c.userId ? usersById.get(c.userId) : undefined;
       return {
@@ -357,13 +356,20 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         managerName: user?.fullName || user?.email || undefined,
       });
       refreshDetailAndLists();
-      if (res.assignedCount > 0) {
-        toast.success(
-          isVietnamese
-            ? `Đã giao cán bộ xử lý${res.signalSent ? " và phát tín hiệu thông báo" : ""}.`
-            : `Assigned officer${res.signalSent ? " and sent dispatch signal" : ""}.`,
+      if (res.failedCount > 0 || res.assignedCount === 0) {
+        // Ném lỗi để AssignIncidentModal hiện lý do và giữ modal mở cho người dùng chọn lại.
+        throw new Error(
+          res.failedItems[0]?.message ||
+            (isVietnamese
+              ? "Không thể phân công sự cố cho cán bộ đã chọn."
+              : "Unable to assign the incident to the selected officer."),
         );
       }
+      toast.success(
+        isVietnamese
+          ? `Đã giao cán bộ xử lý${res.signalSent ? " và phát tín hiệu thông báo" : ""}.`
+          : `Assigned officer${res.signalSent ? " and sent dispatch signal" : ""}.`,
+      );
       setIsAssignOpen(false);
     } catch (err) {
       console.error("Failed to assign incident:", err);
@@ -399,6 +405,13 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         officerName: user?.fullName || user?.email || undefined,
       });
       refreshDetailAndLists();
+      if (res.closeFailedCount > 0) {
+        toast.error(
+          isVietnamese
+            ? "Đã khắc phục nhưng chưa đóng được hồ sơ (kiểm tra quyền hoặc trạng thái)."
+            : "Resolved, but the record could not be closed.",
+        );
+      }
       if (res.resolvedCount > 0) {
         toast.success(
           res.closedCount > 0
@@ -412,9 +425,10 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         setIsResolveOpen(false);
       } else if (res.failedCount > 0) {
         throw new Error(
-          isVietnamese
-            ? "Không thể xác nhận khắc phục sự cố."
-            : "Unable to resolve incident.",
+          res.firstError ||
+            (isVietnamese
+              ? "Không thể xác nhận khắc phục sự cố."
+              : "Unable to resolve incident."),
         );
       }
     } catch (err) {
@@ -446,8 +460,10 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         violationType: incident.violationType,
         severity: (incident.severity || "HIGH") as NotificationSeverity,
         channels: ["IN_APP", "EMAIL"],
-        // Ảnh vi phạm chính, cùng quy tắc với nút ở Xem nhanh: ưu tiên SNAPSHOT, bỏ video và ảnh mẫu.
-        evidenceUrl: getIncidentEvidenceUrl(incident) || undefined,
+        // Ảnh vi phạm chính (ưu tiên SNAPSHOT, bỏ video và ảnh mẫu) gửi dưới dạng đường dẫn nội bộ
+        // `/api/v1/incidents/evidences/:id/download`: notification-service chỉ nhận dạng này hoặc URL MinIO
+        // tin cậy và tự tải ảnh qua kênh M2M, nên không lộ link thô localhost:9000 và không hết hạn.
+        evidenceUrl: getTrustedEvidenceDownloadPath(incident),
       });
       toast.success(
         isVietnamese
@@ -463,13 +479,16 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
 
   const handleDownloadEvidence = async (ev: EvidenceItem) => {
     try {
+      // Chỉ dùng presigned URL do BE ký (có ghi EvidenceAccessLog); không tự ghép link bucket từ storageKey.
       const res = await incidentService.getEvidenceDownloadUrl(ev.id, {
         action: "DOWNLOAD",
       });
-      const targetUrl =
-        isDockerInternalMinioUrl(res.downloadUrl) && ev.storageKey
-          ? resolveEvidenceUrl(ev.storageKey)
-          : res.downloadUrl;
+      const targetUrl = resolveEvidenceUrl(res.downloadUrl) || res.downloadUrl;
+      if (!targetUrl) {
+        throw new Error(
+          isVietnamese ? "BE chưa trả đường dẫn tải tệp." : "No download URL was returned.",
+        );
+      }
       window.open(targetUrl, "_blank", "noopener,noreferrer");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Download failed");
@@ -603,8 +622,8 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
       currentUserId={user?.id}
       canComment={canUpdate}
       isClosed={incident.status === "CLOSED"}
-      isLoadingComments={commentsQuery.isLoading}
-      isErrorComments={commentsQuery.isError}
+      isLoadingComments={commentsLive && commentsQuery.isLoading && !incident.comments}
+      isErrorComments={commentsLive && commentsQuery.isError}
       onRetryComments={() => void commentsQuery.refetch()}
       highlighted={isHighlightComments}
     />
@@ -651,7 +670,7 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
       <IncidentDetailHeader
         incident={incident}
         isConnected={isConnected}
-        isRefreshing={isRefetching || commentsQuery.isFetching}
+        isRefreshing={isRefetching || (commentsLive && commentsQuery.isFetching)}
         isNotifying={isNotifying}
         hasAssignments={hasAssignments}
         canUpdate={canUpdate}
@@ -661,7 +680,8 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         canSelfOrAssignedResolve={canSelfOrAssignedResolve}
         canClose={canClose}
         onRefresh={() => {
-          void Promise.all([refetch(), commentsQuery.refetch()]);
+          // GET /:id đã kèm bình luận; chỉ gọi lại /comments khi đang theo dõi bình luận realtime.
+          void Promise.all([refetch(), commentsLive ? commentsQuery.refetch() : null]);
         }}
         onEdit={() => setIsEditOpen(true)}
         onTriggerAlert={handleTriggerAlert}
@@ -830,7 +850,7 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
                       >
                         <Download className="h-3.5 w-3.5" />
                       </Button>
-                      {canDeleteEvidence && (
+                      {canDeleteEvidence && incident.status !== "CLOSED" && (
                         <Button
                           size="sm"
                           variant="ghost"

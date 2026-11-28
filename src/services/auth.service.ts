@@ -1,6 +1,6 @@
 import axios from "axios";
 
-import { apiClient } from "@/lib/axios";
+import { ApiError, apiClient } from "@/lib/axios";
 import type {
   AuthTokensDto,
   AvatarConfirmPayload,
@@ -61,13 +61,26 @@ export const authService = {
   },
 
   /**
-   * 2. GET /auth/verify-email?token=...
+   * 2. POST /auth/verify-email { token } (fallback GET /auth/verify-email?token=...)
    * Ghi chú: 400 TOKEN_INVALID hoặc TOKEN_EXPIRED nếu token không hợp lệ hoặc đã hết hạn.
+   *
+   * Ưu tiên POST để token không nằm trong query string (log proxy/server, Referer).
+   * BE bản cũ chưa có route POST → 404 NOT_FOUND ("Route POST ... not found");
+   * lỗi token luôn là 400 nên 404 chắc chắn là thiếu route → thử lại bằng GET.
    */
   async verifyEmail(payload: VerifyEmailPayload): Promise<{ message: string }> {
-    return (await apiClient.get("/auth/verify-email", {
-      params: { token: payload.token },
-    })) as { message: string };
+    try {
+      return (await apiClient.post("/auth/verify-email", {
+        token: payload.token,
+      })) as { message: string };
+    } catch (error) {
+      if (!(error instanceof ApiError) || (error.status !== 404 && error.status !== 405)) {
+        throw error;
+      }
+      return (await apiClient.get("/auth/verify-email", {
+        params: { token: payload.token },
+      })) as { message: string };
+    }
   },
 
   // ── 2. Đăng nhập, Phiên làm việc & Cấp mới Token ────────────────────────

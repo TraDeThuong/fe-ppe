@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,7 +25,6 @@ import { useSite } from "@/contexts/SiteContext";
 import { useDebounce } from "@/hooks/use-debounce";
 import {
   incidentKeys,
-  useAssignmentIncidents,
   useBatchDeleteEvidences,
   useBatchVerifyEvidences,
   useEvidenceMutations,
@@ -36,24 +35,26 @@ import {
 import { useCan } from "@/hooks/use-can";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import {
+  buildEvidenceServerFilters,
   exportEvidencesToCsv,
-  filterEvidencesClientSide,
   formatEvidenceFileSize,
   getViolationLabel,
-  loadArchivedEvidenceIds,
-  saveArchivedEvidenceIds,
   sumEvidenceBytes,
+  triggerEvidenceFileDownload,
   type EvidenceChecksumFilter,
   type EvidenceDatePreset,
   type EvidenceLifecycleScope,
 } from "@/lib/evidence-utils";
 import { resolveEvidenceUrl } from "@/lib/evidence-url";
+import { throttle } from "@/lib/throttle";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
 import { incidentService } from "@/services";
 import type { EvidenceItem, IncidentItem } from "@/types";
 
 const PAGE_LIMIT = 16;
+/** Gom các sự kiện socket dồn dập: tối đa 1 lần làm mới dữ liệu kho mỗi 5 giây. */
+const REALTIME_INVALIDATE_THROTTLE_MS = 5_000;
 
 export default function EvidencesContent() {
   const { t, locale } = useLocale();
@@ -66,7 +67,7 @@ export default function EvidencesContent() {
   const canDelete = useCan()("PPE_INCIDENT_DELETE");
   const { siteId: globalSiteId, setSiteId: setGlobalSiteId } = useSite();
   const { lastAlert } = useRealtime();
-  const { getCamera, getCameraCode, getSiteCode, getSiteName } = useEntityLookup();
+  const { getCameraCode, getSiteCode } = useEntityLookup();
 
   // Initialize state from URL query params
   const [viewMode, setViewMode] = useState<EvidenceViewMode>(() => {
@@ -92,11 +93,8 @@ export default function EvidencesContent() {
   });
   const [lifecycleScope, setLifecycleScope] = useState<EvidenceLifecycleScope>(() => {
     const s = searchParams.get("scope");
-    return s === "active" || s === "closed" || s === "dismissed" || s === "archived"
-      ? s
-      : "all";
+    return s === "active" || s === "closed" || s === "dismissed" ? s : "all";
   });
-  const [archivedIds, setArchivedIds] = useState<Set<string>>(() => new Set());
   const [sortBy, setSortBy] = useState<"capturedAt" | "createdAt">(() =>
     searchParams.get("sortBy") === "createdAt" ? "createdAt" : "capturedAt",
   );
@@ -124,11 +122,6 @@ export default function EvidencesContent() {
   const [verifyingIds, setVerifyingIds] = useState<Set<string>>(() => new Set());
 
   const debouncedSearch = useDebounce(search, 300);
-
-  // Hydrate archived IDs from localStorage on client mount
-  useEffect(() => {
-    setArchivedIds(loadArchivedEvidenceIds());
-  }, []);
 
   // Sync with global SiteContext selector in Header
   useEffect(() => {
@@ -180,141 +173,107 @@ export default function EvidencesContent() {
     searchParams,
   ]);
 
-  const hasClientFilters = Boolean(
+  const hasActiveFilters = Boolean(
     debouncedSearch.trim() ||
       siteId ||
+      cameraId ||
+      evidenceType ||
       violationType ||
       checksumFilter !== "all" ||
       datePreset !== "all" ||
       lifecycleScope !== "all",
   );
 
-  // When client-enriched filters are active, fetch larger slice (BE max=100) for accurate filtering
-  const queryLimit = hasClientFilters ? 100 : pageSize;
-  const queryPage = hasClientFilters ? 1 : page;
+  // Toàn bộ bộ lọc + phân trang chạy server-side trên GET /evidences (không cắt 100 bản ghi rồi lọc ở FE).
+  const serverFilters = useMemo(
+    () =>
+      buildEvidenceServerFilters({
+        search: debouncedSearch,
+        siteId,
+        cameraId,
+        evidenceType,
+        violationType,
+        checksumFilter,
+        datePreset,
+        lifecycleScope,
+      }),
+    [
+      debouncedSearch,
+      siteId,
+      cameraId,
+      evidenceType,
+      violationType,
+      checksumFilter,
+      datePreset,
+      lifecycleScope,
+    ],
+  );
 
   const { data, isLoading, isFetching, refetch } = useEvidences({
-    page: queryPage,
-    limit: queryLimit,
-    cameraId: cameraId || undefined,
-    evidenceType: evidenceType || undefined,
+    ...serverFilters,
+    page,
+    limit: pageSize,
     sortBy,
     sortOrder,
   });
 
+  // KPI: 1 request /evidences/summary theo cùng bộ lọc (trừ loại bằng chứng để 4 thẻ luôn đủ số theo loại).
+  const summaryFilters = useMemo(() => {
+    const { evidenceType: _omitType, ...rest } = serverFilters;
+    return rest;
+  }, [serverFilters]);
+
   const {
     data: vaultCounts,
     isLoading: countsLoading,
+    isError: countsError,
     isFetching: countsFetching,
     refetch: refetchVaultCounts,
-  } = useEvidenceVaultCounts({
-    cameraId: cameraId || undefined,
-  });
+  } = useEvidenceVaultCounts(summaryFilters);
 
-  // Hydrate incident context theo từng trạng thái vòng đời (PENDING_REVIEW, CONFIRMED, RESOLVED, CLOSED, DISMISSED)
-  // để bằng chứng của sự cố đã duyệt/đã đóng không bị thiếu context khi có >100 cảnh báo PENDING_REVIEW mới
-  const {
-    items: contextIncidents,
-    isRefetching: contextIncidentsRefetching,
-    refetch: refetchContextIncidents,
-  } = useAssignmentIncidents({
-    siteId: siteId || undefined,
-    cameraId: cameraId || undefined,
-    violationType: violationType || undefined,
-    includeAssignments: false,
-    maxConfirmedPages: 2,
-    closedLimit: 100,
-    dismissedLimit: 100,
-    staleTime: 60 * 1000,
-    refetchInterval: false,
-  });
+  // BE trả kèm tóm tắt sự cố (`evidence.incident`) cho từng bằng chứng nên không cần gọi thêm /incidents.
+  const incidentsMap = useMemo(() => new Map<string, IncidentItem>(), []);
 
-  const incidentsMap = useMemo(() => {
-    const map = new Map<string, IncidentItem>();
-    for (const inc of contextIncidents) {
-      map.set(inc.id, inc);
-    }
-    return map;
-  }, [contextIncidents]);
+  // Realtime: throttle invalidate để bão cảnh báo không kéo theo hàng loạt request lặp lại.
+  const throttledInvalidateRef = useRef<ReturnType<typeof throttle> | null>(null);
+  useEffect(() => {
+    const fn = throttle(() => {
+      void queryClient.invalidateQueries({ queryKey: incidentKeys.evidences() });
+    }, REALTIME_INVALIDATE_THROTTLE_MS);
+    throttledInvalidateRef.current = fn;
+    return () => {
+      fn.cancel();
+      throttledInvalidateRef.current = null;
+    };
+  }, [queryClient]);
 
-  // Realtime invalidation on new PPE violations
   useEffect(() => {
     if (!lastAlert) return;
     if (
       lastAlert.type === "notification:ppe_violation" ||
       lastAlert.type === "notification:new"
     ) {
-      void queryClient.invalidateQueries({ queryKey: incidentKeys.evidences() });
-      void queryClient.invalidateQueries({ queryKey: incidentKeys.lists() });
+      throttledInvalidateRef.current?.();
     }
-  }, [lastAlert, queryClient]);
+  }, [lastAlert]);
 
-  const rawEvidences = data?.items ?? [];
+  const rawEvidences = useMemo(() => data?.items ?? [], [data?.items]);
   const meta = data?.meta;
+  const paginatedEvidences = rawEvidences;
 
-  const visibleEvidences = useMemo(() => {
-    if (!hasClientFilters) {
-      return archivedIds.size > 0
-        ? rawEvidences.filter((ev) => !archivedIds.has(ev.id))
-        : rawEvidences;
-    }
-    return filterEvidencesClientSide(
-      rawEvidences,
-      {
-        search: debouncedSearch,
-        siteId,
-        violationType,
-        checksumFilter,
-        datePreset,
-        lifecycleScope,
-        archivedIds,
-      },
-      {
-        incidentsMap,
-        getCameraSiteId: (camId) => getCamera(camId)?.siteId,
-        getCameraLabel: (camId) => getCameraCode(camId),
-        getSiteLabel: (sId) =>
-          sId ? `${getSiteCode(sId) || ""} ${getSiteName(sId)}` : "",
-      },
-    );
-  }, [
-    hasClientFilters,
-    rawEvidences,
-    debouncedSearch,
-    siteId,
-    violationType,
-    checksumFilter,
-    datePreset,
-    lifecycleScope,
-    archivedIds,
-    incidentsMap,
-    getCamera,
-    getCameraCode,
-    getSiteCode,
-    getSiteName,
-  ]);
-
-  const totalItems = hasClientFilters
-    ? visibleEvidences.length
-    : (meta?.total ?? visibleEvidences.length);
-
-  const totalPages = hasClientFilters
-    ? Math.max(1, Math.ceil(totalItems / pageSize))
-    : Math.max(1, meta?.totalPages ?? Math.ceil(totalItems / pageSize));
+  const totalItems = meta?.total ?? rawEvidences.length;
+  const totalPages = Math.max(
+    1,
+    meta?.totalPages ?? Math.ceil(totalItems / pageSize),
+  );
 
   const currentPage = Math.min(page, totalPages);
 
   useEffect(() => {
-    if (!isLoading && page > totalPages) {
+    if (!isLoading && meta && page > totalPages) {
       setPage(totalPages);
     }
-  }, [isLoading, page, totalPages]);
-
-  const paginatedEvidences = useMemo(() => {
-    if (!hasClientFilters) return visibleEvidences;
-    const start = (currentPage - 1) * pageSize;
-    return visibleEvidences.slice(start, start + pageSize);
-  }, [hasClientFilters, visibleEvidences, currentPage, pageSize]);
+  }, [isLoading, meta, page, totalPages]);
 
   const mutations = useEvidenceMutations();
   const verifyMutation = useVerifyEvidenceMutation();
@@ -339,10 +298,11 @@ export default function EvidencesContent() {
     [t],
   );
 
-  const pageHashCoverage = useMemo(() => {
-    const withHash = paginatedEvidences.filter((e) => Boolean(e.metadata?.checksum)).length;
-    return { withHash, total: paginatedEvidences.length };
-  }, [paginatedEvidences]);
+  // Tỷ lệ SHA-256 tính trên toàn bộ tập khớp bộ lọc (summary), không phải 16 mục của trang hiện tại.
+  const vaultHashCoverage = useMemo(() => {
+    if (!vaultCounts || typeof vaultCounts.withChecksumCount !== "number") return undefined;
+    return { withHash: vaultCounts.withChecksumCount, total: vaultCounts.total };
+  }, [vaultCounts]);
 
   // Handlers
   const handleSiteChange = (nextSite: string) => {
@@ -415,89 +375,24 @@ export default function EvidencesContent() {
     }
   };
 
-  const handleDownload = async (ev: EvidenceItem) => {
+  // Presigned DOWNLOAD URL trả Content-Disposition: attachment nên tải qua thẻ <a> ẩn
+  // (không mở tab mới → không bị popup blocker chặn sau lệnh await).
+  const handleDownload = async (ev: EvidenceItem): Promise<boolean> => {
     try {
       const res = await incidentService.getEvidenceDownloadUrl(ev.id, {
         action: "DOWNLOAD",
       });
       const safeUrl = resolveEvidenceUrl(res.downloadUrl) || res.downloadUrl;
-      window.open(safeUrl, "_blank", "noopener,noreferrer");
+      triggerEvidenceFileDownload(safeUrl, res.fileName || ev.fileName);
+      return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("evidences.actions.downloadError"));
+      return false;
     }
   };
 
-  const handleToggleArchiveSingle = (ev: EvidenceItem) => {
-    const wasArchived = archivedIds.has(ev.id);
-    setArchivedIds((prev) => {
-      const next = new Set(prev);
-      if (wasArchived) {
-        next.delete(ev.id);
-      } else {
-        next.add(ev.id);
-      }
-      saveArchivedEvidenceIds(next);
-      return next;
-    });
-    toast.success(
-      wasArchived
-        ? isVi
-          ? `Đã khôi phục "${ev.fileName}" về Kho chính.`
-          : `Restored "${ev.fileName}" to Active Vault.`
-        : isVi
-          ? `Đã chuyển "${ev.fileName}" vào Kho Lưu trữ.`
-          : `Moved "${ev.fileName}" to Archive Vault.`,
-    );
-  };
-
-  const handleArchiveItems = (ids: string[]) => {
-    if (ids.length === 0) return;
-    setArchivedIds((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) next.add(id);
-      saveArchivedEvidenceIds(next);
-      return next;
-    });
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) next.delete(id);
-      return next;
-    });
-    toast.success(
-      isVi
-        ? `Đã chuyển ${ids.length} tệp vào Kho Lưu trữ.`
-        : `Moved ${ids.length} files to Archive Vault.`,
-    );
-  };
-
-  const handleBatchArchiveToggle = () => {
-    const ids = Array.from(selectedIds);
-    if (ids.length === 0) return;
-
-    const isRestore = lifecycleScope === "archived";
-    setArchivedIds((prev) => {
-      const next = new Set(prev);
-      for (const id of ids) {
-        if (isRestore) next.delete(id);
-        else next.add(id);
-      }
-      saveArchivedEvidenceIds(next);
-      return next;
-    });
-    setSelectedIds(new Set());
-    toast.success(
-      isRestore
-        ? isVi
-          ? `Đã khôi phục ${ids.length} tệp về Kho chính.`
-          : `Restored ${ids.length} files to Active Vault.`
-        : isVi
-          ? `Đã chuyển ${ids.length} tệp vào Kho Lưu trữ.`
-          : `Moved ${ids.length} files to Archive Vault.`,
-    );
-  };
-
   const handleBatchExportCsv = () => {
-    const targets = selectedItems.length > 0 ? selectedItems : visibleEvidences;
+    const targets = selectedItems.length > 0 ? selectedItems : paginatedEvidences;
     exportEvidencesToCsv(targets, {
       incidentsMap,
       getCameraCode,
@@ -516,10 +411,20 @@ export default function EvidencesContent() {
   };
 
   const handleBatchDownload = async () => {
-    const targets = visibleEvidences.filter((ev) => selectedIds.has(ev.id));
+    const targets = selectedItems;
+    if (targets.length === 0) return;
+    let ok = 0;
     for (const ev of targets) {
-      await handleDownload(ev);
-      await new Promise((r) => setTimeout(r, 250));
+      if (await handleDownload(ev)) ok += 1;
+      // Giãn nhịp để trình duyệt xử lý từng lượt tải (Chrome sẽ hỏi quyền "tải nhiều tệp" một lần).
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    if (targets.length > 1) {
+      toast.success(
+        isVi
+          ? `Đã gửi ${ok}/${targets.length} lượt tải xuống. Nếu trình duyệt hỏi, hãy cho phép tải nhiều tệp.`
+          : `Started ${ok}/${targets.length} downloads. Allow multiple downloads if your browser asks.`,
+      );
     }
   };
 
@@ -571,6 +476,7 @@ export default function EvidencesContent() {
               <span>{isVi ? "Quay lại Sự cố" : "Back to Incidents"}</span>
             </Link>
 
+            {canDelete && (
             <Button
               variant="outline"
               size="sm"
@@ -578,13 +484,14 @@ export default function EvidencesContent() {
               className="gap-1.5 border-primary/40 text-primary hover:bg-primary/10"
               title={
                 isVi
-                  ? "Mở Trợ lý Dọn dẹp & Lưu trữ Kho bằng chứng"
-                  : "Open Smart Vault Cleanup & Archive Assistant"
+                  ? "Mở Trợ lý Dọn dẹp Kho bằng chứng"
+                  : "Open Smart Vault Cleanup Assistant"
               }
             >
               <Sparkles className="h-4 w-4" />
-              <span>{isVi ? "Dọn dẹp & Lưu trữ" : "Cleanup & Archive"}</span>
+              <span>{isVi ? "Dọn dẹp" : "Cleanup"}</span>
             </Button>
+            )}
 
             <Button
               variant={showAiOverlayOnCards ? "primary" : "outline"}
@@ -604,14 +511,8 @@ export default function EvidencesContent() {
             <RefreshButton
               variant="ghost"
               size="sm"
-              isRefreshing={isFetching || countsFetching || contextIncidentsRefetching}
-              onRefresh={() =>
-                Promise.all([
-                  refetch(),
-                  refetchVaultCounts(),
-                  refetchContextIncidents(),
-                ])
-              }
+              isRefreshing={isFetching || countsFetching}
+              onRefresh={() => Promise.all([refetch(), refetchVaultCounts()])}
               iconClassName="h-4 w-4"
             />
           </div>
@@ -627,7 +528,8 @@ export default function EvidencesContent() {
           setPage(1);
         }}
         loading={countsLoading}
-        pageHashCoverage={pageHashCoverage}
+        error={countsError && !vaultCounts}
+        hashCoverage={vaultHashCoverage}
       />
 
       {/* Filter & View Bar */}
@@ -669,7 +571,6 @@ export default function EvidencesContent() {
           setLifecycleScope(v);
           setPage(1);
         }}
-        archivedCount={archivedIds.size}
         sortBy={sortBy}
         onSortByChange={(v) => {
           setSortBy(v);
@@ -702,7 +603,7 @@ export default function EvidencesContent() {
             />
           ))}
         </div>
-      ) : visibleEvidences.length === 0 ? (
+      ) : paginatedEvidences.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/50 bg-background/60 p-12 text-center shadow-[inset_3px_3px_8px_var(--shadow-dark),inset_-3px_-3px_8px_var(--shadow-light)]">
           <Images className="h-10 w-10 text-muted-foreground" />
           <div className="space-y-1">
@@ -713,7 +614,7 @@ export default function EvidencesContent() {
               {t("evidences.empty.description")}
             </p>
           </div>
-          {hasClientFilters || evidenceType || cameraId ? (
+          {hasActiveFilters ? (
             <Button size="sm" variant="outline" onClick={handleResetFilters}>
               {t("evidences.filters.reset")}
             </Button>
@@ -744,8 +645,6 @@ export default function EvidencesContent() {
           onVerify={handleVerifySingle}
           onDownload={handleDownload}
           onDelete={setDeleteTarget}
-          archivedIds={archivedIds}
-          onToggleArchive={handleToggleArchiveSingle}
           page={currentPage}
           pageSize={pageSize}
           totalItems={totalItems}
@@ -767,13 +666,11 @@ export default function EvidencesContent() {
               selected={selectedIds.has(ev.id)}
               isVerifying={verifyingIds.has(ev.id)}
               canDelete={canDelete}
-              isArchived={archivedIds.has(ev.id)}
               showAiOverlay={showAiOverlayOnCards}
               onToggleSelect={handleToggleSelect}
               onInspect={(item) => handleInspect(item)}
               onVerify={handleVerifySingle}
               onDownload={handleDownload}
-              onToggleArchive={handleToggleArchiveSingle}
               onDelete={setDeleteTarget}
             />
           ))}
@@ -781,7 +678,7 @@ export default function EvidencesContent() {
       )}
 
       {/* Standalone Pagination Bar (for Grid & Pairs view modes; Table mode includes built-in footer pagination) */}
-      {viewMode !== "table" && visibleEvidences.length > 0 && totalPages > 1 && (
+      {viewMode !== "table" && paginatedEvidences.length > 0 && totalPages > 1 && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-surface px-4 py-2.5 text-xs text-muted-foreground shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_var(--shadow-light)]">
           <span>
             {t("evidences.pagination.summary", {
@@ -811,22 +708,12 @@ export default function EvidencesContent() {
         </div>
       )}
 
-      {hasClientFilters && rawEvidences.length >= 100 && (
-        <p className="text-center text-[11px] text-muted-foreground">
-          {t("evidences.filters.clientScopeHint", {
-            shown: visibleEvidences.length,
-            scanned: rawEvidences.length,
-          })}
-        </p>
-      )}
-
       {/* Floating Batch Actions Bar */}
       <EvidenceBatchBar
         selectedCount={selectedIds.size}
         selectedTotalBytes={selectedTotalBytes}
         allVisibleSelected={allVisibleSelected}
         canDelete={canDelete}
-        isArchiveView={lifecycleScope === "archived"}
         onSelectAllVisible={() =>
           setSelectedIds((prev) => {
             const next = new Set(prev);
@@ -842,7 +729,6 @@ export default function EvidencesContent() {
         onBatchVerify={handleBatchVerify}
         onBatchDownload={handleBatchDownload}
         onBatchExportCsv={handleBatchExportCsv}
-        onBatchArchive={handleBatchArchiveToggle}
         onBatchDelete={() => setIsBatchDeleteConfirmOpen(true)}
         isBatchVerifying={batchVerify.isRunning}
         batchProgress={batchVerify.progress}
@@ -850,22 +736,22 @@ export default function EvidencesContent() {
         batchDeleteProgress={batchDelete.progress}
       />
 
-      {/* Smart Vault Cleanup & Archive Modal */}
-      <EvidenceCleanupModal
-        open={isCleanupOpen}
-        onOpenChange={setIsCleanupOpen}
-        initialEvidences={rawEvidences}
-        incidentsMap={incidentsMap}
-        archivedIds={archivedIds}
-        canDelete={canDelete}
-        isDeleting={batchDelete.isRunning}
-        deleteProgress={batchDelete.progress}
-        onArchiveItems={handleArchiveItems}
-        onDeleteItems={async (targets) => {
-          await batchDelete.runBatchDelete(targets);
-          setSelectedIds(new Set());
-        }}
-      />
+      {/* Smart Vault Cleanup Modal */}
+      {canDelete && (
+        <EvidenceCleanupModal
+          open={isCleanupOpen}
+          onOpenChange={setIsCleanupOpen}
+          initialEvidences={rawEvidences}
+          incidentsMap={incidentsMap}
+          canDelete={canDelete}
+          isDeleting={batchDelete.isRunning}
+          deleteProgress={batchDelete.progress}
+          onDeleteItems={async (targets) => {
+            await batchDelete.runBatchDelete(targets);
+            setSelectedIds(new Set());
+          }}
+        />
+      )}
 
       {/* Quick Forensic Inspector Modal */}
       <EvidenceQuickInspectorModal
@@ -880,7 +766,7 @@ export default function EvidencesContent() {
           setInspectorCompareMode(false);
           setInspectorIndex(nextIdx);
         }}
-        onDownload={handleDownload}
+        onDownload={(ev) => void handleDownload(ev)}
         onDelete={setDeleteTarget}
       />
 
@@ -895,11 +781,8 @@ export default function EvidencesContent() {
         description={
           deleteTarget
             ? `${deleteTarget.fileName}${
-                incidentsMap.get(deleteTarget.incidentId)?.violationType
-                  ? ` — ${getViolationLabel(
-                      incidentsMap.get(deleteTarget.incidentId)?.violationType,
-                      isVi,
-                    )}`
+                deleteTarget.incident?.violationType
+                  ? ` — ${getViolationLabel(deleteTarget.incident.violationType, isVi)}`
                   : ""
               }`
             : ""
@@ -921,8 +804,8 @@ export default function EvidencesContent() {
         }
         description={
           isVi
-            ? `Hành động này sẽ xóa vĩnh viễn ${selectedIds.size} tệp bằng chứng (${formatEvidenceFileSize(selectedTotalBytes)}) khỏi cơ sở dữ liệu và kho lưu trữ đối tượng MinIO. Nếu bạn chỉ muốn ẩn bớt cho gọn bảng, hãy chọn nút "Lưu trữ".`
-            : `This will permanently delete ${selectedIds.size} evidence files (${formatEvidenceFileSize(selectedTotalBytes)}) from the database and MinIO storage.`
+            ? `Hành động này sẽ xóa vĩnh viễn ${selectedIds.size} tệp bằng chứng (${formatEvidenceFileSize(selectedTotalBytes)}) khỏi cơ sở dữ liệu và MinIO. Bằng chứng thuộc sự cố đã đóng (CLOSED) sẽ được giữ lại.`
+            : `This will permanently delete ${selectedIds.size} evidence files (${formatEvidenceFileSize(selectedTotalBytes)}) from the database and MinIO. Evidence of CLOSED incidents is kept.`
         }
         confirmText={
           isVi ? `Xóa ${selectedIds.size} tệp` : `Delete ${selectedIds.size} files`

@@ -2,6 +2,7 @@
 
 import { CheckCircle2, Film, ImageIcon, Images } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-cards";
+import { formatEvidenceFileSize } from "@/lib/evidence-utils";
 import { useLocale } from "@/providers/locale-provider";
 import { EVIDENCE_TYPE, type EvidenceVaultCounts } from "@/types";
 
@@ -10,7 +11,10 @@ export interface EvidenceVaultKpisProps {
   activeType: string;
   onSelectType: (type: string) => void;
   loading?: boolean;
-  pageHashCoverage?: { withHash: number; total: number };
+  /** `/evidences/summary` lỗi và chưa có số liệu cũ: hiện "—" thay vì 0 (tránh trông như kho rỗng) */
+  error?: boolean;
+  /** Độ phủ SHA-256 trên toàn bộ tập khớp bộ lọc (từ /evidences/summary), không phải trang hiện tại */
+  hashCoverage?: { withHash: number; total: number };
 }
 
 const SUNKEN_CLASS =
@@ -21,7 +25,8 @@ export function EvidenceVaultKpis({
   activeType,
   onSelectType,
   loading = false,
-  pageHashCoverage,
+  error = false,
+  hashCoverage,
 }: EvidenceVaultKpisProps) {
   const { t } = useLocale();
 
@@ -30,20 +35,34 @@ export function EvidenceVaultKpis({
   };
 
   const hashPct =
-    pageHashCoverage && pageHashCoverage.total > 0
-      ? Math.round((pageHashCoverage.withHash / pageHashCoverage.total) * 100)
+    hashCoverage && hashCoverage.total > 0
+      ? Math.round((hashCoverage.withHash / hashCoverage.total) * 100)
       : null;
+
+  const totalBytes = counts?.totalBytes ?? 0;
+  const totalDescription =
+    hashPct === null
+      ? t("evidences.kpi.totalDesc")
+      : totalBytes > 0
+        ? t("evidences.kpi.hashCoverageWithSize", {
+            pct: hashPct,
+            size: formatEvidenceFileSize(totalBytes),
+          })
+        : t("evidences.kpi.hashCoverage", { pct: hashPct });
+
+  const errorValue = (
+    <span title={t("evidences.kpi.loadError")} aria-label={t("evidences.kpi.loadError")}>
+      —
+    </span>
+  );
+  const kpiValue = (n?: number) => (loading ? "..." : error ? errorValue : (n ?? 0));
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
       <StatsCard
         title={t("evidences.kpi.total")}
-        value={loading ? "..." : (counts?.total ?? 0)}
-        description={
-          hashPct !== null
-            ? t("evidences.kpi.hashCoverage", { pct: hashPct })
-            : t("evidences.kpi.totalDesc")
-        }
+        value={kpiValue(counts?.total)}
+        description={totalDescription}
         icon={Images}
         variant="soft-extruded"
         tone="primary"
@@ -57,7 +76,7 @@ export function EvidenceVaultKpis({
 
       <StatsCard
         title={t("evidences.kpi.snapshots")}
-        value={loading ? "..." : (counts?.snapshot ?? 0)}
+        value={kpiValue(counts?.snapshot)}
         description={t("evidences.kpi.snapshotsDesc")}
         icon={ImageIcon}
         variant="soft-extruded"
@@ -72,7 +91,7 @@ export function EvidenceVaultKpis({
 
       <StatsCard
         title={t("evidences.kpi.references")}
-        value={loading ? "..." : (counts?.referenceSnapshot ?? 0)}
+        value={kpiValue(counts?.referenceSnapshot)}
         description={t("evidences.kpi.referencesDesc")}
         icon={CheckCircle2}
         variant="soft-extruded"
@@ -89,7 +108,7 @@ export function EvidenceVaultKpis({
 
       <StatsCard
         title={t("evidences.kpi.clips")}
-        value={loading ? "..." : (counts?.videoClip ?? 0)}
+        value={kpiValue(counts?.videoClip)}
         description={t("evidences.kpi.clipsDesc")}
         icon={Film}
         variant="soft-extruded"

@@ -36,12 +36,19 @@ describe("Unified Incident WoodenToast, Violation Colors & Evidence URL Normaliz
       assert.strictEqual(resolveEvidenceUrl(url), url);
     });
 
-    it("rewrites Docker internal ppe-minio host to localhost for browser compatibility", () => {
-      const dockerUrl = "http://ppe-minio:9000/ppe-evidences/camera1/snap.jpg";
-      assert.strictEqual(
-        resolveEvidenceUrl(dockerUrl),
-        "http://localhost:9000/ppe-evidences/camera1/snap.jpg",
-      );
+    it("rewrites unsigned Docker internal ppe-minio host to the configured public bucket origin", () => {
+      const prev = process.env.NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL;
+      process.env.NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL = "http://localhost:9000/ppe-evidences";
+      try {
+        const dockerUrl = "http://ppe-minio:9000/ppe-evidences/camera1/snap.jpg";
+        assert.strictEqual(
+          resolveEvidenceUrl(dockerUrl),
+          "http://localhost:9000/ppe-evidences/camera1/snap.jpg",
+        );
+      } finally {
+        if (prev === undefined) delete process.env.NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL;
+        else process.env.NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL = prev;
+      }
     });
 
     it("prefixes relative /api/ URLs with the Gateway host", () => {
@@ -70,12 +77,21 @@ describe("Unified Incident WoodenToast, Violation Colors & Evidence URL Normaliz
       );
     });
 
-    it("resolves raw storageKey to MinIO ppe-evidences bucket", () => {
+    it("resolves raw storageKey only against the configured public bucket", () => {
+      const prev = process.env.NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL;
       const key = "tenant/site/camera/snap.jpg";
-      assert.strictEqual(
-        resolveEvidenceUrl(key),
-        "http://localhost:9000/ppe-evidences/tenant/site/camera/snap.jpg",
-      );
+      try {
+        process.env.NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL = "http://localhost:9000/ppe-evidences";
+        assert.strictEqual(
+          resolveEvidenceUrl(key),
+          "http://localhost:9000/ppe-evidences/tenant/site/camera/snap.jpg",
+        );
+        delete process.env.NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL;
+        assert.strictEqual(resolveEvidenceUrl(key), "");
+      } finally {
+        if (prev === undefined) delete process.env.NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL;
+        else process.env.NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL = prev;
+      }
     });
 
     it("returns empty string for null, undefined or empty values", () => {

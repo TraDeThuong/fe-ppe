@@ -13,15 +13,22 @@ import { Loader } from "@ui/loader";
 
 import { handleMutationError, shouldToastError, useVerify2FA } from "@/hooks/auth";
 import { ApiError } from "@/lib/axios";
+import { getJwtExpiryMs } from "@/lib/jwt";
 import { TEMP_TOKEN_STORAGE_KEY } from "@/lib/oauth";
+import { consumePendingNext } from "@/lib/safe-redirect";
 import { useLocale } from "@/providers/locale-provider";
 import { ErrorCode } from "@/types";
 
+/** Fallback khi không đọc được claim exp của tempToken (BE ký hạn "5m") */
 const TEMP_TOKEN_TTL_SECONDS = 5 * 60;
 
 type CodeMode = "totp" | "backup";
 
 const OTP_BOX_COUNT = 6;
+
+function secondsUntil(deadlineMs: number): number {
+  return Math.max(0, Math.ceil((deadlineMs - Date.now()) / 1000));
+}
 
 function formatCountdown(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
@@ -38,6 +45,9 @@ export function TwoFactorForm() {
   // undefined = đang xác định, null = không trong luồng 2FA → về /login.
   const [tempToken, setTempToken] = useState<string | null | undefined>(undefined);
   const [secondsLeft, setSecondsLeft] = useState(TEMP_TOKEN_TTL_SECONDS);
+  // Mốc hết hạn tuyệt đối (ms) — tính theo exp thật của tempToken nên F5 không
+  // reset về 05:00; mỗi tick tính lại từ Date.now() (không lệch khi tab bị throttle)
+  const [deadlineMs, setDeadlineMs] = useState<number | null>(null);
   const [mode, setMode] = useState<CodeMode>("totp");
   const [digits, setDigits] = useState<string[]>(Array(OTP_BOX_COUNT).fill(""));
   const [expired, setExpired] = useState(false);
@@ -45,25 +55,34 @@ export function TwoFactorForm() {
   const backupInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem(TEMP_TOKEN_STORAGE_KEY);
-    setTempToken(stored?.trim() || null);
+    const stored = sessionStorage.getItem(TEMP_TOKEN_STORAGE_KEY)?.trim() || null;
+    if (stored) {
+      const deadline = getJwtExpiryMs(stored) ?? Date.now() + TEMP_TOKEN_TTL_SECONDS * 1000;
+      const remaining = secondsUntil(deadline);
+      setDeadlineMs(deadline);
+      setSecondsLeft(remaining);
+      if (remaining <= 0) {
+        // Reload sau khi tempToken đã hết hạn → hiện màn hết hạn ngay
+        sessionStorage.removeItem(TEMP_TOKEN_STORAGE_KEY);
+        setExpired(true);
+      }
+    }
+    setTempToken(stored);
   }, []);
 
-  // Đếm ngược 5 phút hiệu lực tempToken (spec 7.2) — hết hạn thì hiện nút đăng nhập lại
+  // Đếm ngược hiệu lực tempToken (spec 7.2) — hết hạn thì hiện nút đăng nhập lại
   useEffect(() => {
-    if (expired || tempToken === null) return;
+    if (expired || tempToken === null || deadlineMs === null) return;
     const timer = setInterval(() => {
-      setSecondsLeft((current) => {
-        if (current <= 1) {
-          setExpired(true);
-          sessionStorage.removeItem(TEMP_TOKEN_STORAGE_KEY);
-          return 0;
-        }
-        return current - 1;
-      });
+      const remaining = secondsUntil(deadlineMs);
+      setSecondsLeft(remaining);
+      if (remaining <= 0) {
+        setExpired(true);
+        sessionStorage.removeItem(TEMP_TOKEN_STORAGE_KEY);
+      }
     }, 1000);
     return () => clearInterval(timer);
-  }, [expired, tempToken]);
+  }, [expired, tempToken, deadlineMs]);
 
   // Không có tempToken nghĩa là không trong luồng 2FA (truy cập thẳng) → về /login
   useEffect(() => {
@@ -97,7 +116,8 @@ export function TwoFactorForm() {
     onSuccess: () => {
       // Hook đã lưu token + đồng bộ AuthContext — dọn tempToken trước khi rời trang
       sessionStorage.removeItem(TEMP_TOKEN_STORAGE_KEY);
-      router.replace("/");
+      // Quay lại đúng trang người dùng định vào trước khi bị bắt đăng nhập
+      router.replace(consumePendingNext());
     },
     onError: (error) => {
       // 422: lỗi theo field (code quá dài...) → gắn dưới ô nhập
@@ -168,7 +188,9 @@ export function TwoFactorForm() {
 
   function handleLoginAgain() {
     sessionStorage.removeItem(TEMP_TOKEN_STORAGE_KEY);
-    router.replace("/login");
+    // Đăng nhập lại vẫn giữ ?next= ban đầu
+    const next = consumePendingNext();
+    router.replace(next !== "/" ? `/login?next=${encodeURIComponent(next)}` : "/login");
   }
 
   function switchMode(next: CodeMode) {

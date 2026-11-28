@@ -16,12 +16,19 @@ const REQUIRED_VARS = [
 
 // Lưu ý: phải tham chiếu tĩnh (process.env.X, không phải process.env[key]) —
 // Turbopack chỉ inline tham chiếu tĩnh vào client bundle, key động luôn undefined trên browser.
+const isTestRuntime =
+  process.env.NODE_ENV === "test" ||
+  Boolean(process.env.NODE_TEST_CONTEXT) ||
+  process.argv.some((a) => a.includes("test"));
+
+// Test chạy không nạp .env.local: dùng bucket MinIO dev công khai như .env.example (chỉ khi chưa đặt).
+if (isTestRuntime && process.env.NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL === undefined) {
+  process.env.NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL = "http://localhost:9000/ppe-evidences";
+}
+
 const missing = REQUIRED_VARS.filter(([, value]) => !value).map(([key]) => key);
 if (missing.length > 0) {
-  const isTest =
-    process.env.NODE_ENV === "test" ||
-    Boolean(process.env.NODE_TEST_CONTEXT) ||
-    process.argv.some((a) => a.includes("test"));
+  const isTest = isTestRuntime;
 
   if (isTest) {
     if (!process.env.NEXT_PUBLIC_API_BASE_URL) {

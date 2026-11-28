@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import {
-  Archive,
   ArrowDownUp,
   CheckCircle2,
   CheckSquare,
@@ -55,7 +54,6 @@ export interface EvidenceFilterBarProps {
   onDatePresetChange: (value: EvidenceDatePreset) => void;
   lifecycleScope?: EvidenceLifecycleScope;
   onLifecycleScopeChange?: (value: EvidenceLifecycleScope) => void;
-  archivedCount?: number;
   sortBy: "capturedAt" | "createdAt";
   onSortByChange: (value: "capturedAt" | "createdAt") => void;
   sortOrder: "asc" | "desc";
@@ -86,7 +84,6 @@ export function EvidenceFilterBar({
   onDatePresetChange,
   lifecycleScope = "all",
   onLifecycleScopeChange,
-  archivedCount = 0,
   sortBy,
   onSortByChange,
   sortOrder,
@@ -99,8 +96,7 @@ export function EvidenceFilterBar({
   allVisibleSelected,
   onToggleSelectAll,
 }: EvidenceFilterBarProps) {
-  const { t, locale } = useLocale();
-  const isVi = locale === "vi-VN";
+  const { t } = useLocale();
   const { data: sitesData } = useSitesCatalog();
   const { data: camerasData } = useCamerasCatalog();
 
@@ -202,40 +198,37 @@ export function EvidenceFilterBar({
   const scopeTabs: Array<{
     value: EvidenceLifecycleScope;
     label: string;
+    title?: string;
     icon: typeof FolderKanban;
     badge?: number;
   }> = [
     {
       value: "all",
-      label: isVi ? "Tất cả kho" : "All Vault",
+      label: t("evidences.scope.all"),
       icon: FolderKanban,
     },
     {
       value: "active",
-      label: isVi ? "Đang hiệu lực" : "Active Incidents",
+      // BE: lifecycle=ACTIVE = mọi sự cố chưa CLOSED (gồm cả DISMISSED)
+      label: t("evidences.scope.notClosed"),
+      title: t("evidences.scope.notClosedHint"),
       icon: ShieldAlert,
     },
     {
       value: "closed",
-      label: isVi ? "Sự cố đã đóng" : "Closed Incidents",
+      label: t("evidences.scope.closed"),
       icon: CheckCircle2,
     },
     {
       value: "dismissed",
-      label: isVi ? "Báo nhầm (Rác AI)" : "Dismissed (AI Noise)",
+      label: t("evidences.scope.dismissed"),
       icon: XCircle,
-    },
-    {
-      value: "archived",
-      label: isVi ? "Kho Lưu trữ" : "Archived Vault",
-      icon: Archive,
-      badge: archivedCount,
     },
   ];
 
   return (
     <div className="space-y-4 rounded-[26px] bg-background p-4 sm:p-5 shadow-[10px_10px_24px_var(--shadow-dark),-10px_-10px_24px_var(--shadow-light)] transition-all duration-300">
-      {/* TẦNG 0: Phân tầng Hồ sơ & Kho Lưu trữ (Vault Scope Tabs) */}
+      {/* TẦNG 0: Phân tầng hồ sơ theo vòng đời sự cố (Vault Scope Tabs) */}
       {onLifecycleScopeChange && (
         <div className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-background p-1.5 shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)]">
           {scopeTabs.map((tab) => {
@@ -246,6 +239,7 @@ export function EvidenceFilterBar({
                 key={tab.value}
                 type="button"
                 onClick={() => onLifecycleScopeChange(tab.value)}
+                title={tab.title}
                 className={`inline-flex cursor-pointer items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
                   active
                     ? "bg-background text-primary shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)]"
@@ -375,7 +369,7 @@ export function EvidenceFilterBar({
           {/* Cột 2 - Hàng 1: Công trường */}
           <div className="space-y-1.5">
             <label className="block px-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Site / Công trường
+              {t("evidences.filters.siteLabel")}
             </label>
             <div className="rounded-xl bg-background shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)]">
               <Select
@@ -407,7 +401,7 @@ export function EvidenceFilterBar({
           {/* Cột 1 - Hàng 2: Loại vi phạm */}
           <div className="space-y-1.5">
             <label className="block px-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Loại vi phạm
+              {t("evidences.filters.violationLabel")}
             </label>
             <div className="rounded-xl bg-background shadow-[2.5px_2.5px_5px_var(--shadow-dark),-2.5px_-2.5px_5px_var(--shadow-light)]">
               <Select
@@ -542,6 +536,17 @@ export function EvidenceFilterBar({
               onRemove={() => onDatePresetChange("all")}
             >
               {datePresets.find((d) => d.value === datePreset)?.label}
+            </Badge>
+          )}
+
+          {lifecycleScope !== "all" && onLifecycleScopeChange && (
+            <Badge
+              variant="primary"
+              size="sm"
+              removable
+              onRemove={() => onLifecycleScopeChange("all")}
+            >
+              {scopeTabs.find((tab) => tab.value === lifecycleScope)?.label ?? lifecycleScope}
             </Badge>
           )}
 

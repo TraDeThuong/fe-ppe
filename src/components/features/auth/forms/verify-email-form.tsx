@@ -13,6 +13,7 @@ import { FormField, Input } from "@ui/form";
 import { shouldToastError, useResendVerification, useVerifyEmail } from "@/hooks/auth";
 import { ApiError } from "@/lib/axios";
 import { normalizeEmail } from "@/lib/email";
+import { stripQueryParams } from "@/lib/safe-redirect";
 import { useLocale } from "@/providers/locale-provider";
 import { ErrorCode } from "@/types";
 import {
@@ -297,6 +298,8 @@ export function VerifyEmailForm() {
     if (firedRef.current) return;
     firedRef.current = true;
     const urlToken = readTokenFromUrl();
+    // Token đã vào state → xóa khỏi thanh địa chỉ (history + Referer)
+    stripQueryParams(["token"]);
     if (!urlToken) {
       setState("invalid");
       return;

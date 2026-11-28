@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
+import { useCan } from "@/hooks/use-can";
 import {
   filterAssignmentIncidents,
   groupIncidentsForAssignment,
@@ -129,6 +130,10 @@ export function ManagerDispatchWorkspace({
 }: ManagerDispatchWorkspaceProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  // Mỗi nút hành động kiểm tra đúng permission BE yêu cầu (review → REVIEW, giao/đóng → MANAGE).
+  const can = useCan();
+  const canReview = can("PPE_INCIDENT_REVIEW");
+  const canManage = can("PPE_INCIDENT_MANAGE");
 
   const [tabModes, setTabModes] = useState<Record<ManagerTabKey, ManagerGroupMode>>(
     () => ({
@@ -213,6 +218,9 @@ export function ManagerDispatchWorkspace({
   const pendingInActive = activeItems.filter((i) => i.status === "PENDING_REVIEW");
   const allTabSelected =
     activeIds.length > 0 && activeIds.every((id) => selectedIds.has(id));
+  // Giao sự cố đang chờ duyệt cần cả quyền xác nhận (batch-review) lẫn quyền giao (MANAGE).
+  const canDispatchSelected =
+    canManage && (canReview || pendingInSelected.length === 0);
 
   const workGroups = useMemo(() => {
     if (currentMode === "batches") return [];
@@ -353,11 +361,12 @@ export function ManagerDispatchWorkspace({
           <div className="flex flex-wrap items-center gap-2">
             {managerTab === "triage" && (
               <>
+                {canManage && (
                 <Button
                   type="button"
                   size="sm"
                   variant="primary"
-                  disabled={selectedInTab.length === 0 || batchActionPending}
+                  disabled={selectedInTab.length === 0 || batchActionPending || !canDispatchSelected}
                   onClick={() => onBatchDispatch(selectedInTab)}
                   className="gap-1.5 text-xs font-bold"
                 >
@@ -368,7 +377,10 @@ export function ManagerDispatchWorkspace({
                       : `Confirm & Dispatch (${selectedInTab.length})`}
                   </span>
                 </Button>
+                )}
 
+                {canReview && (
+                <>
                 <Button
                   type="button"
                   size="sm"
@@ -400,10 +412,12 @@ export function ManagerDispatchWorkspace({
                       : `Dismiss (${pendingInSelected.length})`}
                   </span>
                 </Button>
+                </>
+                )}
               </>
             )}
 
-            {managerTab === "dispatched" && (
+            {managerTab === "dispatched" && canManage && (
               <Button
                 type="button"
                 size="sm"
@@ -421,7 +435,7 @@ export function ManagerDispatchWorkspace({
               </Button>
             )}
 
-            {managerTab === "acceptance" && (
+            {managerTab === "acceptance" && canManage && (
               <Button
                 type="button"
                 size="sm"
@@ -516,9 +530,14 @@ export function ManagerDispatchWorkspace({
               batchActionPending={batchActionPending}
               onToggleSelectOne={onToggleSelectOne}
               onToggleSelectMany={onToggleSelectMany}
-              onBatchConfirmOnly={onBatchConfirmOnly}
-              onBatchDispatch={onBatchDispatch}
-              onBatchClose={onBatchClose}
+              onBatchConfirmOnly={canReview ? onBatchConfirmOnly : undefined}
+              onBatchDispatch={
+                canManage &&
+                (canReview || grp.items.every((i) => i.status !== "PENDING_REVIEW"))
+                  ? onBatchDispatch
+                  : undefined
+              }
+              onBatchClose={canManage ? onBatchClose : undefined}
               responsibilityContext={responsibilityContext}
               formatters={formatters}
               rowActions={rowActions}

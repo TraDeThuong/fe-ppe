@@ -13,12 +13,15 @@ import { Loader } from "@ui/loader";
 
 import { shouldToastError, useResetPassword } from "@/hooks/auth";
 import { ApiError } from "@/lib/axios";
+import { PASSWORD_MAX_LENGTH } from "@/lib/password-policy";
+import { stripQueryParams } from "@/lib/safe-redirect";
 import { useLocale } from "@/providers/locale-provider";
 import { ErrorCode } from "@/types";
 import { PasswordChecklist } from "../password-checklist";
 
 interface ResetPasswordFormValues {
   newPassword: string;
+  confirmPassword: string;
 }
 
 type ResetFailure =
@@ -38,6 +41,8 @@ export function ResetPasswordForm() {
 
   useEffect(() => {
     const fromUrl = new URLSearchParams(window.location.search).get("token");
+    // Giữ token trong state rồi xóa khỏi thanh địa chỉ (history + Referer)
+    stripQueryParams(["token"]);
     setToken(fromUrl?.trim() || null);
   }, []);
 
@@ -48,17 +53,23 @@ export function ResetPasswordForm() {
           .string()
           .min(1, t("resetPassword.passwordRequired"))
           .min(8, t("resetPassword.passwordInvalid"))
+          .max(PASSWORD_MAX_LENGTH, t("resetPassword.passwordTooLong"))
           .regex(/[a-z]/, t("resetPassword.passwordInvalid"))
           .regex(/[A-Z]/, t("resetPassword.passwordInvalid"))
           .regex(/[0-9]/, t("resetPassword.passwordInvalid"))
           .regex(/[^a-zA-Z0-9]/, t("resetPassword.passwordInvalid")),
+        confirmPassword: z.string().min(1, t("resetPassword.confirmPasswordRequired")),
+      })
+      .refine((values) => values.newPassword === values.confirmPassword, {
+        message: t("resetPassword.confirmPasswordMismatch"),
+        path: ["confirmPassword"],
       }),
     [t],
   );
 
   const form = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { newPassword: "" },
+    defaultValues: { newPassword: "", confirmPassword: "" },
   });
 
   const resetPassword = useResetPassword({
@@ -170,6 +181,20 @@ export function ResetPasswordForm() {
           placeholder={t("resetPassword.newPasswordPlaceholder")}
           disabled={resetPassword.isPending}
           {...form.register("newPassword")}
+        />
+      </FormField>
+
+      <FormField
+        id="confirmPassword"
+        label={t("resetPassword.confirmPassword")}
+        required
+        error={form.formState.errors.confirmPassword?.message}
+      >
+        <PasswordInput
+          autoComplete="new-password"
+          placeholder={t("resetPassword.confirmPasswordPlaceholder")}
+          disabled={resetPassword.isPending}
+          {...form.register("confirmPassword")}
         />
       </FormField>
 

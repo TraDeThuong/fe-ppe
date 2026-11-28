@@ -5,6 +5,7 @@ import { AuthContext, type AuthStatus } from "@/contexts/AuthContext";
 import type { MeDto } from "@/types/auth.types";
 import { authService } from "@/services/auth.service";
 import { ApiError, ensureFreshAccessToken, purgeSessionCookies } from "@/lib/axios";
+import { decodeJwtPayload } from "@/lib/jwt";
 import { getAccessTokenSiteIds, tokenStore } from "@/lib/token";
 import { queryClient } from "@/lib/query-client";
 import { eventBus } from "@/lib/event-bus";
@@ -22,6 +23,57 @@ function haveSameSiteIds(a?: readonly string[] | null, b?: readonly string[] | n
   if (a.length !== b.length) return false;
   const setB = new Set(b);
   return a.every((id) => setB.has(id));
+}
+
+interface AccessTokenClaims {
+  id?: unknown;
+  email?: unknown;
+  role?: unknown;
+  roleId?: unknown;
+  siteId?: unknown;
+  siteIds?: unknown;
+  permissions?: unknown;
+  mustChangePassword?: unknown;
+}
+
+const asString = (value: unknown): string | null => (typeof value === "string" ? value : null);
+const asStringArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+
+/**
+ * GET /auth/me trả 403 FORBIDDEN khi tài khoản đang bị ép đổi mật khẩu
+ * (BE bản cũ chặn cả /auth/me — SEC-16). Phiên vẫn hợp lệ: thay vì xóa phiên và
+ * đá về /login (deadlock — không bao giờ đổi được mật khẩu), dựng user tối thiểu
+ * từ claim của access token (BE ký kèm mustChangePassword) để guard đưa người
+ * dùng tới /change-password. Trả null nếu token không mang cờ này.
+ */
+async function resolveMustChangePasswordUser(): Promise<MeDto | null> {
+  if (!tokenStore.getAccessToken()) {
+    const refreshed = await ensureFreshAccessToken();
+    if (!refreshed) return null;
+  }
+  const claims = decodeJwtPayload<AccessTokenClaims>(tokenStore.getAccessToken());
+  if (!claims || claims.mustChangePassword !== true) return null;
+  const id = asString(claims.id);
+  const role = asString(claims.role);
+  if (!id || !role) return null;
+  const siteIds = asStringArray(claims.siteIds);
+  return {
+    id,
+    email: asString(claims.email),
+    fullName: null,
+    avatarUrl: null,
+    phoneNumber: null,
+    role,
+    roleId: asString(claims.roleId) ?? "",
+    siteId: asString(claims.siteId) ?? siteIds[0] ?? null,
+    siteIds,
+    permissions: asStringArray(claims.permissions),
+    isActive: true,
+    twoFactorEnabled: false,
+    mustChangePassword: true,
+    createdAt: "",
+  };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -140,6 +192,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           recordActivity();
         }
       } catch (error) {
+        // 403 + mustChangePassword: phiên còn sống, chỉ bị giới hạn → giữ phiên
+        if (
+          error instanceof ApiError &&
+          error.status === 403 &&
+          !cancelled &&
+          !sessionExpiredDuringRestore
+        ) {
+          const restricted = await resolveMustChangePasswordUser().catch(() => null);
+          if (restricted && !cancelled && !sessionExpiredDuringRestore) {
+            queryClient.setQueryData(authKeys.me(), restricted);
+            setUser(restricted);
+            setStatus("authenticated");
+            recordActivity();
+            return;
+          }
+        }
         // 401 + refresh fail: interceptor đã clear token + phát auth:session-expired.
         // Lỗi mạng/5xx cũng rơi vào đây — chỉ xóa persistence & cookie khi phiên bị BE từ chối (401/403).
         if (!cancelled) {

@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import {
-  Archive,
-  ArchiveRestore,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -22,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { IncidentSeverityBadge } from "@/components/features/incidents/incident-severity-badge";
 import { IncidentStatusBadge } from "@/components/features/incidents/incident-status-badge";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
-import { resolveEvidenceUrl } from "@/lib/evidence-url";
+import { useEvidenceViewUrl } from "@/hooks/incidents/use-evidences";
 import {
   formatEvidenceFileSize,
   formatMediaDuration,
@@ -47,8 +45,6 @@ export interface EvidenceAuditTableProps {
   onVerify: (evidence: EvidenceItem) => void;
   onDownload: (evidence: EvidenceItem) => void;
   onDelete: (evidence: EvidenceItem) => void;
-  archivedIds?: ReadonlySet<string>;
-  onToggleArchive?: (evidence: EvidenceItem) => void;
   page?: number;
   pageSize?: number;
   totalItems?: number;
@@ -93,8 +89,6 @@ export function EvidenceAuditTable({
   onVerify,
   onDownload,
   onDelete,
-  archivedIds,
-  onToggleArchive,
   page = 1,
   pageSize = 10,
   totalItems,
@@ -174,7 +168,6 @@ export function EvidenceAuditTable({
             {evidences.map((ev) => {
               const selected = selectedIds.has(ev.id);
               const isVideo = isVideoEvidenceItem(ev);
-              const url = resolveEvidenceUrl(ev.url || ev.storageKey);
               const inc = ev.incident ?? incidentsMap.get(ev.incidentId);
               const cam = getCamera(ev.cameraId);
               const siteCode = getSiteCode(inc?.siteId ?? cam?.siteId);
@@ -214,21 +207,7 @@ export function EvidenceAuditTable({
                   </td>
 
                   <td className="px-3 py-2.5">
-                    <div className="h-11 w-16 overflow-hidden rounded-lg bg-slate-950">
-                      {!isVideo && url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={url}
-                          alt={ev.fileName}
-                          loading="lazy"
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-slate-400">
-                          <Film className="h-4 w-4" />
-                        </div>
-                      )}
-                    </div>
+                    <EvidenceTableThumb evidence={ev} isVideo={isVideo} />
                   </td>
 
                   <td className="max-w-[220px] px-3 py-2.5">
@@ -365,29 +344,6 @@ export function EvidenceAuditTable({
                           <ExternalLink className="h-3.5 w-3.5" />
                         </Button>
                       </Link>
-                      {onToggleArchive && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => onToggleArchive(ev)}
-                          title={
-                            archivedIds?.has(ev.id)
-                              ? isVi
-                                ? "Khôi phục từ Kho Lưu trữ"
-                                : "Restore from Archive"
-                              : isVi
-                                ? "Chuyển vào Kho Lưu trữ"
-                                : "Move to Archive"
-                          }
-                          className="h-7 px-2 text-amber-600 hover:text-amber-700 dark:text-amber-400"
-                        >
-                          {archivedIds?.has(ev.id) ? (
-                            <ArchiveRestore className="h-3.5 w-3.5" />
-                          ) : (
-                            <Archive className="h-3.5 w-3.5" />
-                          )}
-                        </Button>
-                      )}
                       {canDelete && (
                         <Button
                           size="sm"
@@ -549,6 +505,34 @@ export function EvidenceAuditTable({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Ô thumbnail tách riêng để mỗi dòng gọi được hook presigned VIEW URL (video không cần ảnh). */
+function EvidenceTableThumb({
+  evidence,
+  isVideo,
+}: {
+  evidence: EvidenceItem;
+  isVideo: boolean;
+}) {
+  const { url } = useEvidenceViewUrl(evidence, !isVideo);
+  return (
+    <div className="h-11 w-16 overflow-hidden rounded-lg bg-slate-950">
+      {!isVideo && url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt={evidence.fileName}
+          loading="lazy"
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center text-slate-400">
+          <Film className="h-4 w-4" />
+        </div>
+      )}
     </div>
   );
 }

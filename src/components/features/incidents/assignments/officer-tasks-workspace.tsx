@@ -5,6 +5,7 @@ import { CheckCircle2, CheckSquare, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
+import { useCan } from "@/hooks/use-can";
 import {
   filterAssignmentIncidents,
   groupIncidentsForAssignment,
@@ -80,6 +81,7 @@ export function OfficerTasksWorkspace({
   initialGroupMode,
 }: OfficerTasksWorkspaceProps) {
   const { locale } = useLocale();
+  const canResolve = useCan()("PPE_INCIDENT_UPDATE");
   const isVietnamese = locale === "vi-VN";
 
   const [groupMode, setGroupMode] = useState<OfficerGroupMode>(
@@ -267,6 +269,7 @@ export function OfficerTasksWorkspace({
                 </span>
               </Button>
 
+              {canResolve && (
               <Button
                 type="button"
                 size="sm"
@@ -282,6 +285,7 @@ export function OfficerTasksWorkspace({
                     : `Batch Report Resolved (${selectedMyItems.length})`}
                 </span>
               </Button>
+              )}
             </div>
           </div>
         )}

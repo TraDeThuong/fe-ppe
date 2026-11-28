@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { IncidentSeverityBadge } from "@/components/features/incidents/incident-severity-badge";
 import { IncidentStatusBadge } from "@/components/features/incidents/incident-status-badge";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
-import { resolveEvidenceUrl } from "@/lib/evidence-url";
+import { useEvidenceViewUrl } from "@/hooks/incidents/use-evidences";
 import {
   clusterIncidentsByPerson,
   type IncidentCluster,
@@ -251,7 +251,7 @@ function PairSlotCard({
   onDownload,
 }: PairSlotCardProps) {
   const { locale, t } = useLocale();
-  const url = evidence ? resolveEvidenceUrl(evidence.url || evidence.storageKey) : "";
+  const { url } = useEvidenceViewUrl(evidence);
   const boxes = showAiBox && evidence ? extractEvidenceBoundingBoxes(evidence) : [];
 
   if (!evidence) {

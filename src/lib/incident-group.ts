@@ -37,8 +37,58 @@ export function encodeIncidentGroup(group: IncidentGroupContext): string {
     .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+// ── Sổ nhóm trong trình duyệt ────────────────────────────────────────────────
+// Link điều hướng trong app chỉ mang `?group=<id>`; danh sách thành viên (tối đa 100 UUID) lưu ở
+// localStorage thay vì nhét vào query string. BE chưa có thực thể "nhóm" để tra theo id.
+const GROUP_REGISTRY_KEY = "ppe.incident-groups.v1";
+const GROUP_REGISTRY_MAX = 100;
+const GROUP_REGISTRY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+type GroupRegistry = Record<string, { group: IncidentGroupContext; savedAt: number }>;
+
+function readGroupRegistry(): GroupRegistry {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(GROUP_REGISTRY_KEY) || "{}") as unknown;
+    return raw && typeof raw === "object" ? (raw as GroupRegistry) : {};
+  } catch { return {}; }
+}
+
+/** Ghi nhớ thành viên nhóm để link `?group=<id>` mở lại được (bỏ qua khi không có localStorage). */
+export function rememberIncidentGroup(group: IncidentGroupContext): void {
+  if (typeof window === "undefined" || !isIncidentGroup(group)) return;
+  try {
+    const registry = readGroupRegistry();
+    const existing = registry[group.groupId]?.group;
+    if (existing && existing.incidentIds.join(",") === group.incidentIds.join(",") &&
+      existing.assignedTo === group.assignedTo && existing.createdAt === group.createdAt) return;
+    const now = Date.now();
+    registry[group.groupId] = { group, savedAt: now };
+    const kept = Object.entries(registry)
+      .filter(([, entry]) => entry && now - entry.savedAt < GROUP_REGISTRY_TTL_MS)
+      .sort((a, b) => b[1].savedAt - a[1].savedAt)
+      .slice(0, GROUP_REGISTRY_MAX);
+    window.localStorage.setItem(GROUP_REGISTRY_KEY, JSON.stringify(Object.fromEntries(kept)));
+  } catch { /* Bộ nhớ đầy hoặc bị chặn: link vẫn mở được hồ sơ đơn. */ }
+}
+
+export function recallIncidentGroup(groupId: string | null): IncidentGroupContext | null {
+  if (!groupId || !UUID.test(groupId)) return null;
+  const entry = readGroupRegistry()[groupId];
+  if (!entry || Date.now() - entry.savedAt >= GROUP_REGISTRY_TTL_MS) return null;
+  return isIncidentGroup(entry.group) && entry.group.groupId === groupId ? entry.group : null;
+}
+
+/**
+ * Lấy ngữ cảnh nhóm cho trang chi tiết: ưu tiên sổ nhóm theo `?group=<id>`; `?context=` chỉ còn để
+ * đọc các link cũ đã nằm trong thông báo/email trước đây.
+ */
 export function decodeIncidentGroup(encoded: string | null, groupId: string | null, incidentId: string): IncidentGroupContext | null {
-  if (!encoded || encoded.length > MAX_CONTEXT_LENGTH || !/^[A-Za-z0-9_-]+$/.test(encoded)) return null;
+  if (!encoded) {
+    const saved = recallIncidentGroup(groupId);
+    return saved && saved.incidentIds.includes(incidentId) ? saved : null;
+  }
+  if (encoded.length > MAX_CONTEXT_LENGTH || !/^[A-Za-z0-9_-]+$/.test(encoded)) return null;
   try {
     const value: unknown = JSON.parse(atob(encoded.replace(/-/g, "+").replace(/_/g, "/")));
     if (!isIncidentGroup(value) || value.groupId !== groupId || !value.incidentIds.includes(incidentId)) return null;
@@ -47,7 +97,20 @@ export function decodeIncidentGroup(encoded: string | null, groupId: string | nu
   } catch { return null; }
 }
 
+/** Link trong app: chỉ `?group=<id>` (thành viên lưu ở sổ nhóm của trình duyệt). */
 export function incidentGroupHref(group: IncidentGroupContext, incidentId = group.incidentIds[0], compare = false): string {
+  if (!group.incidentIds.includes(incidentId)) throw new Error("Incident is not a member of this group");
+  rememberIncidentGroup(group);
+  const query = new URLSearchParams({ group: group.groupId });
+  if (compare) query.set("focus", "compare");
+  return `/incidents/${encodeURIComponent(incidentId)}?${query}`;
+}
+
+/**
+ * Link tự chứa thành viên (`&context=`) — chỉ dùng trong nội dung thông báo gửi sang thiết bị khác
+ * (luồng cũ khi BE chưa có batch-assign và biên nhận hoàn tất nhóm), nơi không có sổ nhóm cục bộ.
+ */
+function portableIncidentGroupHref(group: IncidentGroupContext, incidentId = group.incidentIds[0], compare = false): string {
   if (!group.incidentIds.includes(incidentId)) throw new Error("Incident is not a member of this group");
   const query = new URLSearchParams({ group: group.groupId, context: encodeIncidentGroup(group) });
   if (compare) query.set("focus", "compare");
@@ -55,7 +118,7 @@ export function incidentGroupHref(group: IncidentGroupContext, incidentId = grou
 }
 
 export function appendIncidentGroupLink(content: string, group: IncidentGroupContext, appOrigin?: string): string {
-  const path = incidentGroupHref(group);
+  const path = portableIncidentGroupHref(group);
   const origin = appOrigin ? new URL(appOrigin).origin : "";
   return `${content}\nMở nhóm xử lý: ${origin}${path}`;
 }
@@ -67,7 +130,9 @@ export function groupFromNotification(content: string, incidentId: string): Inci
       const url = new URL(match[1], "https://local.invalid");
       if (url.protocol !== "http:" && url.protocol !== "https:") continue;
       if (url.pathname !== `/incidents/${incidentId}`) continue;
-      const group = decodeIncidentGroup(url.searchParams.get("context"), url.searchParams.get("group"), incidentId);
+      const encoded = url.searchParams.get("context");
+      if (!encoded) continue;
+      const group = decodeIncidentGroup(encoded, url.searchParams.get("group"), incidentId);
       if (group) return group;
     } catch { /* An unrelated or damaged link is not a group context. */ }
   }

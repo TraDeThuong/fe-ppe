@@ -32,6 +32,11 @@ import {
   getGoogleRedirectUri,
   saveOAuthState,
 } from "@/lib/oauth";
+import {
+  clearPendingNext,
+  readSafeNextFromUrl,
+  savePendingNext,
+} from "@/lib/safe-redirect";
 import { getRememberedEmail, isRememberMe } from "@/lib/session-manager";
 import { useLocale } from "@/providers/locale-provider";
 import { ErrorCode, type GoogleAuthUrlParams } from "@/types";
@@ -58,14 +63,6 @@ interface LockoutState {
   seconds: number;
 }
 
-/** next query chỉ chấp nhận path nội bộ — chặn open redirect ("//evil.com") */
-function getSafeNext(): string {
-  if (typeof window === "undefined") return "/";
-  const next = new URLSearchParams(window.location.search).get("next");
-  if (next && next.startsWith("/") && !next.startsWith("//")) return next;
-  return "/";
-}
-
 /** BE nhúng số phút còn lại trong message 423 (2 dạng: "thử lại sau N phút" / "khóa 15 phút") */
 function parseLockoutSeconds(message: string): number {
   const match = message.match(/(\d+)\s*(?:phút|minutes?)/i);
@@ -88,6 +85,10 @@ export function LoginForm() {
   const [failure, setFailure] = useState<LoginFailure>({ kind: "none" });
   const [lockout, setLockout] = useState<LockoutState | null>(null);
   const [resendToken, setResendToken] = useState<string | null>(null);
+  // USER_INACTIVE gộp 2 trường hợp (chưa xác thực email / bị Admin vô hiệu hóa) —
+  // BE trả cùng mã + message nên FE không phân biệt được. Không bày sẵn form gửi
+  // lại email (vô nghĩa với tài khoản bị khóa): chỉ mở khi người dùng chủ động chọn.
+  const [showResend, setShowResend] = useState(false);
   const [isRedirectingGoogle, setIsRedirectingGoogle] = useState(false);
 
   const schema = useMemo(
@@ -139,10 +140,13 @@ export function LoginForm() {
         // Luồng 2FA: giữ tempToken trong sessionStorage (đề phòng reload trong 5 phút);
         // trang /2fa đọc lại token này
         sessionStorage.setItem(TEMP_TOKEN_STORAGE_KEY, data.tempToken);
+        // Giữ ?next= qua bước /2fa (two-factor-form đọc lại khi xác thực xong)
+        savePendingNext(readSafeNextFromUrl());
         router.replace("/2fa");
         return;
       }
-      router.replace(getSafeNext());
+      clearPendingNext();
+      router.replace(readSafeNextFromUrl());
     },
     onError: (error) => {
       releaseActionLock(submitLockRef);
@@ -173,6 +177,7 @@ export function LoginForm() {
           return;
         }
         if (error.code === ErrorCode.USER_INACTIVE) {
+          setShowResend(false);
           setFailure({ kind: "inactive", message: error.message });
           return;
         }
@@ -231,6 +236,8 @@ export function LoginForm() {
     setIsRedirectingGoogle(true);
     const state = generateOAuthState();
     saveOAuthState(state);
+    // Giữ ?next= qua vòng Google → /auth/callback (→ /2fa nếu bật 2FA)
+    savePendingNext(readSafeNextFromUrl());
     if (typeof window !== "undefined") {
       sessionStorage.setItem(
         "ppe_pending_remember_me",
@@ -468,29 +475,42 @@ export function LoginForm() {
           className="rounded-xl border border-warning/40 bg-warning/10 px-3.5 py-3 text-sm text-amber-800 dark:text-amber-300"
         >
           <p>{failure.message}</p>
-          <TurnstileField
-            ref={turnstileRef}
-            action="resend_verification"
-            onToken={setResendToken}
-            className="mt-3"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-3 w-full"
-            disabled={resend.isPending || (turnstileRequired && !resendToken)}
-            onClick={handleResend}
-          >
-            {resend.isPending ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                {t("login.resending")}
-              </span>
-            ) : (
-              t("login.resendVerification")
-            )}
-          </Button>
+          {!showResend ? (
+            <button
+              type="button"
+              data-testid="login-inactive-show-resend"
+              onClick={() => setShowResend(true)}
+              className="mt-2 py-1.5 text-xs font-medium underline underline-offset-4 transition-opacity hover:opacity-80"
+            >
+              {t("login.inactiveShowResend")}
+            </button>
+          ) : (
+            <>
+              <TurnstileField
+                ref={turnstileRef}
+                action="resend_verification"
+                onToken={setResendToken}
+                className="mt-3"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3 w-full"
+                disabled={resend.isPending || (turnstileRequired && !resendToken)}
+                onClick={handleResend}
+              >
+                {resend.isPending ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                    {t("login.resending")}
+                  </span>
+                ) : (
+                  t("login.resendVerification")
+                )}
+              </Button>
+            </>
+          )}
         </div>
       )}
 

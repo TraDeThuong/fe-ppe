@@ -2,13 +2,20 @@ import axios from "axios";
 import { apiClient } from "@/lib/axios";
 import type { StatusCountsSupportedFilters } from "@/lib/incident-counts";
 import type {
+  BatchAssignIncidentsResult,
+  BatchCloseIncidentsResult,
+  BatchDeleteEvidencesResult,
+  BatchResolveIncidentsResult,
+  SharedResolutionEvidencePayload,
   ChecksumVerifyResult,
   CloseIncidentPayload,
   CreateAssignmentPayload,
   CreateEvidencePayload,
   CreateIncidentPayload,
+  EvidenceFilterParams,
   EvidenceItem,
   EvidenceQueryParams,
+  EvidenceSummary,
   EvidenceType,
   EvidenceUploadUrlResponse,
   FeedbackDatasetItem,
@@ -172,6 +179,50 @@ export const incidentService = {
     updatedIds: string[];
   }> {
     const res = await apiClient.post<unknown>("/incidents/batch-review", payload);
+    return unwrapData(res);
+  },
+
+  /**
+   * POST /api/v1/incidents/batch-assign (tối đa 100 id, cần PPE_INCIDENT_MANAGE).
+   * BE kiểm tra người nhận thuộc công trường của từng sự cố và tự gửi 1 thông báo giao việc.
+   * Không tự hiện toast: nơi gọi cần phân biệt 404 (BE chưa triển khai) để chuyển sang luồng cũ.
+   */
+  async batchAssignIncidents(payload: {
+    ids: string[];
+    assignedTo: string;
+    note?: string;
+  }): Promise<BatchAssignIncidentsResult> {
+    const res = await apiClient.post<unknown>("/incidents/batch-assign", payload, {
+      suppressToast: true,
+    } as Record<string, unknown>);
+    return unwrapData(res);
+  },
+
+  /**
+   * POST /api/v1/incidents/batch-resolve (tối đa 100 id, cần PPE_INCIDENT_UPDATE).
+   * `sharedEvidence` gắn cùng 1 tệp đã tải lên cho mọi sự cố (storageKey phải cùng công trường).
+   */
+  async batchResolveIncidents(payload: {
+    ids: string[];
+    resolutionNote: string;
+    sharedEvidence?: SharedResolutionEvidencePayload;
+  }): Promise<BatchResolveIncidentsResult> {
+    const res = await apiClient.post<unknown>("/incidents/batch-resolve", payload, {
+      suppressToast: true,
+    } as Record<string, unknown>);
+    return unwrapData(res);
+  },
+
+  /**
+   * POST /api/v1/incidents/batch-close (tối đa 100 id, cần PPE_INCIDENT_MANAGE).
+   */
+  async batchCloseIncidents(payload: {
+    ids: string[];
+    closeNote?: string;
+  }): Promise<BatchCloseIncidentsResult> {
+    const res = await apiClient.post<unknown>("/incidents/batch-close", payload, {
+      suppressToast: true,
+    } as Record<string, unknown>);
     return unwrapData(res);
   },
 
@@ -490,6 +541,45 @@ export const incidentService = {
   ): Promise<{ items: EvidenceItem[]; meta?: PaginationMeta }> {
     const res = await apiClient.get<unknown>("/evidences", { params });
     return unwrapPaginated<EvidenceItem>(res);
+  },
+
+  /**
+   * GET /api/v1/evidences/summary
+   * Tổng hợp toàn kho (tổng số, theo loại, dung lượng, số tệp có SHA-256) theo đúng bộ lọc server-side.
+   */
+  async getEvidencesSummary(params?: EvidenceFilterParams): Promise<EvidenceSummary> {
+    const res = await apiClient.get<unknown>("/evidences/summary", { params });
+    const data = unwrapData<Partial<EvidenceSummary> | null>(res) ?? {};
+    const toNum = (v: unknown) => {
+      const n = Number(v ?? 0);
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    };
+    const byType: Record<string, number> = {};
+    for (const [k, v] of Object.entries(data.byType ?? {})) byType[k] = toNum(v);
+    return {
+      total: toNum(data.total),
+      byType,
+      totalBytes: toNum(data.totalBytes),
+      withChecksumCount: toNum(data.withChecksumCount),
+    };
+  },
+
+  /**
+   * POST /api/v1/evidences/batch-delete
+   * Xóa hàng loạt tối đa 100 bằng chứng/lần. BE bỏ qua (skippedIds) bằng chứng không tồn tại,
+   * ngoài phạm vi công trường hoặc thuộc sự cố đã CLOSED.
+   */
+  async batchDeleteEvidences(ids: string[]): Promise<BatchDeleteEvidencesResult> {
+    const res = await apiClient.post<unknown>("/evidences/batch-delete", { ids });
+    const data = unwrapData<Partial<BatchDeleteEvidencesResult> | null>(res) ?? {};
+    const deletedIds = Array.isArray(data.deletedIds) ? data.deletedIds : [];
+    const skippedIds = Array.isArray(data.skippedIds) ? data.skippedIds : [];
+    return {
+      total: Number(data.total ?? ids.length) || ids.length,
+      deletedCount: Number(data.deletedCount ?? deletedIds.length) || deletedIds.length,
+      deletedIds,
+      skippedIds,
+    };
   },
 
   /**

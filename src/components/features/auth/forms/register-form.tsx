@@ -12,6 +12,7 @@ import { FormField, Input, PasswordInput } from "@ui/form";
 
 import { shouldToastError, useRegister } from "@/hooks/auth";
 import { ApiError } from "@/lib/axios";
+import { PASSWORD_MAX_LENGTH } from "@/lib/password-policy";
 import { normalizeEmail } from "@/lib/email";
 import { useLocale } from "@/providers/locale-provider";
 import { ErrorCode } from "@/types";
@@ -25,6 +26,7 @@ import {
 interface RegisterFormValues {
   email: string;
   password: string;
+  confirmPassword: string;
   fullName?: string;
 }
 
@@ -54,18 +56,25 @@ export function RegisterForm() {
           .string()
           .min(1, t("register.passwordRequired"))
           .min(8, t("register.passwordInvalid"))
+          .max(PASSWORD_MAX_LENGTH, t("register.passwordTooLong"))
           .regex(/[a-z]/, t("register.passwordInvalid"))
           .regex(/[A-Z]/, t("register.passwordInvalid"))
           .regex(/[0-9]/, t("register.passwordInvalid"))
           .regex(/[^a-zA-Z0-9]/, t("register.passwordInvalid")),
+        confirmPassword: z.string().min(1, t("register.confirmPasswordRequired")),
         fullName: z.string().trim().optional(),
+      })
+      // Báo lỗi dưới ô xác nhận — chỉ so khớp ở FE, BE không nhận field này
+      .refine((values) => values.password === values.confirmPassword, {
+        message: t("register.confirmPasswordMismatch"),
+        path: ["confirmPassword"],
       }),
     [t],
   );
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { email: "", password: "", fullName: "" },
+    defaultValues: { email: "", password: "", confirmPassword: "", fullName: "" },
   });
 
   const register = useRegister({
@@ -198,6 +207,20 @@ export function RegisterForm() {
           placeholder={t("register.passwordPlaceholder")}
           disabled={register.isPending}
           {...form.register("password")}
+        />
+      </FormField>
+
+      <FormField
+        id="confirmPassword"
+        label={t("register.confirmPassword")}
+        required
+        error={form.formState.errors.confirmPassword?.message}
+      >
+        <PasswordInput
+          autoComplete="new-password"
+          placeholder={t("register.confirmPasswordPlaceholder")}
+          disabled={register.isPending}
+          {...form.register("confirmPassword")}
         />
       </FormField>
 
