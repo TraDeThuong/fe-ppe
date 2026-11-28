@@ -78,7 +78,7 @@ interface GuideContent {
   watchOut: string;
 }
 
-function buildGuideContent(
+export function buildGuideContent(
   key: AiCardGuideKey,
   isVi: boolean,
   activeVersion?: AiModelVersionDto | null,
@@ -215,6 +215,18 @@ function buildGuideContent(
             meaning: isVi
               ? "Cam kết chất lượng hệ thống: mỗi khung hình phải xử lý xong dưới 100 mili-giây để cảnh báo kịp thời."
               : "Service level target: frames should complete within 100 ms for timely alerting.",
+          },
+          {
+            term: isVi ? "Độ trễ P95 (< 100 ms)" : "P95 Latency (< 100 ms)",
+            meaning: isVi
+              ? "95% khung hình được xử lý nhanh hơn con số này. P95 phản ánh các lần chậm thường gặp mà số trung bình che mất — nên giữ dưới 100 ms."
+              : "95% of frames finish faster than this value. P95 exposes the common slow cases that the average hides — keep it under 100 ms.",
+          },
+          {
+            term: isVi ? "Độ trễ cảnh báo đầu-cuối (< 2000 ms)" : "E2E Alert Latency (< 2000 ms)",
+            meaning: isVi
+              ? "Tổng thời gian từ lúc camera ghi nhận vi phạm đến khi cảnh báo tới người giám sát (gồm suy luận AI, truyền tin và gửi thông báo). Mục tiêu dưới 2000 ms (2 giây)."
+              : "Total time from the camera capturing a violation to the alert reaching the supervisor (AI inference, messaging and notification delivery). Target is under 2000 ms (2 seconds).",
           },
           {
             term: isVi ? "Nếu biểu đồ báo \"Chưa có dữ liệu độ trễ\"" : "If it says \"No latency data\"",

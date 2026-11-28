@@ -17,6 +17,49 @@ export interface LatencyChartCardProps {
   onOpenGuide?: () => void;
 }
 
+/** SLA cho độ trễ suy luận (Avg / P95 / Min): mỗi khung hình < 100 ms. */
+export const INFERENCE_LATENCY_SLA_MS = 100;
+/** SLA cho độ trễ cảnh báo đầu-cuối (E2E Alert): < 2000 ms. */
+export const E2E_ALERT_LATENCY_SLA_MS = 2000;
+/** Mốc FPS dùng làm 100% cho thanh tiến độ thông lượng. */
+export const THROUGHPUT_TARGET_FPS = 60;
+
+/**
+ * Cách tính độ rộng thanh tiến độ của từng thẻ KPI:
+ * - "inference": giá trị / SLA suy luận 100 ms
+ * - "peak": đỉnh độ trễ so với trục cao nhất của biểu đồ
+ * - "e2e": giá trị / SLA cảnh báo đầu-cuối 2000 ms
+ * - "fps": giá trị / 60 FPS
+ */
+export type LatencyStatBarKind = "inference" | "peak" | "e2e" | "fps";
+
+export function computeLatencyStatBarWidth(
+  kind: LatencyStatBarKind,
+  value: number | null,
+  chart: { highestLatency: number; maxVal: number },
+): number {
+  if (value === null || !Number.isFinite(value)) return 0;
+
+  let ratio: number;
+  switch (kind) {
+    case "peak":
+      ratio = chart.highestLatency / Math.max(chart.maxVal, 1);
+      break;
+    case "e2e":
+      ratio = value / E2E_ALERT_LATENCY_SLA_MS;
+      break;
+    case "fps":
+      ratio = value / THROUGHPUT_TARGET_FPS;
+      break;
+    case "inference":
+    default:
+      ratio = value / INFERENCE_LATENCY_SLA_MS;
+      break;
+  }
+
+  return Math.max(0, Math.min(100, ratio * 100));
+}
+
 export function LatencyChartCard({
   latencyHistory = [],
   avgLatencyMs = null,
@@ -144,8 +187,8 @@ export function LatencyChartCard({
 
           <div className="h-[260px] rounded-[20px] bg-muted/40 shadow-[inset_4px_4px_10px_var(--shadow-dark),inset_-4px_-4px_10px_var(--shadow-light)]" />
 
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-            {[0, 1, 2, 3].map((idx) => (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+            {[0, 1, 2, 3, 4, 5].map((idx) => (
               <div key={idx} className="h-28 rounded-[17px] bg-muted/40" />
             ))}
           </div>
@@ -161,6 +204,7 @@ export function LatencyChartCard({
       unit: "ms",
       icon: Clock,
       accent: false,
+      bar: "inference" as LatencyStatBarKind,
       note: isVi ? "Độ trễ trung bình" : "Average latency",
     },
     {
@@ -169,6 +213,7 @@ export function LatencyChartCard({
       unit: "ms",
       icon: Gauge,
       accent: false,
+      bar: "inference" as LatencyStatBarKind,
       note: isVi ? "Phân vị P95 (< 100 ms)" : "95th percentile (< 100 ms)",
     },
     {
@@ -177,6 +222,7 @@ export function LatencyChartCard({
       unit: "ms",
       icon: BellRing,
       accent: true,
+      bar: "e2e" as LatencyStatBarKind,
       note: isVi ? "Cảnh báo đầu-cuối (< 2000 ms)" : "End-to-End Alert (< 2000 ms)",
     },
     {
@@ -185,6 +231,7 @@ export function LatencyChartCard({
       unit: "ms",
       icon: TrendingDown,
       accent: false,
+      bar: "inference" as LatencyStatBarKind,
       note: isVi ? "Mức thấp nhất trong kỳ" : "Minimum latency",
     },
     {
@@ -193,6 +240,7 @@ export function LatencyChartCard({
       unit: "ms",
       icon: TrendingUp,
       accent: true,
+      bar: "peak" as LatencyStatBarKind,
       note: isVi ? "Đỉnh độ trễ trong kỳ" : "Peak latency",
     },
     {
@@ -201,6 +249,7 @@ export function LatencyChartCard({
       unit: "FPS",
       icon: Gauge,
       accent: false,
+      bar: "fps" as LatencyStatBarKind,
       note: hasData
         ? `${observedFpsMin.toFixed(1)}–${observedFpsMax.toFixed(1)} FPS`
         : isVi
@@ -544,13 +593,10 @@ export function LatencyChartCard({
           {stats.map((stat, statIdx) => {
             const Icon = stat.icon;
             const numericStat = stat.value;
-            const targetWidth = numericStat === null
-              ? 0
-              : stat.accent
-                ? (highestLatency / Math.max(maxVal, 1)) * 100
-                : stat.unit === "FPS"
-                  ? Math.min(100, (numericStat / 60) * 100)
-                  : Math.min(100, numericStat);
+            const targetWidth = computeLatencyStatBarWidth(stat.bar, numericStat, {
+              highestLatency,
+              maxVal,
+            });
 
             return (
               <div

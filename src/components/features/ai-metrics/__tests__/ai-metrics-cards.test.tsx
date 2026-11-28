@@ -5,7 +5,12 @@ import React from "react";
 import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LocaleProvider } from "@/providers/locale-provider";
-import { LatencyChartCard } from "../latency-chart-card";
+import {
+  computeLatencyStatBarWidth,
+  E2E_ALERT_LATENCY_SLA_MS,
+  LatencyChartCard,
+} from "../latency-chart-card";
+import { buildGuideContent } from "../ai-metrics-guide-modal";
 import { ConfusionMatrixHeatmap } from "../confusion-matrix-heatmap";
 import { ActiveModelBanner } from "../active-model-banner";
 import { ModelGovernanceTable } from "../model-governance-table";
@@ -40,6 +45,44 @@ describe("ai-metrics cards", () => {
     );
     assert.ok(html.includes('aria-busy="true"'));
     assert.ok(html.includes("animate-pulse"));
+  });
+
+  it("LatencyChartCard loading skeleton has 6 KPI tiles matching the real 6-column grid", () => {
+    const html = renderWithProviders(
+      React.createElement(LatencyChartCard, { loading: true }),
+    );
+    assert.ok(html.includes("grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6"));
+    assert.ok(!html.includes("xl:grid-cols-4"));
+    const tiles = html.match(/h-28 rounded-\[17px\] bg-muted\/40/g) ?? [];
+    assert.equal(tiles.length, 6);
+  });
+
+  it("computeLatencyStatBarWidth scales E2E alert latency against the 2000 ms SLA", () => {
+    const chart = { highestLatency: 95, maxVal: 100 };
+    assert.equal(E2E_ALERT_LATENCY_SLA_MS, 2000);
+    // 412.6 / 2000 = 20.63%, không phụ thuộc đỉnh Inference Latency (95%)
+    assert.ok(Math.abs(computeLatencyStatBarWidth("e2e", 412.6, chart) - 20.63) < 1e-9);
+    assert.equal(computeLatencyStatBarWidth("e2e", 1000, chart), 50);
+    assert.equal(computeLatencyStatBarWidth("e2e", 2500, chart), 100);
+    assert.equal(computeLatencyStatBarWidth("e2e", null, chart), 0);
+  });
+
+  it("computeLatencyStatBarWidth keeps peak, inference and FPS formulas", () => {
+    const chart = { highestLatency: 45, maxVal: 60 };
+    assert.equal(computeLatencyStatBarWidth("peak", 45, chart), 75);
+    assert.equal(computeLatencyStatBarWidth("inference", 31.2, chart), 31.2);
+    assert.equal(computeLatencyStatBarWidth("inference", 150, chart), 100);
+    assert.equal(computeLatencyStatBarWidth("fps", 30, chart), 50);
+    assert.equal(computeLatencyStatBarWidth("fps", null, chart), 0);
+  });
+
+  it("latency-chart guide explains P95 (< 100 ms) and E2E Alert (< 2000 ms) in vi and en", () => {
+    const vi = buildGuideContent("latency-chart", true).howToRead.map((row) => row.term);
+    const en = buildGuideContent("latency-chart", false).howToRead.map((row) => row.term);
+    assert.ok(vi.some((term) => term.includes("P95") && term.includes("100 ms")));
+    assert.ok(vi.some((term) => term.includes("đầu-cuối") && term.includes("2000 ms")));
+    assert.ok(en.some((term) => term.includes("P95") && term.includes("100 ms")));
+    assert.ok(en.some((term) => term.includes("E2E") && term.includes("2000 ms")));
   });
 
   it("LatencyChartCard renders both latency and FPS series when data exists", () => {
