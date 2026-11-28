@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { apiClient } from "@/lib/axios";
+import { incidentService } from "@/services/incident.service";
 import type { EvidenceItem, IncidentItem } from "@/types";
 import { IncidentEvidenceViewer } from "../incident-evidence-viewer";
 import { IncidentQuickDetailPanel } from "../incident-quick-detail-panel";
@@ -104,6 +105,25 @@ describe("sample image /images/camera-live-evidence.jpg is never shown for an in
         await act(() => image.dispatchEvent(new window.Event("error")));
         assert.doesNotMatch(body.innerHTML, SAMPLE_RE);
         assert.match(body.textContent ?? "", /không thể tải tệp/);
+      },
+    );
+  });
+
+  it("rejects a signed sample URL when the quick panel image fails to load", async (t) => {
+    const getDownloadUrl = t.mock.method(incidentService, "getEvidenceDownloadUrl", async () => ({
+      downloadUrl: `https://app.test${SAMPLE}?signature=example`,
+    }));
+
+    await renderWithDom(
+      <IncidentQuickDetailPanel incident={incident({ evidences: [evidence("real")] })} />,
+      async ({ body, window, act }) => {
+        const image = body.querySelector("img[alt^='Evidence #']");
+        assert.ok(image, "initial evidence image");
+        await act(() => image.dispatchEvent(new window.Event("error")));
+
+        assert.equal(getDownloadUrl.mock.callCount(), 1);
+        assert.doesNotMatch(body.innerHTML, SAMPLE_RE);
+        assert.equal(body.querySelector("img[alt^='Evidence #']"), null);
       },
     );
   });

@@ -10,6 +10,7 @@ import { RefreshButton } from "@/components/ui/refresh-action";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { PageHeader } from "@/components/features/app-shell/page-header";
 import { SystemHealthCards } from "@/components/features/system/system-health-cards";
+import type { SystemHealthFilter } from "@/components/features/system/system-health-shared";
 import {
   CreateConfigModal,
   DeleteConfigDialog,
@@ -119,6 +120,10 @@ export default function SystemContent() {
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
+
+  // Bộ lọc tab Sức khỏe dùng chung cho Bảng & Thẻ (giữ nguyên khi đổi chế độ xem)
+  const [healthFilter, setHealthFilter] = useState<SystemHealthFilter>("ALL");
+  const [healthSearch, setHealthSearch] = useState("");
 
   // State tìm kiếm và lọc danh mục
   const [search, setSearch] = useState("");
@@ -397,8 +402,6 @@ export default function SystemContent() {
         onSelectStat={handleSelectStat}
         activeTab={activeTab}
         onSelectTab={handleTabChange}
-        onRefreshHealth={() => refetchHealth()}
-        isRefreshingHealth={isRefreshingHealth}
         onCreateConfig={() => setCreateModalOpen(true)}
         onToggleFlag={handleOpenToggleDialog}
         isTogglingFlag={isToggling}
@@ -511,12 +514,21 @@ export default function SystemContent() {
               isRefreshing={isRefreshingHealth}
               onRefresh={() => refetchHealth()}
               isAdmin={canManage}
+              filter={healthFilter}
+              onFilterChange={setHealthFilter}
+              search={healthSearch}
+              onSearchChange={setHealthSearch}
             />
           ) : (
             <SystemHealthMatrix
               healthReport={healthReport}
               onRefresh={() => refetchHealth()}
               isRefreshing={isRefreshingHealth}
+              isAdmin={canManage}
+              filter={healthFilter}
+              onFilterChange={setHealthFilter}
+              search={healthSearch}
+              onSearchChange={setHealthSearch}
             />
           )}
         </div>

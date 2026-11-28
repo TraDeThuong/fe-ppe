@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { verifyProbeCaller } from "@/lib/system-probe-auth";
+
 type ProbeTargetKey = "ai" | "traefik" | "minio";
 type FailureKind = "CONNECTION_REFUSED" | "TIMEOUT" | "HTTP_ERROR" | "PAYLOAD_UNHEALTHY" | "UNKNOWN";
 
@@ -55,15 +57,11 @@ function classifyFetchError(error: unknown): {
 }
 
 export async function GET(req: NextRequest) {
-  const hasAuthCookie = Boolean(
-    req.cookies.get("accessToken")?.value ||
-      req.cookies.get("refreshToken")?.value,
-  );
-  const hasAuthHeader = Boolean(req.headers.get("authorization")?.trim());
-  if (!hasAuthCookie && !hasAuthHeader) {
+  const auth = await verifyProbeCaller(req);
+  if (!auth.ok) {
     return NextResponse.json(
-      { ok: false, reason: "Unauthorized" },
-      { status: 401 },
+      { ok: false, reason: auth.reason },
+      { status: auth.status },
     );
   }
 

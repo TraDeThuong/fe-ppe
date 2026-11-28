@@ -48,6 +48,17 @@ const incident = {
 
 apiClient.get = (async (url: string) => {
   if (url === "/incidents/inc-1") return { data: incident };
+  if (url === "/incidents/inc-2") {
+    sessionStorage.setItem("ppe_incident_evidence_inc-2", "/images/camera-live-evidence.jpg");
+    return {
+      data: {
+        ...incident,
+        id: "inc-2",
+        evidences: [],
+        snapshotUrl: "/evidence/incident-snapshot.jpg",
+      },
+    };
+  }
   return new Promise(() => {});
 }) as never;
 
@@ -82,6 +93,19 @@ it("incident detail page neither shows the sample image nor sends it when re-sen
 
       assert.equal(sent.length, 1);
       assert.match(sent[0].evidenceUrl ?? "", /\/violation\.jpg$/, "sends the violation snapshot");
+    },
+    { desktop: true },
+  );
+});
+
+it("incident detail page uses the real snapshot when session storage contains the sample", async () => {
+  await renderWithDom(
+    <SearchParamsContext.Provider value={new URLSearchParams() as never}>
+      <IncidentDetailContent id="inc-2" />
+    </SearchParamsContext.Provider>,
+    async ({ body }) => {
+      assert.ok(body.querySelector('img[src="/evidence/incident-snapshot.jpg"]'));
+      assert.doesNotMatch(body.innerHTML, /camera-live-evidence/);
     },
     { desktop: true },
   );

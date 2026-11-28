@@ -22,10 +22,6 @@ import {
   DashboardViolationTrendsChart,
   DashboardNavTabs,
 } from "../index";
-import { DashboardExecutiveKpi } from "../dashboard-executive-kpi";
-import { DashboardUsersOverviewCard } from "../dashboard-users-overview-card";
-import { DashboardAuditMiniFeed } from "../dashboard-audit-mini-feed";
-import { DashboardCronMiniCard } from "../dashboard-cron-mini-card";
 import { DashboardChartExplainButton } from "../charts/dashboard-chart-explain-modal";
 import {
   aggregateDashboard,
@@ -435,6 +431,8 @@ describe("Dashboard Components", () => {
         <DashboardQuickActions
           canExportReports={true}
           canReviewIncidents={true}
+          canViewCameras
+          canViewSites
         />,
       );
 
@@ -448,6 +446,20 @@ describe("Dashboard Components", () => {
           html.includes("Generate Safety Report"),
       );
       assert.ok(html.includes("Cấu hình an toàn") || html.includes("Safety"));
+    });
+
+    it("checks Camera and Site read permissions independently", () => {
+      const camerasOnly = renderWithProviders(
+        <DashboardQuickActions canViewCameras canViewSites={false} />,
+      );
+      assert.match(camerasOnly, /href="\/cameras\?view=wall"/);
+      assert.doesNotMatch(camerasOnly, /href="\/sites"/);
+
+      const sitesOnly = renderWithProviders(
+        <DashboardQuickActions canViewCameras={false} canViewSites />,
+      );
+      assert.doesNotMatch(sitesOnly, /href="\/cameras\?view=wall"/);
+      assert.match(sitesOnly, /href="\/sites"/);
     });
   });
 
@@ -733,7 +745,7 @@ describe("Dashboard Components", () => {
     });
   });
 
-  describe("Dashboard Navigation & Multi-Domain Executive Widgets", () => {
+  describe("Dashboard Navigation & System Health Cards", () => {
     it("renders the three PPE sub-navigation tabs with incident and camera badges", () => {
       const html = renderWithProviders(
         <DashboardNavTabs
@@ -753,34 +765,6 @@ describe("Dashboard Components", () => {
       assert.ok(html.includes("4/4"));
     });
 
-    it("renders 4 executive KPI pillars with real metrics", () => {
-      const html = renderWithProviders(
-        <DashboardExecutiveKpi
-          totalIncidents={25}
-          pendingCount={3}
-          onlineCameras={8}
-          totalCameras={10}
-          aiModelVersion="YOLO11x active"
-          totalUsers={42}
-          activeUsers={38}
-          twoFactorCount={35}
-          healthyServices={12}
-          totalServices={12}
-          avgLatencyMs={18}
-          systemStatus="HEALTHY"
-        />,
-      );
-
-      assert.ok(html.includes("25"));
-      assert.ok(html.includes("sự cố"));
-      assert.ok(html.includes("3"));
-      assert.ok(html.includes("8/10"));
-      assert.ok(html.includes("YOLO11x active"));
-      assert.ok(html.includes("42"));
-      assert.ok(html.includes("12/12"));
-      assert.ok(html.includes("18ms"));
-    });
-
     it("renders the service health card without a link back to its own page", () => {
       const html = renderWithProviders(<SystemHealthCards onRefresh={() => {}} />);
       assert.ok(
@@ -791,7 +775,7 @@ describe("Dashboard Components", () => {
       assert.ok(!html.includes("/system?tab=health"));
     });
 
-    it("renders clear status badges, filter pills, and recheck control for health report", () => {
+    it("renders clear status badges, filter pills and search for health report", () => {
       const html = renderWithProviders(
         <SystemHealthCards
           onRefresh={() => {}}
@@ -845,7 +829,9 @@ describe("Dashboard Components", () => {
       assert.ok(html.includes("Chậm") || html.includes("Slow"));
       assert.ok(html.includes("Mất kết nối") || html.includes("Down"));
       assert.ok(html.includes("Cần chú ý") || html.includes("Issues"));
-      assert.ok(html.includes("Kiểm tra lại") || html.includes("Recheck"));
+      // Làm mới dùng nút "Làm mới" ở PageHeader /system; thẻ không lặp nút "Kiểm tra lại".
+      assert.ok(!html.includes("Kiểm tra lại") && !html.includes("Recheck"));
+      assert.ok(html.includes('type="search"'));
       assert.ok(html.includes("1/3"));
       // Impact banner & actionable controls
       assert.ok(html.includes("Ảnh hưởng tới bạn"));
@@ -908,149 +894,6 @@ describe("Dashboard Components", () => {
         />,
       );
       assert.ok(adminHtml.includes("Mở Kiểm thử AI"));
-    });
-
-    it("renders users overview card with title and management links", () => {
-      const html = renderWithProviders(<DashboardUsersOverviewCard />);
-      assert.ok(
-        html.includes("Người dùng &amp; Phân quyền") ||
-          html.includes("Users &amp; Access") ||
-          html.includes("Người dùng"),
-      );
-      assert.ok(html.includes("/users"));
-      assert.ok(html.includes("/roles"));
-    });
-
-    it("renders audit mini feed with title and view all link", () => {
-      const html = renderWithProviders(<DashboardAuditMiniFeed />);
-      assert.ok(
-        html.includes("Nhật ký Hoạt động Gần nhất") ||
-          html.includes("Recent Audit Activity") ||
-          html.includes("Nhật ký"),
-      );
-      assert.ok(html.includes("/audit-logs"));
-    });
-
-    it("renders real successRate (or '--' when null) and permission guard for audit mini feed", () => {
-      const emptyHtml = renderWithProviders(
-        <DashboardAuditMiniFeed
-          summaryOverride={{
-            totalLogs: 0,
-            configChangesCount: 0,
-            incidentReviewsCount: 0,
-            successRate: null,
-            recentActivity: [],
-          }}
-        />,
-      );
-      assert.ok(emptyHtml.includes("--"));
-      assert.ok(!emptyHtml.includes("100%"));
-
-      const populatedHtml = renderWithProviders(
-        <DashboardAuditMiniFeed
-          summaryOverride={{
-            totalLogs: 16,
-            configChangesCount: 3,
-            incidentReviewsCount: 5,
-            successRate: 87.5,
-            recentActivity: [
-              {
-                id: "log-fail",
-                userId: "u-1",
-                userName: "Trần Thanh Trà",
-                action: "ACCOUNT_LOCKED",
-                targetType: "USER",
-                targetId: "u-1",
-                status: "FAILED",
-                errorMessage: "Too many failed attempts",
-                createdAt: "2026-11-16T08:15:00.000Z",
-              },
-            ],
-          }}
-        />,
-      );
-      assert.ok(populatedHtml.includes("87.5%"));
-      assert.ok(populatedHtml.includes("ACCOUNT_LOCKED"));
-      assert.ok(populatedHtml.includes("bg-danger"));
-
-      const deniedHtml = renderWithProviders(<DashboardAuditMiniFeed enabled={false} />);
-      assert.ok(!deniedHtml.includes('href="/audit-logs"'));
-      assert.ok(
-        deniedHtml.includes("không có quyền") || deniedHtml.includes("do not have permission"),
-      );
-    });
-
-    it("renders cron mini card with title and manage tasks link", () => {
-      const html = renderWithProviders(<DashboardCronMiniCard />);
-      assert.ok(
-        html.includes("Tác vụ Lập lịch (Cron)") ||
-          html.includes("Scheduled Tasks (Cron)") ||
-          html.includes("Cron"),
-      );
-      assert.ok(html.includes("/scheduled-tasks"));
-    });
-
-    it("renders human-readable cron jobs, honest schedule badges, and quick actions when allowed", () => {
-      const recentTimestamp = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      const html = renderWithProviders(
-        <DashboardCronMiniCard
-          canReadOverride={true}
-          canManageOverride={true}
-          jobsOverride={[
-            {
-              name: "cleanup-audit-logs",
-              cron: "0 2 * * *",
-              description: "Dọn dẹp các bản ghi Audit Logs cũ hơn 30 ngày",
-              isEnabled: true,
-            },
-            {
-              name: "cleanup-expired-tokens",
-              cron: "0 4 * * *",
-              description: "Dọn token hết hạn",
-              isEnabled: true,
-            },
-            {
-              name: "weekly-summary-digest",
-              cron: "0 8 * * 1",
-              description: "Báo cáo tổng hợp tuần",
-              isEnabled: false,
-            },
-          ]}
-          auditItemsOverride={[
-            {
-              id: "audit-cron-1",
-              userId: "admin-1",
-              actorId: "admin-1",
-              action: "TRIGGER_CRON_JOB",
-              targetType: "CRON_JOB",
-              targetId: "cleanup-audit-logs",
-              status: "SUCCESS",
-              details: { durationMs: 64, result: { deletedCount: 12 } },
-              createdAt: recentTimestamp,
-            },
-          ]}
-        />,
-      );
-
-      assert.ok(html.includes("Dọn audit log cũ"));
-      assert.ok(html.includes("Báo cáo hoạt động hằng tuần"));
-      assert.ok(html.includes("02:00 hàng ngày (UTC+7)"));
-      assert.ok(html.includes("Tự động bật"));
-      assert.ok(html.includes("Tạm tắt"));
-      assert.equal(html.includes("Đang chạy"), false);
-      assert.ok(html.includes("Vừa mới chạy"));
-      assert.ok(html.includes("Đã xóa 12 nhật ký cũ"));
-      assert.ok(html.includes("Cần bấm chạy"));
-      assert.ok(html.includes("Chạy ngay"));
-      assert.ok(html.includes("Chạy lại"));
-      assert.ok(html.includes("64ms"));
-    });
-
-    it("renders permission message when user cannot read cron jobs", () => {
-      const html = renderWithProviders(
-        <DashboardCronMiniCard canReadOverride={false} />,
-      );
-      assert.ok(html.includes("CRON_JOB_READ"));
     });
   });
 
@@ -1424,6 +1267,8 @@ describe("Dashboard Components", () => {
           columns={4}
           canExportReports={true}
           canReviewIncidents={true}
+          canViewCameras
+          canViewSites
         />,
       );
       assert.ok(actionsHtml.includes("xl:grid-cols-4"));

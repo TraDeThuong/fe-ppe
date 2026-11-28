@@ -20,7 +20,6 @@ import {
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { cameraKeys } from "@/hooks/cameras/camera.query-keys";
 import { aiMetricsKeys } from "@/hooks/ai-metrics/ai-metrics.query-keys";
-import { maintenanceQueryKeys } from "@/hooks/maintenance/maintenance.query-keys";
 import { siteKeys, useSites } from "@/hooks/sites";
 import {
   useDashboardData,
@@ -263,7 +262,6 @@ export default function DashboardContent() {
         queryKey: aiMetricsKeys.all,
       }),
       queryClient.invalidateQueries({ queryKey: siteKeys.all }),
-      queryClient.invalidateQueries({ queryKey: maintenanceQueryKeys.all }),
     ]);
   }, [queryClient]);
 
@@ -626,6 +624,8 @@ export default function DashboardContent() {
                   }
                   canExportReports={canExportReports}
                   canReviewIncidents={canReviewIncidents}
+                  canViewCameras={canViewCameras}
+                  canViewSites={canViewSites}
                 />
               </div>
             )}
@@ -654,6 +654,8 @@ export default function DashboardContent() {
               }
               canExportReports={canExportReports}
               canReviewIncidents={canReviewIncidents}
+              canViewCameras={canViewCameras}
+              canViewSites={canViewSites}
             />
           )}
         </div>

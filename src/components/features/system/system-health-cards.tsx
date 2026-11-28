@@ -5,25 +5,21 @@ import Link from "next/link";
 import {
   Activity,
   AlertTriangle,
-  ArrowRight,
   Check,
   CheckCircle2,
   Clock,
   Copy,
   Database,
   HelpCircle,
-  RefreshCw,
   Server,
   ShieldAlert,
   Wrench,
-  X,
   XCircle,
 } from "lucide-react";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useMaintenanceStatus } from "@/hooks/maintenance";
 import { useRefreshFeedback } from "@/hooks/use-refresh-feedback";
 import {
-  buildSystemHealthSupportReport,
   explainProbeFailure,
   formatServiceLatencyLabel,
   getServiceImpactGuidance,
@@ -40,8 +36,16 @@ import type {
   ServiceHealthStatus,
   SystemHealthReport,
 } from "@/types";
-
-type SystemStatusFilter = "ALL" | "SERVICE" | "INFRASTRUCTURE" | "ISSUES";
+import {
+  HealthSearchInput,
+  ServiceDiagnosticDrawer,
+  countHealthServices,
+  filterHealthServices,
+  resolveHealthFilter,
+  useControllableState,
+  useSupportReportCopy,
+  type SystemHealthFilter,
+} from "./system-health-shared";
 
 interface SystemHealthCardsProps {
   healthReport?: SystemHealthReport;
@@ -49,7 +53,13 @@ interface SystemHealthCardsProps {
   isRefreshing?: boolean;
   isError?: boolean;
   isAdmin?: boolean;
+  /** Dùng cho nút "Thử lại" khi lỗi tải; làm mới thường ngày dùng nút "Làm mới" ở PageHeader. */
   onRefresh: () => unknown;
+  /** Bộ lọc & tìm kiếm dùng chung với chế độ Bảng (tùy chọn — không truyền thì tự quản lý). */
+  filter?: SystemHealthFilter;
+  onFilterChange?: (filter: SystemHealthFilter) => void;
+  search?: string;
+  onSearchChange?: (search: string) => void;
 }
 
 const STATUS_META: Record<
@@ -101,21 +111,25 @@ export function SystemHealthCards({
   isError = false,
   isAdmin = false,
   onRefresh,
+  filter: filterProp,
+  onFilterChange,
+  search: searchProp,
+  onSearchChange,
 }: SystemHealthCardsProps) {
   const { t, locale } = useLocale();
   const isVi = locale === "vi-VN";
   const { data: maintenance } = useMaintenanceStatus();
 
-  const [filter, setFilter] = useState<SystemStatusFilter>("ALL");
+  const [rawFilter, setFilter] = useControllableState<SystemHealthFilter>(
+    filterProp,
+    onFilterChange,
+    "ALL",
+  );
+  const [search, setSearch] = useControllableState<string>(searchProp, onSearchChange, "");
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
-  const [copiedReport, setCopiedReport] = useState(false);
+  const { copied: copiedReport, copy: copySupportReport } = useSupportReportCopy(health);
 
-  const {
-    isSpinning: isRechecking,
-    isSuccess: isRecheckDone,
-    lastSyncedLabel: recheckSyncedLabel,
-    trigger: triggerRecheck,
-  } = useRefreshFeedback({
+  const { isSpinning: isRechecking, trigger: triggerRecheck } = useRefreshFeedback({
     onRefresh,
     isRefreshing,
     hasError: isError,
@@ -124,31 +138,12 @@ export function SystemHealthCards({
   const isMaintenanceActive = Boolean(maintenance?.enabled);
   const services = useMemo(() => health?.services ?? [], [health?.services]);
 
-  const counts = useMemo(() => {
-    let serviceCount = 0;
-    let infraCount = 0;
-    let issueCount = 0;
-    for (const item of services) {
-      if (item.type === "INFRASTRUCTURE") infraCount++;
-      else serviceCount++;
-      if (item.status !== "HEALTHY") issueCount++;
-    }
-    return {
-      all: services.length,
-      service: serviceCount,
-      infra: infraCount,
-      issues: issueCount,
-    };
-  }, [services]);
+  const counts = useMemo(() => countHealthServices(services), [services]);
+  const filter = resolveHealthFilter(rawFilter, counts);
 
   const filteredServices = useMemo(
-    () => services.filter((svc) => {
-      if (filter === "SERVICE") return (svc.type ?? "SERVICE") === "SERVICE";
-      if (filter === "INFRASTRUCTURE") return svc.type === "INFRASTRUCTURE";
-      if (filter === "ISSUES") return svc.status !== "HEALTHY";
-      return true;
-    }),
-    [services, filter],
+    () => filterHealthServices(services, filter, search),
+    [services, filter, search],
   );
 
   const selectedService = useMemo(
@@ -179,26 +174,15 @@ export function SystemHealthCards({
     [selectedService, isAdmin, locale],
   );
 
-  const handleCopySupportReport = async () => {
-    if (!health || typeof navigator === "undefined" || !navigator.clipboard) {
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(
-        buildSystemHealthSupportReport(health, locale),
-      );
-      setCopiedReport(true);
-      setTimeout(() => setCopiedReport(false), 2500);
-    } catch {
-      // Ignore clipboard denial in restricted contexts.
-    }
+  const handleCopySupportReport = () => {
+    void copySupportReport();
   };
 
   const overallMeta = STATUS_META[health?.overallStatus ?? "HEALTHY"];
   const OverallIcon = overallMeta.icon;
 
   const filterTabs: {
-    key: SystemStatusFilter;
+    key: SystemHealthFilter;
     label: string;
     count: number;
     tone?: "issue";
@@ -270,7 +254,7 @@ export function SystemHealthCards({
         </div>
       </div>
 
-      {/* Cụm Trạng thái tổng & Nút Recheck */}
+      {/* Trạng thái tổng (làm mới dùng nút "Làm mới" ở PageHeader) */}
       <div className="flex flex-wrap items-center gap-2.5">
         {health && (
           <div
@@ -284,38 +268,6 @@ export function SystemHealthCards({
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={triggerRecheck}
-          disabled={isRechecking}
-          aria-label={t("dashboard.systemCard.recheck")}
-          title={
-            recheckSyncedLabel
-              ? `${t("dashboard.systemCard.recheck")} · ${recheckSyncedLabel}`
-              : t("dashboard.systemCard.recheck")
-          }
-          className={`inline-flex h-8.5 cursor-pointer items-center gap-1.5 rounded-full bg-background px-3.5 text-[11px] font-bold transition-all disabled:opacity-50 ${NM.tactileBtn} ${
-            isRecheckDone
-              ? "text-emerald-600 dark:text-emerald-400"
-              : "text-foreground"
-          }`}
-        >
-          {isRecheckDone ? (
-            <Check className="size-3.5 stroke-[2.75] text-emerald-500" />
-          ) : (
-            <RefreshCw
-              className={`size-3.5 text-primary ${isRechecking ? "animate-spin" : ""}`}
-              strokeWidth={2.4}
-            />
-          )}
-          <span>
-            {isRecheckDone
-              ? isVi
-                ? "Đã cập nhật"
-                : "Updated"
-              : t("dashboard.systemCard.recheck")}
-          </span>
-        </button>
       </div>
     </div>
 
@@ -391,7 +343,7 @@ export function SystemHealthCards({
           {health && (
             <button
               type="button"
-              onClick={() => void handleCopySupportReport()}
+              onClick={handleCopySupportReport}
               className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-background px-3 py-1 text-[11px] font-bold text-foreground transition-all ${NM.tactileBtn}`}
             >
               {copiedReport ? (
@@ -465,6 +417,12 @@ export function SystemHealthCards({
             );
           })}
         </div>
+
+        <HealthSearchInput
+          value={search}
+          onChange={setSearch}
+          className="w-full sm:w-auto sm:min-w-[220px] sm:flex-1 sm:max-w-xs"
+        />
 
         <span className="rounded-full bg-background px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">
           {t("dashboard.systemCard.inspectHint")}
@@ -626,144 +584,17 @@ export function SystemHealthCards({
 
       {/* CỘT PHẢI: Ngăn kéo kiểm tra chi tiết (Interactive Click-to-Inspect Drawer) */}
       {selectedService && selectedGuidance && (
-        <div
-          role="region"
-          aria-label={selectedService.name}
-          className={`space-y-3 rounded-[20px] bg-background p-4 text-xs lg:col-span-5 ${NM.recessed}`}
-        >
-          {/* Header ngăn kéo */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
-                <p className="truncate text-sm font-black text-foreground">
-                  {selectedService.name}
-                </p>
-              </div>
-              {isAdmin && (
-                <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
-                  {selectedService.serviceCode} · :{selectedService.port} ·{" "}
-                  {selectedService.endpoint}
-                </p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectedCode(null)}
-              aria-label="Close detail"
-              className={`flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-background text-muted-foreground transition-colors hover:text-foreground ${NM.tactileBtn}`}
-            >
-              <X className="size-3.5" />
-            </button>
-          </div>
-
-          {/* 3 Ô thông số kỹ thuật nổi lên trên ngăn kéo */}
-          <div className="grid grid-cols-1 min-[400px]:grid-cols-3 gap-2 text-[11px]">
-            <div className={`rounded-xl bg-background p-2.5 ${NM.extruded}`}>
-              <span className="block text-[10px] font-semibold text-muted-foreground">
-                {selectedService.status === "DOWN"
-                  ? t("dashboard.systemCard.probeDuration")
-                  : t("system.health.tableLatency")}
-              </span>
-              <span className="mt-0.5 block font-mono text-xs font-black text-foreground">
-                {selectedService.status === "DOWN"
-                  ? `${formatServiceLatencyLabel(selectedService)}`
-                  : `${selectedService.latencyMs}ms`}
-              </span>
-            </div>
-
-            <div className={`rounded-xl bg-background p-2.5 ${NM.extruded}`}>
-              <span className="block text-[10px] font-semibold text-muted-foreground">
-                {t("system.health.tableUptime")}
-              </span>
-              <span className="mt-0.5 block font-mono text-xs font-black text-foreground">
-                {selectedService.uptime || "--"}
-              </span>
-            </div>
-
-            <div className={`rounded-xl bg-background p-2.5 ${NM.extruded}`}>
-              <span className="block text-[10px] font-semibold text-muted-foreground">
-                {t("dashboard.systemCard.thresholdNote")}
-              </span>
-              <span className="mt-0.5 block truncate text-xs font-black text-primary">
-                {t(STATUS_META[selectedService.status].labelKey)}
-              </span>
-            </div>
-          </div>
-
-          {/* Khối chẩn đoán & các bước xử lý (Không viền, nổi nhẹ) */}
-          <div
-            className={`space-y-2.5 rounded-2xl bg-background p-3 ${NM.extruded}`}
-          >
-            <p className="text-[11px] leading-relaxed text-foreground">
-              <strong className="font-extrabold">
-                {t("dashboard.systemCard.whyTitle")}:
-              </strong>{" "}
-              {selectedGuidance.why}
-            </p>
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
-              <strong className="font-bold text-foreground">
-                {t("dashboard.systemCard.impactTitle")}:
-              </strong>{" "}
-              {selectedGuidance.impact}
-            </p>
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
-              <strong className="font-bold text-primary">
-                {t("dashboard.systemCard.stillWorksTitle")}:
-              </strong>{" "}
-              {selectedGuidance.stillWorks}
-            </p>
-
-            {/* Các bước khắc phục nằm trong khay lõm mini */}
-            <div className={`rounded-xl bg-background p-2.5 ${NM.recessed}`}>
-              <p className="mb-1.5 text-[11px] font-extrabold text-foreground">
-                {isAdmin
-                  ? t("dashboard.systemCard.adminStepsTitle")
-                  : t("dashboard.systemCard.nextStepsTitle")}
-              </p>
-              <ul className="space-y-1 text-[11px] text-muted-foreground">
-                {selectedGuidance.steps.map((step, idx) => (
-                  <li key={idx} className="flex items-start gap-2">
-                    <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Nút hành động trong ngăn kéo */}
-            <div className="flex flex-wrap items-center gap-2 pt-0.5">
-              {health && (
-                <button
-                  type="button"
-                  onClick={() => void handleCopySupportReport()}
-                  className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-background px-3 py-1.5 text-[11px] font-bold text-foreground transition-all ${NM.tactileBtn}`}
-                >
-                  {copiedReport ? (
-                    <Check className="size-3 text-primary" />
-                  ) : (
-                    <Copy className="size-3 text-muted-foreground" />
-                  )}
-                  <span>
-                    {copiedReport
-                      ? t("dashboard.systemCard.copiedReport")
-                      : t("dashboard.systemCard.copyReport")}
-                  </span>
-                </button>
-              )}
-
-              {isAdmin && selectedGuidance.actionHref && (
-                <Link
-                  href={selectedGuidance.actionHref}
-                  className={`inline-flex items-center gap-1.5 rounded-full bg-background px-3 py-1.5 text-[11px] font-bold text-primary transition-all ${NM.tactileBtn}`}
-                >
-                  <span>{selectedGuidance.actionLabel}</span>
-                  <ArrowRight className="size-3" />
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
+        <ServiceDiagnosticDrawer
+          service={selectedService}
+          guidance={selectedGuidance}
+          statusLabel={t(STATUS_META[selectedService.status].labelKey)}
+          isAdmin={isAdmin}
+          canCopyReport={Boolean(health)}
+          copiedReport={copiedReport}
+          onCopyReport={handleCopySupportReport}
+          onClose={() => setSelectedCode(null)}
+          className="lg:col-span-5"
+        />
       )}
     </div>
   </div>

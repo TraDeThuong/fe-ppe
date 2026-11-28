@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   Activity,
   ArrowRight,
-  CheckCircle2,
   Clock,
   Cpu,
   Database,
@@ -17,16 +16,16 @@ import {
   Settings2,
   ShieldAlert,
   X,
-  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { RefreshButton } from "@/components/ui/refresh-action";
 import { isFeatureFlagEnabled } from "@/lib/system-config";
 import { useLocale } from "@/providers/locale-provider";
-import type { ServiceHealthItem, SystemConfigItem, SystemHealthReport } from "@/types";
+import type { SystemConfigItem, SystemHealthReport } from "@/types";
 import type { SystemTabKey } from "./system-tabs";
 
+// "health" vẫn là một khóa KPI hợp lệ nhưng không mở panel này: thẻ "Cụm Dịch vụ"
+// chuyển thẳng sang tab Sức khỏe (SystemKpiSummary không render panel cho "health").
 export type SystemStatKey = "flags" | "configs" | "health" | "latency";
 
 export interface SystemStatsDetailPanelProps {
@@ -38,8 +37,6 @@ export interface SystemStatsDetailPanelProps {
   configs?: SystemConfigItem[];
   onClose: () => void;
   onSelectTab: (tab: SystemTabKey) => void;
-  onRefreshHealth: () => void;
-  isRefreshingHealth?: boolean;
   onCreateConfig?: () => void;
   onToggleFlag?: (flag: SystemConfigItem, enabled: boolean) => void;
   isTogglingFlag?: boolean;
@@ -55,8 +52,6 @@ export function SystemStatsDetailPanel({
   configs = [],
   onClose,
   onSelectTab,
-  onRefreshHealth,
-  isRefreshingHealth = false,
   onCreateConfig,
   onToggleFlag,
   isTogglingFlag = false,
@@ -65,12 +60,6 @@ export function SystemStatsDetailPanel({
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
 
-  // Filter for health services
-  const [healthFilter, setHealthFilter] = useState<"ALL" | "SERVICE" | "INFRASTRUCTURE">("ALL");
-
-  const services = healthReport?.services ?? [];
-  const healthyCount = healthReport?.healthyCount ?? services.filter((s) => s.status === "HEALTHY").length;
-  const totalServices = healthReport?.totalServices ?? services.length;
   const avgLatency = healthReport?.averageLatencyMs;
 
   const activeFlagsCount = useMemo(
@@ -99,37 +88,6 @@ export function SystemStatsDetailPanel({
     return { counts, publicCount, privateCount };
   }, [configs]);
 
-  const filteredServices = useMemo(() => {
-    if (healthFilter === "ALL") return services;
-    return services.filter((s) => (s.type || "SERVICE") === healthFilter);
-  }, [services, healthFilter]);
-
-  const getStatusBadge = (status: "HEALTHY" | "DEGRADED" | "DOWN") => {
-    switch (status) {
-      case "HEALTHY":
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-            <CheckCircle2 className="h-3 w-3" />
-            {t("system.health.statusHealthy")}
-          </span>
-        );
-      case "DEGRADED":
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-background/70 px-2 py-0.5 text-[11px] font-semibold text-foreground dark:bg-black/30">
-            <Clock className="h-3 w-3 text-muted-foreground" />
-            {t("system.health.statusDegraded")}
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/60 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-            <XCircle className="h-3 w-3" />
-            {t("system.health.statusDown")}
-          </span>
-        );
-    }
-  };
-
   return (
 <div className="relative overflow-hidden rounded-[26px] border border-white/70 bg-surface p-4 sm:p-6 shadow-[9px_9px_20px_var(--shadow-dark),-9px_-9px_20px_rgba(255,255,255,0.88)] transition-all duration-300 dark:border-white/[0.06] dark:bg-card dark:shadow-[9px_9px_22px_rgba(0,0,0,0.58),-4px_-4px_12px_rgba(255,255,255,0.03)] animate-in fade-in slide-in-from-top-2">
   {/* Specular Rim Top Highlight */}
@@ -148,7 +106,6 @@ export function SystemStatsDetailPanel({
         <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-primary/[0.08] shadow-[inset_2px_2px_4px_var(--shadow-dark),inset_-2px_-2px_4px_rgba(255,255,255,0.75)] dark:shadow-[inset_2px_2px_5px_rgba(0,0,0,0.65)]">
           {activeStat === "flags" && <Cpu className="h-4.5 w-4.5" />}
           {activeStat === "configs" && <Settings2 className="h-4.5 w-4.5" />}
-          {activeStat === "health" && <Server className="h-4.5 w-4.5" />}
           {activeStat === "latency" && <Activity className="h-4.5 w-4.5" />}
         </div>
       </div>
@@ -158,7 +115,6 @@ export function SystemStatsDetailPanel({
           <h3 className="truncate text-sm font-extrabold tracking-tight text-foreground sm:text-[15px]">
             {activeStat === "flags" && t("system.detail.flagsTitle")}
             {activeStat === "configs" && t("system.detail.configsTitle")}
-            {activeStat === "health" && t("system.detail.healthTitle")}
             {activeStat === "latency" && t("system.detail.latencyTitle")}
           </h3>
 
@@ -167,14 +123,12 @@ export function SystemStatsDetailPanel({
             <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_5px_var(--primary)]" />
             {activeStat === "flags" && `${activeFlagsCount}/${featureFlags.length}`}
             {activeStat === "configs" && `${totalConfigs}`}
-            {activeStat === "health" && (healthReport ? `${healthyCount}/${totalServices}` : "--")}
             {activeStat === "latency" && (typeof avgLatency === "number" ? `${avgLatency} ms` : "--")}
           </span>
         </div>
         <p className="mt-0.5 hidden truncate text-xs text-muted-foreground sm:block">
           {activeStat === "flags" && t("system.detail.flagsDesc")}
           {activeStat === "configs" && t("system.detail.configsDesc")}
-          {activeStat === "health" && t("system.detail.healthDesc")}
           {activeStat === "latency" && t("system.detail.latencyDesc")}
         </p>
       </div>
@@ -191,18 +145,6 @@ export function SystemStatsDetailPanel({
           <Plus className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{t("system.detail.addConfig")}</span>
         </button>
-      )}
-
-      {activeStat === "health" && (
-        <RefreshButton
-          variant="ghost"
-          size="sm"
-          onRefresh={onRefreshHealth}
-          isRefreshing={isRefreshingHealth}
-          label={t("system.detail.refreshHealth")}
-          hideLabelOnMobile
-          className="h-9 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-foreground shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] hover:text-primary active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
-        />
       )}
 
       <button
@@ -458,113 +400,6 @@ export function SystemStatsDetailPanel({
           )}
         </div>
       ) : null}
-    </div>
-  )}
-
-  {/* =========================================================
-      4. BODY FOR: MICROSERVICES HEALTH
-  ========================================================= */}
-  {activeStat === "health" && (
-    <div className="space-y-4">
-      {/* Recessed Filter Keys */}
-      <div className="inline-flex flex-wrap items-center gap-1.5 rounded-[16px] bg-background/60 p-1.5 shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_rgba(255,255,255,0.85)] dark:bg-black/30 dark:shadow-[inset_3px_3px_7px_rgba(0,0,0,0.7)]">
-        {[
-          {
-            key: "ALL" as const,
-            label: t("system.health.filterAll", { count: services.length }),
-          },
-          {
-            key: "SERVICE" as const,
-            label: t("system.health.filterServices", {
-              count: services.filter((s) => (s.type || "SERVICE") === "SERVICE")
-                .length,
-            }),
-          },
-          {
-            key: "INFRASTRUCTURE" as const,
-            label: t("system.health.filterInfra", {
-              count: services.filter((s) => s.type === "INFRASTRUCTURE").length,
-            }),
-          },
-        ].map((tab) => {
-          const active = healthFilter === tab.key;
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setHealthFilter(tab.key)}
-              className={`h-8 rounded-[11px] px-3 text-xs font-extrabold transition-all duration-150 ${
-                active
-                  ? "bg-primary text-primary-foreground shadow-[3px_3px_8px_rgba(0,0,0,0.2)]"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Recessed Services Container */}
-      <div className="rounded-[20px] bg-background/60 p-3 shadow-[inset_3px_3px_7px_var(--shadow-dark),inset_-3px_-3px_7px_rgba(255,255,255,0.85)] dark:bg-black/30 dark:shadow-[inset_3px_3px_8px_rgba(0,0,0,0.7)]">
-        <div className="grid max-h-60 grid-cols-1 gap-2.5 overflow-y-auto p-0.5 pr-1.5 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredServices.map((svc) => (
-            <div
-              key={svc.serviceCode}
-              className="flex items-center justify-between gap-2.5 rounded-[15px] border border-white/60 bg-surface p-3 text-xs shadow-[3px_3px_7px_var(--shadow-dark),-3px_-3px_7px_rgba(255,255,255,0.85)] transition-transform duration-200 hover:-translate-y-0.5 dark:border-white/[0.05] dark:bg-card dark:shadow-[3px_3px_8px_rgba(0,0,0,0.5)]"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className={`h-2 w-2 shrink-0 rounded-full ${
-                      svc.status === "HEALTHY"
-                        ? "animate-pulse bg-primary"
-                        : svc.status === "DEGRADED"
-                          ? "bg-foreground/60"
-                          : "bg-muted-foreground/50"
-                    }`}
-                  />
-                  <p className="truncate font-extrabold text-foreground">
-                    {svc.name}
-                  </p>
-                </div>
-                <span className="mt-1 inline-block rounded bg-background/65 px-1.5 py-0.2 font-mono text-[10px] font-bold text-muted-foreground shadow-[inset_1px_1px_2px_var(--shadow-dark)] dark:bg-black/30">
-                  {svc.serviceCode} :{svc.port}
-                </span>
-              </div>
-
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                {getStatusBadge(svc.status)}
-                <span className="font-mono text-[10px] font-bold text-muted-foreground">
-                  {svc.latencyMs} ms
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Bottom Actions */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-        <span className="rounded-lg bg-background/60 px-2.5 py-1 text-[11px] font-semibold text-muted-foreground shadow-[inset_1.5px_1.5px_3px_var(--shadow-dark)] dark:bg-black/30">
-          {isVietnamese
-            ? "Tần suất nhịp tim tự động: 30s"
-            : "Heartbeat cycle: 30s interval"}
-        </span>
-
-        {activeTab !== "health" && (
-          <button
-            type="button"
-            onClick={() => onSelectTab("health")}
-            className="inline-flex h-9 items-center gap-1.5 rounded-[13px] border border-white/70 bg-surface px-3.5 text-xs font-extrabold text-primary shadow-[4px_4px_10px_var(--shadow-dark),-4px_-4px_10px_rgba(255,255,255,0.85)] transition-all duration-150 hover:brightness-105 active:shadow-[inset_3px_3px_7px_var(--shadow-dark)] dark:border-white/[0.06] dark:bg-card dark:shadow-[4px_4px_10px_rgba(0,0,0,0.45)]"
-          >
-            <span>
-              {t("system.detail.goToTab", { tab: t("system.tabs.health") })}
-            </span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
     </div>
   )}
 

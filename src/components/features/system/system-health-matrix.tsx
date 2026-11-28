@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import {
   Activity,
+  ArrowRight,
   CheckCircle2,
   Clock,
   Search,
@@ -17,53 +18,96 @@ import {
   type TableFeatureSet,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { RefreshButton } from "@/components/ui/refresh-action";
 import {
   explainProbeFailure,
   formatServiceLatencyLabel,
+  getServiceImpactGuidance,
 } from "@/lib/system-health-guidance";
 import { useLocale } from "@/providers/locale-provider";
 import type { ServiceHealthItem, SystemHealthReport } from "@/types";
+import {
+  ServiceDiagnosticDrawer,
+  countHealthServices,
+  filterHealthServices,
+  healthSearchPlaceholder,
+  resolveHealthFilter,
+  useControllableState,
+  useSupportReportCopy,
+  type SystemHealthFilter,
+} from "./system-health-shared";
 
 export interface SystemHealthMatrixProps {
   healthReport?: SystemHealthReport;
+  /** Dùng cho nút "Thử lại" khi bảng lỗi; làm mới thường ngày dùng nút "Làm mới" ở PageHeader. */
   onRefresh: () => void;
   isRefreshing?: boolean;
   variant?: "soft" | "sculpted";
+  /** Hiện mã/endpoint và hành động quản trị trong ngăn kéo chẩn đoán. */
+  isAdmin?: boolean;
+  /** Bộ lọc & tìm kiếm dùng chung với chế độ Thẻ (tùy chọn — không truyền thì tự quản lý). */
+  filter?: SystemHealthFilter;
+  onFilterChange?: (filter: SystemHealthFilter) => void;
+  search?: string;
+  onSearchChange?: (search: string) => void;
 }
+
+const DRAWER_STATUS_LABEL_KEY: Record<ServiceHealthItem["status"], string> = {
+  HEALTHY: "dashboard.systemCard.statusOk",
+  DEGRADED: "dashboard.systemCard.statusSlow",
+  DOWN: "dashboard.systemCard.statusDown",
+};
 
 export function SystemHealthMatrix({
   healthReport,
   onRefresh,
   isRefreshing = false,
   variant = "soft",
+  isAdmin = false,
+  filter: filterProp,
+  onFilterChange,
+  search: searchProp,
+  onSearchChange,
 }: SystemHealthMatrixProps) {
   const { t, locale } = useLocale();
-  const isVietnamese = locale === "vi-VN";
 
-  const rawServices = healthReport?.services ?? [];
+  const rawServices = useMemo(() => healthReport?.services ?? [], [healthReport?.services]);
 
-  // Filter states
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"ALL" | "SERVICE" | "INFRASTRUCTURE">("ALL");
+  // Bộ lọc dùng chung với chế độ Thẻ
+  const [search, setSearch] = useControllableState<string>(searchProp, onSearchChange, "");
+  const [rawFilter, setTypeFilter] = useControllableState<SystemHealthFilter>(
+    filterProp,
+    onFilterChange,
+    "ALL",
+  );
+  const counts = useMemo(() => countHealthServices(rawServices), [rawServices]);
+  const typeFilter = resolveHealthFilter(rawFilter, counts);
   const [sorting, setSorting] = useState<SortingState>([
     { id: "status", desc: false },
   ]);
 
-  const filteredServices = useMemo(() => {
-    const list = rawServices.filter((svc) => {
-      const matchesType = typeFilter === "ALL" || (svc.type || "SERVICE") === typeFilter;
-      const matchesSearch =
-        !search.trim() ||
-        svc.name.toLowerCase().includes(search.toLowerCase()) ||
-        svc.serviceCode.toLowerCase().includes(search.toLowerCase()) ||
-        String(svc.port).includes(search);
+  const filteredServices = useMemo(
+    () => filterHealthServices(rawServices, typeFilter, search),
+    [rawServices, typeFilter, search],
+  );
 
-      return matchesType && matchesSearch;
-    });
-
-    return list;
-  }, [rawServices, typeFilter, search]);
+  // Bấm một dòng để mở ngăn kéo chẩn đoán (giống chế độ Thẻ)
+  const [selectedCode, setSelectedCode] = useState<string | null>(null);
+  const selectedService = useMemo(
+    () =>
+      selectedCode
+        ? rawServices.find((svc) => svc.serviceCode === selectedCode) ?? null
+        : null,
+    [rawServices, selectedCode],
+  );
+  const selectedGuidance = useMemo(
+    () =>
+      selectedService
+        ? getServiceImpactGuidance(selectedService, { isAdmin, locale })
+        : null,
+    [selectedService, isAdmin, locale],
+  );
+  const { copied: copiedReport, copy: copySupportReport } = useSupportReportCopy(healthReport);
+  const isDrawerOpen = Boolean(selectedService && selectedGuidance);
 
   const getStatusBadge = (status: "HEALTHY" | "DEGRADED" | "DOWN") => {
     switch (status) {
@@ -172,9 +216,15 @@ export function SystemHealthMatrix({
             <div className="space-y-1">
               {getStatusBadge(svc.status)}
               {svc.status !== "HEALTHY" && (
-                <p className="max-w-[240px] text-[11px] leading-snug text-muted-foreground">
-                  {explainProbeFailure(svc, locale)}
-                </p>
+                <>
+                  <p className="max-w-[240px] text-[11px] leading-snug text-muted-foreground">
+                    {explainProbeFailure(svc, locale)}
+                  </p>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary">
+                    {t("dashboard.systemCard.showFixGuide")}
+                    <ArrowRight className="h-3 w-3" />
+                  </span>
+                </>
               )}
             </div>
           );
@@ -251,15 +301,6 @@ export function SystemHealthMatrix({
             </p>
           </div>
         </div>
-
-        <RefreshButton
-          variant="outline"
-          size="sm"
-          onRefresh={onRefresh}
-          isRefreshing={isRefreshing}
-          label={t("system.refresh")}
-          className="rounded-xl self-start sm:self-auto text-xs"
-        />
       </div>
 
       {/* Filter and Search Bar */}
@@ -274,7 +315,7 @@ export function SystemHealthMatrix({
 
             onChange={(e) => setSearch(e.target.value)}
 
-            placeholder={isVietnamese ? "Tìm kiếm node dịch vụ hoặc cổng..." : "Search service node or port..."}
+            placeholder={healthSearchPlaceholder(locale)}
 
             className="w-full rounded-xl border border-border/40 bg-surface pl-9 pr-3 py-1.5 text-xs text-foreground shadow-[inset_1px_1px_2px_rgba(0,0,0,0.06)] focus:border-primary focus:outline-none dark:border-black/50 dark:bg-card/70"
 
@@ -296,7 +337,7 @@ export function SystemHealthMatrix({
             className="h-8 text-xs rounded-xl px-2.5"
 
           >
-            {t("system.health.filterAll", { count: rawServices.length })}
+            {t("system.health.filterAll", { count: counts.all })}
           </Button>
           <Button
 
@@ -312,7 +353,7 @@ export function SystemHealthMatrix({
 
           >
             {t("system.health.filterServices", {
-              count: rawServices.filter((s) => (s.type || "SERVICE") === "SERVICE").length,
+              count: counts.service,
             })}
           </Button>
           <Button
@@ -329,45 +370,76 @@ export function SystemHealthMatrix({
 
           >
             {t("system.health.filterInfra", {
-              count: rawServices.filter((s) => s.type === "INFRASTRUCTURE").length,
+              count: counts.infra,
             })}
           </Button>
+          {counts.issues > 0 && (
+            <Button
+              type="button"
+              variant={typeFilter === "ISSUES" ? "primary" : "outline"}
+              size="sm"
+              onClick={() => setTypeFilter("ISSUES")}
+              className={`h-8 text-xs rounded-xl px-2.5 ${typeFilter === "ISSUES" ? "" : "text-danger"}`}
+            >
+              {t("dashboard.systemCard.filterIssues")} ({counts.issues})
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Common Table Component */}
-      <Table
-
-        surface="embedded"
-
-        fetching={isRefreshing}
-
-        onRetry={onRefresh}
-
-        data={filteredServices}
-
-        features={{
-          pagination: false,
-          globalFilter: false,
-          rowSelection: false
-        }}
-
-        columns={columns}
-
-        variant={variant}
-
-        sorting={sorting}
-
-        onSortingChange={setSorting}
-
-        emptyMessage={t("system.health.noServices")}
-
-        getRowId={(row) => row.serviceCode}
-
+      {/* Bảng + ngăn kéo chẩn đoán (mở khi bấm vào một dòng) */}
+      <div
+        className={
+          isDrawerOpen ? "grid grid-cols-1 gap-3.5 xl:grid-cols-12 xl:items-start" : "block"
+        }
       >
-        <TableToolbar showSearch={false} />
-        <TableContent />
-      </Table>
+        <div className={isDrawerOpen ? "min-w-0 xl:col-span-7" : ""}>
+          <Table
+            surface="embedded"
+            fetching={isRefreshing}
+            onRetry={onRefresh}
+            data={filteredServices}
+            features={{
+              pagination: false,
+              globalFilter: false,
+              rowSelection: false
+            }}
+            columns={columns}
+            variant={variant}
+            sorting={sorting}
+            onSortingChange={setSorting}
+            emptyMessage={t("system.health.noServices")}
+            getRowId={(row) => row.serviceCode}
+            onRowClick={(row: { original: ServiceHealthItem }) =>
+              setSelectedCode((prev) =>
+                prev === row.original.serviceCode ? null : row.original.serviceCode,
+              )
+            }
+            getRowClassName={(row: ServiceHealthItem) =>
+              row.serviceCode === selectedCode
+                ? "bg-primary/[0.08] dark:bg-primary/[0.14] shadow-[inset_4px_0_0_var(--primary)]"
+                : ""
+            }
+          >
+            <TableToolbar showSearch={false} />
+            <TableContent />
+          </Table>
+        </div>
+
+        {selectedService && selectedGuidance && (
+          <ServiceDiagnosticDrawer
+            service={selectedService}
+            guidance={selectedGuidance}
+            statusLabel={t(DRAWER_STATUS_LABEL_KEY[selectedService.status])}
+            isAdmin={isAdmin}
+            canCopyReport={Boolean(healthReport)}
+            copiedReport={copiedReport}
+            onCopyReport={() => void copySupportReport()}
+            onClose={() => setSelectedCode(null)}
+            className="xl:col-span-5"
+          />
+        )}
+      </div>
     </div>
   );
 }

@@ -15,6 +15,8 @@ export interface DashboardQuickActionsProps {
   onOpenGenerateReport?: () => void;
   canExportReports?: boolean;
   canReviewIncidents?: boolean;
+  canViewCameras: boolean;
+  canViewSites: boolean;
   columns?: 2 | 4;
 }
 
@@ -22,6 +24,8 @@ export function DashboardQuickActions({
   onOpenGenerateReport,
   canExportReports = true,
   canReviewIncidents = true,
+  canViewCameras,
+  canViewSites,
   columns = 2,
 }: DashboardQuickActionsProps) {
   const { t, locale } = useLocale();
@@ -48,7 +52,7 @@ export function DashboardQuickActions({
       icon: Cctv,
       href: "/cameras?view=wall",
       variant: "primary" as const,
-      enabled: true,
+      enabled: canViewCameras,
     },
     {
       code: "03",
@@ -71,7 +75,7 @@ export function DashboardQuickActions({
       icon: SlidersHorizontal,
       href: "/sites",
       variant: "accent" as const,
-      enabled: true,
+      enabled: canViewSites,
     },
   ].filter((a) => a.enabled);
 

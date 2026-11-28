@@ -225,7 +225,7 @@ export const systemService = {
         if (err.name === "AbortError" || err.code === "ECONNABORTED") {
           return {
             failureKind: "TIMEOUT",
-            reason: isServerProbe ? "Timeout (> 2s)" : "Timeout (> 3s)",
+            reason: isServerProbe ? "Timeout (> 4s)" : "Timeout (> 3s)",
           };
         }
         if (typeof err.status === "number" && err.status > 0) {
@@ -266,7 +266,8 @@ export const systemService = {
 
           if (tgt.probeTarget) {
             const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), 2500);
+            // Route proxy xác thực qua /auth/me (≤ 1.5s, có cache) rồi mới probe (≤ 2s).
+            const timer = setTimeout(() => controller.abort(), 4000);
             try {
               const accessToken = tokenStore.getAccessToken();
               const response = await fetch(tgt.path, {
@@ -280,7 +281,16 @@ export const systemService = {
               probeLatency = Math.round(performance.now() - start);
               if (!response.ok) {
                 failureKind = "HTTP_ERROR";
-                failureReason = `HTTP ${response.status}`;
+                let routeReason: string | undefined;
+                try {
+                  const errBody = (await response.json()) as { reason?: unknown };
+                  if (typeof errBody.reason === "string") routeReason = errBody.reason;
+                } catch {
+                  // Body không phải JSON → chỉ hiển thị mã HTTP.
+                }
+                failureReason = routeReason
+                  ? `HTTP ${response.status} · ${routeReason}`
+                  : `HTTP ${response.status}`;
               } else {
                 try {
                   const parsed = (await response.json()) as Record<string, unknown>;

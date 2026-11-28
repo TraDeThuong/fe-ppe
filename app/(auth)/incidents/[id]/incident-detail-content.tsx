@@ -40,6 +40,7 @@ import { isIncidentAssignedToUser } from "@/lib/incident-workflow";
 import { clusterIncidentsByPerson } from "@/lib/incident-cluster-engine";
 import { canResolveGroupIncident, nextGroupIncident } from "@/lib/incident-group";
 import { IncidentGroupWorkspace, useIncidentGroupWorkspace } from "@/components/features/incidents/incident-group-workspace";
+import { resolveIncidentSnapshot } from "@/components/features/incidents/viewer/evidence-media-utils";
 import { incidentService, notificationService } from "@/services";
 import {
   EVIDENCE_TYPE,
@@ -280,10 +281,11 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
     // 1. Kiểm tra cache phiên làm việc thực tế từ camera nếu có
     if (typeof window !== "undefined" && cid) {
       const liveCamEvidence = sessionStorage.getItem(`ppe_camera_evidence_${cid}`);
-      if (liveCamEvidence) return liveCamEvidence;
+      const cachedCameraSnapshot = resolveIncidentSnapshot(liveCamEvidence);
+      if (cachedCameraSnapshot) return cachedCameraSnapshot;
     }
 
-    return incidentCamera?.snapshotUrl || null;
+    return resolveIncidentSnapshot(incidentCamera?.snapshotUrl);
   }, [incident?.cameraId, incidentCamera]);
 
   // Mutations & Permissions
@@ -581,11 +583,11 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
     incident.evidences?.[0];
 
   // Khôi phục ảnh snapshot từ Client-side cache (nếu vừa tạo từ phiên camera)
-  const cachedEvidenceUrl =
+  const cachedEvidence =
     typeof window !== "undefined" ? sessionStorage.getItem(`ppe_incident_evidence_${id}`) : null;
   const effectiveSnapshotUrl =
-    cachedEvidenceUrl ||
-    (incident.snapshotUrl && !incident.snapshotUrl.includes("hqdefault.jpg") ? incident.snapshotUrl : null) ||
+    resolveIncidentSnapshot(cachedEvidence) ||
+    resolveIncidentSnapshot(incident.snapshotUrl?.includes("hqdefault.jpg") ? null : incident.snapshotUrl) ||
     cameraDesignatedEvidence;
 
   const hasAssignments = Boolean(hydratedAssignments.length > 0);

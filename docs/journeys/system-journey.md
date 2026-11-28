@@ -321,3 +321,33 @@ Thay thế placeholder hiện tại bằng component hoàn chỉnh kết nối t
 - [x] Tab Nhịp tim Dịch vụ quét được trạng thái của cụm 8 services và báo độ trễ chính xác.
 - [x] Đa ngôn ngữ tiếng Việt (`vi-VN`) và tiếng Anh (`en-US`) chuyển đổi tức thì không sót chuỗi.
 - [x] Thiết kế Neumorphism chuẩn mực, tương thích hoàn hảo Dark Mode và Light Mode.
+
+---
+
+## 9. Rà soát Issue #53 (28/11/2026)
+
+### 9.1 Đã sửa (logic, không đổi giao diện)
+
+| Nhận xét | Đã làm | File |
+|---|---|---|
+| Health-probe chỉ kiểm tra "có cookie/header" (`Boolean(cookie \|\| authHeader)`) | Route gọi thật `GET {API}/auth/me`, chỉ chuyển tiếp cookie `accessToken` + header `Authorization`; cho qua khi có `SYSTEM_CONFIG_READ` hoặc role `ADMIN`/`SUPER_ADMIN` (cùng quy tắc `useCan`). Tài khoản `isActive=false` bị chặn. Token sai → 401, thiếu quyền → 403, identity không phản hồi → 503 (fail-closed, không probe). Kết quả xác thực được nhớ 30s theo token để 3 probe song song chỉ tốn 1 lần `/auth/me`. | `src/lib/system-probe-auth.ts`, `app/api/system/health-probe/route.ts` |
+| (hệ quả) client timeout 2,5s không đủ khi thêm bước xác thực | Nâng lên 4s; lỗi 401/403/503 từ route hiển thị kèm lý do (`HTTP 403 · Forbidden (requires SYSTEM_CONFIG_READ)`). | `src/services/system.service.ts` |
+| ~100 dòng dead code `activeStat === "health"` | Gỡ nhánh health khỏi `SystemStatsDetailPanel` (trong app không bao giờ render vì thẻ KPI "Cụm dịch vụ" chuyển thẳng sang tab Sức khỏe). `SystemKpiSummary` không mở panel cho `health` nữa; bỏ prop `onRefreshHealth`/`isRefreshingHealth` không còn dùng. Không thay đổi gì trên màn hình. | `system-stats-detail-panel.tsx`, `system-kpi-summary.tsx`, `system-content.tsx` |
+
+Biến môi trường tùy chọn cho server Next: `IDENTITY_INTERNAL_URL` hoặc `API_INTERNAL_BASE_URL` (mặc định dùng `NEXT_PUBLIC_API_BASE_URL`). Khi chạy FE trong container, đặt biến này trỏ tới gateway nội bộ vì `localhost:80` trong container không phải Traefik.
+
+### 9.2 UI tab Sức khỏe — đã sửa theo quyết định (28/11/2026)
+
+| Vấn đề | Quyết định | Đã làm |
+|---|---|---|
+| Chế độ Bảng thiếu chẩn đoán | Phương án (a) | Bấm vào dòng ở Bảng mở **ngăn kéo chẩn đoán** bên phải (cùng nội dung với chế độ Thẻ: Tại sao, Ảnh hưởng, Vẫn hoạt động, các bước xử lý, **Sao chép báo cáo gửi IT**, link hành động cho admin). Dòng lỗi có thêm dòng "Xem hướng dẫn xử lý →" để người dùng biết bấm được. Bấm lại dòng đó hoặc nút X để đóng. |
+| 3 nút Refresh | Giữ nút quan trọng nhất | Giữ **"Kiểm tra lại toàn bộ" ở PageHeader** (làm mới cả health + cờ + cấu hình, có ở mọi tab). Bỏ nút Refresh trong header Bảng và nút "Kiểm tra lại" trong Thẻ. Nút "Thử lại" khi lỗi tải vẫn giữ. |
+| Lệch bộ lọc | Thống nhất | Cả hai chế độ có cùng bộ lọc **Tất cả / Dịch vụ / Hạ tầng / Cần chú ý** (nút "Cần chú ý" chỉ hiện khi có sự cố) và **ô tìm kiếm** (tên, mã, cổng). Bộ lọc nằm ở `system-content.tsx` nên **giữ nguyên khi đổi Bảng ↔ Thẻ**. Hết sự cố khi đang lọc "Cần chú ý" → tự quay về "Tất cả". |
+
+Code dùng chung: `src/components/features/system/system-health-shared.tsx` (bộ lọc, copy báo cáo, `ServiceDiagnosticDrawer` — markup giữ nguyên từ chế độ Thẻ). Giữ 2 chế độ Bảng/Thẻ qua `SegmentedControl` như cũ.
+
+### 9.3 Kiểm thử
+- `src/lib/__tests__/ai-health-probe.test.ts`: thêm ca chuyển tiếp đúng credential, 401 từ BE, 403 thiếu quyền, tài khoản bị khóa, ADMIN/SUPER_ADMIN, identity sập → 503, cache 1 lần `/auth/me` cho 3 probe.
+- Các suite system/dashboard liên quan pass; `tsc --noEmit` sạch.
+- `src/components/features/system/__tests__/system-health-views.test.tsx`: bộ lọc chung (đếm, ISSUES + search, tự về ALL), Bảng có "Cần chú ý"/dòng bấm được/không còn nút Làm mới, Thẻ có ô tìm kiếm.
+- Kiểm tra trên app thật (admin, 1440px): bấm dòng Bảng mở ngăn kéo + nút Copy; tìm "minio" rồi chuyển sang Thẻ vẫn giữ từ khóa; chỉ còn 1 nút làm mới ở PageHeader.

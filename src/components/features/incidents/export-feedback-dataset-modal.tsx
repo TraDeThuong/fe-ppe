@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Database, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -115,6 +115,12 @@ export function ExportFeedbackDatasetModal({
   const [labelFilter, setLabelFilter] = useState<"" | FeedbackDatasetLabel>("");
   const [format, setFormat] = useState<"csv" | "json">("csv");
   const [exporting, setExporting] = useState(false);
+  const [partialExport, setPartialExport] = useState<{ count: number; total: number } | null>(null);
+
+  const handleOpenChange = useCallback((nextOpen: boolean) => {
+    if (!nextOpen) setPartialExport(null);
+    onOpenChange(nextOpen);
+  }, [onOpenChange]);
 
   // Dùng chung một bộ lọc cho bước đếm trước và lúc xuất, để con số cảnh báo khớp tệp tải về.
   const exportScope = {
@@ -144,20 +150,40 @@ export function ExportFeedbackDatasetModal({
     meta: { suppressErrorToast: true },
   });
   const matchedTotal = matchedCountQuery.data ?? 0;
-  const exceedsExportCap = matchedTotal > FEEDBACK_EXPORT_MAX_SAMPLES;
+
+  let warningMessage = "";
+  if (partialExport) {
+    const count = partialExport.count.toLocaleString(locale);
+    const total = partialExport.total.toLocaleString(locale);
+    warningMessage = isVietnamese
+      ? `Đã xuất ${count} trên ${total} mẫu khớp bộ lọc.`
+      : `Exported ${count} of ${total} matching samples.`;
+  } else if (matchedTotal > FEEDBACK_EXPORT_MAX_SAMPLES) {
+    const total = matchedTotal.toLocaleString(locale);
+    const limit = FEEDBACK_EXPORT_MAX_SAMPLES.toLocaleString(locale);
+    warningMessage = isVietnamese
+      ? `Bộ lọc hiện khớp ${total} mẫu. Tệp chỉ gồm ${limit} mẫu mới nhất.`
+      : `The current filters match ${total} samples. The file will only include the newest ${limit}.`;
+  }
 
   const handleExport = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPartialExport(null);
     setExporting(true);
     try {
       const { items, total } = await incidentService.exportFeedbackDatasetAll(exportScope);
+      const count = items.length;
 
-      if (items.length === 0) {
-        toast.info(
-          isVietnamese
-            ? "Chưa có bản ghi phản hồi True Violation / False Alarm nào khớp bộ lọc hiện tại."
-            : "No reviewed feedback records matched the current filters.",
-        );
+      if (count === 0) {
+        if (total > count) {
+          setPartialExport({ count, total });
+        } else {
+          toast.info(
+            isVietnamese
+              ? "Chưa có bản ghi phản hồi True Violation / False Alarm nào khớp bộ lọc hiện tại."
+              : "No reviewed feedback records matched the current filters.",
+          );
+        }
         return;
       }
 
@@ -181,11 +207,15 @@ export function ExportFeedbackDatasetModal({
       anchor.remove();
       URL.revokeObjectURL(url);
 
-      const count = items.length < total ? `${items.length}/${total}` : String(items.length);
+      if (total > count) {
+        setPartialExport({ count, total });
+        return;
+      }
+
       toast.success(isVietnamese
         ? `Đã xuất ${count} mẫu phản hồi AI (${format.toUpperCase()}).`
         : `Exported ${count} AI feedback samples (${format.toUpperCase()}).`);
-      onOpenChange(false);
+      handleOpenChange(false);
     } catch (err) {
       toast.error(
         err instanceof Error
@@ -202,7 +232,8 @@ export function ExportFeedbackDatasetModal({
   return (
     <Dialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
+      preventClose={exporting}
       title={
         isVietnamese
           ? "Xuất Dữ Liệu Phản Hồi Cải Tiến Mô Hình AI"
@@ -225,9 +256,11 @@ export function ExportFeedbackDatasetModal({
           <select
             id="feedback-label-select"
             value={labelFilter}
-            onChange={(e) =>
-              setLabelFilter(e.target.value as "" | FeedbackDatasetLabel)
-            }
+            onChange={(e) => {
+              setLabelFilter(e.target.value as "" | FeedbackDatasetLabel);
+              setPartialExport(null);
+            }}
+            disabled={exporting}
             className="w-full rounded-xl border border-border/50 bg-background px-3 py-2 text-xs font-medium text-foreground focus:border-primary focus:outline-none"
           >
             <option value="">
@@ -258,6 +291,7 @@ export function ExportFeedbackDatasetModal({
                 key={opt}
                 type="button"
                 onClick={() => setFormat(opt)}
+                disabled={exporting}
                 className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition ${
                   format === opt
                     ? "border-primary bg-primary/10 text-primary shadow-xs"
@@ -279,28 +313,33 @@ export function ExportFeedbackDatasetModal({
             : "Automatically inherits active page filters (Site, Zone/Camera, Violation Type, Time Range)."}
         </p>
 
-        {exceedsExportCap && (
-          <p
-            role="status"
-            className="flex items-start gap-2 rounded-xl border border-warning/35 bg-warning/6 p-2.5 text-[11px] font-semibold text-foreground"
-          >
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
-            <span>
-              {isVietnamese
-                ? `Bộ lọc hiện khớp ${matchedTotal.toLocaleString(locale)} mẫu. Tệp chỉ gồm ${FEEDBACK_EXPORT_MAX_SAMPLES.toLocaleString(locale)} mẫu mới nhất. Hãy thu hẹp bộ lọc thời gian ở đầu trang.`
-                : `The current filters match ${matchedTotal.toLocaleString(locale)} samples. The file will only include the newest ${FEEDBACK_EXPORT_MAX_SAMPLES.toLocaleString(locale)}. Narrow the time filter at the top of the page.`}
-            </span>
-          </p>
-        )}
+        <p
+          role="status"
+          className={warningMessage
+            ? "flex items-start gap-2 rounded-xl border border-warning/35 bg-warning/6 p-2.5 text-[11px] font-semibold text-foreground"
+            : "sr-only"}
+        >
+          {warningMessage && (
+            <>
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" aria-hidden="true" />
+              <span>
+                {warningMessage}{" "}
+                {isVietnamese
+                  ? "Hãy thu hẹp bộ lọc thời gian ở đầu trang."
+                  : "Narrow the time filter at the top of the page."}
+              </span>
+            </>
+          )}
+        </p>
 
         <div className="flex items-center justify-end gap-2.5 pt-1">
           <Button
             type="button"
             variant="ghost"
-            onClick={() => onOpenChange(false)}
+            onClick={() => handleOpenChange(false)}
             disabled={exporting}
           >
-            {t("common.cancel")}
+            {t(partialExport ? "common.close" : "common.cancel")}
           </Button>
           <Button
             type="submit"

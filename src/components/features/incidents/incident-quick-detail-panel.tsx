@@ -39,6 +39,7 @@ import { useLocale } from "@/providers/locale-provider";
 import { incidentService, notificationService } from "@/services";
 import { type IncidentItem, type NotificationSeverity } from "@/types";
 import {
+  resolveIncidentSnapshot,
   resolveIncidentTelemetry,
   selectQuickDetailEvidence,
 } from "./viewer/evidence-media-utils";
@@ -169,7 +170,9 @@ export function IncidentQuickDetailPanel({
           { signal: controller.signal, suppressToast: true },
         );
         if (controller.signal.aborted) return;
-        const nextUrl = isDockerInternalMinioUrl(downloadUrl) ? "" : downloadUrl;
+        const nextUrl = isDockerInternalMinioUrl(downloadUrl)
+          ? ""
+          : resolveIncidentSnapshot(downloadUrl);
         if (nextUrl && nextUrl !== primaryEvidenceUrl) {
           setSignedSnapshotUrl(nextUrl);
           return;

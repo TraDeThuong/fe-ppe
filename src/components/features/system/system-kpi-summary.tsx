@@ -25,8 +25,6 @@ export interface SystemKpiSummaryProps {
   onSelectStat?: (stat: SystemStatKey | null) => void;
   activeTab?: SystemTabKey;
   onSelectTab?: (tab: SystemTabKey) => void;
-  onRefreshHealth?: () => void;
-  isRefreshingHealth?: boolean;
   onCreateConfig?: () => void;
   onToggleFlag?: (flag: SystemConfigItem, enabled: boolean) => void;
   isTogglingFlag?: boolean;
@@ -44,8 +42,6 @@ export function SystemKpiSummary({
   onSelectStat,
   activeTab,
   onSelectTab,
-  onRefreshHealth,
-  isRefreshingHealth = false,
   onCreateConfig,
   onToggleFlag,
   isTogglingFlag = false,
@@ -221,8 +217,9 @@ export function SystemKpiSummary({
         />
       </div>
 
-      {/* Khung thông tin chi tiết mở rộng ngay dưới stats (tránh render trùng lặp khi đang ở tab health) */}
-      {activeStat && !(activeStat === "health" && (activeTab === "health" || Boolean(onSelectTab))) && (
+      {/* Khung thông tin chi tiết mở rộng ngay dưới stats. Thẻ "health" không mở panel
+          (đã có tab Sức khỏe đầy đủ: bảng/thẻ, chẩn đoán, copy báo cáo). */}
+      {activeStat && activeStat !== "health" && (
         <SystemStatsDetailPanel
           activeStat={activeStat}
           activeTab={activeTab}
@@ -234,8 +231,6 @@ export function SystemKpiSummary({
           onSelectTab={(tab) => {
             onSelectTab?.(tab);
           }}
-          onRefreshHealth={() => onRefreshHealth?.()}
-          isRefreshingHealth={isRefreshingHealth}
           onCreateConfig={onCreateConfig}
           onToggleFlag={onToggleFlag}
           isTogglingFlag={isTogglingFlag}

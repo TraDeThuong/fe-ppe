@@ -1,16 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  assessCronJobGuidance,
   buildCronPayload,
   calculateNextRun,
   canReadCron,
   detectCronConflicts,
   extractRecentCronExecutions,
   filterCronJobs,
-  findNextScheduledJob,
-  formatCronOutcomeSummary,
-  formatCronRelativeAgo,
   getCronEditChanges,
   getCronHourOptions,
   getCronParameterValue,
@@ -213,27 +209,6 @@ describe("Cron next run calculation & conflict detection", () => {
     assert.equal(detectCronConflicts(monthly.name, [monthly, { ...hourly, cron: "15 12 27 * *" }], t).hasConflict, false);
   });
 
-  it("uses the edited cadence for dashboard overdue guidance", () => {
-    const now = new Date("2026-11-26T07:15:00Z");
-    const lastRun = { timestamp: "2026-11-25T20:00:00Z", success: true, durationMs: 30, source: "audit" } as const;
-    const options = { auditAvailable: true, now };
-    assert.equal(assessCronJobGuidance({ ...jobs[0], cron: "0 */6 * * *" }, lastRun, options).state, "overdue");
-    const month = { ...jobs[0], cron: "0 0 28 * *" };
-    assert.equal(assessCronJobGuidance(month, { ...lastRun, timestamp: "2026-10-28T00:00:00Z" }, options).state, "healthy_idle");
-  });
-
-  it("finds the earliest upcoming enabled job", () => {
-    const sampleJobs: CronJobItem[] = [
-      { name: "cleanup-audit-logs", description: "Audit", cron: "0 2 * * *", isEnabled: false },
-      { name: "cleanup-expired-tokens", description: "Tokens", cron: "0 4 * * *", isEnabled: true },
-      { name: "daily-summary-digest", description: "Daily", cron: "0 8 * * *", isEnabled: true },
-    ];
-    // 2026-11-16 03:00 VN time -> UTC: 2026-11-15 20:00:00
-    const now = new Date(Date.UTC(2026, 10, 15, 20, 0, 0));
-    const earliest = findNextScheduledJob(sampleJobs, now);
-    assert.equal(earliest?.job.name, "cleanup-expired-tokens");
-  });
-
   it("extracts latest execution per cron job from audit logs and merges session runs", () => {
     const auditLogs: AuditLogItem[] = [
       {
@@ -319,60 +294,4 @@ describe("Cron next run calculation & conflict detection", () => {
     });
     assert.equal(mergeRecentExecutions(fromAudit, {}, [{ ...job, lastStatus: undefined }])[job.name], fromAudit[job.name]);
   });
-
-  it("assesses guidance to highlight just-ran, failed, overdue, never-ran, and healthy jobs", () => {
-    const now = new Date("2026-11-16T10:00:00.000Z");
-    const dailyJob: CronJobItem = {
-      name: "cleanup-audit-logs",
-      cron: "0 2 * * *",
-      description: "Audit",
-      isEnabled: true,
-    };
-
-    // Never ran when audit history is available -> shouldClickRun
-    assert.equal(
-      assessCronJobGuidance(dailyJob, undefined, { auditAvailable: true, now }).state,
-      "never_ran",
-    );
-    assert.equal(
-      assessCronJobGuidance(dailyJob, undefined, { auditAvailable: true, now }).shouldClickRun,
-      true,
-    );
-
-    // Just ran 5 minutes ago -> just_ran, no click needed
-    const justRan = assessCronJobGuidance(
-      dailyJob,
-      { timestamp: "2026-11-16T09:55:00.000Z", success: true, durationMs: 30, source: "audit" },
-      { auditAvailable: true, now },
-    );
-    assert.equal(justRan.state, "just_ran");
-    assert.equal(justRan.isJustRan, true);
-    assert.equal(justRan.shouldClickRun, false);
-
-    // Overdue (>26h ago for daily) -> overdue, shouldClickRun
-    const overdue = assessCronJobGuidance(
-      dailyJob,
-      { timestamp: "2026-11-14T10:00:00.000Z", success: true, durationMs: 30, source: "audit" },
-      { auditAvailable: true, now },
-    );
-    assert.equal(overdue.state, "overdue");
-    assert.equal(overdue.shouldClickRun, true);
-
-    // Failed -> failed, shouldClickRun
-    const failed = assessCronJobGuidance(
-      dailyJob,
-      { timestamp: "2026-11-16T09:58:00.000Z", success: false, durationMs: 30, source: "audit" },
-      { auditAvailable: true, now },
-    );
-    assert.equal(failed.state, "failed");
-    assert.equal(failed.shouldClickRun, true);
-
-    // Relative time & outcome formatting
-    assert.equal(formatCronRelativeAgo("2026-11-16T09:55:00.000Z", now), "5 phút trước");
-    assert.equal(
-      formatCronOutcomeSummary("cleanup-audit-logs", { deletedCount: 12 }),
-      "Đã xóa 12 nhật ký cũ",
-    );
-  });
 });
-

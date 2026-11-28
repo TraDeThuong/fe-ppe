@@ -1,6 +1,14 @@
 "use client";
 
-import { Suspense, useMemo, useRef } from "react";
+import {
+  Component,
+  Suspense,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import Image from "next/image";
 import { Canvas, useFrame } from "@react-three/fiber";
 import {
   ContactShadows,
@@ -11,6 +19,7 @@ import * as THREE from "three";
 
 import {
   Activity,
+  ImageIcon,
   Rotate3D,
   ShieldCheck,
   Sparkles,
@@ -75,6 +84,25 @@ function ModelLoader() {
   );
 }
 
+class HelmetCanvasBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode; onFallback: () => void },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch() {
+    this.props.onFallback();
+  }
+
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children;
+  }
+}
+
 /* =========================================================
    HELMET SHOWCASE
 ========================================================= */
@@ -108,6 +136,9 @@ export function HelmetShowcase({
 }: HelmetShowcaseProps) {
   const { t, number, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const [isStaticPreview, setIsStaticPreview] = useState(false);
+  const rotateHint = isVietnamese ? "Kéo để xoay" : "Drag to rotate";
+  const HintIcon = isStaticPreview ? ImageIcon : Rotate3D;
 
   const formatCount = (value: number | null | undefined) =>
     typeof value === "number" && Number.isFinite(value)
@@ -238,71 +269,85 @@ export function HelmetShowcase({
         ================================================= */}
 
         <div className="absolute inset-x-0 bottom-[72px] top-[76px] z-[2]">
-          <Canvas
-            shadows
-            dpr={[1, 1.5]}
-            camera={{
-              position: [0, 0.35, 4.2],
-              fov: 36,
-            }}
-            gl={{
-              alpha: true,
-              antialias: true,
-              powerPreference: "high-performance",
-            }}
-          >
-            {/* Soft studio lighting */}
-            <ambientLight intensity={1.2} />
-
-            <hemisphereLight
-              color="#ffffff"
-              groundColor="#c9c1b1"
-              intensity={1.4}
-            />
-
-            <directionalLight
-              position={[4, 5, 5]}
-              intensity={2.2}
-              color="#ffffff"
-              castShadow
-            />
-
-            <directionalLight
-              position={[-4, 2, -3]}
-              intensity={1.6}
-              color="#D9EDB8"
-            />
-
-            <spotLight
-              position={[0, 5, 2]}
-              intensity={25}
-              angle={0.5}
-              penumbra={1}
-              color="#FFF1D9"
-            />
-
-            <Suspense fallback={<ModelLoader />}>
-              <HardHatModel />
-
-              <ContactShadows
-                position={[0, -0.85, 0]}
-                opacity={0.22}
-                scale={3.5}
-                blur={2.5}
-                far={2}
-                color="#536044"
+          <HelmetCanvasBoundary
+            onFallback={() => setIsStaticPreview(true)}
+            fallback={
+              <Image
+                src="/models/hard-hat-preview.webp"
+                alt={t("dashboard.helmet.previewAlt")}
+                fill
+                unoptimized
+                loading="eager"
+                className="object-contain"
               />
-            </Suspense>
+            }
+          >
+            <Canvas
+              shadows
+              dpr={[1, 1.5]}
+              camera={{
+                position: [0, 0.35, 4.2],
+                fov: 36,
+              }}
+              gl={{
+                alpha: true,
+                antialias: true,
+                powerPreference: "high-performance",
+              }}
+            >
+              {/* Soft studio lighting */}
+              <ambientLight intensity={1.2} />
 
-            <OrbitControls
-              makeDefault
-              enableZoom={false}
-              enablePan={false}
-              minPolarAngle={Math.PI / 3.5}
-              maxPolarAngle={Math.PI / 1.7}
-              rotateSpeed={0.7}
-            />
-          </Canvas>
+              <hemisphereLight
+                color="#ffffff"
+                groundColor="#c9c1b1"
+                intensity={1.4}
+              />
+
+              <directionalLight
+                position={[4, 5, 5]}
+                intensity={2.2}
+                color="#ffffff"
+                castShadow
+              />
+
+              <directionalLight
+                position={[-4, 2, -3]}
+                intensity={1.6}
+                color="#D9EDB8"
+              />
+
+              <spotLight
+                position={[0, 5, 2]}
+                intensity={25}
+                angle={0.5}
+                penumbra={1}
+                color="#FFF1D9"
+              />
+
+              <Suspense fallback={<ModelLoader />}>
+                <HardHatModel />
+
+                <ContactShadows
+                  position={[0, -0.85, 0]}
+                  opacity={0.22}
+                  scale={3.5}
+                  blur={2.5}
+                  far={2}
+                  color="#536044"
+                />
+              </Suspense>
+
+              <OrbitControls
+                makeDefault
+                enableZoom={false}
+                enablePan={false}
+                minPolarAngle={Math.PI / 3.5}
+                maxPolarAngle={Math.PI / 1.7}
+                rotateSpeed={0.7}
+              />
+            </Canvas>
+          </HelmetCanvasBoundary>
         </div>
 
         {/* =================================================
@@ -318,14 +363,16 @@ export function HelmetShowcase({
           </span>
         </div>
 
-        <div className="pointer-events-none absolute right-5 top-[48%] z-[3] hidden -translate-y-1/2 flex-col items-end gap-1 sm:flex">
-          <span className="text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">
-            {isVietnamese ? "GÓC NHÌN" : "VIEW"}
-          </span>
-          <span className="font-mono text-[10px] font-bold text-primary/70">
-            360°
-          </span>
-        </div>
+        {!isStaticPreview && (
+          <div className="pointer-events-none absolute right-5 top-[48%] z-[3] hidden -translate-y-1/2 flex-col items-end gap-1 sm:flex">
+            <span className="text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">
+              {isVietnamese ? "GÓC NHÌN" : "VIEW"}
+            </span>
+            <span className="font-mono text-[10px] font-bold text-primary/70">
+              360°
+            </span>
+          </div>
+        )}
 
         {/* =================================================
             FOOTER
@@ -349,10 +396,12 @@ export function HelmetShowcase({
             </div>
           </div>
 
-          {/* Rotation hint */}
+          {/* Preview mode hint */}
           <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-border/40 bg-surface px-3 py-2 text-[9px] font-bold text-muted-foreground shadow-[2px_2px_6px_rgba(0,0,0,0.04)] dark:border-white/[0.08] dark:bg-card/60 dark:shadow-none sm:text-[10px]">
-            <Rotate3D size={14} className="text-primary" />
-            <span>{isVietnamese ? "Kéo để xoay" : "Drag to rotate"}</span>
+            <HintIcon size={14} className="text-primary" />
+            <span>
+              {isStaticPreview ? t("dashboard.helmet.staticPreview") : rotateHint}
+            </span>
           </div>
         </div>
 

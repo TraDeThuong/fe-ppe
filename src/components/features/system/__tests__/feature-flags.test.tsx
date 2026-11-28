@@ -198,7 +198,6 @@ describe("System Feature Flags UI", () => {
         featureFlags={SAMPLE_FLAGS}
         onClose={() => {}}
         onSelectTab={() => {}}
-        onRefreshHealth={() => {}}
         onToggleFlag={() => {}}
       />,
     );
@@ -217,7 +216,6 @@ describe("System Feature Flags UI", () => {
         configs={SAMPLE_FLAGS}
         onClose={() => {}}
         onSelectTab={() => {}}
-        onRefreshHealth={() => {}}
       />,
     );
     assert.doesNotMatch(configsHtml, /AES-256/);
