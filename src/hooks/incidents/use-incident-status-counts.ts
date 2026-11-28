@@ -7,6 +7,14 @@ import {
   type UseQueryOptions,
 } from "@tanstack/react-query";
 import { useRealtime } from "@/contexts/RealtimeContext";
+import {
+  fetchFilteredStatusCounts,
+  fetchIncidentBreakdown,
+  hasExtendedCountFilters,
+  pickStatusCountsFilters,
+  withDerivedCounts,
+  type IncidentBreakdown,
+} from "@/lib/incident-counts";
 import { incidentService } from "@/services/incident.service";
 import type { IncidentStatusCounts } from "@/types";
 import {
@@ -36,70 +44,31 @@ function normalizeStatusCountsParams(
   if (typeof siteIdOrParams === "string" || siteIdOrParams == null) {
     return { siteId: siteIdOrParams || undefined };
   }
-  return {
-    siteId: siteIdOrParams.siteId || undefined,
-    cameraId: siteIdOrParams.cameraId || undefined,
-    cameraIds: siteIdOrParams.cameraIds || undefined,
-    fromDate: siteIdOrParams.fromDate || undefined,
-    toDate: siteIdOrParams.toDate || undefined,
-  };
+  return { ...siteIdOrParams, siteId: siteIdOrParams.siteId || undefined };
 }
 
-async function fetchIncidentStatusCounts(
+async function fetchStatusCounts(
   params: IncidentStatusCountsQueryParams,
   signal?: AbortSignal,
 ): Promise<IncidentStatusCountsResult> {
-  try {
-    const query = {
-      ...(params.siteId ? { siteId: params.siteId } : {}),
-      ...(params.cameraId ? { cameraId: params.cameraId } : {}),
-      ...(params.cameraIds ? { cameraIds: params.cameraIds } : {}),
-      ...(params.fromDate ? { fromDate: params.fromDate } : {}),
-      ...(params.toDate ? { toDate: params.toDate } : {}),
-    };
-    return await incidentService.getStatusCounts(
-      Object.keys(query).length > 0 ? query : undefined,
-      { signal, suppressToast: true },
+  const filters = { ...params, siteId: params.siteId || undefined };
+  if (hasExtendedCountFilters(filters)) {
+    return fetchFilteredStatusCounts(
+      (query) => incidentService.getIncidents(query, { signal, suppressToast: true }),
+      filters,
     );
-  } catch (error) {
-    const status =
-      error && typeof error === "object" && "status" in error
-        ? Number((error as { status?: unknown }).status)
-        : undefined;
-    // Tuyệt đối không bắn thêm fallback request khi gặp 401, 403 hoặc 429 (tránh khuếch đại rate-limit)
-    if (status === 401 || status === 403 || status === 429) {
-      throw error;
-    }
-
-    // Fallback khi backend /incidents/status-counts chưa khả dụng hoặc trả 422
-    const page = await incidentService.getIncidents(
-      {
-        siteId: params.siteId || undefined,
-        cameraId: params.cameraId || undefined,
-        cameraIds: params.cameraIds || undefined,
-        fromDate: params.fromDate || undefined,
-        toDate: params.toDate || undefined,
-        status: "PENDING_REVIEW",
-        page: 1,
-        limit: 1,
-      },
-      { signal },
-    );
-    const pendingReview = page.meta?.total ?? page.items.length;
-    return {
-      total: pendingReview,
-      pendingReview,
-      confirmed: 0,
-      critical: 0,
-      resolved: 0,
-      closed: 0,
-      dismissed: 0,
-    };
   }
+  const counts = await incidentService.getStatusCounts(
+    pickStatusCountsFilters(filters),
+    { signal, suppressToast: true },
+  );
+  return withDerivedCounts(counts);
 }
 
 /**
- * Lấy bộ đếm nhanh trạng thái sự cố (total, pendingReview, critical, resolved).
+ * Lấy bộ đếm trạng thái sự cố khớp với bộ lọc của danh sách.
+ * Không lọc thêm → 1 request `/incidents/status-counts`; có tìm kiếm / mức độ / loại vi phạm /
+ * người được giao → đếm bằng `meta.total` (BE develop bỏ qua các bộ lọc này ở status-counts).
  * Tự động đồng bộ (có debounce 1.5s) khi nhận sự kiện SSE từ RealtimeContext.
  */
 export function useIncidentStatusCounts(
@@ -112,7 +81,7 @@ export function useIncidentStatusCounts(
 
   const query = useQuery<IncidentStatusCountsResult, Error>({
     queryKey: incidentKeys.statusCounts(normalizedParams),
-    queryFn: ({ signal }) => fetchIncidentStatusCounts(normalizedParams, signal),
+    queryFn: ({ signal }) => fetchStatusCounts(normalizedParams, signal),
     staleTime: 30 * 1000,
     refetchInterval: (q) =>
       isRateLimitError(q.state.error)
@@ -139,4 +108,26 @@ export function useIncidentStatusCounts(
   }, [lastAlert, options?.enabled, queryClient]);
 
   return query;
+}
+
+/**
+ * Phân bố theo mức độ và loại vi phạm cho panel thống kê — chỉ tải khi panel mở.
+ * Key nằm dưới `statusCountsRoot` nên được làm mới cùng bộ đếm khi có sự cố mới.
+ */
+export function useIncidentBreakdown(
+  params: IncidentStatusCountsQueryParams,
+  options?: { enabled?: boolean },
+) {
+  const normalizedParams = normalizeStatusCountsParams(params);
+  return useQuery<IncidentBreakdown, Error>({
+    queryKey: incidentKeys.breakdown(normalizedParams),
+    queryFn: ({ signal }) =>
+      fetchIncidentBreakdown(
+        (query) => incidentService.getIncidents(query, { signal, suppressToast: true }),
+        { ...normalizedParams, siteId: normalizedParams.siteId || undefined },
+      ),
+    enabled: options?.enabled ?? true,
+    staleTime: 60 * 1000,
+    retry: false,
+  });
 }

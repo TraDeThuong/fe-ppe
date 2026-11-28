@@ -8,7 +8,7 @@ import json
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
-from playwright.sync_api import sync_playwright, expect
+from playwright.sync_api import Error as PlaywrightError, sync_playwright, expect
 
 sys.stdout.reconfigure(line_buffering=True)
 parser = argparse.ArgumentParser(description=__doc__)
@@ -58,6 +58,15 @@ def apply_edit(job, payload):
         job['description'] = payload['description']
     return job
 
+
+def release_timed_out_request(route):
+    try:
+        route.abort()
+    except PlaywrightError as error:
+        if 'Route is already handled!' not in str(error):
+            raise
+
+
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     def session(permissions=('CRON_JOB_READ', 'CRON_JOB_MANAGE'), locale='vi-VN', theme='light', width=1440, hold_auth=False):
@@ -77,7 +86,8 @@ with sync_playwright() as p:
                 set(value) { timeout.set.call(this, value === window.__testCronTimeout ? 200 : value); }
             });
         """ % (json.dumps(locale), json.dumps(theme)))
-        state = dict(jobs=copy.deepcopy(JOBS), reads=0, writes=[], mode='ok', list_error=None, hold_auth=hold_auth, held_auth=None, held=None)
+        state = dict(jobs=copy.deepcopy(JOBS), reads=0, writes=[], mode='ok', list_error=None,
+                     audit_reads=[], audit_error=None, hold_auth=hold_auth, held_auth=None, held=None)
         user = dict(id='cron-fixture', email='fixture@example.test', fullName='Fixture Operator',
                     role='SAFETY_MANAGER', permissions=list(permissions), isActive=True, mustChangePassword=False)
         headers = {'access-control-allow-origin': args.base_url, 'access-control-allow-credentials': 'true'}
@@ -95,6 +105,9 @@ with sync_playwright() as p:
                 return fulfill(route, user)
             if path.endswith('/auth/refresh'):
                 return fulfill(route, dict(accessToken='mock-access', refreshToken='mock-refresh'))
+            if '/audit-logs' in path:
+                state['audit_reads'].append(path)
+                return fulfill(route, [], state['audit_error'] or 200)
             if '/cron/jobs' in path:
                 if request.method == 'GET':
                     state['reads'] += 1
@@ -175,7 +188,7 @@ with sync_playwright() as p:
         row_action(page, 'cleanup-audit-logs', action='Chỉnh sửa')
         edit = page.get_by_role('dialog', name='Chỉnh sửa tác vụ', exact=True)
         retention = edit.get_by_role('spinbutton', name='Số ngày lưu trữ log')
-        description = edit.get_by_role('textbox', name='Mô tả tác vụ')
+        description = edit.get_by_role('textbox', name='Mô tả tác vụ', exact=True)
         save = edit.get_by_role('button', name='Lưu thay đổi', exact=True)
         expect(retention).to_have_value('30')
         expect(description).to_have_value('Dọn audit logs cũ')
@@ -184,7 +197,15 @@ with sync_playwright() as p:
         page.keyboard.press('Escape')
         expect(edit).to_have_count(0)
         expect(page.get_by_role('button', name=menu_name, exact=True)).to_be_focused()
-        row_action(page, 'cleanup-audit-logs', action='Chỉnh sửa')
+        row_action(page, 'cleanup-audit-logs', action='Xem chi tiết')
+        detail = page.get_by_role('dialog', name='Chi tiết tác vụ định kỳ', exact=True)
+        detail.get_by_role('button', name='Chỉnh sửa', exact=True).click()
+        expect(detail).to_have_count(0)
+        expect(edit).to_be_visible()
+        expect(description).to_have_attribute('maxlength', '500')
+        description.fill('x' * 501)
+        expect(description).to_have_value('x' * 500)
+        expect(edit.get_by_text('500/500', exact=True)).to_be_visible()
 
         retention.fill('29')
         expect(retention).to_have_attribute('aria-invalid', 'true')
@@ -262,7 +283,7 @@ with sync_playwright() as p:
         expect(edit.get_by_role('alert')).to_contain_text('Chưa xác định được thay đổi đã lưu hay chưa.')
         assert len(state['writes']) == writes + 1
         assert state['writes'][-1][2] == {'schedule': {'frequency': 'HOURLY', 'everyHours': 6, 'minute': 59}}
-        state['held'].abort()
+        release_timed_out_request(state['held'])
         expect(save).to_have_count(0)
         state['mode'] = 'ok'
         page.evaluate('window.__testCronTimeout = null')
@@ -392,7 +413,8 @@ with sync_playwright() as p:
             dialog.get_by_role('button', name='Xác nhận', exact=True).click()
             expect(dialog.get_by_role('alert')).to_contain_text('Chưa xác định được kết quả')
             expect(dialog.get_by_role('button', name='Xác nhận', exact=True)).to_be_disabled()
-            if mode == 'timeout': state['held'].abort()
+            if mode == 'timeout':
+                release_timed_out_request(state['held'])
             assert len(state['writes']) == before + 1
             dialog.get_by_role('button', name='Hủy', exact=True).click()
             row_action(page, 'cleanup-expired-tokens', enabled=False)
@@ -446,6 +468,20 @@ with sync_playwright() as p:
             context, page, state, errors, _, _ = session(permissions=permissions)
             if permissions == ('CRON_JOB_READ',):
                 ready(page)
+                state['jobs'][0].update(lastRunAt='2026-11-16T04:00:00Z', lastStatus='FAILED')
+                refresh(page)
+                row_action(page, 'cleanup-audit-logs', action='Xem chi tiết')
+                detail = page.get_by_role('dialog', name='Chi tiết tác vụ định kỳ', exact=True)
+                expect(detail.get_by_text('Lần chạy gần nhất thất bại', exact=True)).to_be_visible()
+                expect(detail.get_by_text('11:00:00 16/11/2026', exact=True)).to_be_visible()
+                permission_notice = detail.get_by_text('Tài khoản của bạn không có quyền xem nhật ký thực thi chi tiết (AUDIT_LOG_READ).', exact=True)
+                expect(permission_notice).to_be_visible()
+                detail.get_by_role('button', name='Nhật ký lỗi', exact=False).click()
+                expect(permission_notice).to_be_visible()
+                expect(detail.get_by_text('Không phát hiện lỗi nào.', exact=False)).to_have_count(0)
+                expect(detail.get_by_role('button', name='Chỉnh sửa', exact=True)).to_have_count(0)
+                assert not state['audit_reads']
+                close(page)
                 page.get_by_role('button', name='Thao tác: cleanup-audit-logs', exact=True).click()
                 expect(page.get_by_role('menuitem', name='Chỉnh sửa', exact=True)).to_have_count(0)
                 expect(page.get_by_role('menuitem', name='Chạy ngay', exact=True)).to_have_count(0)
@@ -462,8 +498,22 @@ with sync_playwright() as p:
             context.close()
         print('PASS: read-only controls and permission checks for non-admin roles')
 
+        context, page, state, errors, _, _ = session(permissions=('CRON_JOB_READ', 'AUDIT_LOG_READ'))
+        ready(page)
+        state['audit_error'] = 403
+        row_action(page, 'cleanup-audit-logs', action='Xem chi tiết')
+        detail = page.get_by_role('dialog', name='Chi tiết tác vụ định kỳ', exact=True)
+        expect(detail.get_by_text('Tài khoản của bạn không có quyền xem nhật ký thực thi chi tiết (AUDIT_LOG_READ).', exact=True)).to_be_visible()
+        close(page)
+        state['audit_error'] = 500
+        row_action(page, 'cleanup-audit-logs', action='Xem chi tiết')
+        expect(detail.get_by_text('Không thể tải nhật ký thực thi.', exact=False)).to_be_visible(timeout=8000)
+        assert not errors, errors
+        context.close()
+        print('PASS: audit API denial and failure are distinct from empty history')
+
         context, page, state, errors, _, _ = session(locale='en-US', theme='dark', width=390)
-        expect(page.get_by_role('heading', name='Scheduled Tasks & Cron Jobs', exact=True)).to_be_visible()
+        expect(page.get_by_role('banner').get_by_text('Scheduled tasks', exact=True)).to_be_visible()
         expect(page.locator('tbody tr')).to_have_count(5)
         expect(page.locator('html')).to_have_attribute('data-theme', 'dark')
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Page must not overflow horizontally'

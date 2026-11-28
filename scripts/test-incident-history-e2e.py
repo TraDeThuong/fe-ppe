@@ -1,5 +1,6 @@
 """Exercise the production incident queues with synthetic incidents and write assertions."""
 from datetime import datetime, timedelta, timezone
+from collections import Counter
 from urllib.parse import parse_qs, urlparse
 
 from playwright.sync_api import expect, sync_playwright
@@ -36,9 +37,13 @@ for number in (2, 4):
     records[uuid(number)]['evidences'] = [dict(id=uuid(500 + number), incidentId=uuid(number), cameraId=CAMERA,
                                              evidenceType='SNAPSHOT', fileName='evidence.png',
                                              storageKey='test_frame_track7_abcdef.png', capturedAt=OLD.isoformat())]
+records[uuid(10)].update(severity='CRITICAL', violationType='NO_VEST', trackId=4)
+records[uuid(11)].update(severity='CRITICAL', violationType='NO_HELMET', trackId=4,
+                         detectedAt=records[uuid(10)]['detectedAt'])
 
 writes, requests, page_errors = [], [], []
 fail_close = True
+fail_counts = False
 
 
 def api(route):
@@ -70,16 +75,33 @@ def api(route):
         record['status'] = 'CLOSED'
         return ok(record)
 
-    if path == '/incidents':
+    if path in ('/incidents', '/incidents/status-counts'):
         rows = list(records.values())
-        for field in ('siteId', 'cameraId', 'status', 'severity'):
+        for field in ('siteId', 'cameraId', 'status', 'severity', 'violationType'):
             if field in params:
                 rows = [record for record in rows if record[field] == params[field][0]]
+        if 'search' in params:
+            rows = [record for record in rows if params['search'][0].lower() in record['description'].lower()]
+        if params.get('assignedToMe') == ['true']:
+            # BE develop không còn assignmentScope; lịch sử dùng includeAllAssignments.
+            assert 'assignmentScope' not in params, params
+            rows = [record for record in rows if record['id'] in (uuid(2), uuid(11))]
+        if path == '/incidents/status-counts':
+            if fail_counts:
+                return route.fulfill(status=503, json=dict(success=False, message='Fixture stats unavailable'))
+            statuses = Counter(record['status'] for record in rows)
+            severities = Counter(record['severity'] for record in rows)
+            closed_from = Counter(record['statusHistory'][-1]['oldStatus'] for record in rows
+                                  if record['status'] == 'CLOSED' and record['statusHistory'])
+            return ok(dict(total=len(rows), pendingReview=statuses['PENDING_REVIEW'],
+                           confirmed=statuses['CONFIRMED'], critical=severities['CRITICAL'],
+                           resolved=statuses['RESOLVED'] + statuses['CLOSED'], closed=statuses['CLOSED'],
+                           dismissed=statuses['DISMISSED'], bySeverity=dict(severities),
+                           byViolationType=dict(Counter(record['violationType'] for record in rows)),
+                           remediated=statuses['RESOLVED'] + closed_from['RESOLVED'],
+                           falseAlarms=statuses['DISMISSED'] + closed_from['DISMISSED']))
         rows.sort(key=lambda record: record['detectedAt'], reverse=True)
         return paginated(rows)
-    if path == '/incidents/status-counts':
-        return ok(dict(total=len(records), pendingReview=1, critical=0,
-                       resolved=sum(record['status'] in ('RESOLVED', 'CLOSED') for record in records.values())))
     if path.startswith('/incidents/') and path.split('/')[-1] in records:
         return ok(records[path.split('/')[-1]])
     if path == '/sites':
@@ -92,7 +114,8 @@ def api(route):
 
 
 def tab(page, name):
-    return page.get_by_role('tab', name=name, exact=True)
+    controls = page.get_by_label('Điều khiển danh sách sự cố')
+    return controls.get_by_role('button', name=name, exact=True)
 
 
 def row(page, description):
@@ -115,11 +138,13 @@ with browser_fixture('scripts/incident-group-fixture.tsx', spa=True) as base, sy
     page = context.new_page()
     page.on('pageerror', lambda error: page_errors.append(str(error)))
     page.goto(base + '/incidents')
-    expect(tab(page, 'Chờ thẩm duyệt')).to_have_attribute('aria-selected', 'true')
+    expect(tab(page, 'Chờ thẩm duyệt')).to_have_attribute('aria-pressed', 'true')
     expect(row(page, 'Hồ sơ cũ chờ duyệt')).to_be_visible()
     expect(row(page, 'Thành viên còn xử lý')).to_have_count(0)
     kpi = page.get_by_text('Tổng sự cố', exact=True).first.locator('..')
-    expect(kpi).to_contain_text('14')
+    expect(kpi).to_contain_text('15')
+    resolved_kpi = page.get_by_text('Đã giải quyết', exact=True).first.locator('..')
+    expect(resolved_kpi).to_contain_text('11')
 
     tab(page, 'Đã xác nhận').click()
     expect(row(page, 'Thành viên còn xử lý')).to_be_visible()
@@ -133,7 +158,7 @@ with browser_fixture('scripts/incident-group-fixture.tsx', spa=True) as base, sy
     expect(page.get_by_role('button', name='Trang tiếp theo')).to_be_enabled()
     assert not writes, writes
     assert any(path == '/incidents' and 'status' not in params for path, params in requests)
-    expect(kpi).to_contain_text('14')
+    expect(kpi).to_contain_text('15')
 
     tab(page, 'Tác nghiệp').click()
     tab(page, 'Chờ nghiệm thu').click()
@@ -152,11 +177,11 @@ with browser_fixture('scripts/incident-group-fixture.tsx', spa=True) as base, sy
     expect(row(page, 'Hồ sơ nghiệm thu 9')).to_be_visible()
     expect(page.get_by_role('button', name='Trang tiếp theo')).to_be_disabled()
     page.get_by_role('link', name='Xem Lịch sử', exact=True).click()
-    expect(tab(page, 'Lịch sử')).to_have_attribute('aria-selected', 'true')
+    expect(tab(page, 'Lịch sử')).to_have_attribute('aria-pressed', 'true')
     accepted = row(page, 'Hồ sơ cuối trang')
     expect(accepted).to_contain_text('Đóng sau nghiệm thu')
     expect(accepted.locator('time')).to_have_attribute('datetime', CLOSED_AT)
-    expect(kpi).to_contain_text('14')
+    expect(kpi).to_contain_text('15')
 
     accepted.get_by_role('link', name='#00000000').click()
     expect(page).to_have_url(base + f'/incidents/{uuid(4)}')
@@ -172,15 +197,53 @@ with browser_fixture('scripts/incident-group-fixture.tsx', spa=True) as base, sy
     page.get_by_role('link', name='Xem Lịch sử', exact=True).click()
     expect(row(page, 'Hồ sơ bác bỏ chờ đóng')).to_contain_text('Đóng sau bác bỏ')
 
+    # The same aggregate is used in the card, drill-down, breakdown, and mobile lane.
+    page.get_by_text('Vi phạm khẩn cấp', exact=True).first.click()
+    expect(page.get_by_role('heading', name='Sự cố vi phạm khẩn cấp')).to_be_visible()
+    expect(page.get_by_text('Cao', exact=True).first.locator('..')).to_contain_text('13')
+    expect(page.get_by_text('Vi phạm khẩn cấp', exact=True).first.locator('..')).to_contain_text('2')
+    expect(page.get_by_text('Vi phạm khẩn cấp trên trang này', exact=True).locator('..')).to_contain_text('2 vụ việc')
+    assert not any(path == '/incidents/status-counts' and 'status' in params for path, params in requests)
+
+    page.get_by_text('Đã giải quyết', exact=True).first.click()
+    expect(page.get_by_text('Tổng sự cố đã khắc phục', exact=True).locator('..')).to_contain_text('11')
+    expect(page.get_by_text('Tỷ lệ khắc phục an toàn', exact=True).locator('..')).to_contain_text('73%')
+    expect(page.get_by_text('Cảnh báo ảo loại trừ', exact=True).locator('..')).to_contain_text('1')
+    expect(page.get_by_text('Hồ sơ chờ nghiệm thu trên trang này', exact=True).locator('..')).to_contain_text('8 hồ sơ')
+    expect(resolved_kpi).to_contain_text('10')
+    page.set_viewport_size(dict(width=390, height=844))
+    expect(page.get_by_role('button', name='Chờ nghiệm thu', exact=False)).to_contain_text('10')
+    page.set_viewport_size(dict(width=1440, height=1000))
+
+    search = page.get_by_placeholder('Tìm theo mã sự cố, camera, mô tả...')
+    search.fill('Hồ sơ nghiệm thu 9')
+    expect(kpi.locator('p')).to_have_text('1')
+    expect(resolved_kpi.locator('p')).to_have_text('1')
+    assert any(path == '/incidents/status-counts' and params.get('search') == ['Hồ sơ nghiệm thu 9']
+               for path, params in requests)
+    fail_counts = True
+    search.fill('Hồ sơ nghiệm thu 8')
+    expect(page.get_by_text('Không tải được số liệu thống kê sự cố.')).to_be_visible()
+    expect(kpi).to_contain_text('—')
+    expect(row(page, 'Hồ sơ nghiệm thu 8')).to_be_visible()
+    fail_counts = False
+
+    page.goto(base + '/incidents?assignedToMe=true')
+    expect(kpi.locator('p')).to_have_text('2')
+    expect(resolved_kpi.locator('p')).to_have_text('1')
+    page.get_by_text('Đã giải quyết', exact=True).first.click()
+    expect(resolved_kpi.locator('p')).to_have_text('1')
+    expect(row(page, 'Hồ sơ nghiệm thu 1')).to_be_visible()
+
     page.goto(base + f'/incidents?status=CLOSED&siteId={SITE}&cameraId={CAMERA}')
-    expect(tab(page, 'Lịch sử')).to_have_attribute('aria-selected', 'true')
+    expect(tab(page, 'Lịch sử')).to_have_attribute('aria-pressed', 'true')
     expect(row(page, 'Hồ sơ cuối trang')).to_be_visible()
     assert any(path == '/incidents' and query.get('siteId') == [SITE] and query.get('cameraId') == [CAMERA]
                and query.get('status') == ['CLOSED'] for path, query in requests)
 
     page.get_by_label('Test account').select_option('officer')
     page.get_by_role('button', name='Incidents', exact=True).click()
-    expect(tab(page, 'Đã xác nhận')).to_have_attribute('aria-selected', 'true')
+    expect(tab(page, 'Đã xác nhận')).to_have_attribute('aria-pressed', 'true')
     expect(row(page, 'Thành viên còn xử lý')).to_be_visible()
     page.get_by_role('button', name='Toggle read permission').click()
     expect(page.get_by_role('alert')).to_contain_text('Bạn không có quyền xem danh sách sự cố.')

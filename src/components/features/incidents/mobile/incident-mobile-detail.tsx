@@ -115,7 +115,7 @@ function EvidenceCarousel({ items, isVietnamese }: { items: GalleryMediaItem[]; 
   return (
     <div className="space-y-2">
       <div
-        className="-mx-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="-mx-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-3 scrollbar-none [&::-webkit-scrollbar]:hidden"
         onScroll={(event) => {
           const el = event.currentTarget;
           const index = Math.round(el.scrollLeft / Math.max(el.clientWidth - 12, 1));
@@ -362,7 +362,7 @@ export function IncidentMobileDetail({
     incident.description && incident.description.trim() !== violationLabel ? incident.description.trim() : "";
 
   return (
-    <div className={`space-y-4 ${showActionBar ? "-mb-8" : ""}`}>
+    <div className={`space-y-4 ${showActionBar ? "pb-16" : ""}`}>
       <h1 className="sr-only">
         {isVietnamese ? "Chi tiết sự cố" : "Incident"}: {violationLabel}
       </h1>
@@ -472,7 +472,8 @@ export function IncidentMobileDetail({
       )}
 
       {showActionBar && (
-        <div className="sticky bottom-0 z-20 -mx-3 flex gap-2 border-t border-border/70 bg-background/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
+        // Cố định ở đáy màn hình (thanh tab đã ẩn) để nút quyết định luôn trong tầm ngón cái.
+        <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-border/70 bg-background/95 px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-6px_18px_-12px_rgba(0,0,0,0.35)] backdrop-blur md:hidden">
           {secondaryActions.length > 0 && (
             <button
               type="button"

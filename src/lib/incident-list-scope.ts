@@ -1,6 +1,10 @@
-import type { IncidentItem } from "@/types";
+import type { IncidentItem, IncidentStatusCounts } from "@/types";
 
 export type IncidentListScope = "work" | "history" | "all";
+
+export function getAwaitingAcceptanceCount(counts?: IncidentStatusCounts): number | undefined {
+  return counts && counts.resolved - counts.closed;
+}
 
 export const incidentWorkStatuses = {
   PENDING_REVIEW: "incidents.status.pendingReview",

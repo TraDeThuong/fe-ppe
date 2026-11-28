@@ -1,5 +1,6 @@
 import axios from "axios";
 import { apiClient } from "@/lib/axios";
+import type { StatusCountsSupportedFilters } from "@/lib/incident-counts";
 import type {
   ChecksumVerifyResult,
   CloseIncidentPayload,
@@ -179,12 +180,7 @@ export const incidentService = {
    * Đếm nhanh số lượng sự cố theo trạng thái/mức độ cho Dashboard KPI.
    */
   async getStatusCounts(
-    params?: {
-      siteId?: string;
-      cameraId?: string;
-      cameraIds?: string[] | string;
-      fromDate?: string;
-      toDate?: string;
+    params?: StatusCountsSupportedFilters & {
       startDate?: string;
       endDate?: string;
     },
@@ -200,16 +196,29 @@ export const incidentService = {
         resolved: 0,
         closed: 0,
         dismissed: 0,
+        bySeverity: {},
+        byViolationType: {},
+        remediated: 0,
+        falseAlarms: 0,
       };
     }
 
+    // BE chỉ áp dụng site / camera / khoảng ngày; tham số khác bị bỏ qua lặng lẽ nên không gửi.
+    // Bộ đếm theo đủ bộ lọc danh sách nằm ở `fetchFilteredStatusCounts` (src/lib/incident-counts.ts).
     let sanitizedParams: Record<string, unknown> | undefined;
     if (params) {
-      const { cameraIds: _rawCamIds, ...rest } = params;
-      sanitizedParams = {
-        ...rest,
-        ...(camIds.value ? { cameraIds: camIds.value } : {}),
+      const supported = {
+        siteId: params.siteId || undefined,
+        cameraId: params.cameraId || undefined,
+        cameraIds: camIds.value,
+        fromDate: params.fromDate || undefined,
+        toDate: params.toDate || undefined,
+        startDate: params.startDate || undefined,
+        endDate: params.endDate || undefined,
       };
+      sanitizedParams = Object.fromEntries(
+        Object.entries(supported).filter(([, value]) => value !== undefined),
+      );
     }
 
     const res = await apiClient.get<unknown>("/incidents/status-counts", {
@@ -217,16 +226,14 @@ export const incidentService = {
       signal: options?.signal,
       ...(options?.suppressToast ? { suppressToast: true } : {}),
     } as Record<string, unknown>);
-    const data = unwrapData<Partial<IncidentStatusCounts>>(res);
-    return {
-      total: Number(data?.total ?? 0),
-      pendingReview: Number(data?.pendingReview ?? 0),
-      confirmed: Number(data?.confirmed ?? 0),
-      critical: Number(data?.critical ?? 0),
-      resolved: Number(data?.resolved ?? 0),
-      closed: Number(data?.closed ?? 0),
-      dismissed: Number(data?.dismissed ?? 0),
-    };
+    const data = unwrapData<IncidentStatusCounts>(res);
+    const requiredCounts = ["total", "pendingReview", "confirmed", "critical", "resolved", "closed", "dismissed"] as const;
+    if (!data ||
+        requiredCounts.some((key) => !Number.isSafeInteger(data[key]) || data[key] < 0) ||
+        data.resolved < data.closed) {
+      throw new Error("Invalid incident status counts");
+    }
+    return data;
   },
 
   /**

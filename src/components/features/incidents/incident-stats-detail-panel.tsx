@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import Link from "next/link";
 import {
   AlertOctagon,
@@ -24,28 +23,21 @@ import { AnimatedNumber } from "@/components/ui/animated-number";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { IncidentStatusBadge } from "./incident-status-badge";
 import { IncidentSeverityBadge } from "./incident-severity-badge";
-import {
-  clusterIncidentsByPerson,
-  type IncidentAggregationMode,
-} from "@/lib/incident-cluster-engine";
-import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
-import type { IncidentItem, IncidentSeverity, IncidentStatus, ViolationType } from "@/types";
+import { getAwaitingAcceptanceCount } from "@/lib/incident-list-scope";
+import type { IncidentItem, IncidentStatusCounts } from "@/types";
 
 export type IncidentStatKey = "total" | "pendingReview" | "critical" | "resolved";
 
 export interface IncidentStatsDetailPanelProps {
   activeStat: IncidentStatKey;
   incidents: IncidentItem[];
-  statusTotals?: Partial<AssignmentIncidentTotals>;
-  criticalTotal?: number;
-  groupingMode?: IncidentAggregationMode;
-  loading?: boolean;
+  statusCounts?: IncidentStatusCounts;
+  listLoading?: boolean;
+  listError?: boolean;
   onClose: () => void;
   onReview?: (incident: IncidentItem) => void;
   onAssign?: (incident: IncidentItem) => void;
-  onResolve?: (incident: IncidentItem) => void;
   onFilterStatus?: (status: string) => void;
-  onFilterSeverity?: (severity: string) => void;
   onFilterViolation?: (violation: string) => void;
   onFilterSite?: (siteId: string) => void;
 }
@@ -68,16 +60,13 @@ function formatDate(dateInput?: string | Date | null, loc: string = "vi-VN"): st
 export function IncidentStatsDetailPanel({
   activeStat,
   incidents = [],
-  statusTotals,
-  criticalTotal,
-  groupingMode = "clustered",
-  loading = false,
+  statusCounts,
+  listLoading = false,
+  listError = false,
   onClose,
   onReview,
   onAssign,
-  onResolve,
   onFilterStatus,
-  onFilterSeverity,
   onFilterViolation,
   onFilterSite,
 }: IncidentStatsDetailPanelProps) {
@@ -85,126 +74,28 @@ export function IncidentStatsDetailPanel({
   const isVietnamese = locale === "vi-VN";
   const { getSiteName, getCameraCode } = useEntityLookup();
 
-  const clusters = useMemo(
-    () => (groupingMode === "clustered" ? clusterIncidentsByPerson(incidents) : null),
-    [incidents, groupingMode],
-  );
+  const statusStats = {
+    total: statusCounts?.total,
+    pendingReview: statusCounts?.pendingReview,
+    confirmed: statusCounts?.confirmed,
+    critical: statusCounts?.critical,
+    resolved: getAwaitingAcceptanceCount(statusCounts),
+    closed: statusCounts?.closed,
+    dismissed: statusCounts?.dismissed,
+  };
+  const { bySeverity, byViolationType, remediated, falseAlarms } = statusCounts ?? {};
+  const resolutionRate = statusCounts?.total && remediated !== undefined
+    ? Math.round((remediated / statusCounts.total) * 100)
+    : undefined;
 
-  // 1. Phân bổ theo trạng thái (Status Breakdown)
-  const statusStats = useMemo(() => {
-    let pending = 0;
-    let confirmed = 0;
-    let resolved = 0;
-    let closed = 0;
-    let dismissed = 0;
-
-    if (clusters) {
-      for (const cl of clusters) {
-        if (cl.effectiveStatus === "PENDING_REVIEW") pending++;
-        else if (cl.effectiveStatus === "CONFIRMED") confirmed++;
-        else if (cl.effectiveStatus === "RESOLVED") resolved++;
-        else if (cl.effectiveStatus === "CLOSED") closed++;
-        else if (cl.effectiveStatus === "DISMISSED") dismissed++;
-      }
-      return { pending, confirmed, resolved, closed, dismissed };
-    }
-
-    for (const item of incidents) {
-      if (item.status === "PENDING_REVIEW") pending++;
-      else if (item.status === "CONFIRMED") confirmed++;
-      else if (item.status === "RESOLVED") resolved++;
-      else if (item.status === "CLOSED") closed++;
-      else if (item.status === "DISMISSED") dismissed++;
-    }
-
-    return {
-      pending: Math.max(statusTotals?.pendingReview ?? 0, pending),
-      confirmed: Math.max(statusTotals?.confirmed ?? 0, confirmed),
-      resolved: Math.max(statusTotals?.resolved ?? 0, resolved),
-      closed: Math.max(statusTotals?.closed ?? 0, closed),
-      dismissed: Math.max(statusTotals?.dismissed ?? 0, dismissed),
-    };
-  }, [incidents, statusTotals, clusters]);
-
-  // 2. Phân bổ theo loại vi phạm (Violation Type Breakdown)
-  const violationStats = useMemo(() => {
-    let noHelmet = 0;
-    let noVest = 0;
-    let restrictedArea = 0;
-    let multi = 0;
-    let other = 0;
-
-    if (clusters) {
-      for (const cl of clusters) {
-        if (cl.effectiveViolationType === "NO_HELMET") noHelmet++;
-        else if (cl.effectiveViolationType === "NO_VEST") noVest++;
-        else if (cl.effectiveViolationType === "RESTRICTED_AREA") restrictedArea++;
-        else if (cl.effectiveViolationType === "MULTI_VIOLATION") multi++;
-        else other++;
-      }
-      return { noHelmet, noVest, restrictedArea, multi, other };
-    }
-
-    for (const item of incidents) {
-      if (item.violationType === "NO_HELMET") noHelmet++;
-      else if (item.violationType === "NO_VEST") noVest++;
-      else if (item.violationType === "RESTRICTED_AREA") restrictedArea++;
-      else if (item.violationType === "MULTI_VIOLATION") multi++;
-      else other++;
-    }
-
-    return { noHelmet, noVest, restrictedArea, multi, other };
-  }, [incidents, clusters]);
-
-  // 3. Phân bổ theo mức độ (Severity Breakdown)
-  const severityStats = useMemo(() => {
-    let critical = 0;
-    let high = 0;
-    let medium = 0;
-    let low = 0;
-
-    if (clusters) {
-      for (const cl of clusters) {
-        if (cl.effectiveSeverity === "CRITICAL") critical++;
-        else if (cl.effectiveSeverity === "HIGH") high++;
-        else if (cl.effectiveSeverity === "MEDIUM") medium++;
-        else low++;
-      }
-      return { critical, high, medium, low };
-    }
-
-    for (const item of incidents) {
-      if (item.severity === "CRITICAL") critical++;
-      else if (item.severity === "HIGH") high++;
-      else if (item.severity === "MEDIUM") medium++;
-      else low++;
-    }
-
-    return { critical, high, medium, low };
-  }, [incidents, clusters]);
-
-  // 4. Các danh sách sự cố đã lọc theo mục đích
-  const pendingIncidents = useMemo(
-    () => incidents.filter((i) => i.status === "PENDING_REVIEW"),
-    [incidents],
-  );
-
-  const criticalIncidents = useMemo(
-    () => incidents.filter((i) => i.severity === "CRITICAL"),
-    [incidents],
-  );
-
-  const resolvedIncidents = useMemo(
-    () => incidents.filter((i) => i.status === "RESOLVED" || i.status === "CLOSED"),
-    [incidents],
-  );
-
-  const totalCount = clusters
-    ? clusters.length
-    : Math.max(statusTotals?.total ?? 0, incidents.length);
-  const resolvedCount = statusStats.resolved + statusStats.closed;
-  const resolutionRate =
-    totalCount > 0 ? Math.round((resolvedCount / totalCount) * 100) : 100;
+  const pageIncidents = listLoading || listError ? [] : incidents;
+  const previewIncidents = pageIncidents.slice(0, 6);
+  const pendingIncidents = pageIncidents.filter((incident) => incident.status === "PENDING_REVIEW");
+  const criticalIncidents = pageIncidents.filter((incident) => incident.severity === "CRITICAL");
+  const resolvedIncidents = pageIncidents.filter((incident) => incident.status === "RESOLVED" || incident.status === "CLOSED").slice(0, 8);
+  const listEmptyMessage = listLoading
+    ? t("incidents.stats.loadingRows")
+    : listError ? t("incidents.stats.unavailableRows") : t("incidents.stats.noRows");
 
   const formatViolation = (type: string) => {
     switch (type) {
@@ -249,10 +140,7 @@ export function IncidentStatsDetailPanel({
               </h3>
 
               <Badge variant="outline" size="sm" className="font-mono text-[10px] sm:text-[11px] text-foreground px-1.5 py-0">
-                {activeStat === "total" && `${totalCount}`}
-                {activeStat === "pendingReview" && `${statusStats.pending}`}
-                {activeStat === "critical" && `${criticalTotal ?? severityStats.critical}`}
-                {activeStat === "resolved" && `${resolvedCount}`}
+                {statusStats[activeStat] ?? "—"}
               </Badge>
             </div>
             <p className="text-[11px] sm:text-xs text-muted-foreground truncate hidden sm:block">
@@ -276,19 +164,6 @@ export function IncidentStatsDetailPanel({
             >
               <Filter className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span className="hidden sm:inline">{isVietnamese ? "Lọc chờ duyệt" : "Filter Pending"}</span>
-            </Button>
-          )}
-
-          {activeStat === "critical" && onFilterSeverity && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onFilterSeverity("CRITICAL")}
-              className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs text-danger hover:text-danger px-2 sm:px-3"
-            >
-              <Filter className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              <span className="hidden sm:inline">{isVietnamese ? "Lọc khẩn cấp" : "Filter Critical"}</span>
             </Button>
           )}
 
@@ -341,7 +216,7 @@ export function IncidentStatsDetailPanel({
                     {t("incidents.status.pendingReview")}
                   </span>
                   <Badge variant="outline" size="sm" className="border-warning/30 text-warning text-[9px] px-1 py-0 ml-1">
-                    {statusStats.pending}
+                    {statusStats.pendingReview ?? "—"}
                   </Badge>
                 </button>
 
@@ -354,7 +229,7 @@ export function IncidentStatsDetailPanel({
                     {t("incidents.status.confirmed")}
                   </span>
                   <Badge variant="outline" size="sm" className="border-primary/30 text-primary text-[9px] px-1 py-0 ml-1">
-                    {statusStats.confirmed}
+                    {statusStats.confirmed ?? "—"}
                   </Badge>
                 </button>
 
@@ -367,7 +242,7 @@ export function IncidentStatsDetailPanel({
                     {t("incidents.status.resolved")}
                   </span>
                   <Badge variant="outline" size="sm" className="border-success/30 text-success text-[9px] px-1 py-0 ml-1">
-                    {statusStats.resolved}
+                    {statusStats.resolved ?? "—"}
                   </Badge>
                 </button>
 
@@ -380,7 +255,7 @@ export function IncidentStatsDetailPanel({
                     {t("incidents.status.closed")}
                   </span>
                   <Badge variant="secondary" size="sm" className="text-[9px] px-1 py-0 ml-1">
-                    {statusStats.closed}
+                    {statusStats.closed ?? "—"}
                   </Badge>
                 </button>
 
@@ -393,7 +268,7 @@ export function IncidentStatsDetailPanel({
                     {t("incidents.status.dismissed")}
                   </span>
                   <Badge variant="secondary" size="sm" className="text-[9px] px-1 py-0 ml-1">
-                    {statusStats.dismissed}
+                    {statusStats.dismissed ?? "—"}
                   </Badge>
                 </button>
               </div>
@@ -422,7 +297,7 @@ export function IncidentStatsDetailPanel({
                     </span>
                   </div>
                   <Badge variant="outline" size="sm" className="font-mono text-[9px] px-1 py-0 ml-1">
-                    {violationStats.noHelmet}
+                    {byViolationType ? (byViolationType.NO_HELMET ?? 0) : "—"}
                   </Badge>
                 </button>
 
@@ -438,7 +313,7 @@ export function IncidentStatsDetailPanel({
                     </span>
                   </div>
                   <Badge variant="outline" size="sm" className="font-mono text-[9px] px-1 py-0 ml-1">
-                    {violationStats.noVest}
+                    {byViolationType ? (byViolationType.NO_VEST ?? 0) : "—"}
                   </Badge>
                 </button>
 
@@ -454,7 +329,7 @@ export function IncidentStatsDetailPanel({
                     </span>
                   </div>
                   <Badge variant="outline" size="sm" className="font-mono text-[9px] px-1 py-0 ml-1">
-                    {violationStats.restrictedArea}
+                    {byViolationType ? (byViolationType.RESTRICTED_AREA ?? 0) : "—"}
                   </Badge>
                 </button>
 
@@ -470,7 +345,7 @@ export function IncidentStatsDetailPanel({
                     </span>
                   </div>
                   <Badge variant="outline" size="sm" className="font-mono text-[9px] px-1 py-0 ml-1">
-                    {violationStats.multi}
+                    {byViolationType ? (byViolationType.MULTI_VIOLATION ?? 0) : "—"}
                   </Badge>
                 </button>
               </div>
@@ -481,15 +356,17 @@ export function IncidentStatsDetailPanel({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between px-0.5 text-xs">
               <span className="font-bold text-foreground">
-                {isVietnamese ? "Sự cố ghi nhận gần nhất" : "Recent Incidents"}
+                {isVietnamese ? "Sự cố trên trang này" : "Incidents on this page"}
               </span>
               <span className="text-[10px] text-muted-foreground">
-                {isVietnamese ? `Hiển thị ${Math.min(incidents.length, 6)} sự cố` : `Showing ${Math.min(incidents.length, 6)} incidents`}
+                {!listLoading && !listError && (
+                  isVietnamese ? `Hiển thị ${previewIncidents.length} sự cố` : `Showing ${previewIncidents.length} incidents`
+                )}
               </span>
             </div>
 
             <div className="max-h-[220px] overflow-y-auto space-y-1.5 pr-0.5">
-              {incidents.slice(0, 6).map((incident) => (
+              {previewIncidents.length === 0 ? <p className="p-3 text-xs text-muted-foreground">{listEmptyMessage}</p> : previewIncidents.map((incident) => (
                 <div
                   key={incident.id}
                   className="flex items-center justify-between gap-2 rounded-xl border border-border/40 bg-background/60 p-2 sm:p-2.5 shadow-[inset_1px_1px_2px_var(--shadow-dark)] hover:border-primary/40 transition"
@@ -523,10 +400,7 @@ export function IncidentStatsDetailPanel({
                         {onFilterSite && incident.siteId ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              onFilterSite(incident.siteId);
-                              onClose();
-                            }}
+                            onClick={() => onFilterSite(incident.siteId)}
                             className="flex items-center gap-1 truncate hover:text-primary transition hover:underline"
                             title={isVietnamese ? `Lọc theo công trường ${incident.siteName || getSiteName(incident.siteId)}` : "Filter by this site"}
                           >
@@ -575,9 +449,7 @@ export function IncidentStatsDetailPanel({
             <Clock className="h-4 w-4 text-warning shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="font-bold text-foreground text-xs sm:text-sm">
-                {isVietnamese
-                  ? `Có ${statusStats.pending} sự cố vi phạm đang chờ nhân sự xác thực`
-                  : `${statusStats.pending} violations awaiting human verification`}
+                {isVietnamese ? "Sự cố cần nhân sự xác thực" : "Incidents awaiting human verification"}
               </p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 {isVietnamese
@@ -593,10 +465,7 @@ export function IncidentStatsDetailPanel({
               <div className="rounded-xl border border-dashed border-border/50 bg-background/40 p-6 text-center text-xs text-muted-foreground space-y-1">
                 <CheckCircle2 className="h-6 w-6 text-success mx-auto mb-1 opacity-80" />
                 <p className="font-semibold text-foreground">
-                  {isVietnamese ? "Không còn sự cố nào chờ duyệt" : "No pending review incidents"}
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {isVietnamese ? "Mọi vi phạm PPE phát hiện đã được thẩm duyệt hoàn tất." : "All detected PPE violations have been processed."}
+                  {listEmptyMessage}
                 </p>
               </div>
             ) : (
@@ -628,10 +497,7 @@ export function IncidentStatsDetailPanel({
                         {onFilterSite && incident.siteId ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              onFilterSite(incident.siteId);
-                              onClose();
-                            }}
+                            onClick={() => onFilterSite(incident.siteId)}
                             className="flex items-center gap-1 truncate hover:text-primary transition hover:underline"
                             title={isVietnamese ? `Lọc theo công trường ${incident.siteName || getSiteName(incident.siteId)}` : "Filter by this site"}
                           >
@@ -696,7 +562,7 @@ export function IncidentStatsDetailPanel({
                 {t("incidents.severity.critical")}
               </span>
               <span className="text-base sm:text-lg font-black text-danger font-mono tabular-nums">
-                <AnimatedNumber value={severityStats.critical} />
+                {statusCounts ? <AnimatedNumber value={statusCounts.critical} /> : "—"}
               </span>
             </div>
 
@@ -705,7 +571,7 @@ export function IncidentStatsDetailPanel({
                 {t("incidents.severity.high")}
               </span>
               <span className="text-base sm:text-lg font-black text-warning font-mono tabular-nums">
-                <AnimatedNumber value={severityStats.high} />
+                {bySeverity ? <AnimatedNumber value={bySeverity.HIGH ?? 0} /> : "—"}
               </span>
             </div>
 
@@ -714,7 +580,7 @@ export function IncidentStatsDetailPanel({
                 {t("incidents.severity.medium")}
               </span>
               <span className="text-base sm:text-lg font-black text-primary font-mono tabular-nums">
-                <AnimatedNumber value={severityStats.medium} />
+                {bySeverity ? <AnimatedNumber value={bySeverity.MEDIUM ?? 0} /> : "—"}
               </span>
             </div>
 
@@ -723,7 +589,7 @@ export function IncidentStatsDetailPanel({
                 {t("incidents.severity.low")}
               </span>
               <span className="text-base sm:text-lg font-black text-muted-foreground font-mono tabular-nums">
-                <AnimatedNumber value={severityStats.low} />
+                {bySeverity ? <AnimatedNumber value={bySeverity.LOW ?? 0} /> : "—"}
               </span>
             </div>
           </div>
@@ -733,10 +599,10 @@ export function IncidentStatsDetailPanel({
             <div className="flex items-center justify-between px-0.5 text-xs">
               <span className="font-bold text-foreground flex items-center gap-1.5">
                 <AlertOctagon className="h-3.5 w-3.5 text-danger" />
-                {isVietnamese ? "Danh sách vi phạm mức độ cao & khẩn cấp" : "High & Critical Violations List"}
+                {isVietnamese ? "Vi phạm khẩn cấp trên trang này" : "Critical incidents on this page"}
               </span>
               <span className="text-[10px] text-muted-foreground font-mono">
-                {criticalIncidents.length} {isVietnamese ? "vụ việc" : "records"}
+                {!listLoading && !listError && (isVietnamese ? `${criticalIncidents.length} vụ việc` : `${criticalIncidents.length} records`)}
               </span>
             </div>
 
@@ -745,10 +611,7 @@ export function IncidentStatsDetailPanel({
                 <div className="rounded-xl border border-dashed border-border/50 bg-background/40 p-5 text-center text-xs text-muted-foreground">
                   <ShieldCheck className="h-6 w-6 text-success mx-auto mb-1 opacity-80" />
                   <p className="font-semibold text-foreground">
-                    {isVietnamese ? "Không có vi phạm khẩn cấp nào" : "No critical violations"}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {isVietnamese ? "Hiện trường đang được kiểm soát ở mức rủi ro an toàn cho phép." : "Field sites are maintaining acceptable safety risk standards."}
+                    {listEmptyMessage}
                   </p>
                 </div>
               ) : (
@@ -781,10 +644,7 @@ export function IncidentStatsDetailPanel({
                           {onFilterSite && incident.siteId ? (
                             <button
                               type="button"
-                              onClick={() => {
-                                onFilterSite(incident.siteId);
-                                onClose();
-                              }}
+                              onClick={() => onFilterSite(incident.siteId)}
                               className="flex items-center gap-1 truncate hover:text-primary transition hover:underline"
                               title={isVietnamese ? `Lọc theo công trường ${incident.siteName || getSiteName(incident.siteId)}` : "Filter by this site"}
                             >
@@ -861,10 +721,10 @@ export function IncidentStatsDetailPanel({
                 {isVietnamese ? "Tổng sự cố đã khắc phục" : "Total Remediated"}
               </span>
               <span className="text-xl sm:text-2xl font-black text-success font-mono tabular-nums">
-                <AnimatedNumber value={resolvedCount} />
+                {remediated === undefined ? "—" : <AnimatedNumber value={remediated} />}
               </span>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                {isVietnamese ? "Đã nghiệm thu hiện trường" : "Field-verified solutions"}
+                {isVietnamese ? "Đã khắc phục, gồm hồ sơ đóng sau nghiệm thu" : "Includes cases closed after acceptance"}
               </p>
             </div>
 
@@ -873,10 +733,10 @@ export function IncidentStatsDetailPanel({
                 {isVietnamese ? "Tỷ lệ khắc phục an toàn" : "Safety Resolution Rate"}
               </span>
               <span className="text-xl sm:text-2xl font-black text-primary font-mono tabular-nums">
-                <AnimatedNumber value={resolutionRate} />%
+                {resolutionRate === undefined ? "—" : <><AnimatedNumber value={resolutionRate} />%</>}
               </span>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                {isVietnamese ? "Trên tổng số hồ sơ đã mở" : "Of all opened incidents"}
+                {isVietnamese ? "Trên tổng số hồ sơ theo bộ lọc" : "Of all incidents matching the filters"}
               </p>
             </div>
 
@@ -885,10 +745,10 @@ export function IncidentStatsDetailPanel({
                 {isVietnamese ? "Cảnh báo ảo loại trừ" : "False Alarms Filtered"}
               </span>
               <span className="text-xl sm:text-2xl font-black text-foreground font-mono tabular-nums">
-                <AnimatedNumber value={statusStats.dismissed} />
+                {falseAlarms === undefined ? "—" : <AnimatedNumber value={falseAlarms} />}
               </span>
               <p className="text-[10px] text-muted-foreground mt-0.5">
-                {isVietnamese ? "Đã thẩm duyệt bác bỏ" : "Dismissed after AI check"}
+                {isVietnamese ? "Gồm hồ sơ đã đóng sau bác bỏ" : "Includes cases closed after dismissal"}
               </p>
             </div>
           </div>
@@ -898,20 +758,20 @@ export function IncidentStatsDetailPanel({
             <div className="flex items-center justify-between px-0.5 text-xs">
               <span className="font-bold text-foreground flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                {isVietnamese ? "Hồ sơ sự cố đã hoàn tất khắc phục gần đây" : "Recently Resolved Incidents"}
+                {isVietnamese ? "Hồ sơ chờ nghiệm thu trên trang này" : "Incidents awaiting acceptance on this page"}
               </span>
               <span className="text-[10px] text-muted-foreground font-mono">
-                {resolvedIncidents.length} {isVietnamese ? "hồ sơ" : "records"}
+                {!listLoading && !listError && (isVietnamese ? `${resolvedIncidents.length} hồ sơ` : `${resolvedIncidents.length} records`)}
               </span>
             </div>
 
             <div className="max-h-[240px] overflow-y-auto space-y-1.5 pr-0.5">
               {resolvedIncidents.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border/50 bg-background/40 p-5 text-center text-xs text-muted-foreground">
-                  <p>{isVietnamese ? "Chưa có sự cố nào được đánh dấu giải quyết." : "No resolved incidents yet."}</p>
+                  <p>{listEmptyMessage}</p>
                 </div>
               ) : (
-                resolvedIncidents.slice(0, 8).map((incident) => (
+                resolvedIncidents.map((incident) => (
                   <div
                     key={incident.id}
                     className="flex items-center justify-between gap-2 rounded-xl border border-success/30 bg-success/[0.04] p-2 sm:p-2.5 shadow-[inset_1px_1px_2px_var(--shadow-dark)]"
@@ -938,10 +798,7 @@ export function IncidentStatsDetailPanel({
                           {onFilterSite && incident.siteId ? (
                             <button
                               type="button"
-                              onClick={() => {
-                                onFilterSite(incident.siteId);
-                                onClose();
-                              }}
+                              onClick={() => onFilterSite(incident.siteId)}
                               className="flex items-center gap-1 truncate hover:text-primary transition hover:underline"
                               title={isVietnamese ? `Lọc theo công trường ${incident.siteName || getSiteName(incident.siteId)}` : "Filter by this site"}
                             >

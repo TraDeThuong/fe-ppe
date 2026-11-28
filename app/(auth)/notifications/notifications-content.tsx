@@ -54,6 +54,8 @@ import {
   type NotificationViewMode,
 } from "@/lib/notification-grouping-engine";
 import { NotificationPagination } from "@/components/features/notifications/notification-list";
+import { NotificationMobileInbox } from "@/components/features/notifications/mobile";
+import { useResponsiveVariant } from "@/hooks/use-media-query";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import {
   getConfig,
@@ -73,6 +75,8 @@ export default function NotificationsContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const archiveAccount = useNotificationArchiveAccount();
+  // Mobile (< 768px) dùng hộp thư gọn; desktop giữ nguyên. Lúc hydrate cả hai cùng có mặt, CSS chọn bản hiện.
+  const { showMobile, showDesktop } = useResponsiveVariant();
 
   const { isConnected } = useRealtime();
   const { data: publicConfig } = usePublicConfig();
@@ -428,6 +432,50 @@ export default function NotificationsContent() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-10">
+      {/* Mobile (< 768px): chip đọc/chưa đọc · tìm kiếm + Lọc + ⋯ · danh sách gọn */}
+      {showMobile && (
+        <div className="md:hidden">
+          <NotificationMobileInbox
+            activeTab={activeTab}
+            allowedTabs={allowedTabs}
+            onTabChange={handleTabChange}
+            items={items}
+            loading={isNotificationsLoading}
+            error={notificationsError}
+            onRetry={() => void refetchNotifications()}
+            page={meta?.page ?? page}
+            totalPages={meta?.totalPages ?? 1}
+            onPageChange={setPage}
+            filter={filter}
+            onFilterChange={handleFilterChange}
+            hasActiveFilters={hasActiveFilters}
+            onResetFilters={handleResetFilters}
+            periodFilter={periodFilter}
+            today={today}
+            onPeriodFilterChange={handlePeriodFilterChange}
+            totalCount={periodTotal}
+            unreadCount={periodUnreadCount}
+            notificationsEnabled={notificationsEnabled}
+            onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
+            onMarkAllRead={() => markAllAsReadMutation.mutate()}
+            isMarkingAllRead={markAllAsReadMutation.isPending}
+            onOpenDetail={handleSelectNotification}
+            canBroadcast={canBroadcast}
+            onOpenBroadcast={() => {
+              if (!notificationsEnabled) return;
+              setIsBroadcastModalOpen(true);
+            }}
+            onOpenCustomDispatch={() => {
+              if (!notificationsEnabled) return;
+              setIsCustomDispatchModalOpen(true);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Desktop (≥ 768px): giữ nguyên */}
+      {showDesktop && (
+      <div className="hidden flex-col gap-6 md:flex">
       {/* 1. Console Header Trang, Trạng thái Realtime SSE & Bộ lọc thời gian toàn trang */}
       <NotificationConsoleHeader
         isConnected={isConnected}
@@ -650,42 +698,45 @@ export default function NotificationsContent() {
             </div>
           )}
 
-          {/* Responsive Detail Modal for Mobile/Tablet (< xl) */}
-          {showMobileDetail && selectedNotification && (
-            <div
-              role="dialog"
-              aria-modal="true"
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 backdrop-blur-sm xl:hidden"
-              onClick={() => setMobileDetailOpen(false)}
-            >
-              <div
-                className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <NotificationDetailPanel
-                  notification={selectedNotification}
-                  cluster={selectedCluster}
-                  onSelectClusterMember={(member) => setSelectedNotificationId(member.id)}
-                  onClose={() => setMobileDetailOpen(false)}
-                  onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
-                  onMarkManyAsRead={(ids) => markManyAsReadMutation.mutate(ids)}
-                  isMarkingManyRead={markManyAsReadMutation.isPending}
-                  isMarkingRead={
-                    markAsReadMutation.isPending &&
-                    markAsReadMutation.variables === selectedNotification.id
-                  }
-                  onDelete={(id) => {
-                    const target = items.find((item) => item.id === id);
-                    if (target) setDeletingNotification(target);
-                  }}
-                  isDeleting={
-                    deleteMutation.isPending &&
-                    deleteMutation.variables === selectedNotification.id
-                  }
-                />
-              </div>
-            </div>
-          )}
+        </div>
+      )}
+      </div>
+      )}
+
+      {/* Responsive Detail Modal for Mobile/Tablet (< xl) — dùng chung cho mobile và tablet */}
+      {activeTab === "inbox" && showMobileDetail && selectedNotification && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-3 backdrop-blur-sm xl:hidden"
+          onClick={() => setMobileDetailOpen(false)}
+        >
+          <div
+            className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <NotificationDetailPanel
+              notification={selectedNotification}
+              cluster={selectedCluster}
+              onSelectClusterMember={(member) => setSelectedNotificationId(member.id)}
+              onClose={() => setMobileDetailOpen(false)}
+              onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
+              onMarkManyAsRead={(ids) => markManyAsReadMutation.mutate(ids)}
+              isMarkingManyRead={markManyAsReadMutation.isPending}
+              isMarkingRead={
+                markAsReadMutation.isPending &&
+                markAsReadMutation.variables === selectedNotification.id
+              }
+              onDelete={(id) => {
+                const target = items.find((item) => item.id === id);
+                if (target) setDeletingNotification(target);
+              }}
+              isDeleting={
+                deleteMutation.isPending &&
+                deleteMutation.variables === selectedNotification.id
+              }
+            />
+          </div>
         </div>
       )}
 

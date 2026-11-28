@@ -26,7 +26,6 @@ const STAT_TO_URL: Record<ReportStatKey, string> = {
   complianceRate: "compliance",
   mttr: "mttr",
   pendingReview: "pending",
-  reportsCount: "reports",
 };
 
 const URL_TO_STAT: Record<string, ReportStatKey> = {
@@ -40,9 +39,6 @@ const URL_TO_STAT: Record<string, ReportStatKey> = {
   pending: "pendingReview",
   "pending-review": "pendingReview",
   pendingReview: "pendingReview",
-  reports: "reportsCount",
-  "reports-count": "reportsCount",
-  reportsCount: "reportsCount",
 };
 
 export default function ReportsContent() {
@@ -128,8 +124,8 @@ export default function ReportsContent() {
         onTabChange={handleTabChange}
         totalIncidents={analytics.summary?.totalIncidents}
         complianceRate={analytics.summary?.complianceRate}
-        totalReports={archive.archiveStats.totalReports}
-        activeTemplates={archive.archiveStats.activeTemplatesCount}
+        totalReports={archive.archiveStats?.totalReports}
+        activeTemplates={archive.templateCounts?.active}
         isRefreshing={activeView.isRefreshing}
         canExportReports={canExportReports}
         onRefreshAll={activeView.refresh}
@@ -151,7 +147,6 @@ export default function ReportsContent() {
           analytics={analytics}
           selectedStat={selectedStat}
           onSelectStat={handleSelectStat}
-          onViewHistory={() => handleTabChange("reports")}
         />
       )}
 

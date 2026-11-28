@@ -6,12 +6,19 @@ import {
 import type {
   IncidentItem,
   ReportGenerationDto,
-  ReportTemplateDto,
   SiteItem,
   StatisticsSummaryDto,
   TrendItemDto,
   UserResponseDto,
 } from "@/types";
+import {
+  falseAlarmRate as computeFalseAlarmRate,
+  incidentOutcomeOf,
+  outcomeCountsFromSummary,
+  resolutionRate as computeResolutionRate,
+  roundTo,
+  trueViolationCount,
+} from "@/lib/metrics/incident-metrics";
 import type { TrendGroupBy } from "@/components/features/reports";
 
 const MAX_BUCKETS_DAYS = 90;
@@ -256,14 +263,15 @@ export function reconcileReportTrends(params: {
       resolvedCount: 0,
     };
 
-    const status = String(inc.status || "").toUpperCase();
+    const outcome = incidentOutcomeOf(inc);
     existing.totalIncidents += 1;
-    if (status === "DISMISSED") {
+    // Khớp computeTrendsFromIncidentList của reporting develop: trueViolations = CONFIRMED,
+    // resolvedCount = RESOLVED + CLOSED (đóng từ xử lý), chờ duyệt không tính.
+    if (outcome === "dismissed") {
       existing.falseAlarms += 1;
-    } else {
+    } else if (outcome === "confirmed") {
       existing.trueViolations += 1;
-    }
-    if (status === "RESOLVED" || status === "CLOSED") {
+    } else if (outcome === "resolved") {
       existing.resolvedCount += 1;
     }
     buckets.set(key, existing);
@@ -273,20 +281,6 @@ export function reconcileReportTrends(params: {
 }
 
 export type ReportArchiveFormat = "PDF" | "EXCEL" | "CSV" | "JSON";
-
-export interface ReportArchiveStats {
-  totalReports: number;
-  completedCount: number;
-  processingCount: number;
-  failedCount: number;
-  periodicCount: number;
-  specializedCount: number;
-  pdfCount: number;
-  excelCount: number;
-  activeTemplatesCount: number;
-  totalTemplatesCount: number;
-  byType: Record<string, number>;
-}
 
 /**
  * Determine canonical document format from fileType, template fileType, or fileName extension.
@@ -358,67 +352,6 @@ export function canAccessGeneratedReport(
   }
 
   return false;
-}
-
-/**
- * Compute KPI metrics for the Reports archive tab from report history and template catalog.
- */
-export function computeReportArchiveStats(
-  history: readonly ReportGenerationDto[],
-  templates: readonly ReportTemplateDto[],
-  totalFromMeta?: number,
-): ReportArchiveStats {
-  let completedCount = 0;
-  let processingCount = 0;
-  let failedCount = 0;
-  let periodicCount = 0;
-  let specializedCount = 0;
-  let pdfCount = 0;
-  let excelCount = 0;
-  const byType: Record<string, number> = {
-    DAILY: 0,
-    WEEKLY: 0,
-    MONTHLY: 0,
-    VIOLATION_SUMMARY: 0,
-    AI_PERFORMANCE: 0,
-  };
-
-  for (const item of history) {
-    const status = String(item.status || "").toUpperCase();
-    if (status === "COMPLETED") completedCount += 1;
-    else if (status === "PENDING" || status === "PROCESSING") processingCount += 1;
-    else if (status === "FAILED") failedCount += 1;
-
-    const rType = String(item.reportType || "").toUpperCase();
-    byType[rType] = (byType[rType] ?? 0) + 1;
-    if (rType === "DAILY" || rType === "WEEKLY" || rType === "MONTHLY") {
-      periodicCount += 1;
-    } else if (rType === "VIOLATION_SUMMARY" || rType === "AI_PERFORMANCE") {
-      specializedCount += 1;
-    }
-
-    const fmt = detectReportFormat(item);
-    if (fmt === "EXCEL" || fmt === "CSV") excelCount += 1;
-    else pdfCount += 1;
-  }
-
-  const activeTemplatesCount = templates.filter(
-    (tpl) => !tpl.status || String(tpl.status).toUpperCase() === "ACTIVE",
-  ).length;
-
-  return {
-    totalReports: totalFromMeta ?? history.length,
-    completedCount,
-    processingCount,
-    failedCount,
-    periodicCount,
-    specializedCount,
-    pdfCount,
-    excelCount,
-    activeTemplatesCount,
-    totalTemplatesCount: templates.length,
-    byType,
-  };
 }
 
 // ============================================================================
@@ -568,35 +501,21 @@ export function computeResolutionFunnelFromSummary(
     return computeResolutionFunnel([]);
   }
 
-  const totalDetected = Math.max(0, summary.totalIncidents ?? 0);
-  const pendingReview = Math.max(0, summary.openIncidents ?? 0);
-  const closed = Math.max(0, summary.resolvedIncidents ?? 0);
-  const dismissed = Math.max(0, summary.falseAlarms ?? 0);
-  const rawConfirmed = Math.max(0, summary.trueViolations ?? 0);
-
-  const trueIncludesResolved =
-    closed > 0 &&
-    rawConfirmed >= closed &&
-    pendingReview + rawConfirmed + dismissed >= totalDetected;
-  const remediating = trueIncludesResolved
-    ? Math.max(0, rawConfirmed - closed)
-    : rawConfirmed;
+  // Quy ước reporting develop: trueViolations = CONFIRMED, resolvedIncidents = RESOLVED + CLOSED.
+  const outcome = outcomeCountsFromSummary(summary);
+  const totalDetected = outcome.total;
+  const pendingReview = outcome.pending;
+  const closed = outcome.resolved;
+  const dismissed = outcome.dismissed;
+  const remediating = outcome.confirmed;
   const awaitingDispatch = 0;
   const awaitingAcceptance = 0;
 
-  const trueViolationsTotal = remediating + closed;
+  const trueViolationsTotal = trueViolationCount(outcome);
   const completedTotal = closed;
-  const resolutionRate =
-    trueViolationsTotal > 0
-      ? Math.round((completedTotal / trueViolationsTotal) * 100)
-      : 0;
-  const reviewedTotal = trueViolationsTotal + dismissed;
-  const falseAlarmRate =
-    typeof summary.falseAlarmRate === "number" && summary.falseAlarmRate > 0
-      ? Number(summary.falseAlarmRate.toFixed(1))
-      : reviewedTotal > 0
-        ? Number(((dismissed / reviewedTotal) * 100).toFixed(1))
-        : 0;
+  const resolutionRate = Math.round(computeResolutionRate(outcome) ?? 0);
+  // Không dùng summary.falseAlarmRate: mẫu số của BE bỏ qua sự cố đã xử lý.
+  const falseAlarmRate = roundTo(computeFalseAlarmRate(outcome) ?? 0, 1);
 
   let bottleneckStage: ResolutionFunnelSummary["bottleneckStage"] = null;
   let bottleneckCount = 0;
@@ -698,14 +617,14 @@ export function computeSiteComparisonStats(
     }
 
     entry.totalIncidents += 1;
-    const status = String(inc.status || "").toUpperCase();
-    if (status === "PENDING_REVIEW") {
+    const outcome = incidentOutcomeOf(inc);
+    if (outcome === "pending") {
       entry.pendingReview += 1;
-    } else if (status === "CONFIRMED") {
+    } else if (outcome === "confirmed") {
       entry.confirmedActive += 1;
-    } else if (status === "DISMISSED") {
+    } else if (outcome === "dismissed") {
       entry.falseAlarms += 1;
-    } else if (status === "RESOLVED" || status === "CLOSED") {
+    } else if (outcome === "resolved") {
       entry.resolvedCount += 1;
       const mins = getIncidentResolutionMinutes(inc);
       if (mins !== null) {

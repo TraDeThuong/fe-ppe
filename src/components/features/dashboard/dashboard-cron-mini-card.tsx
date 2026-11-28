@@ -152,10 +152,10 @@ export function DashboardCronMiniCard({
   );
 
   const recentExecutions = useMemo(() => {
-    const auditItems = auditItemsOverride ?? auditQuery.data?.items ?? [];
+    const auditItems = auditItemsOverride ?? (canReadAudit ? auditQuery.data?.items : undefined) ?? [];
     const fromAudit = extractRecentCronExecutions(auditItems);
-    return mergeRecentExecutions(fromAudit, sessionExecutions);
-  }, [auditItemsOverride, auditQuery.data?.items, sessionExecutions]);
+    return mergeRecentExecutions(fromAudit, sessionExecutions, jobList);
+  }, [auditItemsOverride, canReadAudit, auditQuery.data?.items, sessionExecutions, jobList]);
 
   const auditAvailable =
     auditItemsOverride !== undefined ||
@@ -293,7 +293,6 @@ export function DashboardCronMiniCard({
           data: response.data,
           error: response.error,
           triggerType: "MANUAL",
-          fromAuditLog: false,
         },
       }));
       toast.success(
@@ -1003,7 +1002,6 @@ export function DashboardCronMiniCard({
         <CronJobDialog
           key={`${triggerJob.name}:trigger`}
           job={triggerJob}
-          action="trigger"
           pending={pending}
           error={triggerError}
           result={triggerResult}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Play, Power } from "lucide-react";
+import { Loader2, Play } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/form/foundation/input";
@@ -16,7 +16,6 @@ import { CronResult } from "./cron-result";
 
 interface Props {
   job: CronJobItem;
-  action: "trigger" | "toggle";
   pending: boolean;
   error: string | null;
   blocked: boolean;
@@ -27,7 +26,6 @@ interface Props {
 
 export function CronJobDialog({
   job,
-  action,
   pending,
   error,
   blocked,
@@ -37,7 +35,7 @@ export function CronJobDialog({
 }: Props) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
-  const field = action === "trigger" ? getCronParameter(job.name) : null;
+  const field = getCronParameter(job.name);
   const [value, setValue] = useState(() => field ? getCronParameterValue(job) : "");
   const [attempted, setAttempted] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -55,17 +53,13 @@ export function CronJobDialog({
   }, [pending]);
 
   const payload = buildCronPayload(job.name, value);
-  const invalid = action === "trigger" && field && !payload;
-  const title = result
-    ? t("cron.result.title")
-    : action === "trigger"
-    ? t("cron.confirmRun")
-    : t(job.isEnabled ? "cron.confirmDisable" : "cron.confirmEnable");
+  const invalid = field && !payload;
+  const title = result ? t("cron.result.title") : t("cron.confirmRun");
 
   const confirm = async () => {
     setAttempted(true);
-    if (pending || blocked || (action === "trigger" && !payload)) return;
-    await onConfirm(action === "trigger" ? payload! : { params: {} });
+    if (pending || blocked || !payload) return;
+    await onConfirm(payload);
   };
 
   return (
@@ -76,13 +70,7 @@ export function CronJobDialog({
       }}
       title={title}
       description={t(`cron.jobs.${job.name}`)}
-      icon={
-        action === "trigger" ? (
-          <Play className="size-5" />
-        ) : (
-          <Power className="size-5" />
-        )
-      }
+      icon={<Play className="size-5" />}
       preventClose={pending}
       size="lg"
       footer={
@@ -92,11 +80,7 @@ export function CronJobDialog({
           </Button>
           {!result ? (
             <Button
-              variant={
-                action === "trigger" && job.name.startsWith("cleanup-")
-                  ? "danger"
-                  : "primary"
-              }
+              variant={job.name.startsWith("cleanup-") ? "danger" : "primary"}
               disabled={pending || blocked}
               onClick={() => void confirm()}
             >
@@ -121,73 +105,57 @@ export function CronJobDialog({
           <CronResult result={result} />
         ) : (
           <>
-            {action === "trigger" ? (
-              <>
-                <p className="text-sm leading-relaxed">
-                  {t(
-                    job.name.startsWith("cleanup-")
-                      ? "cron.cleanupImpact"
-                      : "cron.digestImpact"
-                  )}
+            <p className="text-sm leading-relaxed">
+              {t(
+                job.name.startsWith("cleanup-")
+                  ? "cron.cleanupImpact"
+                  : "cron.digestImpact"
+              )}
+            </p>
+            {!job.isEnabled ? (
+              <p className="text-sm text-muted-foreground">
+                {t("cron.manualWhileDisabled")}
+              </p>
+            ) : null}
+            {field ? (
+              <div className="space-y-2">
+                <label
+                  htmlFor="cron-parameter"
+                  className="text-sm font-medium"
+                >
+                  {t(`cron.params.${field.name}`)}
+                </label>
+                <Input
+                  id="cron-parameter"
+                  type="number"
+                  min={field.min}
+                  max={field.max}
+                  step={1}
+                  value={value}
+                  disabled={pending || blocked}
+                  onChange={(event) => setValue(event.target.value)}
+                  error={Boolean(attempted && invalid)}
+                  aria-describedby="cron-parameter-help"
+                />
+                <p
+                  id="cron-parameter-help"
+                  role={attempted && invalid ? "alert" : undefined}
+                  className={`text-xs ${
+                    attempted && invalid
+                      ? "text-danger"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {t("cron.params.range", {
+                    min: field.min,
+                    max: field.max,
+                  })}
                 </p>
-                {!job.isEnabled ? (
-                  <p className="text-sm text-muted-foreground">
-                    {t("cron.manualWhileDisabled")}
-                  </p>
-                ) : null}
-                {field ? (
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="cron-parameter"
-                      className="text-sm font-medium"
-                    >
-                      {t(`cron.params.${field.name}`)}
-                    </label>
-                    <Input
-                      id="cron-parameter"
-                      type="number"
-                      min={field.min}
-                      max={field.max}
-                      step={1}
-                      value={value}
-                      disabled={pending || blocked}
-                      onChange={(event) => setValue(event.target.value)}
-                      error={Boolean(attempted && invalid)}
-                      aria-describedby="cron-parameter-help"
-                    />
-                    <p
-                      id="cron-parameter-help"
-                      role={attempted && invalid ? "alert" : undefined}
-                      className={`text-xs ${
-                        attempted && invalid
-                          ? "text-danger"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {t("cron.params.range", {
-                        min: field.min,
-                        max: field.max,
-                      })}
-                    </p>
-                  </div>
-                ) : null}
-                <p className="text-xs text-muted-foreground">
-                  {t("cron.params.manualOnly")}
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm">
-                  {t("cron.currentSchedule")}:{" "}
-                  <strong>
-                    {t(job.isEnabled ? "cron.enabled" : "cron.disabled")}
-                  </strong>
-                </p>
-                <p className="text-sm leading-relaxed">
-                  {t(job.isEnabled ? "cron.disableImpact" : "cron.enableImpact")}
-                </p>
-              </>
-            )}
+              </div>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              {t("cron.params.manualOnly")}
+            </p>
 
             {pending ? (
               <div

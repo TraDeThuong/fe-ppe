@@ -11,13 +11,16 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 import { NM } from "@/components/features/ai-test/nm-styles";
+import { isReportTypeGroup, REPORT_TYPE_GROUPS } from "@/lib/report-archive";
 import type { ReportTemplateDto } from "@/types";
 
 export interface ReportTypeOverviewStripProps {
+  /** "" (tất cả), 1 loại (DAILY…) hoặc 1 nhóm (PERIODIC / SPECIALIZED) */
   selectedType: string;
   onSelectType: (type: string) => void;
-  countsByType: Record<string, number>;
-  totalCount: number;
+  /** Số hồ sơ theo loại của cả cơ sở (không theo trang/bộ lọc); undefined khi chưa có dữ liệu */
+  countsByType?: Record<string, number>;
+  totalCount?: number;
   templates: ReportTemplateDto[];
   canExportReports: boolean;
   onQuickGenerateForType: (reportType: string) => void;
@@ -49,7 +52,7 @@ export function ReportTypeOverviewStrip({
       title: t("reports.types.dailyTitle"),
       subtitle: t("reports.types.dailyDesc"),
       formatHint: "PDF",
-      count: countsByType.DAILY ?? 0,
+      count: countsByType?.DAILY,
       icon: CalendarDays,
     },
     {
@@ -57,7 +60,7 @@ export function ReportTypeOverviewStrip({
       title: t("reports.types.weeklyTitle"),
       subtitle: t("reports.types.weeklyDesc"),
       formatHint: "PDF",
-      count: countsByType.WEEKLY ?? 0,
+      count: countsByType?.WEEKLY,
       icon: CalendarRange,
     },
     {
@@ -65,7 +68,7 @@ export function ReportTypeOverviewStrip({
       title: t("reports.types.monthlyTitle"),
       subtitle: t("reports.types.monthlyDesc"),
       formatHint: "EXCEL",
-      count: countsByType.MONTHLY ?? 0,
+      count: countsByType?.MONTHLY,
       icon: CalendarCheck2,
     },
     {
@@ -73,7 +76,7 @@ export function ReportTypeOverviewStrip({
       title: t("reports.types.violationTitle"),
       subtitle: t("reports.types.violationDesc"),
       formatHint: "PDF / XLSX",
-      count: countsByType.VIOLATION_SUMMARY ?? 0,
+      count: countsByType?.VIOLATION_SUMMARY,
       icon: ShieldAlert,
     },
     {
@@ -81,7 +84,7 @@ export function ReportTypeOverviewStrip({
       title: t("reports.types.aiTitle"),
       subtitle: t("reports.types.aiDesc"),
       formatHint: "PDF",
-      count: countsByType.AI_PERFORMANCE ?? 0,
+      count: countsByType?.AI_PERFORMANCE,
       icon: Cpu,
     },
   ];
@@ -89,6 +92,11 @@ export function ReportTypeOverviewStrip({
   const hasTemplates = templates.some(
     (tpl) => !tpl.status || tpl.status.toUpperCase() === "ACTIVE",
   );
+
+  // Đang lọc theo nhóm (từ thẻ KPI hoặc dropdown): làm nổi các loại thuộc nhóm.
+  const selectedGroupTypes: readonly string[] = isReportTypeGroup(selectedType)
+    ? REPORT_TYPE_GROUPS[selectedType]
+    : [];
 
   return (
     <section
@@ -126,6 +134,7 @@ export function ReportTypeOverviewStrip({
         {items.map((item) => {
           const Icon = item.icon;
           const isSelected = selectedType === item.type;
+          const isInSelectedGroup = !isSelected && selectedGroupTypes.includes(item.type);
           const showQuickExport = canExportReports && item.type && hasTemplates;
 
           return (
@@ -143,7 +152,9 @@ export function ReportTypeOverviewStrip({
               }}
               className={`group relative flex min-w-[168px] sm:min-w-0 shrink-0 items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left transition-all duration-150 cursor-pointer select-none ${isSelected
                   ? `${NM.extruded} bg-background/75 border border-primary/35`
-                  : "border border-transparent hover:bg-white/40 dark:hover:bg-white/[0.04]"
+                  : isInSelectedGroup
+                    ? "border border-primary/25 bg-background/50"
+                    : "border border-transparent hover:bg-white/40 dark:hover:bg-white/[0.04]"
                 }`}
             >
               {/* Cụm trái: Icon + Title + Subtitle */}
@@ -151,7 +162,9 @@ export function ReportTypeOverviewStrip({
                 <div
                   className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors ${isSelected
                       ? "bg-primary text-primary-foreground shadow-sm"
-                      : "bg-primary/10 text-primary group-hover:bg-primary/15"
+                      : isInSelectedGroup
+                        ? "bg-primary/20 text-primary"
+                        : "bg-primary/10 text-primary group-hover:bg-primary/15"
                     }`}
                 >
                   <Icon className="h-3.5 w-3.5" />
@@ -160,7 +173,7 @@ export function ReportTypeOverviewStrip({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1">
                     <p
-                      className={`truncate text-[11px] font-bold leading-tight transition-colors ${isSelected
+                      className={`truncate text-[11px] font-bold leading-tight transition-colors ${isSelected || isInSelectedGroup
                           ? "text-primary"
                           : "text-foreground group-hover:text-primary"
                         }`}
@@ -184,10 +197,12 @@ export function ReportTypeOverviewStrip({
                 <span
                   className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-extrabold tabular-nums leading-none ${isSelected
                       ? "bg-primary text-primary-foreground"
-                      : "bg-black/[0.05] dark:bg-white/[0.07] text-foreground/75"
+                      : isInSelectedGroup
+                        ? "bg-primary/15 text-primary"
+                        : "bg-black/[0.05] dark:bg-white/[0.07] text-foreground/75"
                     }`}
                 >
-                  {item.count}
+                  {item.count ?? "–"}
                 </span>
 
                 {showQuickExport && (

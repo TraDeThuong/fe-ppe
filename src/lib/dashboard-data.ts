@@ -6,6 +6,7 @@ import type {
   DashboardKpiDto,
   HourlyRiskResponseDto,
   IncidentItem,
+  IncidentStatusCounts,
   StatisticsSummaryDto,
   TrendItemDto,
   ViolationTypeStatDto,
@@ -25,6 +26,14 @@ import type {
   DashboardTrendGroupBy,
   DashboardTrendsWindow,
 } from "@/types/dashboard.types";
+import type { SeverityStatusMatrix } from "@/lib/incident-counts";
+import {
+  falseAlarmRate,
+  outcomeCountsFromStatusCounts,
+  outcomeCountsFromSummary,
+  reviewedCount,
+  roundTo,
+} from "@/lib/metrics/incident-metrics";
 import {
   clusterIncidentsByPerson,
   extractComponentViolationCodes,
@@ -731,32 +740,6 @@ function normalizeViolationKey(rawType: string): string {
   return "OTHER";
 }
 
-function allocateProportionalCounts(
-  totalToSplit: number,
-  weights: readonly [number, number, number],
-): [number, number, number] {
-  if (totalToSplit <= 0) return [0, 0, 0];
-  const weightSum = weights[0] + weights[1] + weights[2];
-  if (weightSum <= 0) {
-    return [totalToSplit, 0, 0];
-  }
-  const exact = weights.map((w) => (totalToSplit * w) / weightSum);
-  const floors: [number, number, number] = [
-    Math.floor(exact[0]),
-    Math.floor(exact[1]),
-    Math.floor(exact[2]),
-  ];
-  let remainder = totalToSplit - (floors[0] + floors[1] + floors[2]);
-  const order = [0, 1, 2].sort(
-    (a, b) => exact[b] - floors[b] - (exact[a] - floors[a]),
-  );
-  for (let idx = 0; idx < order.length && remainder > 0; idx += 1) {
-    floors[order[idx]] += 1;
-    remainder -= 1;
-  }
-  return floors;
-}
-
 /**
  * Chuyển đổi trực tiếp kết quả từ bộ API thống kê của smart-ppe-reporting-service
  * (/statistics/summary, /statistics/by-violation, /statistics/hourly-risk, /statistics/by-camera)
@@ -768,8 +751,15 @@ export function buildDashboardAnalyticsFromReporting(input: {
   violations?: readonly ViolationTypeStatDto[] | null;
   hourlyRisk?: HourlyRiskResponseDto | null;
   cameraRankings?: readonly CameraStatDto[] | null;
+  /** Bộ đếm chính xác của kỳ từ `/incidents/status-counts` (ưu tiên hơn summary). */
+  periodCounts?: IncidentStatusCounts | null;
+  /** Số đếm thật theo mức độ × trạng thái; thiếu thì không chia trạng thái theo mức độ. */
+  severityMatrix?: SeverityStatusMatrix | null;
 }): DashboardAnalytics {
-  const { summary, violations, hourlyRisk, cameraRankings } = input;
+  const { summary, violations, hourlyRisk, cameraRankings, periodCounts, severityMatrix } = input;
+  const outcome = periodCounts
+    ? outcomeCountsFromStatusCounts(periodCounts)
+    : outcomeCountsFromSummary(summary);
 
   // 1. Phân loại vi phạm PPE (lọc bỏ bản ghi kỹ thuật TOTAL_AGGREGATED của aggregateDailyStats)
   const distributionMap = new Map<string, number>([
@@ -793,8 +783,8 @@ export function buildDashboardAnalyticsFromReporting(input: {
     .map(([key, count]) => ({ key, count }))
     .filter((item) => item.key !== "OTHER" || item.count > 0);
 
-  const violationSum = distribution.reduce((acc, item) => acc + item.count, 0);
-  const total = Math.max(Number(summary.totalIncidents ?? 0), violationSum);
+  // Tổng lấy từ bộ đếm (không lấy max với tổng by-violation: cách đó che sai lệch và thổi phồng tổng).
+  const total = outcome.total;
 
   // 2. Phân bố 24 giờ & 3 ca trực (Sáng 06-14h, Chiều 14-22h, Đêm 22-06h)
   const hours = Array<number>(24).fill(0);
@@ -818,10 +808,10 @@ export function buildDashboardAnalyticsFromReporting(input: {
   };
 
   // 3. Phân bố mức độ nghiêm trọng, SLA & MTTR từ summary.severityBreakdown
-  const openTotal = Math.max(0, Number(summary.openIncidents ?? 0));
-  const confirmedTotal = Math.max(0, Number(summary.trueViolations ?? 0));
-  const resolvedTotal = Math.max(0, Number(summary.resolvedIncidents ?? 0));
-  const dismissedTotal = Math.max(0, Number(summary.falseAlarms ?? 0));
+  const openTotal = outcome.pending;
+  const confirmedTotal = outcome.confirmed;
+  const resolvedTotal = outcome.resolved;
+  const dismissedTotal = outcome.dismissed;
 
   const defaultSla: Record<"CRITICAL" | "HIGH" | "MEDIUM" | "LOW", number> = {
     CRITICAL: 15,
@@ -861,42 +851,47 @@ export function buildDashboardAnalyticsFromReporting(input: {
     ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const
   ).map((key) => {
     const rawItem = breakdown?.[key];
-    const count = Math.max(
-      0,
-      breakdownSum > 0
-        ? Number(rawItem?.count ?? 0)
-        : fallbackSevCounts[key],
-    );
-    const resolved = Math.min(
-      count,
-      Math.max(
-        0,
-        breakdownSum > 0
-          ? Number(rawItem?.resolved ?? 0)
-          : total > 0
-            ? Math.round((count * resolvedTotal) / total)
-            : 0,
-      ),
-    );
-    const remaining = Math.max(0, count - resolved);
-    const [pending, confirmed, dismissed] = allocateProportionalCounts(
-      remaining,
-      [openTotal, confirmedTotal, dismissedTotal],
-    );
+    const real = severityMatrix?.[key];
     const actualMttr = Number(rawItem?.actualMttrMinutes ?? 0);
     const mttrMinutes = actualMttr > 0 ? Number(actualMttr.toFixed(1)) : null;
     const targetSlaMinutes = Number(
       rawItem?.targetSlaMinutes ?? defaultSla[key],
     );
 
+    if (real) {
+      // Số đếm thật từ incident-service.
+      return {
+        key,
+        count: real.total,
+        pending: real.pending,
+        confirmed: real.confirmed,
+        resolved: real.resolved,
+        dismissed: real.dismissed,
+        other: 0,
+        mttrMinutes,
+        targetSlaMinutes,
+        resolutionSamples: mttrMinutes !== null ? real.resolved : 0,
+      };
+    }
+
+    // Chưa có số đếm theo mức độ: chỉ dùng số thật của reporting (tổng + đã xử lý),
+    // phần còn lại để ở "other" thay vì chia ước lượng sang chờ duyệt / xác nhận / bác bỏ.
+    const count = Math.max(
+      0,
+      breakdownSum > 0 ? Number(rawItem?.count ?? 0) : fallbackSevCounts[key],
+    );
+    const resolved =
+      breakdownSum > 0
+        ? Math.min(count, Math.max(0, Number(rawItem?.resolved ?? 0)))
+        : 0;
     return {
       key,
       count,
-      pending,
-      confirmed,
+      pending: 0,
+      confirmed: 0,
       resolved,
-      dismissed,
-      other: 0,
+      dismissed: 0,
+      other: Math.max(0, count - resolved),
       mttrMinutes,
       targetSlaMinutes,
       resolutionSamples: mttrMinutes !== null ? resolved : 0,
@@ -930,18 +925,10 @@ export function buildDashboardAnalyticsFromReporting(input: {
       (a, b) => b.total - a.total || a.cameraId.localeCompare(b.cameraId),
     );
 
-  // 5. Tổng hợp tỷ lệ thẩm duyệt & MTTR toàn kỳ
-  const trueViolationsTotal =
-    openTotal + confirmedTotal + resolvedTotal + dismissedTotal <= total
-      ? confirmedTotal + resolvedTotal
-      : Math.max(confirmedTotal, resolvedTotal);
-  const reviewed = trueViolationsTotal + dismissedTotal;
-  const dismissedRate =
-    reviewed > 0
-      ? Number(((dismissedTotal / reviewed) * 100).toFixed(2))
-      : typeof summary.falseAlarmRate === "number" && summary.falseAlarmRate > 0
-        ? summary.falseAlarmRate
-        : null;
+  // 5. Tổng hợp tỷ lệ thẩm duyệt & MTTR toàn kỳ (định nghĩa chung ở lib/metrics)
+  const reviewed = reviewedCount(outcome);
+  const rate = falseAlarmRate(outcome);
+  const dismissedRate = rate === null ? null : roundTo(rate, 2);
 
   const summaryMttrHours = Number(summary.meanTimeToResolveHours ?? 0);
   const weightedBreakdownSamples = severities.reduce(
@@ -988,15 +975,13 @@ export function buildDashboardAnalyticsFromReporting(input: {
     resolvedIncidents: resolvedTotal,
     trueViolations: confirmedTotal,
     falseAlarms: dismissedTotal,
-    falseAlarmRate:
-      dismissedRate ??
-      (typeof summary.falseAlarmRate === "number" && reviewed > 0
-        ? summary.falseAlarmRate
-        : null),
+    falseAlarmRate: dismissedRate,
     complianceRate:
       typeof summary.complianceRate === "number"
         ? summary.complianceRate
         : null,
     hourlyDate: hourlyRisk?.date ?? null,
+    chartSampleTotal: Math.max(0, Number(summary.totalIncidents ?? 0)),
+    severitySplitSource: severityMatrix ? "counts" : "unavailable",
   };
 }

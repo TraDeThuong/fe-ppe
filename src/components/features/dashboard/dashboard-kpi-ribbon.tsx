@@ -312,6 +312,13 @@ export function DashboardKpiRibbon({
       : null;
 
   const periodTotalFooter = (() => {
+    const chartSample = analytics?.chartSampleTotal;
+    if (total !== null && chartSample != null && chartSample < total) {
+      return t("dashboard.kpi.chartSampleNote", {
+        sample: number.format(chartSample),
+        total: number.format(total),
+      });
+    }
     if (total !== null && rawTotal != null && rawTotal > total) {
       return isVietnamese
         ? `Gom từ ${number.format(rawTotal)} lỗi gốc · ${t("dashboard.kpi.allStatuses")}`
@@ -493,7 +500,7 @@ export function DashboardKpiRibbon({
           {/* Hàng giữa: Tiêu đề & Mô tả ngắn */}
           <div className="my-auto py-0.5">
             <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-primary/80">
-              Overview
+              {t("dashboard.kpi.overviewEyebrow")}
             </p>
             <h3 className="mt-0.5 text-base font-black leading-snug tracking-tight text-foreground sm:text-lg">
               {t("dashboard.kpi.overview")}

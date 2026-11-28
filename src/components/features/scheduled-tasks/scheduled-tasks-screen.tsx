@@ -11,12 +11,11 @@ import { PageHeader } from "@/components/features/app-shell/page-header";
 import { ForbiddenView } from "@/components/features/app-shell/forbidden-view";
 import { RefreshButton } from "@/components/ui/refresh-action";
 import { Loader } from "@/components/ui/loader";
+import { useCan } from "@/hooks/use-can";
 import { useCronJobs, useCronMutations, useUpdateCronJob } from "@/hooks/cron/use-cron";
 import { useCronRecentExecutions } from "@/hooks/cron/use-cron-history";
-import { useDebounce } from "@/hooks/use-debounce";
 import { ApiError } from "@/lib/axios";
 import {
-  canReadCron,
   CRON_TIMEZONE,
   extractRecentCronExecutions,
   filterCronJobs,
@@ -43,13 +42,15 @@ import { CronKpiSummary, type CronStatKey } from "./cron-kpi-summary";
 import { CronToolbar, type CronViewMode } from "./cron-toolbar";
 
 const VIEW_MODE_STORAGE_KEY = "scheduled-tasks:view-mode";
+const EMPTY_JOBS: CronJobItem[] = [];
 
 function isUncertainCronMutation(cause: unknown) {
   return !(cause instanceof ApiError) || cause.status === 0 || cause.status >= 500 || cause.status === 408;
 }
 
 export function ScheduledTasksScreen() {
-  const { user, status } = useAuth();
+  const { status } = useAuth();
+  const can = useCan();
   const { t, locale } = useLocale();
 
   const [search, setSearch] = useState("");
@@ -57,15 +58,9 @@ export function ScheduledTasksScreen() {
   const [viewMode, setViewMode] = useState<CronViewMode>("table");
   const [selectedStat, setSelectedStat] = useState<CronStatKey | null>(null);
 
-  const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
-  const canRead =
-    status === "authenticated" &&
-    (isAdmin || canReadCron(status, user?.permissions ?? []));
-  const canManage =
-    canRead && (isAdmin || Boolean(user?.permissions.includes("CRON_JOB_MANAGE")));
-  const canReadAudit =
-    status === "authenticated" &&
-    (isAdmin || Boolean(user?.permissions.includes("AUDIT_LOG_READ")));
+  const canRead = status === "authenticated" && can("CRON_JOB_READ");
+  const canManage = canRead && can("CRON_JOB_MANAGE");
+  const canReadAudit = status === "authenticated" && can("AUDIT_LOG_READ");
   // Luôn tải toàn bộ danh sách cron job (~5–10 jobs) để lọc client-side đa ngôn ngữ,
   // giữ chính xác KPI tổng quan, phát hiện xung đột lịch và cache khi bật/tắt job.
   const query = useCronJobs(canRead);
@@ -94,29 +89,29 @@ export function ScheduledTasksScreen() {
   };
 
   // Trigger modal state
-  const [selection, setSelection] = useState<{
-    job: CronJobItem;
-    action: "trigger";
-  } | null>(null);
+  const [triggerJob, setTriggerJob] = useState<CronJobItem | null>(null);
 
   // Detail modal state
-  const [detailJob, setDetailJob] = useState<CronJobItem | null>(null);
+  const [detailJobName, setDetailJobName] = useState<CronJobName | null>(null);
   const [editJob, setEditJob] = useState<CronJobItem | null>(null);
 
   // Toggle confirm modal state
   const [toggleConfirmJob, setToggleConfirmJob] = useState<CronJobItem | null>(null);
 
-  // Lưu lịch sử các lần chạy ngay gần nhất trên giao diện (kết hợp Audit Log lịch sử)
+  // Lưu lịch sử các lần chạy ngay gần nhất trên giao diện (kết hợp Audit Log lịch sử & trạng thái từ /cron/jobs)
   const [recentExecutions, setRecentExecutions] = useState<Record<string, RecentExecutionState>>({});
+  const auditItems = canReadAudit && recentAuditQuery.isSuccess ? recentAuditQuery.data.items : undefined;
   const auditExecutions = useMemo(
-    () => extractRecentCronExecutions(recentAuditQuery.data?.items ?? []),
-    [recentAuditQuery.data?.items],
+    () => extractRecentCronExecutions(auditItems ?? []),
+    [auditItems],
   );
+  const jobs = query.data ?? EMPTY_JOBS;
+  const detailJob = jobs.find((job) => job.name === detailJobName);
   const mergedRecentExecutions = useMemo(
-    () => mergeRecentExecutions(auditExecutions, recentExecutions),
-    [auditExecutions, recentExecutions],
+    () => mergeRecentExecutions(auditExecutions, recentExecutions, jobs),
+    [auditExecutions, recentExecutions, jobs],
   );
-  const [lastSynced, setLastSynced] = useState<Date>(new Date());
+  const lastSynced = query.dataUpdatedAt > 0 ? new Date(query.dataUpdatedAt) : null;
 
   const [result, setResult] = useState<CronJobExecutionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +120,6 @@ export function ScheduledTasksScreen() {
   // The ref closes the gap before React renders the mutation's pending state.
   const submitting = useRef(false);
   const pending = trigger.isPending || toggle.isPending || update.isPending;
-  const jobs = query.data ?? [];
   const visible = filterCronJobs(jobs, search, filter, t);
   const enabledCount = jobs.filter((job) => job.isEnabled).length;
   const disabledCount = jobs.length - enabledCount;
@@ -137,10 +131,9 @@ export function ScheduledTasksScreen() {
       canReadAudit ? recentAuditQuery.refetch() : Promise.resolve(),
     ]);
     if (response.isSuccess) {
-      setLastSynced(new Date());
       setBlockedJobs(new Set());
       setError(null);
-      setSelection(null);
+      setTriggerJob(null);
       setResult(null);
       setEditJob(null);
     }
@@ -154,7 +147,7 @@ export function ScheduledTasksScreen() {
     if (!canOpenJobAction(job)) return;
     setResult(null);
     setError(null);
-    setSelection({ job, action: "trigger" });
+    setTriggerJob(job);
   }, [canOpenJobAction]);
 
   const openToggle = useCallback((job: CronJobItem) => {
@@ -164,7 +157,7 @@ export function ScheduledTasksScreen() {
 
   const closeDialog = () => {
     if (submitting.current) return;
-    setSelection(null);
+    setTriggerJob(null);
     setResult(null);
     setError(null);
   };
@@ -172,6 +165,10 @@ export function ScheduledTasksScreen() {
   const openEdit = useCallback((job: CronJobItem) => {
     if (canOpenJobAction(job)) setEditJob(job);
   }, [canOpenJobAction]);
+
+  const openDetail = useCallback((job: CronJobItem) => {
+    setDetailJobName(job.name);
+  }, []);
 
   const closeEdit = useCallback(() => {
     if (!submitting.current) setEditJob(null);
@@ -186,7 +183,6 @@ export function ScheduledTasksScreen() {
     try {
       await update.mutateAsync({ jobName, payload });
       setEditJob(null);
-      setLastSynced(new Date());
       toast.success(t("cron.edit.saved"));
     } catch (cause) {
       if (isUncertainCronMutation(cause)) {
@@ -201,13 +197,13 @@ export function ScheduledTasksScreen() {
 
   const confirmTrigger = async (payload: TriggerCronJobPayload) => {
     if (
-      !selection ||
+      !triggerJob ||
       !canManage ||
       submitting.current ||
-      blockedJobs.has(selection.job.name)
+      blockedJobs.has(triggerJob.name)
     )
       return;
-    const { job } = selection;
+    const job = triggerJob;
     if (query.isError || query.isFetching) {
       setError(t("cron.refreshBeforeAction"));
       return;
@@ -227,12 +223,14 @@ export function ScheduledTasksScreen() {
           error: response.error,
         },
       }));
-      toast.success(
-        t("cron.toast.triggerSuccess", {
+      if (response.success) {
+        toast.success(t("cron.toast.triggerSuccess", {
           name: t(`cron.jobs.${job.name}`),
           duration: response.durationMs,
-        })
-      );
+        }));
+      } else {
+        toast.error(response.error ? t("cron.toast.triggerFailed", { error: response.error }) : t("cron.result.failed"));
+      }
     } catch (cause: any) {
       if (isUncertainCronMutation(cause)) {
         setBlockedJobs((previous) => new Set(previous).add(job.name));
@@ -288,7 +286,7 @@ export function ScheduledTasksScreen() {
     onTrigger: openTrigger,
     onToggle: openToggle,
     onEdit: openEdit,
-    onViewDetail: setDetailJob,
+    onViewDetail: openDetail,
     onResetFilters: () => {
       setSearch("");
       setFilter("all");
@@ -314,9 +312,13 @@ export function ScheduledTasksScreen() {
           { label: t("nav.group.admin") },
           { label: t("nav.scheduledTasks") },
         ]}
-        badge={`${CRON_TIMEZONE} • ${t("cron.lastSynced", {
-          time: lastSynced.toLocaleTimeString(locale),
-        })}`}
+        badge={
+          lastSynced
+            ? `${CRON_TIMEZONE} • ${t("cron.lastSynced", {
+                time: lastSynced.toLocaleTimeString(locale, { timeZone: CRON_TIMEZONE }),
+              })}`
+            : CRON_TIMEZONE
+        }
         actions={
           <RefreshButton
             size="sm"
@@ -389,15 +391,14 @@ export function ScheduledTasksScreen() {
       </section>
 
       {/* Confirmation & Execution Dialog for Run Now */}
-      {selection && canManage ? (
+      {triggerJob && canManage ? (
         <CronJobDialog
-          key={`${selection.job.name}:${selection.action}`}
-          job={selection.job}
-          action={selection.action}
+          key={triggerJob.name}
+          job={triggerJob}
           pending={pending}
           error={error}
           result={result}
-          blocked={blockedJobs.has(selection.job.name)}
+          blocked={blockedJobs.has(triggerJob.name)}
           onConfirm={confirmTrigger}
           onClose={closeDialog}
         />
@@ -435,10 +436,11 @@ export function ScheduledTasksScreen() {
           allJobs={jobs}
           recentExecution={mergedRecentExecutions[detailJob.name]}
           canManage={canManage}
-          blocked={blockedJobs.has(detailJob.name)}
-          onTrigger={(job) => openTrigger(job)}
-          onToggle={(job) => openToggle(job)}
-          onClose={() => setDetailJob(null)}
+          blocked={pending || query.isFetching || query.isError || blockedJobs.has(detailJob.name)}
+          onTrigger={openTrigger}
+          onToggle={openToggle}
+          onEdit={openEdit}
+          onClose={() => setDetailJobName(null)}
         />
       ) : null}
     </div>

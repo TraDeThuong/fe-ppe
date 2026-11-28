@@ -19,8 +19,9 @@ export interface ReportsHeaderProps {
   onTabChange: (tab: ReportsPageTab) => void;
   totalIncidents?: number;
   complianceRate?: number;
-  totalReports: number;
-  activeTemplates: number;
+  /** undefined khi chưa tải số liệu kho → ẩn badge thay vì hiện 0 */
+  totalReports?: number;
+  activeTemplates?: number;
   isRefreshing: boolean;
   canExportReports: boolean;
   onRefreshAll: () => void;
@@ -68,7 +69,7 @@ export function ReportsHeader({
       label: t("reports.tabs.reportsLabel"),
       caption: t("reports.tabs.reportsCaption"),
       icon: <FileText className="size-4" />,
-      badge: `${totalReports} ${isVietnamese ? "tài liệu" : "docs"}`,
+      badge: totalReports === undefined ? undefined : `${totalReports} ${isVietnamese ? "tài liệu" : "docs"}`,
       useAccent: true,
     },
   ];
@@ -119,19 +120,23 @@ export function ReportsHeader({
                   </span>
                 ) : null}
 
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-xs font-semibold text-accent ${NM.recessed}`}
-                >
-                  <FileText className="size-3 text-accent" />
-                  {totalReports} {isVietnamese ? "hồ sơ đã xuất" : "reports exported"}
-                </span>
+                {totalReports !== undefined ? (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-xs font-semibold text-accent ${NM.recessed}`}
+                  >
+                    <FileText className="size-3 text-accent" />
+                    {totalReports} {isVietnamese ? "hồ sơ đã xuất" : "reports exported"}
+                  </span>
+                ) : null}
 
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-xs font-semibold text-foreground/80 ${NM.recessed}`}
-                >
-                  <LayoutTemplate className="size-3 text-primary" />
-                  {activeTemplates} {isVietnamese ? "mẫu khả dụng" : "active templates"}
-                </span>
+                {activeTemplates !== undefined ? (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-xs font-semibold text-foreground/80 ${NM.recessed}`}
+                  >
+                    <LayoutTemplate className="size-3 text-primary" />
+                    {activeTemplates} {isVietnamese ? "mẫu khả dụng" : "active templates"}
+                  </span>
+                ) : null}
               </div>
             </div>
           </div>

@@ -8,16 +8,33 @@ import {
   type ReportArchiveKpiKey,
 } from "@/components/features/reports/reports-archive-kpi-summary";
 import { useAuth } from "@/contexts/AuthContext";
-import { useReportHistory } from "@/hooks/reporting/use-report-history";
+import { useReportArchiveCounts, useReportHistory } from "@/hooks/reporting/use-report-history";
 import { useReportTemplates } from "@/hooks/reporting/use-report-templates";
 import { useCan } from "@/hooks/use-can";
-import { canAccessGeneratedReport, computeReportArchiveStats } from "@/lib/report-analytics-data";
+import { canAccessGeneratedReport } from "@/lib/report-analytics-data";
+import {
+  countReportTemplates,
+  resolveReportTypeFilter,
+  toReportArchiveStats,
+  type ReportTypeGroup,
+} from "@/lib/report-archive";
 import { toast } from "@/lib/toast";
 import { useLocale } from "@/providers/locale-provider";
 import type { ReportGenerationDto, ReportTemplateDto, SiteItem } from "@/types";
 
 const HISTORY_PAGE_SIZE = 10;
 const EMPTY_TEMPLATES: ReportTemplateDto[] = [];
+
+// Thẻ KPI ↔ nhóm loại báo cáo. Trạng thái "đang chọn" của thẻ được suy ra từ bộ lọc loại,
+// nên đổi bộ lọc ở strip hay danh sách thì thẻ tự đồng bộ (không giữ state riêng).
+const KPI_TYPE_GROUP: Partial<Record<ReportArchiveKpiKey, ReportTypeGroup>> = {
+  periodic: "PERIODIC",
+  specialized: "SPECIALIZED",
+};
+const TYPE_GROUP_KPI: Record<ReportTypeGroup, ReportArchiveKpiKey> = {
+  PERIODIC: "periodic",
+  SPECIALIZED: "specialized",
+};
 
 export function useReportsArchive({
   enabled,
@@ -38,7 +55,6 @@ export function useReportsArchive({
   const [historyType, setHistoryType] = useState("");
   const [historyStatus, setHistoryStatus] = useState("");
   const [historyPage, setHistoryPage] = useState(1);
-  const [archiveKpiFilter, setArchiveKpiFilter] = useState<ReportArchiveKpiKey | null>(null);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,13 +63,19 @@ export function useReportsArchive({
   }, [siteIdParam]);
 
   const {
-    data: templates = EMPTY_TEMPLATES,
+    data: templatesData,
+    isLoading: isTemplatesLoading,
     isFetching: isTemplatesFetching,
     refetch: refetchTemplates,
   } = useReportTemplates({
     enabled: enabled || loadTemplates,
   });
+  const templates = templatesData ?? EMPTY_TEMPLATES;
+  // undefined khi danh sách mẫu chưa tải → header ẩn badge "mẫu khả dụng" thay vì hiện 0.
+  const templateCounts = useMemo(() => countReportTemplates(templatesData), [templatesData]);
 
+  // "" | 1 loại → gửi thẳng reportType; 1 nhóm → gọi riêng từng loại rồi gộp đúng trang.
+  const { reportType, reportTypes } = resolveReportTypeFilter(historyType);
   const {
     data: historyResult,
     isLoading: isHistoryLoading,
@@ -63,11 +85,22 @@ export function useReportsArchive({
     {
       page: historyPage,
       limit: HISTORY_PAGE_SIZE,
-      reportType: historyType || undefined,
+      reportType,
       status: historyStatus || undefined,
       siteId: reportsSiteId || undefined,
     },
-    { enabled }
+    { enabled, reportTypes }
+  );
+
+  // Số đếm của cả cơ sở (không theo trang/bộ lọc), chỉ tải khi mở tab Báo cáo.
+  const archiveCountsQuery = useReportArchiveCounts(
+    { siteId: reportsSiteId || undefined },
+    { enabled },
+  );
+  const refetchArchiveCounts = archiveCountsQuery.refetch;
+  const archiveStats = useMemo(
+    () => toReportArchiveStats(archiveCountsQuery.data),
+    [archiveCountsQuery.data],
   );
 
   const sitesById = useMemo(() => new Map(sites.map((site) => [site.id, site])), [sites]);
@@ -94,9 +127,12 @@ export function useReportsArchive({
         .map((item) => item.id)
     );
 
+    let statusChanged = false;
     for (const id of prevProcessingIdsRef.current) {
       if (!currentlyProcessing.has(id)) {
         const finished = items.find((item) => item.id === id);
+        // Hồ sơ vẫn trong danh sách nhưng đã xong/lỗi → số đếm theo trạng thái đã đổi.
+        if (finished) statusChanged = true;
         if (finished && finished.status === "COMPLETED") {
           const toastMsg = t("reports.queue.completedToast").replace(
             "{fileName}",
@@ -108,7 +144,8 @@ export function useReportsArchive({
     }
 
     prevProcessingIdsRef.current = currentlyProcessing;
-  }, [historyResult?.items, locale, t]);
+    if (statusChanged) void refetchArchiveCounts();
+  }, [historyResult?.items, locale, t, refetchArchiveCounts]);
 
   const isAdminUser = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const userSiteIds = useMemo(() => {
@@ -119,16 +156,6 @@ export function useReportsArchive({
     if (explicit.length > 0) return Array.from(new Set(explicit));
     return sites.map((s) => s.id).filter(Boolean);
   }, [user?.siteIds, user?.siteId, sites]);
-
-  const archiveStats = useMemo(
-    () =>
-      computeReportArchiveStats(
-        history,
-        templates,
-        historyResult?.meta?.total,
-      ),
-    [history, templates, historyResult?.meta?.total],
-  );
 
   // Auto-select first accessible completed report (or first item) for inline preview
   useEffect(() => {
@@ -156,29 +183,31 @@ export function useReportsArchive({
     [history, selectedReportId],
   );
 
+  const archiveKpiFilter: ReportArchiveKpiKey | null =
+    historyType === "PERIODIC" || historyType === "SPECIALIZED"
+      ? TYPE_GROUP_KPI[historyType]
+      : null;
+
   const handleSelectArchiveKpi = (key: ReportArchiveKpiKey) => {
-    setArchiveKpiFilter((prev) => (prev === key ? null : key));
-    if (key === "all") {
-      setHistoryType("");
-      setHistoryStatus("");
-      setHistoryPage(1);
-    } else if (key === "periodic") {
-      setHistoryType((prev) => (prev === "DAILY" ? "" : "DAILY"));
-      setHistoryPage(1);
-    } else if (key === "specialized") {
-      setHistoryType((prev) =>
-        prev === "VIOLATION_SUMMARY" ? "" : "VIOLATION_SUMMARY",
-      );
-      setHistoryPage(1);
-    } else if (key === "templates") {
+    if (key === "templates") {
       document
         .getElementById("reports-templates-section")
         ?.scrollIntoView({ behavior: "smooth" });
+      return;
     }
+    const group = KPI_TYPE_GROUP[key];
+    if (group) {
+      // Lọc cả nhóm (Ngày + Tuần + Tháng / Vi phạm + AI); bấm lại để bỏ lọc.
+      setHistoryType((prev) => (prev === group ? "" : group));
+    } else {
+      setHistoryType("");
+      setHistoryStatus("");
+    }
+    setHistoryPage(1);
   };
 
   function refresh() {
-    void Promise.all([refetchTemplates(), refetchHistory()]);
+    void Promise.all([refetchTemplates(), refetchHistory(), refetchArchiveCounts()]);
   }
 
   function selectHistorySite(siteId: string) {
@@ -206,6 +235,9 @@ export function useReportsArchive({
     history,
     templates,
     archiveStats,
+    isArchiveStatsLoading: archiveCountsQuery.isLoading,
+    templateCounts,
+    isTemplatesLoading,
     selectedReport,
     setSelectedReportId,
     selectHistorySite,
@@ -218,7 +250,7 @@ export function useReportsArchive({
     setHistoryPage,
     isHistoryLoading,
     isHistoryFetching,
-    isRefreshing: isTemplatesFetching || isHistoryFetching,
+    isRefreshing: isTemplatesFetching || isHistoryFetching || archiveCountsQuery.isFetching,
     currentUserId: user?.id,
     isAdminUser,
     canReadReports,
@@ -245,6 +277,9 @@ export function ReportsArchiveTab({
   const {
     archiveStats,
     archiveKpiFilter,
+    isArchiveStatsLoading,
+    templateCounts,
+    isTemplatesLoading,
     canReadReports,
     currentUserId,
     handleSelectArchiveKpi,
@@ -291,7 +326,9 @@ export function ReportsArchiveTab({
       {/* KPI riêng cho Tab Báo cáo */}
       <ReportsArchiveKpiSummary
         stats={archiveStats}
-        loading={isHistoryLoading}
+        loading={isArchiveStatsLoading}
+        templateCounts={templateCounts}
+        templatesLoading={isTemplatesLoading}
         activeFilter={archiveKpiFilter}
         onSelectCard={handleSelectArchiveKpi}
       />
@@ -300,8 +337,8 @@ export function ReportsArchiveTab({
       <ReportTypeOverviewStrip
         selectedType={historyType}
         onSelectType={selectHistoryType}
-        countsByType={archiveStats.byType}
-        totalCount={archiveStats.totalReports}
+        countsByType={archiveStats?.byType}
+        totalCount={archiveStats?.totalReports}
         templates={templates}
         canExportReports={canExportReports}
         onQuickGenerateForType={handleQuickGenerateForType}

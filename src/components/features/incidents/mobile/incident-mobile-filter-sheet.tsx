@@ -18,6 +18,7 @@ export interface IncidentMobileFilterValues {
   severityFilter: string;
   violationFilter: string;
   assignedToMe: boolean;
+  assignedTo?: string;
 }
 
 export interface IncidentMobileFilterHandlers {
@@ -38,7 +39,7 @@ export function countActiveIncidentMobileFilters(values: IncidentMobileFilterVal
     values.cameraIdFilter,
     values.severityFilter,
     values.violationFilter,
-    values.assignedToMe,
+    values.assignedToMe || values.assignedTo,
   ].filter(Boolean).length;
 }
 

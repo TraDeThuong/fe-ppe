@@ -71,31 +71,21 @@ export function DashboardSeveritySlaChart({
     { field: "dismissed", label: "dismissed", color: "bg-muted-foreground/40" },
   ] as const;
 
-  const backlogCount = analytics.severities.reduce(
-    (sum, row) => sum + row.pending + row.confirmed,
-    0,
-  );
-  const pendingTotal = analytics.severities.reduce(
-    (sum, row) => sum + row.pending,
-    0,
-  );
-  const confirmedTotal = analytics.severities.reduce(
-    (sum, row) => sum + row.confirmed,
-    0,
-  );
-  const resolvedCount = analytics.severities.reduce(
-    (sum, row) => sum + row.resolved,
-    0,
-  );
-  const dismissedCount = analytics.severities.reduce(
-    (sum, row) => sum + row.dismissed,
-    0,
-  );
+  // Tổng toàn kỳ lấy từ bộ đếm chung (chính xác); phần theo mức độ chỉ có khi đã đếm thật.
+  const hasSeveritySplit = analytics.severitySplitSource === "counts";
+  const pendingTotal = analytics.openIncidents ?? 0;
+  const confirmedTotal = analytics.trueViolations ?? 0;
+  const backlogCount = pendingTotal + confirmedTotal;
+  const resolvedCount = analytics.resolvedIncidents ?? 0;
+  const dismissedCount = analytics.dismissed;
   const criticalRow = analytics.severities.find((r) => r.key === "CRITICAL");
   const highRow = analytics.severities.find((r) => r.key === "HIGH");
-  const criticalBacklog =
-    (criticalRow?.pending ?? 0) + (criticalRow?.confirmed ?? 0);
-  const highBacklog = (highRow?.pending ?? 0) + (highRow?.confirmed ?? 0);
+  const criticalBacklog = hasSeveritySplit
+    ? (criticalRow?.pending ?? 0) + (criticalRow?.confirmed ?? 0)
+    : 0;
+  const highBacklog = hasSeveritySplit
+    ? (highRow?.pending ?? 0) + (highRow?.confirmed ?? 0)
+    : 0;
 
   const slaRows = analytics.severities.filter(
     (r): r is typeof r & { targetSlaMinutes: number } =>
@@ -146,9 +136,11 @@ export function DashboardSeveritySlaChart({
         ? []
         : isVi
           ? [
-              criticalBacklog > 0 || highBacklog > 0
-                ? `Mức độ ưu tiên cao còn tồn đọng: ${number.format(criticalBacklog)} ca Nguy cấp và ${number.format(highBacklog)} ca Nghiêm trọng cần xử lý sớm.`
-                : "Hiện không có sự cố Nguy cấp hoặc Nghiêm trọng nào đang bị tồn đọng.",
+              !hasSeveritySplit
+                ? "Chưa có số tồn đọng theo từng mức độ (cần quyền xem sự cố và mở tab An toàn)."
+                : criticalBacklog > 0 || highBacklog > 0
+                  ? `Mức độ ưu tiên cao còn tồn đọng: ${number.format(criticalBacklog)} ca Nguy cấp và ${number.format(highBacklog)} ca Nghiêm trọng cần xử lý sớm.`
+                  : "Hiện không có sự cố Nguy cấp hoặc Nghiêm trọng nào đang bị tồn đọng.",
               analytics.mttrMinutes !== null
                 ? `Thời gian xử lý trung bình (MTTR) hiện đạt ${formatMttr(analytics.mttrMinutes)}, tính trên ${number.format(analytics.resolutionSamples)} mẫu hợp lệ từ lúc phát hiện đến lúc xử lý xong.`
                 : "Thời gian xử lý trung bình đang hiển thị '—' vì trong kỳ chưa có sự cố nào hoàn tất (RESOLVED/CLOSED) có đầy đủ mốc thời gian hợp lệ.",
@@ -166,9 +158,11 @@ export function DashboardSeveritySlaChart({
                 : "Chưa ghi nhận cảnh báo nào bị bác bỏ trong kỳ.",
             ]
           : [
-              criticalBacklog > 0 || highBacklog > 0
-                ? `High-priority backlog: ${number.format(criticalBacklog)} Critical and ${number.format(highBacklog)} High incidents still need resolution.`
-                : "No Critical or High severity incidents are currently in backlog.",
+              !hasSeveritySplit
+                ? "Per-severity backlog is not available yet (requires incident access on the Safety tab)."
+                : criticalBacklog > 0 || highBacklog > 0
+                  ? `High-priority backlog: ${number.format(criticalBacklog)} Critical and ${number.format(highBacklog)} High incidents still need resolution.`
+                  : "No Critical or High severity incidents are currently in backlog.",
               analytics.mttrMinutes !== null
                 ? `Average resolution time (MTTR) is ${formatMttr(analytics.mttrMinutes)}, measured across ${number.format(analytics.resolutionSamples)} valid resolved/closed samples.`
                 : "MTTR shows '—' because no RESOLVED/CLOSED incidents in this period have valid detection-to-resolution timestamps yet.",

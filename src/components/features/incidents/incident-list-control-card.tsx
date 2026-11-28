@@ -42,6 +42,8 @@ export interface IncidentListControlCardProps {
   cameraIdFilter?: string;
   onCameraIdFilterChange?: (value: string) => void;
   assignedToMe?: boolean;
+  assignedTo?: string;
+  hasPeriodFilter?: boolean;
   onAssignedToMeChange?: (value: boolean) => void;
   onResetFilters?: () => void;
   onRefresh?: () => void;
@@ -107,6 +109,8 @@ export function IncidentListControlCard({
   cameraIdFilter = "",
   onCameraIdFilterChange,
   assignedToMe = false,
+  assignedTo,
+  hasPeriodFilter = false,
   onAssignedToMeChange,
   onResetFilters,
   onRefresh,
@@ -150,7 +154,8 @@ export function IncidentListControlCard({
     cameraIdFilter,
     severityFilter,
     violationFilter,
-    assignedToMe,
+    assignedToMe || assignedTo,
+    hasPeriodFilter,
   ].filter(Boolean).length;
 
   const handleResetAll = () => {
@@ -201,6 +206,7 @@ export function IncidentListControlCard({
                     <button
                       key={opt.value}
                       type="button"
+                      aria-pressed={isActive}
                       onClick={() => onScopeChange(opt.value)}
                       className={`group relative inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-background px-3 text-xs font-bold transition-all duration-200 ${isActive
                           ? "text-primary shadow-[3px_3px_6px_rgba(0,0,0,0.07),-3px_-3px_6px_rgba(255,255,255,0.85)] ring-1 ring-primary/25 dark:shadow-[3px_3px_6px_rgba(0,0,0,0.45),-3px_-3px_6px_rgba(255,255,255,0.03)]"
@@ -240,6 +246,7 @@ export function IncidentListControlCard({
                       <button
                         key={value}
                         type="button"
+                        aria-pressed={isActive}
                         onClick={() => onScopeChange("work", value)}
                         className={`group relative inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-background px-3 text-xs font-bold transition-all duration-200 ${isActive
                             ? "text-primary shadow-[3px_3px_6px_rgba(0,0,0,0.07),-3px_-3px_6px_rgba(255,255,255,0.85)] ring-1 ring-accent dark:shadow-[3px_3px_6px_rgba(0,0,0,0.45),-3px_-3px_6px_rgba(255,255,255,0.03)]"

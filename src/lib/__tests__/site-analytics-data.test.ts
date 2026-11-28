@@ -201,7 +201,12 @@ describe("confirmed site analytics", () => {
       "dismissed",
     );
     assert.equal(incidentOutcome(closed("2", "CONFIRMED")), "unknown");
-    assert.equal(incidentOutcome(incident("3", { status: "CLOSED" })), "unknown");
+    // Không có lịch sử: dựa vào resolvedAt (BE chỉ ghi khi xử lý xong).
+    assert.equal(incidentOutcome(incident("3", { status: "CLOSED" })), "dismissed");
+    assert.equal(
+      incidentOutcome(incident("4", { status: "CLOSED", resolvedAt: "2026-11-17T04:00:00Z" })),
+      "resolved",
+    );
   });
   it("partitions 00/06/14/22 exactly once and breaks peak ties deterministically", () => {
     const items = ["00", "06", "14", "22"].map((hour) =>

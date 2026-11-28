@@ -197,6 +197,13 @@ export function ReportHistoryList({
               <option value="">
                 {t("reports.history.type")}: {t("table.all")}
               </option>
+              {/* Nhóm loại — cùng giá trị với thẻ KPI "Định kỳ" / "Chuyên đề & AI" */}
+              <option value="PERIODIC">
+                {isVietnamese ? "Nhóm Định kỳ" : "Periodic group"}
+              </option>
+              <option value="SPECIALIZED">
+                {isVietnamese ? "Nhóm Chuyên đề & AI" : "Specialized & AI group"}
+              </option>
               {["DAILY", "WEEKLY", "MONTHLY", "VIOLATION_SUMMARY", "AI_PERFORMANCE"].map(
                 (val) => (
                   <option key={val} value={val}>

@@ -23,6 +23,24 @@ export function isDockerInternalMinioUrl(url?: string | null): boolean {
 }
 
 /**
+ * URL presigned (SigV4) được ký cho host nội bộ Docker: trình duyệt không tải được, và đổi host
+ * sang localhost cũng làm sai chữ ký. Cách sửa duy nhất là cấu hình BE ký theo host public.
+ */
+export function isSignedInternalMinioUrl(url?: string | null): boolean {
+  return isDockerInternalMinioUrl(url) && /[?&]X-Amz-Signature=/i.test(String(url));
+}
+
+let warnedSignedInternalUrl = false;
+function warnUnreachableSignedEvidenceUrl() {
+  if (warnedSignedInternalUrl) return;
+  warnedSignedInternalUrl = true;
+  console.warn(
+    "[evidence] Presigned URL đang được ký cho host nội bộ ppe-minio nên ảnh bằng chứng sẽ lỗi 403. " +
+      "Đặt PPE_MINIO_PUBLIC_ENDPOINT=http://localhost:9000 cho incident-service rồi khởi động lại container.",
+  );
+}
+
+/**
  * Chuẩn hóa URL ảnh bằng chứng vi phạm PPE để tải chính xác trên trình duyệt.
  *
  * Xử lý an toàn các định dạng:
@@ -37,7 +55,9 @@ export function resolveEvidenceUrl(keyOrUrl?: string | null): string {
   const trimmed = keyOrUrl.trim();
   if (!trimmed) return "";
 
-  // 1. URL chứa hostname nội bộ Docker (ppe-minio:9000) -> Chuyển thành localhost cho trình duyệt
+  // 1. URL chứa hostname nội bộ Docker (ppe-minio:9000) -> Chuyển thành localhost cho trình duyệt.
+  // Lưu ý: URL đã ký (presigned) gắn chữ ký với host, đổi host sẽ bị MinIO trả 403.
+  if (isSignedInternalMinioUrl(trimmed)) warnUnreachableSignedEvidenceUrl();
   if (trimmed.includes("ppe-minio:9000")) {
     return trimmed.replace(/http:\/\/ppe-minio:9000/g, "http://localhost:9000");
   }

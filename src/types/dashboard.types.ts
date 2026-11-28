@@ -113,5 +113,12 @@ export interface DashboardAnalytics {
   falseAlarmRate?: number | null;
   complianceRate?: number | null;
   hourlyDate?: string | null;
+  /**
+   * Số sự cố reporting-service dùng để vẽ biểu đồ. Nhỏ hơn `total` nghĩa là biểu đồ chỉ tính
+   * trên phần bản ghi BE gom được (tối đa 1.000), còn các thẻ đếm vẫn chính xác.
+   */
+  chartSampleTotal?: number;
+  /** "counts": cột trạng thái theo mức độ là số đếm thật; "unavailable": chưa có / không có quyền. */
+  severitySplitSource?: "counts" | "unavailable";
 }
 export type DashboardIncidentCollection = DashboardCollection<IncidentItem>;

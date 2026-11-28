@@ -78,7 +78,7 @@ export function FilterChipRow({
       className={[
         "flex gap-2",
         scrollable
-          ? "-mx-3 snap-x overflow-x-auto scroll-px-3 px-3 pr-8 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden mask-[linear-gradient(to_right,black_calc(100%-2rem),transparent)]"
+          ? "-mx-3 snap-x overflow-x-auto scroll-px-3 px-3 pr-8 pb-0.5 scrollbar-none [&::-webkit-scrollbar]:hidden mask-[linear-gradient(to_right,black_calc(100%-2rem),transparent)]"
           : "flex-wrap",
         className,
       ].join(" ")}

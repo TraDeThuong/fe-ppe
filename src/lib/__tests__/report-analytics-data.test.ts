@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   canAccessGeneratedReport,
   computePersonnelPerformanceStats,
-  computeReportArchiveStats,
   computeResolutionFunnel,
   computeResolutionFunnelFromSummary,
   computeRoleSegmentedPersonnelStats,
@@ -18,7 +17,6 @@ import {
 import type {
   IncidentItem,
   ReportGenerationDto,
-  ReportTemplateDto,
   SiteItem,
   StatisticsSummaryDto,
   TrendItemDto,
@@ -113,8 +111,9 @@ describe("report-analytics-data", () => {
     assert.equal(trends.length, 4);
     assert.deepEqual(trends, [
       { date: "2026-11-16", totalIncidents: 0, trueViolations: 0, falseAlarms: 0, resolvedCount: 0 },
-      { date: "2026-11-17", totalIncidents: 1, trueViolations: 1, falseAlarms: 0, resolvedCount: 0 },
-      { date: "2026-11-18", totalIncidents: 2, trueViolations: 1, falseAlarms: 1, resolvedCount: 1 },
+      // Khớp reporting develop: chờ duyệt không tính, RESOLVED chỉ vào resolvedCount.
+      { date: "2026-11-17", totalIncidents: 1, trueViolations: 0, falseAlarms: 0, resolvedCount: 0 },
+      { date: "2026-11-18", totalIncidents: 2, trueViolations: 0, falseAlarms: 1, resolvedCount: 1 },
       { date: "2026-11-19", totalIncidents: 0, trueViolations: 0, falseAlarms: 0, resolvedCount: 0 },
     ]);
   });
@@ -135,7 +134,7 @@ describe("report-analytics-data", () => {
   it("groups trends by WEEK and MONTH and zero-fills all buckets in range", () => {
     const liveIncidents = [
       makeIncident({ id: "1", status: "CONFIRMED", detectedAt: "2026-11-02T05:00:00.000Z" }),
-      makeIncident({ id: "2", status: "CLOSED", detectedAt: "2026-11-18T05:00:00.000Z" }),
+      makeIncident({ id: "2", status: "CLOSED", detectedAt: "2026-11-18T05:00:00.000Z", resolvedAt: "2026-11-18T07:00:00.000Z" }),
     ];
 
     const weekly = reconcileReportTrends({
@@ -170,7 +169,7 @@ describe("report-analytics-data", () => {
     assert.equal(monthly[1].totalIncidents, 2);
   });
 
-  it("detects report formats, checks BOLA report access, and computes archive KPI stats", () => {
+  it("detects report formats, checks BOLA report access, and validates report periods", () => {
     const reports: ReportGenerationDto[] = [
       {
         id: "r1",
@@ -211,29 +210,6 @@ describe("report-analytics-data", () => {
         fileName: "report_ai.pdf",
         generatedAt: "2026-11-10T08:00:00Z",
         createdAt: "2026-11-10T08:00:00Z",
-      },
-    ];
-
-    const templates: ReportTemplateDto[] = [
-      {
-        id: "t1",
-        name: "Daily",
-        code: "DAILY",
-        fileType: "PDF",
-        version: "1.0.0",
-        status: "ACTIVE",
-        createdAt: "2026-10-01T00:00:00Z",
-        updatedAt: "2026-10-01T00:00:00Z",
-      },
-      {
-        id: "t2",
-        name: "Monthly",
-        code: "MONTHLY",
-        fileType: "EXCEL",
-        version: "1.0.0",
-        status: "INACTIVE",
-        createdAt: "2026-10-01T00:00:00Z",
-        updatedAt: "2026-10-01T00:00:00Z",
       },
     ];
 
@@ -294,16 +270,6 @@ describe("report-analytics-data", () => {
     assert.equal(summaryFunnel.dismissed, 1);
     assert.equal(summaryFunnel.bottleneckStage, "remediating");
 
-    const stats = computeReportArchiveStats(reports, templates, 12);
-    assert.equal(stats.totalReports, 12);
-    assert.equal(stats.completedCount, 2);
-    assert.equal(stats.processingCount, 1);
-    assert.equal(stats.periodicCount, 2);
-    assert.equal(stats.specializedCount, 1);
-    assert.equal(stats.pdfCount, 2);
-    assert.equal(stats.excelCount, 1);
-    assert.equal(stats.activeTemplatesCount, 1);
-    assert.equal(stats.totalTemplatesCount, 2);
   });
 
   it("computes 5-stage resolution funnel and bottleneck stage accurately", () => {

@@ -48,7 +48,7 @@ export function CronLastRunBadge({
 }) {
   if (execution) {
     let label = `${t("cron.justRan")} (${execution.durationMs}ms)`;
-    if (execution.fromAuditLog) {
+    if (execution.source) {
       const date = new Date(execution.timestamp);
       const timeText = Number.isNaN(date.getTime())
         ? "—"

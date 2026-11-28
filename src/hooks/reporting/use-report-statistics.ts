@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { reportingService } from "@/services/reporting.service";
 import { reportingKeys } from "./reporting.query-keys";
 import type {
@@ -87,5 +87,40 @@ export function useCameraRankings(
     queryFn: ({ signal }) => reportingService.getCameraRankings(params, { signal, strict: true, suppressToast: true }),
     staleTime: 30 * 1000,
     enabled: options?.enabled ?? true,
+  });
+}
+
+/**
+ * Thống kê tóm tắt theo từng công trường (BE develop không còn trả `siteBreakdown`).
+ * Gọi `/statistics/summary?siteId=` cho mỗi công trường rồi gộp ở FE; dùng chung cache với
+ * truy vấn summary của từng công trường.
+ */
+export function useSiteSummaryBreakdown(
+  params: Omit<ReportingFilterParams, "siteId">,
+  siteIds: readonly string[],
+  options?: { enabled?: boolean },
+) {
+  const enabled = (options?.enabled ?? true) && siteIds.length > 0;
+  return useQueries({
+    queries: siteIds.map((siteId) => {
+      const siteParams = { ...params, siteId };
+      return {
+        queryKey: reportingKeys.summary(siteParams),
+        queryFn: ({ signal }: { signal: AbortSignal }) =>
+          reportingService.getSummary(siteParams, { signal, strict: true, suppressToast: true }),
+        staleTime: 30 * 1000,
+        enabled,
+      };
+    }),
+    combine: (results) => {
+      const loaded = results.every((r) => r.data !== undefined);
+      return {
+        isLoading: results.some((r) => r.isLoading),
+        isError: results.some((r) => r.isError),
+        siteBreakdown: loaded
+          ? results.map((r, i) => ({ ...(r.data as StatisticsSummaryDto), siteId: siteIds[i] }))
+          : undefined,
+      };
+    },
   });
 }

@@ -22,6 +22,7 @@ import { AnimatedNumber } from "@/components/ui/animated-number";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useLocale } from "@/providers/locale-provider";
 import { notificationIncidentTarget } from "@/lib/incident-group";
+import { getAwaitingAcceptanceCount } from "@/lib/incident-list-scope";
 import {
   groupIncidentsByCamera,
   groupIncidentsByResponsibility,
@@ -39,7 +40,7 @@ import type {
 
 export interface IncidentAssignmentOverviewCardProps {
   incidents?: readonly IncidentItem[];
-  statusCounts?: Partial<IncidentStatusCounts>;
+  statusCounts?: IncidentStatusCounts;
   statusTotals?: Partial<AssignmentIncidentTotals>;
   variant?: "full" | "compact";
   loading?: boolean;
@@ -264,12 +265,9 @@ export function IncidentAssignmentOverviewCard({
       };
 
   if (variant === "compact") {
-    const pendingVal = statusCounts?.pendingReview ?? summary.pendingReviewCount;
-    const confirmedVal = statusCounts?.confirmed ?? summary.officerActiveCount;
-    const awaitingCloseVal =
-      statusCounts !== undefined
-        ? Math.max(0, (statusCounts.resolved ?? 0) - (statusCounts.closed ?? 0))
-        : summary.awaitingAcceptanceCount;
+    const pendingVal = statusCounts?.pendingReview;
+    const confirmedVal = statusCounts?.confirmed;
+    const awaitingCloseVal = getAwaitingAcceptanceCount(statusCounts);
 
     return (
       <Link
@@ -320,19 +318,19 @@ export function IncidentAssignmentOverviewCard({
             <span className="inline-flex items-center gap-1.5 rounded-xl bg-background px-2.5 py-1 font-mono text-[11px] font-bold text-amber-600 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] dark:text-amber-400">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
               <span>{isVietnamese ? "Chờ duyệt:" : "Pending:"}</span>
-              <strong className="font-black">{loading ? "..." : pendingVal}</strong>
+              <strong className="font-black">{loading ? "..." : (pendingVal ?? "—")}</strong>
             </span>
 
             <span className="inline-flex items-center gap-1.5 rounded-xl bg-background px-2.5 py-1 font-mono text-[11px] font-bold text-primary shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)]">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              <span>{isVietnamese ? "Đang xử lý:" : "Active:"}</span>
-              <strong className="font-black">{loading ? "..." : confirmedVal}</strong>
+              <span>{isVietnamese ? "Đã xác nhận:" : "Confirmed:"}</span>
+              <strong className="font-black">{loading ? "..." : (confirmedVal ?? "—")}</strong>
             </span>
 
             <span className="inline-flex items-center gap-1.5 rounded-xl bg-background px-2.5 py-1 font-mono text-[11px] font-bold text-emerald-600 shadow-[2px_2px_5px_var(--shadow-dark),-2px_-2px_5px_var(--shadow-light)] dark:text-emerald-400">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <span>{isVietnamese ? "Chờ đóng:" : "To close:"}</span>
-              <strong className="font-black">{loading ? "..." : awaitingCloseVal}</strong>
+              <span>{isVietnamese ? "Chờ nghiệm thu:" : "Awaiting acceptance:"}</span>
+              <strong className="font-black">{loading ? "..." : (awaitingCloseVal ?? "—")}</strong>
             </span>
           </div>
 

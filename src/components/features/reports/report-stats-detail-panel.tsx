@@ -1,8 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { AlertTriangle, CheckCircle2, Clock, FileText, ShieldQuestion, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertTriangle, CheckCircle2, Clock, ShieldQuestion, X } from "lucide-react";
 import { useLocale } from "@/providers/locale-provider";
 import type { StatisticsSummaryDto } from "@/types";
 
@@ -11,7 +10,6 @@ const STAT_DETAILS = {
   complianceRate: { title: "reports.kpi.complianceRate", icon: CheckCircle2 },
   mttr: { title: "reports.kpi.mttr", icon: Clock },
   pendingReview: { title: "reports.kpi.pendingReview", icon: ShieldQuestion },
-  reportsCount: { title: "reports.kpi.reportsCount", icon: FileText },
 } as const;
 
 const SEVERITIES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
@@ -23,7 +21,6 @@ export interface ReportStatsDetailPanelProps {
   summary?: StatisticsSummaryDto | null;
   loading?: boolean;
   onClose: () => void;
-  onViewHistory?: () => void;
 }
 
 export function ReportStatsDetailPanel({
@@ -31,7 +28,6 @@ export function ReportStatsDetailPanel({
   summary,
   loading = false,
   onClose,
-  onViewHistory,
 }: ReportStatsDetailPanelProps) {
   const { t, locale } = useLocale();
   const titleId = useId();
@@ -61,11 +57,7 @@ export function ReportStatsDetailPanel({
         </button>
       </div>
 
-      {activeStat === "reportsCount" ? (
-        <Button type="button" variant="outline" size="sm" onClick={onViewHistory}>
-          {t("reports.detail.viewHistory")}
-        </Button>
-      ) : loading ? (
+      {loading ? (
         <p role="status" className="text-xs text-muted-foreground">{t("common.loading")}</p>
       ) : summary ? (
         <StatSummary activeStat={activeStat} summary={summary} />
@@ -82,7 +74,7 @@ function StatSummary({
   activeStat,
   summary,
 }: {
-  activeStat: Exclude<ReportStatKey, "reportsCount">;
+  activeStat: ReportStatKey;
   summary: StatisticsSummaryDto;
 }) {
   const { t, locale } = useLocale();

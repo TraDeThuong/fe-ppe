@@ -249,7 +249,6 @@ export function NotificationFilterToolbar({
           <option value="IN_APP">Web (In-App)</option>
           <option value="WEB">Web</option>
           <option value="EMAIL">Email</option>
-          <option value="WEBHOOK">Webhook</option>
         </select>
 
         {/* Date Range with explicit labels */}

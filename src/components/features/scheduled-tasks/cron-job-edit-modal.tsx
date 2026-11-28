@@ -279,10 +279,13 @@ export function CronJobEditModal({
 
         <FormField
           label={t("cron.edit.description")}
+          helperText={`${description.length}/500`}
+          helperClassName="text-right font-mono tabular-nums"
           error={fieldErrors.description ?? (invalidDescription ? t("cron.edit.descriptionLength") : undefined)}
         >
           <Textarea
             rows={3}
+            maxLength={500}
             value={description}
             disabled={disabled}
             onChange={(event) => {

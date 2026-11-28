@@ -30,7 +30,7 @@ export interface IncidentConsoleHeaderProps {
   onExportFeedback?: () => void;
   siteName?: string | null;
   userRole?: string | null;
-  criticalCount: number;
+  criticalCount?: number;
   periodFilter?: IncidentPeriodFilter;
   resolvedPeriod?: ResolvedIncidentPeriod;
   today?: string;
@@ -145,7 +145,7 @@ export function IncidentConsoleHeader({
                         }`}
                     />
                   </span>
-                  {isConnected ? "Realtime Active" : "Polling (15s)"}
+                  {isConnected ? "Realtime Active" : "Polling (30s)"}
                 </span>
 
                 <span
@@ -156,7 +156,7 @@ export function IncidentConsoleHeader({
                   <span className="truncate">{resolvedSiteLabel}</span>
                 </span>
 
-                <span
+                {criticalCount !== undefined && <span
                   className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1 font-mono text-[11px] font-semibold ${criticalCount > 0 ? "text-accent" : "text-muted-foreground"
                     } ${NM.recessed}`}
                 >
@@ -173,7 +173,7 @@ export function IncidentConsoleHeader({
                     : isVietnamese
                       ? "Không có vi phạm khẩn cấp"
                       : "No critical alerts"}
-                </span>
+                </span>}
               </div>
             </div>
           </div>

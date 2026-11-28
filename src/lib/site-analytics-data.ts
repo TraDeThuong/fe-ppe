@@ -9,6 +9,12 @@ import type {
   TrendItemDto,
   ViolationTypeStatDto,
 } from "@/types";
+import {
+  falseAlarmRate as computeFalseAlarmRate,
+  incidentOutcomeOf,
+  outcomeCountsFromSummary,
+  trueViolationCount,
+} from "@/lib/metrics/incident-metrics";
 import type { DashboardCollection, DashboardPeriod } from "@/types/dashboard.types";
 import { addCalendarDays, dashboardPeriod, vietnamToday } from "./dashboard-data";
 import {
@@ -67,17 +73,7 @@ export function analyticsPreset(days: 7 | 30 | 90, today = vietnamToday()) {
 
 /** CLOSED is a workflow endpoint for both resolved violations and false alarms. */
 export function incidentOutcome(item: IncidentItem): IncidentOutcome {
-  if (item.status === "PENDING_REVIEW") return "pending";
-  if (item.status === "CONFIRMED") return "confirmed";
-  if (item.status === "RESOLVED") return "resolved";
-  if (item.status === "DISMISSED") return "dismissed";
-  if (item.status !== "CLOSED") return "unknown";
-  const transitions = (item.statusHistory ?? [])
-    .filter((row) => row.newStatus === "CLOSED" && Number.isFinite(Date.parse(row.changedAt)))
-    .sort((a, b) => Date.parse(b.changedAt) - Date.parse(a.changedAt));
-  if (transitions[0]?.oldStatus === "RESOLVED") return "resolved";
-  if (transitions[0]?.oldStatus === "DISMISSED") return "dismissed";
-  return "unknown";
+  return incidentOutcomeOf(item);
 }
 
 export function isAccessError(error: unknown): boolean {
@@ -119,22 +115,14 @@ export function buildSiteAnalyticsFromStatistics(params: {
 }): SiteAnalytics {
   const { summary, trends: rawTrends, distribution: rawDistribution, cameras: rawCameras, period, groupBy } = params;
 
-  const totalIncidents = Math.max(0, summary.totalIncidents ?? 0);
-  const pending = Math.max(0, summary.openIncidents ?? 0);
-  const resolved = Math.max(0, summary.resolvedIncidents ?? 0);
-  const dismissed = Math.max(0, summary.falseAlarms ?? 0);
-  const rawConfirmed = Math.max(0, summary.trueViolations ?? 0);
-
-  // Trong reporting-service: openIncidents + trueViolations (CONFIRMED) + resolvedIncidents + falseAlarms = totalIncidents.
-  // Nếu rollup đã gộp resolved vào trueViolations (open + trueViolations + falseAlarms >= totalIncidents), tách confirmed = trueViolations - resolved.
-  const trueIncludesResolved =
-    resolved > 0 &&
-    rawConfirmed >= resolved &&
-    pending + rawConfirmed + dismissed >= totalIncidents;
-  const confirmed = trueIncludesResolved
-    ? Math.max(0, rawConfirmed - resolved)
-    : rawConfirmed;
-  const trueViolations = confirmed + resolved;
+  // Quy ước reporting develop (lib/metrics): trueViolations = CONFIRMED, resolved = RESOLVED + CLOSED.
+  const outcome = outcomeCountsFromSummary(summary);
+  const totalIncidents = outcome.total;
+  const pending = outcome.pending;
+  const resolved = outcome.resolved;
+  const dismissed = outcome.dismissed;
+  const confirmed = outcome.confirmed;
+  const trueViolations = trueViolationCount(outcome);
   const unknown = Math.max(
     0,
     totalIncidents - (pending + confirmed + resolved + dismissed),
@@ -233,11 +221,9 @@ export function buildSiteAnalyticsFromStatistics(params: {
         ? summary.meanTimeToResolveHours * 60
         : null;
 
-  const reviewed = trueViolations + dismissed;
   const confirmedRate =
     totalIncidents > 0 ? (trueViolations / totalIncidents) * 100 : null;
-  const falseAlarmRate =
-    reviewed > 0 ? (dismissed / reviewed) * 100 : null;
+  const falseAlarmRate = computeFalseAlarmRate(outcome);
 
   const cameras: CameraStatDto[] = [...rawCameras]
     .filter((c) => Boolean(c?.cameraId))

@@ -28,4 +28,7 @@ export const reportingKeys = {
   historyAll: () => [...reportingKeys.all, "history"] as const,
   history: (params?: ReportHistoryQueryDto) =>
     [...reportingKeys.historyAll(), params] as const,
+  // Nằm dưới historyAll: tạo báo cáo mới (invalidate historyAll) sẽ làm mới luôn số đếm của kho.
+  archiveCounts: (params?: { siteId?: string }) =>
+    [...reportingKeys.historyAll(), "counts", params] as const,
 };

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 
 import { FilterChip, FilterChipRow } from "@ui/filter-chip";
-import type { IncidentListScope, IncidentWorkStatus } from "@/lib/incident-list-scope";
+import { getAwaitingAcceptanceCount, type IncidentListScope, type IncidentWorkStatus } from "@/lib/incident-list-scope";
 import { useLocale } from "@/providers/locale-provider";
 import type { IncidentItem, IncidentStatusCounts } from "@/types";
 import { IncidentMobileList } from "./incident-mobile-list";
@@ -84,7 +84,7 @@ export function IncidentMobileView({
 
   const pendingReview = lane("PENDING_REVIEW", isVietnamese ? "Chờ duyệt" : "To review", statusCounts?.pendingReview);
   const confirmed = lane("CONFIRMED", t("incidents.status.confirmed"), statusCounts?.confirmed);
-  const awaitingCheck = lane("RESOLVED", t("incidents.scope.awaitingAcceptance"), statusCounts?.resolved);
+  const awaitingCheck = lane("RESOLVED", t("incidents.scope.awaitingAcceptance"), getAwaitingAcceptanceCount(statusCounts));
   const dismissed = lane("DISMISSED", t("incidents.status.dismissed"), statusCounts?.dismissed);
   const all: LaneChip = {
     key: "all",

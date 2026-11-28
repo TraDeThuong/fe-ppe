@@ -33,6 +33,7 @@ export interface CronJobItem {
   defaultParams?: CronJobDefaultParamsDto;
   lastStatus?: string;
   lastRun?: string;
+  lastRunAt?: string | null;
   nextRun?: string;
 }
 
@@ -75,6 +76,6 @@ export interface RecentExecutionState {
   data?: Record<string, unknown>;
   error?: string;
   triggerType?: "SCHEDULED" | "MANUAL";
-  fromAuditLog?: boolean;
+  source?: "audit" | "job";
 }
 

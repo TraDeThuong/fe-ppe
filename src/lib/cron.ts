@@ -430,7 +430,7 @@ export function extractRecentCronExecutions(
       data: resultData,
       error: item.errorMessage ?? undefined,
       triggerType: item.actorId ? "MANUAL" : "SCHEDULED",
-      fromAuditLog: true,
+      source: "audit",
     };
 
     const existing = result[jobName];
@@ -454,13 +454,39 @@ export function extractRecentCronExecutions(
 }
 
 /**
- * Merges historical audit executions with live in-session manual runs.
+ * Merges backend-reported job executions (`lastRunAt` / `lastStatus` from `/cron/jobs`),
+ * historical audit executions, and live in-session manual runs.
  */
 export function mergeRecentExecutions(
   auditExecutions: Record<string, RecentExecutionState>,
-  sessionExecutions: Record<string, RecentExecutionState>
+  sessionExecutions: Record<string, RecentExecutionState>,
+  jobs: readonly CronJobItem[] = [],
 ): Record<string, RecentExecutionState> {
   const merged: Record<string, RecentExecutionState> = { ...auditExecutions };
+
+  for (const job of jobs) {
+    if (job.lastStatus !== "SUCCESS" && job.lastStatus !== "FAILED") continue;
+    const rawTime = job.lastRunAt ?? job.lastRun;
+    if (!rawTime) continue;
+    const jobTime = new Date(rawTime).getTime();
+    if (Number.isNaN(jobTime)) continue;
+
+    const existing = merged[job.name];
+    const existingTime = existing ? new Date(existing.timestamp).getTime() : NaN;
+    const success = job.lastStatus === "SUCCESS";
+    if (
+      !existing || Number.isNaN(existingTime) || jobTime > existingTime ||
+      (jobTime === existingTime && success !== existing.success)
+    ) {
+      merged[job.name] = {
+        timestamp: rawTime,
+        success,
+        durationMs: 0,
+        source: "job",
+      };
+    }
+  }
+
   for (const [jobName, sessionExec] of Object.entries(sessionExecutions)) {
     const existing = merged[jobName];
     if (!existing) {
@@ -591,7 +617,7 @@ export function assessCronJobGuidance(
   const lastTime = lastExec ? new Date(lastExec.timestamp).getTime() : NaN;
   const hasValidLastTime = Boolean(lastExec) && !Number.isNaN(lastTime);
   const ageMs = hasValidLastTime ? Math.max(0, now.getTime() - lastTime) : Infinity;
-  const isJustRan = hasValidLastTime && (!lastExec?.fromAuditLog || ageMs <= JUST_RAN_WINDOW_MS);
+  const isJustRan = hasValidLastTime && (!lastExec?.source || ageMs <= JUST_RAN_WINDOW_MS);
 
   if (lastExec && !lastExec.success) {
     return { state: "failed", shouldClickRun: true, isJustRan, priorityRank: 0 };

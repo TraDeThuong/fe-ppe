@@ -11,6 +11,10 @@ import {
 } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
+import {
+  falseAlarmRate as computeFalseAlarmRate,
+  outcomeCountsFromSummary,
+} from "@/lib/metrics/incident-metrics";
 import type { StatisticsSummaryDto } from "@/types";
 import {
   ReportStatsDetailPanel,
@@ -22,7 +26,6 @@ export interface ReportKpiSummaryProps {
   loading?: boolean;
   selectedStat?: ReportStatKey | null;
   onSelectStat?: (stat: ReportStatKey | null) => void;
-  onViewHistory?: () => void;
 }
 
 export function ReportKpiSummary({
@@ -30,7 +33,6 @@ export function ReportKpiSummary({
   loading = false,
   selectedStat: propSelectedStat,
   onSelectStat,
-  onViewHistory,
 }: ReportKpiSummaryProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -58,7 +60,10 @@ export function ReportKpiSummary({
     ? `${summary.meanTimeToResolveHours.toFixed(1)} ${isVietnamese ? "giờ" : "hrs"}`
     : `0.0 ${isVietnamese ? "giờ" : "hrs"}`;
   const pendingReviewCount = summary?.openIncidents ?? 0;
-  const falseAlarmRate = summary?.falseAlarmRate ?? 0;
+  // Công thức chung (lib/metrics): bác bỏ / (vi phạm thật + bác bỏ) — khớp Dashboard và Công trường.
+  const falseAlarmRate = summary
+    ? (computeFalseAlarmRate(outcomeCountsFromSummary(summary)) ?? 0)
+    : 0;
 
   // Hiệu ứng chìm sâu (neumorphic sunken) khi card được chọn:
   // - Chìm xuống dưới (translate-y-1.5)
@@ -202,7 +207,6 @@ export function ReportKpiSummary({
           summary={summary}
           loading={loading}
           onClose={() => handleToggle(activeStat)}
-          onViewHistory={onViewHistory}
         />
       )}
     </div>

@@ -1,12 +1,8 @@
-import type { FeedbackDatasetQueryParams, IncidentQueryParams } from "@/types";
+import type { FeedbackDatasetQueryParams, IncidentQueryParams, IncidentStatusCountsFilters } from "@/types";
 
-export interface IncidentStatusCountsQueryParams {
+export type IncidentStatusCountsQueryParams = Omit<IncidentStatusCountsFilters, "siteId"> & {
   siteId?: string | null;
-  cameraId?: string;
-  cameraIds?: string[] | string;
-  fromDate?: string;
-  toDate?: string;
-}
+};
 
 function normalizeCameraIdsKey(cameraIds?: string[] | string): string | null | undefined {
   if (cameraIds === undefined) return undefined;
@@ -29,21 +25,30 @@ export const incidentKeys = {
       return [...incidentKeys.all, "status-counts", params || "all"] as const;
     }
     const siteSegment = params.siteId || "all";
-    const normalizedCameraIds = normalizeCameraIdsKey(params.cameraIds);
-    if (!params.cameraId && normalizedCameraIds === undefined && !params.fromDate && !params.toDate) {
+    const filters = {
+      cameraId: params.cameraId || undefined,
+      cameraIds: normalizeCameraIdsKey(params.cameraIds),
+      fromDate: params.fromDate || undefined,
+      toDate: params.toDate || undefined,
+      search: params.search || undefined,
+      severity: params.severity || undefined,
+      violationType: params.violationType || undefined,
+      assignedTo: params.assignedTo || undefined,
+      assignedToMe: params.assignedToMe || undefined,
+    };
+    if (Object.values(filters).every((value) => value === undefined)) {
       return [...incidentKeys.all, "status-counts", siteSegment] as const;
     }
     return [
       ...incidentKeys.all,
       "status-counts",
       siteSegment,
-      {
-        cameraId: params.cameraId || undefined,
-        cameraIds: normalizedCameraIds,
-        fromDate: params.fromDate || undefined,
-        toDate: params.toDate || undefined,
-      },
+      filters,
     ] as const;
+  },
+  breakdown: (params: IncidentStatusCountsQueryParams) => {
+    const statusKey = incidentKeys.statusCounts(params);
+    return [...statusKey, "breakdown"] as const;
   },
   feedbackDatasetCount: (params: FeedbackDatasetQueryParams) =>
     [...incidentKeys.all, "feedback-dataset-count", params] as const,

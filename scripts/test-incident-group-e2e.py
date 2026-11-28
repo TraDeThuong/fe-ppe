@@ -83,7 +83,12 @@ with tempfile.TemporaryDirectory(prefix='ppe-incident-group-') as temp:
             values = [n for n in notifications if n['userId'] == actor and (not q.get('search') or q['search'][0] in n['content'])]
             return paginated(values)
         if path.startswith('/notifications/') and path.endswith('/read'): return ok(dict(message='Read'))
-        if path == '/incidents/status-counts': return ok(dict(total=len(records), pendingReview=sum(r['status'] == 'PENDING_REVIEW' for r in records.values()), resolved=sum(r['status'] == 'RESOLVED' for r in records.values()), critical=0))
+        if path == '/incidents/status-counts':
+            statuses = [record['status'] for record in records.values()]
+            return ok(dict(total=len(statuses), pendingReview=statuses.count('PENDING_REVIEW'),
+                           resolved=statuses.count('RESOLVED') + statuses.count('CLOSED'),
+                           confirmed=statuses.count('CONFIRMED'), closed=statuses.count('CLOSED'),
+                           dismissed=statuses.count('DISMISSED'), critical=0))
         if path == '/incidents/batch-review':
             ids = [id for id in request.post_data_json['ids'] if id != state['review_fail']]
             for id in ids: records[id]['status'] = 'CONFIRMED'

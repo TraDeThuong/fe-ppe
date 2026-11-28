@@ -256,7 +256,7 @@ describe("Notifications UI & Logic", () => {
     assert.ok(detailHtml.includes('href="/incidents/inc-1"'));
   });
 
-  it("renders NotificationFilterToolbar with view mode switcher", () => {
+  it("renders NotificationFilterToolbar with inbox channels and view mode switcher", () => {
     const html = renderNotifications(
       <NotificationFilterToolbar
         filter={{ search: "" }}
@@ -272,6 +272,17 @@ describe("Notifications UI & Logic", () => {
     assert.ok(html.includes("Theo giờ") || html.includes("By hour"));
     assert.ok(html.includes("Theo camera") || html.includes("By camera"));
     assert.equal(html.includes("dHash"), false);
+    for (const channel of ["IN_APP", "WEB", "EMAIL"]) {
+      assert.ok(html.includes(`<option value="${channel}"`));
+    }
+    assert.ok(!html.includes('<option value="WEBHOOK"'));
+  });
+
+  it("renders only In-App and Email cards for personal channel preferences", () => {
+    const html = renderNotifications(<NotificationPreferencesCard />, ADMIN_USER);
+    assert.match(html, /<h3[^>]*>(Thông báo Web|Web Notifications) \(In-App\)<\/h3>/);
+    assert.match(html, /<h3[^>]*>(Thư điện tử|Electronic Mail) \(Email\)<\/h3>/);
+    assert.doesNotMatch(html, /<h3[^>]*>[^<]*Webhook/i);
   });
 
   it("renders flat items as individual rows and renders synthesized Multi-Violation cluster cards in person mode", () => {

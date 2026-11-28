@@ -215,7 +215,7 @@ describe("Cron next run calculation & conflict detection", () => {
 
   it("uses the edited cadence for dashboard overdue guidance", () => {
     const now = new Date("2026-11-26T07:15:00Z");
-    const lastRun = { timestamp: "2026-11-25T20:00:00Z", success: true, durationMs: 30, fromAuditLog: true };
+    const lastRun = { timestamp: "2026-11-25T20:00:00Z", success: true, durationMs: 30, source: "audit" } as const;
     const options = { auditAvailable: true, now };
     assert.equal(assessCronJobGuidance({ ...jobs[0], cron: "0 */6 * * *" }, lastRun, options).state, "overdue");
     const month = { ...jobs[0], cron: "0 0 28 * *" };
@@ -275,19 +275,49 @@ describe("Cron next run calculation & conflict detection", () => {
     const fromAudit = extractRecentCronExecutions([edited, ...auditLogs]);
     assert.equal(fromAudit["cleanup-audit-logs"]?.durationMs, 88);
     assert.equal(fromAudit["cleanup-audit-logs"]?.triggerType, "MANUAL");
-    assert.equal(fromAudit["cleanup-audit-logs"]?.fromAuditLog, true);
+    assert.equal(fromAudit["cleanup-audit-logs"]?.source, "audit");
 
-    const merged = mergeRecentExecutions(fromAudit, {
-      "cleanup-audit-logs": {
-        timestamp: "2026-11-16T06:00:00.000Z",
-        success: true,
-        durationMs: 42,
-        triggerType: "MANUAL",
-        fromAuditLog: false,
+    const merged = mergeRecentExecutions(
+      fromAudit,
+      {
+        "cleanup-audit-logs": {
+          timestamp: "2026-11-16T06:00:00.000Z",
+          success: true,
+          durationMs: 42,
+          triggerType: "MANUAL",
+        },
       },
-    });
+      [
+        {
+          name: "cleanup-expired-tokens",
+          description: "Tokens",
+          cron: "0 4 * * *",
+          isEnabled: true,
+          lastRunAt: "2026-11-16T04:00:00.000Z",
+          lastStatus: "SUCCESS",
+        },
+      ],
+    );
     assert.equal(merged["cleanup-audit-logs"]?.durationMs, 42);
-    assert.equal(merged["cleanup-audit-logs"]?.fromAuditLog, false);
+    assert.equal(merged["cleanup-audit-logs"]?.source, undefined);
+    assert.equal(merged["cleanup-expired-tokens"]?.timestamp, "2026-11-16T04:00:00.000Z");
+    assert.equal(merged["cleanup-expired-tokens"]?.success, true);
+
+    const job: CronJobItem = {
+      name: "cleanup-audit-logs",
+      description: "Audit logs",
+      cron: "0 2 * * *",
+      isEnabled: true,
+      lastRunAt: "2026-11-16T01:00:00.500Z",
+      lastStatus: "FAILED",
+    };
+    assert.deepEqual(mergeRecentExecutions(fromAudit, {}, [job])[job.name], {
+      timestamp: job.lastRunAt,
+      success: false,
+      durationMs: 0,
+      source: "job",
+    });
+    assert.equal(mergeRecentExecutions(fromAudit, {}, [{ ...job, lastStatus: undefined }])[job.name], fromAudit[job.name]);
   });
 
   it("assesses guidance to highlight just-ran, failed, overdue, never-ran, and healthy jobs", () => {
@@ -312,7 +342,7 @@ describe("Cron next run calculation & conflict detection", () => {
     // Just ran 5 minutes ago -> just_ran, no click needed
     const justRan = assessCronJobGuidance(
       dailyJob,
-      { timestamp: "2026-11-16T09:55:00.000Z", success: true, durationMs: 30, fromAuditLog: true },
+      { timestamp: "2026-11-16T09:55:00.000Z", success: true, durationMs: 30, source: "audit" },
       { auditAvailable: true, now },
     );
     assert.equal(justRan.state, "just_ran");
@@ -322,7 +352,7 @@ describe("Cron next run calculation & conflict detection", () => {
     // Overdue (>26h ago for daily) -> overdue, shouldClickRun
     const overdue = assessCronJobGuidance(
       dailyJob,
-      { timestamp: "2026-11-14T10:00:00.000Z", success: true, durationMs: 30, fromAuditLog: true },
+      { timestamp: "2026-11-14T10:00:00.000Z", success: true, durationMs: 30, source: "audit" },
       { auditAvailable: true, now },
     );
     assert.equal(overdue.state, "overdue");
@@ -331,7 +361,7 @@ describe("Cron next run calculation & conflict detection", () => {
     // Failed -> failed, shouldClickRun
     const failed = assessCronJobGuidance(
       dailyJob,
-      { timestamp: "2026-11-16T09:58:00.000Z", success: false, durationMs: 30, fromAuditLog: true },
+      { timestamp: "2026-11-16T09:58:00.000Z", success: false, durationMs: 30, source: "audit" },
       { auditAvailable: true, now },
     );
     assert.equal(failed.state, "failed");

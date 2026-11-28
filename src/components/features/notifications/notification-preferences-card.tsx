@@ -11,7 +11,6 @@ import {
   Volume2,
   VolumeX,
   Clock,
-  Radio,
 } from "lucide-react";
 import { usePublicConfig } from "@/hooks/auth";
 import {
@@ -29,7 +28,9 @@ import {
   SOUND_PRESET_NAMES,
   type SoundPreset,
 } from "@/services/sound.service";
-import type { NotificationChannel, NotificationSeverity } from "@/types";
+import type { NotificationSeverity } from "@/types";
+
+type PersonalPreferenceChannel = "IN_APP" | "EMAIL";
 
 export function NotificationPreferencesCard({
   className = "",
@@ -64,30 +65,19 @@ export function NotificationPreferencesCard({
   } = useNotificationSound();
 
   const inAppPref = preferences.find((p) => p.channel === "IN_APP") || {
-    channel: "IN_APP" as NotificationChannel,
     enabled: true,
     severityThreshold: "LOW" as NotificationSeverity,
   };
 
   const emailPref = preferences.find((p) => p.channel === "EMAIL") || {
-    channel: "EMAIL" as NotificationChannel,
     enabled: true,
     severityThreshold: "HIGH" as NotificationSeverity,
   };
 
-  const webhookPref = preferences.find((p) => p.channel === "WEBHOOK") || {
-    channel: "WEBHOOK" as NotificationChannel,
-    enabled: false,
-    severityThreshold: "CRITICAL" as NotificationSeverity,
-  };
+  const getChannelPreference = (channel: PersonalPreferenceChannel) =>
+    channel === "IN_APP" ? inAppPref : emailPref;
 
-  const getChannelPreference = (channel: NotificationChannel) => {
-    if (channel === "IN_APP") return inAppPref;
-    if (channel === "WEBHOOK") return webhookPref;
-    return emailPref;
-  };
-
-  const handleToggleChannel = (channel: NotificationChannel, currentEnabled: boolean) => {
+  const handleToggleChannel = (channel: PersonalPreferenceChannel, currentEnabled: boolean) => {
     const currentPref = getChannelPreference(channel);
     updateMutation.mutate({
       channel,
@@ -97,7 +87,7 @@ export function NotificationPreferencesCard({
   };
 
   const handleChangeThreshold = (
-    channel: NotificationChannel,
+    channel: PersonalPreferenceChannel,
     severityThreshold: NotificationSeverity,
   ) => {
     const currentPref = getChannelPreference(channel);
@@ -560,7 +550,7 @@ export function NotificationPreferencesCard({
       {/* ===================================================================== */}
       {/* 4. PREFERENCES CHANNEL GRID (EXTRUDED CARDS)                          */}
       {/* ===================================================================== */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* 1. Kênh Thông báo trên Web (In-App) */}
         <div className="flex flex-col justify-between gap-4 rounded-2xl border border-white/75 bg-surface/95 p-4 sm:p-5 shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)] transition-all hover:border-primary/25 dark:border-white/[0.07] dark:bg-card/90">
           <div className="flex items-start justify-between gap-3">
@@ -708,82 +698,6 @@ export function NotificationPreferencesCard({
               </option>
               <option value="LOW">
                 {isVietnamese ? "Mức thấp (LOW) — Mọi vi phạm (Dễ gây đầy hòm thư)" : "LOW — All alerts (May flood inbox)"}
-              </option>
-            </select>
-          </div>
-        </div>
-
-        {/* 3. Kênh Tích hợp Hệ thống ngoài (Webhook) */}
-        <div className="flex flex-col justify-between gap-4 rounded-2xl border border-white/75 bg-surface/95 p-4 sm:p-5 shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)] transition-all hover:border-primary/25 dark:border-white/[0.07] dark:bg-card/90">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3.5">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/15 to-accent/15 text-primary shadow-[4px_4px_9px_var(--shadow-dark),-4px_-4px_9px_var(--shadow-light)]">
-                <Radio className="size-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">
-                  {t("notifications.channel.WEBHOOK")}
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {t("notifications.preferences.webhookDesc")}
-                </p>
-              </div>
-            </div>
-
-            {/* Tactile Toggle Switch */}
-            <button
-              type="button"
-              role="switch"
-              aria-checked={webhookPref.enabled}
-              disabled={isLoading || updateMutation.isPending}
-              onClick={() => handleToggleChannel("WEBHOOK", webhookPref.enabled)}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 ${
-                webhookPref.enabled
-                  ? "bg-gradient-to-r from-primary to-primary/85 shadow-[inset_2px_2px_4px_rgba(0,0,0,0.35)]"
-                  : "bg-background shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)]"
-              }`}
-            >
-              <span
-                className={`pointer-events-none flex size-5 items-center justify-center rounded-full bg-surface shadow-[2px_2px_5px_rgba(0,0,0,0.25)] transition-transform duration-300 dark:bg-white ${
-                  webhookPref.enabled ? "translate-x-5" : "translate-x-0"
-                }`}
-              >
-                <span
-                  className={`size-1.5 rounded-full ${
-                    webhookPref.enabled ? "bg-primary shadow-[0_0_5px_hsl(var(--primary))]" : "bg-muted-foreground/40"
-                  }`}
-                />
-              </span>
-            </button>
-          </div>
-
-          {/* Threshold Selection */}
-          <div className="flex flex-col gap-2 border-t border-border/30 pt-3.5 text-xs">
-            <span className="font-semibold text-foreground">
-              {t("notifications.preferences.threshold")}:
-            </span>
-            <select
-              value={webhookPref.severityThreshold}
-              disabled={!webhookPref.enabled || updateMutation.isPending}
-              onChange={(e) =>
-                handleChangeThreshold("WEBHOOK", e.target.value as NotificationSeverity)
-              }
-              className="w-full rounded-xl border border-black/[0.05] bg-background/80 px-3 py-2 text-xs font-semibold text-foreground shadow-[inset_3px_3px_6px_var(--shadow-dark),inset_-3px_-3px_6px_var(--shadow-light)] outline-none focus:border-primary/50 disabled:opacity-50 dark:border-white/[0.06]"
-            >
-              <option value="CRITICAL">
-                {isVietnamese ? "Khẩn cấp (CRITICAL) — Chỉ sự cố đặc biệt nghiêm trọng" : "CRITICAL — Critical emergencies only"}
-              </option>
-              <option value="HIGH">
-                {isVietnamese ? "Mức cao (HIGH) — Khẩn cấp & Mức cao" : "HIGH — Critical & High alerts"}
-              </option>
-              <option value="MEDIUM">
-                {isVietnamese ? "Trung bình (MEDIUM) — Từ mức trung bình trở lên" : "MEDIUM — Medium & above"}
-              </option>
-              <option value="NORMAL">
-                {isVietnamese ? "Bình thường (NORMAL) — Từ mức vừa trở lên" : "NORMAL — Normal & above"}
-              </option>
-              <option value="LOW">
-                {isVietnamese ? "Mức thấp (LOW) — Chuyển tiếp mọi cảnh báo" : "LOW — Forward all alerts"}
               </option>
             </select>
           </div>

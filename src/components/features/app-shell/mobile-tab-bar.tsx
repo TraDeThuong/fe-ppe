@@ -122,15 +122,13 @@ export function MobileTabBar({ maintenanceLocked = false }: MobileTabBarProps) {
                       scrollPageToTop();
                     }
                   }}
-                  className={`${tabClass} ${
-                    active ? "font-semibold text-primary" : "font-medium text-muted-foreground"
-                  }`}
+                  className={`${tabClass} font-medium ${active ? "text-primary" : "text-muted-foreground"}`}
                 >
                   <TabIcon active={active}>
                     <Icon className="size-5.5" strokeWidth={active ? 2.2 : 1.8} aria-hidden="true" />
                     {badge && <TabBadge badge={badge} />}
                   </TabIcon>
-                  <span className="max-w-full truncate px-1">{label}</span>
+                  <span className="max-w-full truncate px-0.5">{label}</span>
                   {badge && <span className="sr-only">, {badge.label}</span>}
                 </Link>
               </li>
@@ -145,9 +143,7 @@ export function MobileTabBar({ maintenanceLocked = false }: MobileTabBarProps) {
               aria-expanded={moreOpen}
               aria-controls="mobile-more-sheet"
               onClick={() => setMoreOpenAt(pathname)}
-              className={`${tabClass} ${
-                moreActive ? "font-semibold text-primary" : "font-medium text-muted-foreground"
-              }`}
+              className={`${tabClass} font-medium ${moreActive ? "text-primary" : "text-muted-foreground"}`}
             >
               <TabIcon active={moreActive}>
                 <Ellipsis className="size-6" strokeWidth={moreActive ? 2.4 : 2} aria-hidden="true" />

@@ -74,7 +74,8 @@ export function BottomSheet({
         if (event.target === event.currentTarget) onClose();
       }}
       className={[
-        "m-0 mt-auto h-auto max-h-[88dvh] w-full max-w-none overflow-hidden border-0 p-0",
+        // h-fit: cao vừa nội dung (h-auto sẽ kéo dialog cao hết màn hình vì dialog dùng inset: 0)
+        "m-0 mt-auto h-fit max-h-[88dvh] w-full max-w-none overflow-hidden border-0 p-0",
         "rounded-t-[1.75rem] bg-background text-foreground",
         "shadow-[0_-10px_40px_rgba(0,0,0,0.18)]",
         "backdrop:bg-black/45",

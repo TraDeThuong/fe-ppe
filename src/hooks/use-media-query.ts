@@ -41,3 +41,23 @@ export function useMediaQuery(query: string, serverValue = false): boolean {
 export function useIsDesktop(): boolean {
   return useMediaQuery(DESKTOP_MEDIA_QUERY, false);
 }
+
+const subscribeNoop = () => () => {};
+
+/** false khi render trên server và lúc hydrate; true sau khi đã chạy trên trình duyệt. */
+export function useHydrated(): boolean {
+  return useSyncExternalStore(subscribeNoop, () => true, () => false);
+}
+
+/**
+ * Chọn bản giao diện mobile/desktop mà không bị nháy, dùng cho trang có nội dung
+ * render ngay từ server (chưa chờ đăng nhập):
+ * - Lúc server render và hydrate: cả hai bản cùng có mặt, CSS quyết định bản nào hiện
+ *   (bọc bản mobile bằng `md:hidden`, bản desktop bằng `hidden md:block`).
+ * - Sau đó chỉ giữ đúng một bản, điện thoại không phải render bản desktop.
+ */
+export function useResponsiveVariant(): { showMobile: boolean; showDesktop: boolean } {
+  const hydrated = useHydrated();
+  const isDesktop = useIsDesktop();
+  return { showMobile: !hydrated || !isDesktop, showDesktop: !hydrated || isDesktop };
+}

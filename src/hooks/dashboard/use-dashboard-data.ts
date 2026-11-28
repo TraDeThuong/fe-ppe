@@ -10,6 +10,7 @@ import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { cameraKeys } from "@/hooks/cameras/camera.query-keys";
 import { aiMetricsKeys } from "@/hooks/ai-metrics/ai-metrics.query-keys";
 import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
+import { fetchSeverityStatusMatrix, withDerivedCounts } from "@/lib/incident-counts";
 import {
   buildDashboardAnalyticsFromReporting,
   collectDashboardPages,
@@ -196,6 +197,51 @@ export function useDashboardData(access: DashboardAccess) {
         suppressToast: true,
       }),
     ...polling,
+  });
+  // Bộ đếm chính xác của kỳ (reporting tự đếm lại tối đa 1.000 bản ghi nên tổng có thể bị chặn trần).
+  const periodCountsParams = useMemo(
+    () =>
+      period
+        ? {
+            ...(siteId ? { siteId } : {}),
+            fromDate: period.fromDate,
+            toDate: period.toDate,
+          }
+        : undefined,
+    [siteId, period],
+  );
+  const periodCountsQuery = useQuery({
+    queryKey: incidentKeys.statusCounts(periodCountsParams ?? null),
+    enabled: ready && access.incidents && !!periodCountsParams,
+    queryFn: async ({ signal }) =>
+      withDerivedCounts(
+        await incidentService.getStatusCounts(periodCountsParams, {
+          signal,
+          suppressToast: true,
+        }),
+      ),
+    ...polling,
+  });
+  const severityMatrixQuery = useQuery({
+    queryKey: [
+      ...incidentKeys.statusCounts(periodCountsParams ?? null),
+      "severity-matrix",
+    ],
+    // 16 request nhỏ: chỉ tải khi đang xem tab An toàn, không tự poll (SSE / focus làm mới).
+    enabled:
+      ready &&
+      access.incidents &&
+      access.activeTab === "safety" &&
+      !!periodCountsParams,
+    queryFn: ({ signal }) =>
+      fetchSeverityStatusMatrix(
+        (query) =>
+          incidentService.getIncidents(query, { signal, suppressToast: true }),
+        periodCountsParams ?? {},
+      ),
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+    retry: false,
   });
   const pendingQuery = useQuery({
     queryKey: [...incidentKeys.lists(), "dashboard-pending", scope],
@@ -432,6 +478,14 @@ export function useDashboardData(access: DashboardAccess) {
     }),
     [visibleCameraCounts],
   );
+  const visiblePeriodCounts = visibleQuery(
+    periodCountsQuery,
+    ready && access.incidents && !!periodCountsParams,
+  );
+  const visibleSeverityMatrix = visibleQuery(
+    severityMatrixQuery,
+    ready && access.incidents && access.activeTab === "safety",
+  );
   const analytics = useMemo(() => {
     if (!visibleSummary.data) return null;
     return buildDashboardAnalyticsFromReporting({
@@ -439,12 +493,16 @@ export function useDashboardData(access: DashboardAccess) {
       violations: visibleViolation.data,
       hourlyRisk: visibleHourlyRisk.data,
       cameraRankings: visibleCameraRankings.data,
+      periodCounts: visiblePeriodCounts.data,
+      severityMatrix: visibleSeverityMatrix.data,
     });
   }, [
     visibleSummary.data,
     visibleViolation.data,
     visibleHourlyRisk.data,
     visibleCameraRankings.data,
+    visiblePeriodCounts.data,
+    visibleSeverityMatrix.data,
   ]);
   const visiblePeriod = useMemo(
     () => ({
@@ -462,6 +520,7 @@ export function useDashboardData(access: DashboardAccess) {
           violationQuery.refetch(),
           ...(canLoadHourlyRisk ? [hourlyRiskQuery.refetch()] : []),
           ...(canLoadCameraRankings ? [cameraRankingsQuery.refetch()] : []),
+          ...(access.incidents ? [periodCountsQuery.refetch()] : []),
           trendsQuery.refetch(),
         ]);
         return summaryRes;
@@ -476,6 +535,8 @@ export function useDashboardData(access: DashboardAccess) {
       canLoadCameraRankings,
       hourlyRiskQuery,
       cameraRankingsQuery,
+      periodCountsQuery,
+      access.incidents,
       trendsQuery,
     ],
   );

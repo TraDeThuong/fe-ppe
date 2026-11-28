@@ -9,10 +9,15 @@ import { ReportViolationDonut } from "@/components/features/reports/report-viola
 import {
   useCameraRankings,
   useReportSummary,
+  useSiteSummaryBreakdown,
   useViolationDistribution,
   useViolationTrends,
 } from "@/hooks/reporting/use-report-statistics";
 import { addCalendarDays, vietnamToday } from "@/lib/dashboard-data";
+import {
+  outcomeCountsFromSummary,
+  resolutionRate as computeResolutionRate,
+} from "@/lib/metrics/incident-metrics";
 import {
   computeResolutionFunnelFromSummary,
   getReportDateRange,
@@ -112,15 +117,27 @@ export function useReportsAnalytics({
   );
   const resolutionFunnel = useMemo(() => computeResolutionFunnelFromSummary(summary), [summary]);
 
+  // BE develop không trả `siteBreakdown` → gộp summary của từng công trường ở FE.
+  const breakdownSiteIds = useMemo(
+    () => (!selectedSiteId && !rawSummary?.siteBreakdown && sites.length > 1 ? sites.map((site) => site.id) : []),
+    [selectedSiteId, rawSummary?.siteBreakdown, sites],
+  );
+  const { siteBreakdown: fetchedSiteBreakdown } = useSiteSummaryBreakdown(
+    { startDate, endDate },
+    breakdownSiteIds,
+    queryOptions,
+  );
+
   const unknownSiteName = t("reports.charts.unknownSite");
   const siteComparisonStats = useMemo(() => {
     if (!summary) return [];
 
+    const siteBreakdown = summary.siteBreakdown ?? fetchedSiteBreakdown;
     const sitesById = new Map(sites.map((site) => [site.id, site]));
-    const bySite = new Map(summary.siteBreakdown?.map((item) => [item.siteId, item]));
+    const bySite = new Map(siteBreakdown?.map((item) => [item.siteId, item]));
     const siteIds = selectedSiteId
       ? [selectedSiteId]
-      : summary.siteBreakdown
+      : siteBreakdown
         ? Array.from(bySite.keys())
         : sites.length === 1
           ? [sites[0].id]
@@ -129,7 +146,7 @@ export function useReportsAnalytics({
     return siteIds.map<SiteComparisonStat>((siteId) => {
       const site = sitesById.get(siteId);
       const stats = bySite.get(siteId) ?? summary;
-      const trueViolationsTotal = stats.trueViolations + stats.resolvedIncidents;
+      const rate = computeResolutionRate(outcomeCountsFromSummary(stats as StatisticsSummaryDto));
       return {
         siteId,
         siteName: site?.name ?? unknownSiteName,
@@ -141,13 +158,11 @@ export function useReportsAnalytics({
         resolvedCount: stats.resolvedIncidents,
         falseAlarms: stats.falseAlarms,
         complianceRate: stats.complianceRate,
-        resolutionRate: trueViolationsTotal
-          ? Math.round((stats.resolvedIncidents / trueViolationsTotal) * 100)
-          : 100,
+        resolutionRate: rate === null ? 100 : Math.round(rate),
         meanTimeToResolveHours: stats.meanTimeToResolveHours,
       };
     }).sort((a, b) => b.totalIncidents - a.totalIncidents || a.complianceRate - b.complianceRate);
-  }, [sites, selectedSiteId, summary, unknownSiteName]);
+  }, [sites, selectedSiteId, summary, fetchedSiteBreakdown, unknownSiteName]);
 
   const activeDateRangeLabel = startDate === endDate
     ? formatDate(startDate)
@@ -210,12 +225,10 @@ export function ReportsAnalyticsTab({
   analytics,
   selectedStat,
   onSelectStat,
-  onViewHistory,
 }: {
   analytics: ReturnType<typeof useReportsAnalytics>;
   selectedStat: ReportStatKey | null;
   onSelectStat: (stat: ReportStatKey | null) => void;
-  onViewHistory: () => void;
 }) {
   const { t } = useLocale();
   const showStats = !analytics.rangeError && !analytics.isStatsUnavailable;
@@ -227,7 +240,6 @@ export function ReportsAnalyticsTab({
           loading={analytics.isSummaryLoading}
           selectedStat={selectedStat}
           onSelectStat={onSelectStat}
-          onViewHistory={onViewHistory}
         />
       ) : null}
 

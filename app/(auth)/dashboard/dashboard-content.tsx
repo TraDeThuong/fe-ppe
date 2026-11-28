@@ -46,6 +46,8 @@ import {
   DashboardPanel,
 } from "@/components/features/dashboard/dashboard-data-state";
 import { GenerateReportModal } from "@/components/features/reports";
+import { DashboardMobileOverview } from "@/components/features/dashboard/mobile";
+import { useResponsiveVariant } from "@/hooks/use-media-query";
 import { ResolveIncidentModal } from "@/components/features/incidents/resolve-incident-modal";
 import { ReviewIncidentModal } from "@/components/features/incidents/review-incident-modal";
 import type {
@@ -78,6 +80,8 @@ export default function DashboardContent() {
   const { isConnected, lastAlert } = useRealtime();
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  // Mobile (< 768px): bản Tổng quan gọn; bản desktop (kể cả mô hình 3D) không được mount trên điện thoại.
+  const { showMobile, showDesktop } = useResponsiveVariant();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -485,6 +489,32 @@ export default function DashboardContent() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 pb-10">
+      {/* Mobile (< 768px): ô số liệu bấm được + sự cố chưa xử lý */}
+      {showMobile && (
+        <div className="md:hidden">
+          <DashboardMobileOverview
+            isOfficer={(user.role || "").toUpperCase() === "SAFETY_OFFICER"}
+            canViewIncidents={canViewIncidents}
+            canViewCameras={canViewCameras}
+            pendingCount={effectivePendingCount}
+            confirmedCount={recentQuery.data?.totalConfirmed ?? null}
+            onlineCameras={onlineCamerasCount}
+            totalCameras={totalCamerasCount}
+            pendingHref={pendingHref}
+            confirmedHref={dashboardIncidentHref(siteId, null, "CONFIRMED")}
+            viewAllHref={dashboardIncidentHref(siteId)}
+            incidents={recentIncidents}
+            incidentsLoading={recentQuery.isLoading}
+            incidentsError={recentQuery.isError && !recentQuery.data}
+            onRetry={() => void recentQuery.refetch()}
+            highlightedId={highlightedId}
+          />
+        </div>
+      )}
+
+      {/* Desktop (≥ 768px): giữ nguyên */}
+      {showDesktop && (
+      <div className="hidden flex-col gap-6 md:flex">
       {/* Unified Command Console Header (Identity + Tabs + Scope & Period Filter) */}
       <DashboardHeroHeader
         user={user}
@@ -765,6 +795,8 @@ export default function DashboardContent() {
             </div>
           </div>
         </div>
+      )}
+      </div>
       )}
 
       {/* Modals */}

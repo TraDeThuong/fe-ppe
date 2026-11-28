@@ -252,7 +252,7 @@ describe("D08 /incidents Standardization (RBAC, VIDEO_CLIP, Real AI Telemetry, C
     assert.doesNotMatch(htmlWithout, /AI \d+%/);
   });
 
-  it("counts only CRITICAL (not HIGH) in IncidentKpiSummary fallback and renders compact dispatch bar with statusCounts", () => {
+  it("uses the aggregate counts in KPI cards and the compact dispatch bar", () => {
     const mixedSeverityIncidents: IncidentItem[] = [
       {
         id: "inc-crit-1",
@@ -281,11 +281,18 @@ describe("D08 /incidents Standardization (RBAC, VIDEO_CLIP, Real AI Telemetry, C
     const kpiHtml = renderWithAuth(
       <IncidentKpiSummary
         incidents={mixedSeverityIncidents}
-        groupingMode="raw"
+        statusCounts={{
+          total: 40,
+          pendingReview: 8,
+          confirmed: 12,
+          critical: 3,
+          resolved: 20,
+          closed: 15,
+          dismissed: 0,
+        }}
       />,
     );
-    // Total = 2, Pending = 1, Critical = 1 (NOT 2), Resolved = 0
-    assert.doesNotMatch(kpiHtml, /Vi phạm khẩn cấp[\s\S]*?>2</);
+    for (const value of [40, 8, 3, 5]) assert.match(kpiHtml, new RegExp(`>${value}<`));
 
     const compactHtml = renderWithAuth(
       <IncidentAssignmentOverviewCard

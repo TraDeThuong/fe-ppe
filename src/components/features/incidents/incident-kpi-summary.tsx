@@ -1,15 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { AlertOctagon, AlertTriangle, CheckCircle, ChevronDown, ChevronUp, Clock } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-cards";
 import { useLocale } from "@/providers/locale-provider";
-import {
-  clusterIncidentsByPerson,
-  computeClusterStatusCounts,
-  type IncidentAggregationMode,
-} from "@/lib/incident-cluster-engine";
-import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
+import { getAwaitingAcceptanceCount } from "@/lib/incident-list-scope";
 import type { IncidentItem, IncidentStatusCounts } from "@/types";
 import {
   IncidentStatsDetailPanel,
@@ -18,38 +13,30 @@ import {
 
 export interface IncidentKpiSummaryProps {
   incidents: IncidentItem[];
-  totalIncidentsCount?: number;
-  statusCounts?: Partial<IncidentStatusCounts>;
-  statusTotals?: Partial<AssignmentIncidentTotals>;
-  groupingMode?: IncidentAggregationMode;
+  statusCounts?: IncidentStatusCounts;
   loading?: boolean;
   detailLoading?: boolean;
+  detailError?: boolean;
   selectedStat?: IncidentStatKey | null;
   onSelectStat?: (stat: IncidentStatKey | null) => void;
   onReview?: (incident: IncidentItem) => void;
   onAssign?: (incident: IncidentItem) => void;
-  onResolve?: (incident: IncidentItem) => void;
   onFilterStatus?: (status: string) => void;
-  onFilterSeverity?: (severity: string) => void;
   onFilterViolation?: (violation: string) => void;
   onFilterSite?: (siteId: string) => void;
 }
 
 export function IncidentKpiSummary({
   incidents,
-  totalIncidentsCount,
   statusCounts,
-  statusTotals,
-  groupingMode = "clustered",
   loading = false,
   detailLoading,
+  detailError,
   selectedStat: propSelectedStat,
   onSelectStat,
   onReview,
   onAssign,
-  onResolve,
   onFilterStatus,
-  onFilterSeverity,
   onFilterViolation,
   onFilterSite,
 }: IncidentKpiSummaryProps) {
@@ -68,79 +55,6 @@ export function IncidentKpiSummary({
     }
   };
 
-  const clusterCounts = useMemo(
-    () => computeClusterStatusCounts(clusterIncidentsByPerson(incidents)),
-    [incidents],
-  );
-
-  const rawTotal =
-    statusCounts?.total ??
-    (totalIncidentsCount !== undefined ? totalIncidentsCount : incidents.length);
-  const rawPending =
-    statusCounts?.pendingReview ??
-    incidents.filter((i) => i.status === "PENDING_REVIEW").length;
-  // Đồng bộ 100% với BE /incidents/status-counts: chỉ đếm mức CRITICAL
-  const rawCritical =
-    statusCounts?.critical ??
-    incidents.filter((i) => i.severity === "CRITICAL").length;
-  const rawResolved =
-    statusCounts?.resolved ??
-    incidents.filter((i) => i.status === "RESOLVED" || i.status === "CLOSED").length;
-
-  const derivedStatusTotals = useMemo<Partial<AssignmentIncidentTotals> | undefined>(() => {
-    if (statusTotals) return statusTotals;
-    if (!statusCounts) return undefined;
-    const closed = statusCounts.closed ?? 0;
-    const dismissed = statusCounts.dismissed ?? 0;
-    const pureResolved = Math.max(0, (statusCounts.resolved ?? 0) - closed);
-    return {
-      total: statusCounts.total,
-      pendingReview: statusCounts.pendingReview,
-      confirmed: statusCounts.confirmed,
-      resolved: pureResolved,
-      closed,
-      dismissed,
-      closedOrDismissed: closed + dismissed,
-    };
-  }, [statusCounts, statusTotals]);
-
-  const canUseClusteredTotals =
-    groupingMode === "clustered" &&
-    incidents.length > 0 &&
-    incidents.length >= rawTotal;
-
-  const total = canUseClusteredTotals ? clusterCounts.total : rawTotal;
-  const pending = canUseClusteredTotals ? clusterCounts.pendingReview : rawPending;
-  const critical = canUseClusteredTotals ? clusterCounts.critical : rawCritical;
-  const resolved = canUseClusteredTotals
-    ? clusterCounts.resolved + clusterCounts.closed
-    : rawResolved;
-
-  const totalDesc =
-    canUseClusteredTotals && rawTotal > total
-      ? isVietnamese
-        ? `Gom từ ${rawTotal} lỗi gốc (${clusterCounts.multiViolation} đa vi phạm)`
-        : `Grouped from ${rawTotal} raw (${clusterCounts.multiViolation} multi)`
-      : t("incidents.kpi.totalDesc");
-  const pendingDesc =
-    canUseClusteredTotals && rawPending > pending
-      ? isVietnamese
-        ? `${rawPending} bản ghi lỗi chờ thẩm duyệt`
-        : `${rawPending} raw records pending review`
-      : t("incidents.kpi.pendingReviewDesc");
-  const criticalDesc =
-    canUseClusteredTotals && rawCritical > critical
-      ? isVietnamese
-        ? `${rawCritical} bản ghi mức khẩn cấp`
-        : `${rawCritical} raw critical records`
-      : t("incidents.kpi.criticalDesc");
-  const resolvedDesc =
-    canUseClusteredTotals && rawResolved > resolved
-      ? isVietnamese
-        ? `${rawResolved} bản ghi lỗi đã giải quyết`
-        : `${rawResolved} raw records resolved`
-      : t("incidents.kpi.resolvedDesc");
-
   // Hiệu ứng chìm sâu (neumorphic sunken) chuẩn mực giống trang Role:
   // - Chìm xuống dưới (translate-y-1.5)
   // - Đổ bóng âm sâu 2 lớp (deep inset shadow)
@@ -156,12 +70,12 @@ export function IncidentKpiSummary({
         {/* 1. Tổng sự cố */}
         <StatsCard
           title={t("incidents.kpi.total")}
-          value={loading ? "..." : total}
+          value={loading ? "..." : (statusCounts?.total ?? "—")}
           icon={AlertTriangle}
           variant="soft-extruded"
           tone="primary"
           showGlow={false}
-          description={totalDesc}
+          description={t("incidents.kpi.totalDesc")}
           onClick={() => handleToggle("total")}
           className={`transition-all duration-200 cursor-pointer ${
             activeStat === "total" ? sunkenClass : "hover:border-primary/30"
@@ -184,12 +98,12 @@ export function IncidentKpiSummary({
         {/* 2. Chờ thẩm duyệt */}
         <StatsCard
           title={t("incidents.kpi.pendingReview")}
-          value={loading ? "..." : pending}
+          value={loading ? "..." : (statusCounts?.pendingReview ?? "—")}
           icon={Clock}
           variant="soft-extruded"
           tone="warning"
           showGlow={false}
-          description={pendingDesc}
+          description={t("incidents.kpi.pendingReviewDesc")}
           onClick={() => handleToggle("pendingReview")}
           className={`transition-all duration-200 cursor-pointer ${
             activeStat === "pendingReview" ? sunkenClass : "hover:border-warning/30"
@@ -212,12 +126,12 @@ export function IncidentKpiSummary({
         {/* 3. Vi phạm khẩn cấp */}
         <StatsCard
           title={t("incidents.kpi.critical")}
-          value={loading ? "..." : critical}
+          value={loading ? "..." : (statusCounts?.critical ?? "—")}
           icon={AlertOctagon}
           variant="soft-extruded"
           tone="danger"
           showGlow={false}
-          description={criticalDesc}
+          description={t("incidents.kpi.criticalDesc")}
           onClick={() => handleToggle("critical")}
           className={`transition-all duration-200 cursor-pointer ${
             activeStat === "critical" ? sunkenClass : "hover:border-danger/30"
@@ -240,12 +154,12 @@ export function IncidentKpiSummary({
         {/* 4. Đã giải quyết */}
         <StatsCard
           title={t("incidents.kpi.resolved")}
-          value={loading ? "..." : resolved}
+          value={loading ? "..." : (getAwaitingAcceptanceCount(statusCounts) ?? "—")}
           icon={CheckCircle}
           variant="soft-extruded"
           tone="success"
           showGlow={false}
-          description={resolvedDesc}
+          description={t("incidents.kpi.resolvedDesc")}
           onClick={() => handleToggle("resolved")}
           className={`transition-all duration-200 cursor-pointer ${
             activeStat === "resolved" ? sunkenClass : "hover:border-success/30"
@@ -271,16 +185,13 @@ export function IncidentKpiSummary({
         <IncidentStatsDetailPanel
           activeStat={activeStat}
           incidents={incidents}
-          statusTotals={derivedStatusTotals}
-          criticalTotal={statusCounts?.critical}
-          groupingMode={canUseClusteredTotals ? groupingMode : "raw"}
-          loading={detailLoading ?? loading}
+          statusCounts={statusCounts}
+          listLoading={detailLoading}
+          listError={detailError}
           onClose={() => handleToggle(activeStat)}
           onReview={onReview}
           onAssign={onAssign}
-          onResolve={onResolve}
           onFilterStatus={onFilterStatus}
-          onFilterSeverity={onFilterSeverity}
           onFilterViolation={onFilterViolation}
           onFilterSite={onFilterSite}
         />

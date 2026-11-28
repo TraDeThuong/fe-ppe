@@ -225,7 +225,21 @@ export interface IncidentStatusCounts {
   resolved: number;
   closed: number;
   dismissed: number;
+  /** FE tự đếm khi mở panel thống kê (BE develop không trả). */
+  bySeverity?: Partial<Record<IncidentSeverity, number>>;
+  /** FE tự đếm khi mở panel thống kê (BE develop không trả). */
+  byViolationType?: Partial<Record<ViolationType, number>>;
+  /** Suy ra ở FE: số sự cố đã xử lý, kể cả đã đóng. */
+  remediated?: number;
+  /** Suy ra ở FE: số sự cố bị bác bỏ. */
+  falseAlarms?: number;
 }
+
+export type IncidentStatusCountsFilters = Pick<
+  IncidentQueryParams,
+  "siteId" | "cameraId" | "cameraIds" | "fromDate" | "toDate" |
+  "search" | "severity" | "violationType" | "assignedTo" | "assignedToMe"
+>;
 
 export type FeedbackDatasetLabel = "TRUE_VIOLATION" | "FALSE_ALARM";
 

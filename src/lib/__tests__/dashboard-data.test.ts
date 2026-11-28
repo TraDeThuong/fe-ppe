@@ -736,7 +736,10 @@ describe("dashboard aggregate semantics", () => {
     const critical = analytics.severities.find((s) => s.key === "CRITICAL")!;
     assert.equal(critical.count, 5);
     assert.equal(critical.resolved, 3);
-    assert.equal(critical.pending + critical.confirmed + critical.dismissed, 2);
+    // Không có số đếm theo mức độ: phần chưa xử lý để ở "other", không chia ước lượng.
+    assert.equal(critical.pending + critical.confirmed + critical.dismissed, 0);
+    assert.equal(critical.other, 2);
+    assert.equal(analytics.severitySplitSource, "unavailable");
     assert.equal(critical.mttrMinutes, 12);
     assert.equal(critical.targetSlaMinutes, 15);
 
@@ -750,5 +753,53 @@ describe("dashboard aggregate semantics", () => {
     assert.equal(analytics.cameras[0].resolved, 7);
     assert.equal(analytics.cameras[0].dismissed, 2);
     assert.equal(analytics.cameras[0].pending, 3); // 12 - 7 - 2
+  });
+
+  it("ưu tiên bộ đếm chính xác của kỳ và số đếm thật theo mức độ khi có", () => {
+    const summary = {
+      totalIncidents: 1000, // reporting bị chặn trần 1.000 bản ghi
+      openIncidents: 800,
+      resolvedIncidents: 90,
+      trueViolations: 100,
+      falseAlarms: 10,
+      falseAlarmRate: 9.09, // công thức BE: 10 / (100 + 10)
+      complianceRate: 90,
+      meanTimeToResolveHours: 1,
+      periodStart: "2026-11-01",
+      periodEnd: "2026-11-28",
+    };
+    const row = (total: number, pending: number, confirmed: number, resolved: number, dismissed: number) => ({
+      total, pending, confirmed, resolved, dismissed,
+    });
+    const analytics = buildDashboardAnalyticsFromReporting({
+      summary,
+      violations: [{ violationType: "NO_HELMET", count: 2000, percentage: 100, severityBreakdown: { LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 } }],
+      periodCounts: {
+        total: 1364,
+        pendingReview: 1106,
+        confirmed: 139,
+        critical: 40,
+        resolved: 119,
+        closed: 118,
+        dismissed: 0,
+      },
+      severityMatrix: {
+        CRITICAL: row(40, 30, 5, 5, 0),
+        HIGH: row(100, 80, 10, 10, 0),
+        MEDIUM: row(1000, 800, 100, 100, 0),
+        LOW: row(224, 196, 24, 4, 0),
+      },
+    });
+    assert.equal(analytics.total, 1364); // không lấy max với tổng by-violation (2000)
+    assert.equal(analytics.chartSampleTotal, 1000);
+    assert.equal(analytics.openIncidents, 1106);
+    assert.equal(analytics.reviewed, 139 + 119);
+    assert.equal(analytics.dismissedRate, 0);
+    assert.equal(analytics.severitySplitSource, "counts");
+    const critical = analytics.severities.find((s) => s.key === "CRITICAL")!;
+    assert.deepEqual(
+      [critical.count, critical.pending, critical.confirmed, critical.resolved, critical.dismissed, critical.other],
+      [40, 30, 5, 5, 0, 0],
+    );
   });
 });

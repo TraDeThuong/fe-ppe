@@ -6,11 +6,10 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  Code2,
   Cpu,
-  FileText,
   History,
-  Info,
+  Lock,
+  Pencil,
   Play,
   Power,
   ShieldAlert,
@@ -23,12 +22,14 @@ import { Modal } from "@/components/ui/modal";
 import { Loader } from "@/components/ui/loader";
 import { useCan } from "@/hooks/use-can";
 import { useCronJobHistory } from "@/hooks/cron/use-cron-history";
+import { ApiError } from "@/lib/axios";
 import {
   calculateNextRun,
   CRON_TIMEZONE,
-  getCronScheduleLabel,
   detectCronConflicts,
-  isCronExecutionAudit,
+  extractRecentCronExecutions,
+  getCronScheduleLabel,
+  mergeRecentExecutions,
 } from "@/lib/cron";
 import { useLocale } from "@/providers/locale-provider";
 import type {
@@ -45,6 +46,7 @@ interface Props {
   blocked: boolean;
   onTrigger: (job: CronJobItem) => void;
   onToggle: (job: CronJobItem) => void;
+  onEdit?: (job: CronJobItem) => void;
   onClose: () => void;
 }
 
@@ -56,6 +58,7 @@ export function CronJobDetailModal({
   blocked,
   onTrigger,
   onToggle,
+  onEdit,
   onClose,
 }: Props) {
   const { t, locale } = useLocale();
@@ -64,14 +67,22 @@ export function CronJobDetailModal({
   const [activeTab, setActiveTab] = useState<"history" | "errors">("history");
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
-  // Lịch sử thực thi từ Audit Log API (chỉ gọi khi user có quyền AUDIT_LOG_READ để tránh 403)
   const canReadAudit = useCan()("AUDIT_LOG_READ");
   const historyQuery = useCronJobHistory(job.name, canReadAudit);
-  const auditItems: AuditLogItem[] = historyQuery.data?.items ?? [];
-  const lastExecutionAudit = useMemo(
-    () => auditItems.find(isCronExecutionAudit),
-    [auditItems],
-  );
+  const auditForbidden = !canReadAudit ||
+    (historyQuery.error instanceof ApiError && historyQuery.error.status === 403);
+  const hasAuditData = !auditForbidden && historyQuery.isSuccess;
+  const auditItems: AuditLogItem[] = hasAuditData ? historyQuery.data.items : [];
+  const allowedRecentExecution = auditForbidden && recentExecution?.source === "audit"
+    ? undefined
+    : recentExecution;
+  const lastExecution = mergeRecentExecutions(
+    extractRecentCronExecutions(auditItems),
+    allowedRecentExecution ? { [job.name]: allowedRecentExecution } : {},
+    [job],
+  )[job.name];
+  const lastRunAt = lastExecution?.timestamp ?? job.lastRunAt ?? job.lastRun;
+  const lastRun = lastRunAt ? new Date(lastRunAt) : null;
 
   const nextRun = useMemo(
     () => calculateNextRun(job, new Date(), locale),
@@ -116,6 +127,21 @@ export function CronJobDetailModal({
 
             {canManage && (
               <>
+                {onEdit && (
+                  <Button
+                    variant="outline"
+                    disabled={blocked}
+                    onClick={() => {
+                      onClose();
+                      onEdit(job);
+                    }}
+                    className="gap-1.5 text-xs font-semibold"
+                  >
+                    <Pencil className="size-3.5" />
+                    {t("cron.edit.action")}
+                  </Button>
+                )}
+
                 <Button
                   variant="outline"
                   disabled={blocked}
@@ -163,14 +189,14 @@ export function CronJobDetailModal({
                 {t(job.isEnabled ? "cron.enabled" : "cron.disabled")}
               </Badge>
 
-              {recentExecution && (
+              {lastExecution ? (
                 <Badge
-                  variant={recentExecution.success ? "success" : "danger"}
+                  variant={lastExecution.success ? "success" : "danger"}
                   className="text-[11px]"
                 >
-                  {t("cron.justRan")} ({recentExecution.durationMs}ms)
+                  {t(lastExecution.success ? "cron.detail.lastRunSuccess" : "cron.detail.lastRunFailed")}
                 </Badge>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -246,11 +272,10 @@ export function CronJobDetailModal({
               <div className="flex justify-between items-center gap-2">
                 <span className="text-muted-foreground">{t("cron.table.lastRun")}:</span>
                 <span className="text-foreground text-right">
-                  {recentExecution
-                    ? `${new Date(recentExecution.timestamp).toLocaleString(locale, { timeZone: CRON_TIMEZONE })}${recentExecution.durationMs > 0 ? ` (${recentExecution.durationMs}ms)` : ""}`
-                    : lastExecutionAudit
-                    ? new Date(lastExecutionAudit.createdAt).toLocaleString(locale, { timeZone: CRON_TIMEZONE })
+                  {lastRun && Number.isFinite(lastRun.getTime())
+                    ? lastRun.toLocaleString(locale, { timeZone: CRON_TIMEZONE })
                     : "—"}
+                  {lastExecution && lastExecution.durationMs > 0 ? ` (${lastExecution.durationMs}ms)` : null}
                 </span>
               </div>
             </div>
@@ -273,7 +298,7 @@ export function CronJobDetailModal({
                 <History className="size-3.5" />
                 {t("cron.detail.historyTab")}
                 <span className="ml-1 rounded-full bg-white/20 px-1.5 py-0.2 text-[10px]">
-                  {auditItems.length}
+                  {hasAuditData ? auditItems.length : "—"}
                 </span>
               </button>
 
@@ -289,12 +314,12 @@ export function CronJobDetailModal({
                 <ShieldAlert className="size-3.5" />
                 {t("cron.detail.errorsTab")}
                 <span className="ml-1 rounded-full bg-black/20 px-1.5 py-0.2 text-[10px]">
-                  {failedItems.length}
+                  {hasAuditData ? failedItems.length : "—"}
                 </span>
               </button>
             </div>
 
-            {historyQuery.isFetching && (
+            {!auditForbidden && historyQuery.isFetching && (
               <span className="text-[11px] text-muted-foreground animate-pulse">
                 {isVietnamese ? "Đang tải dữ liệu..." : "Loading logs..."}
               </span>
@@ -302,10 +327,19 @@ export function CronJobDetailModal({
           </div>
 
           {/* History / Error Items List */}
-          {historyQuery.isLoading ? (
+          {auditForbidden ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 py-8 px-4 text-center text-muted-foreground">
+              <Lock className="size-8 opacity-40 mb-2" />
+              <p className="text-xs font-medium">{t("cron.detail.noAuditPermission")}</p>
+            </div>
+          ) : historyQuery.isLoading ? (
             <div className="flex h-36 items-center justify-center">
               <Loader showLabel />
             </div>
+          ) : historyQuery.isError ? (
+            <p role="alert" className="rounded-xl border border-danger/30 p-4 text-center text-xs text-danger">
+              {t("cron.detail.auditLoadError")}
+            </p>
           ) : displayedItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 py-8 text-center text-muted-foreground">
               {activeTab === "history" ? (
