@@ -17,3 +17,4 @@ export * from "./notification-template-detail-panel";
 export * from "./notification-templates-tab";
 export * from "./notification-email-logs-tab";
 export * from "./modals";
+export * from "./zalo-bot-channel-card";

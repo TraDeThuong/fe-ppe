@@ -21,6 +21,13 @@ import type {
   UnreadCountResponse,
   UpdateNotificationPreferencePayload,
   UpdateNotificationTemplatePayload,
+  SendZaloTestPayload,
+  ZaloAdminBotInfoDto,
+  ZaloAdminWebhookResultDto,
+  ZaloBotStatusDto,
+  ZaloLinkTokenDto,
+  ZaloTestResultDto,
+  ZaloUnlinkResultDto,
 } from "@/types";
 
 /**
@@ -488,5 +495,72 @@ export const notificationService = {
     return (await apiClient.post(
       `/notifications/emails/${id}/retry`,
     )) as { message: string };
+  },
+
+  // ==========================================================================
+  // 6. KÊNH ZALO BOT PLATFORM (ZALO_BOT)
+  // ==========================================================================
+
+  /**
+   * GET /api/v1/notifications/zalo/status
+   * Trạng thái cấu hình Bot trên server và liên kết hội thoại Zalo của người dùng hiện tại.
+   */
+  async getZaloStatus(): Promise<ZaloBotStatusDto> {
+    return (await apiClient.get("/notifications/zalo/status")) as ZaloBotStatusDto;
+  },
+
+  /**
+   * POST /api/v1/notifications/zalo/link-token (rate-limited)
+   * Tạo mã liên kết dùng 1 lần (hết hạn sau 10 phút) để gửi lệnh /link cho Bot.
+   */
+  async createZaloLinkToken(): Promise<ZaloLinkTokenDto> {
+    return (await apiClient.post("/notifications/zalo/link-token")) as ZaloLinkTokenDto;
+  },
+
+  /**
+   * DELETE /api/v1/notifications/zalo/binding
+   * Hủy liên kết Zalo Bot; BE tự tắt preference ZALO_BOT.
+   */
+  async unlinkZalo(): Promise<ZaloUnlinkResultDto> {
+    return (await apiClient.delete("/notifications/zalo/binding")) as ZaloUnlinkResultDto;
+  },
+
+  /**
+   * POST /api/v1/notifications/zalo/test (rate-limited)
+   * Gửi tin nhắn thử tới hội thoại Zalo đã liên kết.
+   */
+  async sendZaloTest(payload?: SendZaloTestPayload): Promise<ZaloTestResultDto> {
+    return (await apiClient.post(
+      "/notifications/zalo/test",
+      payload ?? {},
+    )) as ZaloTestResultDto;
+  },
+
+  /**
+   * GET /api/v1/notifications/zalo/admin/info (NOTIFICATION_TEMPLATE_MANAGE)
+   */
+  async getZaloAdminInfo(): Promise<ZaloAdminBotInfoDto> {
+    return (await apiClient.get(
+      "/notifications/zalo/admin/info",
+    )) as ZaloAdminBotInfoDto;
+  },
+
+  /**
+   * POST /api/v1/notifications/zalo/admin/webhook (NOTIFICATION_TEMPLATE_MANAGE)
+   * URL phải là HTTPS công khai.
+   */
+  async setZaloAdminWebhook(url: string): Promise<ZaloAdminWebhookResultDto> {
+    return (await apiClient.post("/notifications/zalo/admin/webhook", {
+      url,
+    })) as ZaloAdminWebhookResultDto;
+  },
+
+  /**
+   * DELETE /api/v1/notifications/zalo/admin/webhook (NOTIFICATION_TEMPLATE_MANAGE)
+   */
+  async deleteZaloAdminWebhook(): Promise<{ deleted: boolean }> {
+    return (await apiClient.delete("/notifications/zalo/admin/webhook")) as {
+      deleted: boolean;
+    };
   },
 };

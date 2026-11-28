@@ -83,7 +83,8 @@ export function TestSendTemplateModal({
       await testSendMutation.mutateAsync({
         code: template.code,
         payload: {
-          toEmail: toEmail.trim() || undefined,
+          toEmail:
+            template.channel === "ZALO_BOT" ? undefined : toEmail.trim() || undefined,
           variables: parsedVars,
         },
       });
@@ -193,7 +194,19 @@ export function TestSendTemplateModal({
           </p>
         )}
 
-        {/* Email nhận thử nghiệm */}
+        {/* Template Zalo Bot: tin thử gửi tới hội thoại Zalo đã liên kết của chính người thao tác */}
+        {template?.channel === "ZALO_BOT" ? (
+          <p
+            role="note"
+            data-testid="test-send-zalo-note"
+            className="rounded-xl border border-info/25 bg-info/[0.06] p-3 text-xs leading-relaxed text-muted-foreground"
+          >
+            {isVietnamese
+              ? "Mẫu kênh Zalo Bot: tin thử sẽ được gửi tới hội thoại Zalo bạn đã liên kết (Cài đặt thông báo → Zalo Bot). Nếu chưa liên kết, hệ thống sẽ từ chối gửi."
+              : "Zalo Bot template: the test message is sent to your linked Zalo conversation (Notification settings → Zalo Bot). If you have not linked one, the request is rejected."}
+          </p>
+        ) : (
+        /* Email nhận thử nghiệm */
         <div>
           <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
             {isVietnamese ? "Địa chỉ Email nhận thử nghiệm" : "Test Recipient Email"}
@@ -214,6 +227,7 @@ export function TestSendTemplateModal({
               : "System will dispatch this test email via configured mail transport."}
           </p>
         </div>
+        )}
 
         {/* Biến thử nghiệm JSON */}
         <div>

@@ -33,8 +33,12 @@ import {
 } from "@/services/sound.service";
 import type {
   NotificationSeverity,
-  PersonalNotificationPreferenceChannel as PersonalPreferenceChannel,
+  PersonalNotificationPreferenceChannel,
 } from "@/types";
+import { ZaloBotChannelCard } from "./zalo-bot-channel-card";
+
+/** IN_APP & EMAIL dùng chung handler ở đây; ZALO_BOT tự quản lý trong ZaloBotChannelCard */
+type PersonalPreferenceChannel = Extract<PersonalNotificationPreferenceChannel, "IN_APP" | "EMAIL">;
 
 export function NotificationPreferencesCard({
   className = "",
@@ -556,9 +560,9 @@ export function NotificationPreferencesCard({
       </div>
 
       {/* ===================================================================== */}
-      {/* 4. PREFERENCES CHANNEL GRID (EXTRUDED CARDS)                          */}
+      {/* 4. PREFERENCES CHANNEL GRID: IN_APP | EMAIL | ZALO_BOT                */}
       {/* ===================================================================== */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-3">
         {/* 1. Kênh Thông báo trên Web (In-App) */}
         <div className="flex flex-col justify-between gap-4 rounded-2xl border border-white/75 bg-surface/95 p-4 sm:p-5 shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_var(--shadow-light)] transition-all hover:border-primary/25 dark:border-white/[0.07] dark:bg-card/90">
           <div className="flex items-start justify-between gap-3">
@@ -710,6 +714,9 @@ export function NotificationPreferencesCard({
             </select>
           </div>
         </div>
+
+        {/* 3. Kênh Zalo Bot Platform (liên kết /link, SSE, gửi thử, hủy liên kết) */}
+        <ZaloBotChannelCard className="lg:col-span-2 xl:col-span-1" />
       </div>
 
       {/* Outbound Webhook là cấu hình cấp hệ thống (smart-ppe-identity-service), không phải kênh cá nhân */}

@@ -6,11 +6,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { RealtimeContext, type PpeAlertEvent } from "@/contexts/RealtimeContext";
 import { env } from "@/config/env";
 import { ApiError, apiClient } from "@/lib/axios";
+import { pickLocaleText } from "@/lib/i18n-runtime";
 import { stripEmojis } from "@/lib/strip-emojis";
+import { toast } from "@/lib/toast";
 import { authKeys } from "@/hooks/auth/auth.query-keys";
 import { maintenanceQueryKeys } from "@/hooks/maintenance/maintenance.query-keys";
 import { notificationKeys } from "@/hooks/notifications/notification.query-keys";
 import { systemQueryKeys } from "@/hooks/system/system.query-keys";
+import type { ZaloBotStatusDto, ZaloLinkedEventPayload } from "@/types";
 
 // Event type từ notification-service (notification.service.ts)
 const ALERT_EVENTS = [
@@ -137,6 +140,50 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
           });
         }
+
+        // Liên kết / hủy liên kết Zalo Bot (gửi /link hoặc /unlink trên Zalo, hoặc DELETE /zalo/binding)
+        const refreshZaloQueries = () => {
+          void queryClient.invalidateQueries({ queryKey: notificationKeys.zaloStatus() });
+          void queryClient.invalidateQueries({ queryKey: notificationKeys.preferences() });
+        };
+
+        source.addEventListener("notification:zalo_linked", (event) => {
+          try {
+            const msg = event as MessageEvent<string>;
+            const parsed = msg.data ? (JSON.parse(msg.data) as Partial<ZaloLinkedEventPayload>) : null;
+            if (parsed?.binding && typeof parsed.binding === "object") {
+              const binding = parsed.binding;
+              // Cập nhật lạc quan để card chuyển ngay sang "Đã liên kết", sau đó vẫn tải lại từ BE
+              queryClient.setQueryData<ZaloBotStatusDto>(
+                notificationKeys.zaloStatus(),
+                (prev) => (prev ? { ...prev, linked: true, binding } : prev),
+              );
+            }
+          } catch {
+            // Payload lỗi vẫn làm mới query bên dưới
+          }
+          refreshZaloQueries();
+          toast.success(
+            pickLocaleText(
+              "Đã liên kết Zalo Bot thành công. Cảnh báo sẽ được gửi tới hội thoại Zalo này.",
+              "Zalo Bot linked successfully. Alerts will be delivered to this Zalo conversation.",
+            ),
+            { id: "zalo-bot-linked" },
+          );
+        });
+
+        source.addEventListener("notification:zalo_unlinked", () => {
+          queryClient.setQueryData<ZaloBotStatusDto>(
+            notificationKeys.zaloStatus(),
+            (prev) => (prev ? { ...prev, linked: false, binding: null } : prev),
+          );
+          refreshZaloQueries();
+          // Cùng id với toast của useUnlinkZalo để không hiện 2 lần khi hủy từ Web
+          toast.success(
+            pickLocaleText("Đã hủy liên kết Zalo Bot.", "Zalo Bot has been unlinked."),
+            { id: "zalo-bot-unlinked" },
+          );
+        });
 
         source.addEventListener("system:maintenance", () => {
           void queryClient.invalidateQueries({ queryKey: maintenanceQueryKeys.all });

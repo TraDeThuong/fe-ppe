@@ -6,7 +6,7 @@ const CHANNEL_PRIORITY: Record<string, number> = {
   IN_APP: 0,
   WEB: 1,
   EMAIL: 2,
-  ZALO_ZNS: 3,
+  ZALO_BOT: 3,
   WEBHOOK: 4,
 };
 

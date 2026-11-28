@@ -313,7 +313,7 @@ export function CreateNotificationTemplateModal({
                 <option value="IN_APP">{isVietnamese ? "In-App Web (Trực tiếp)" : "In-App Web (Direct)"}</option>
                 <option value="EMAIL">{isVietnamese ? "Thư điện tử (Email)" : "Email"}</option>
                 <option value="WEBHOOK">{isVietnamese ? "Webhook (ERP / Bot)" : "Webhook (ERP / Bot)"}</option>
-                <option value="ZALO_ZNS">Zalo ZNS SMS</option>
+                <option value="ZALO_BOT">Zalo Bot</option>
               </select>
             </div>
 

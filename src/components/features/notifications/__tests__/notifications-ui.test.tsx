@@ -20,6 +20,14 @@ import { NotificationPreferencesCard } from "../notification-preferences-card";
 import { NotificationTemplatesTab } from "../notification-templates-tab";
 import { NotificationTemplateCardList } from "../notification-template-card-list";
 import { NotificationTemplateDetailPanel } from "../notification-template-detail-panel";
+import { getChannelDisplay } from "../notification-meta-badges";
+import {
+  ZaloBotChannelCard,
+  ZaloLinkCommandBox,
+  computeZaloTokenDeadline,
+  formatZaloCountdown,
+  resolveZaloCardState,
+} from "../zalo-bot-channel-card";
 import {
   buildSampleVariables,
   interpolateTemplate,
@@ -30,7 +38,12 @@ import {
   groupNotificationsIntoSections,
 } from "@/lib/notification-grouping-engine";
 import type { NotificationEnrichedSignals } from "@/lib/notification-enrichment";
-import type { MeDto, NotificationItemDto } from "@/types";
+import type {
+  MeDto,
+  NotificationItemDto,
+  NotificationPreferenceDto,
+  ZaloBotStatusDto,
+} from "@/types";
 
 function renderNotifications(element: React.ReactElement, user: MeDto) {
   const queryClient = new QueryClient({
@@ -281,10 +294,13 @@ describe("Notifications UI & Logic", () => {
     }
   });
 
-  it("renders only In-App and Email cards for personal channel preferences", () => {
+  it("renders In-App, Email and Zalo Bot cards (no Webhook) for personal channel preferences", () => {
     const html = renderNotifications(<NotificationPreferencesCard />, ADMIN_USER);
     assert.match(html, /<h3[^>]*>(Thông báo Web|Web Notifications) \(In-App\)<\/h3>/);
     assert.match(html, /<h3[^>]*>(Thư điện tử|Electronic Mail) \(Email\)<\/h3>/);
+    assert.match(html, /<h3[^>]*>Zalo Bot<\/h3>/);
+    assert.ok(html.includes('data-testid="zalo-bot-card"'));
+    assert.ok(html.includes("xl:grid-cols-3"));
     assert.doesNotMatch(html, /<h3[^>]*>[^<]*Webhook/i);
     // Ghi chú dẫn sang trang Tích hợp (ADMIN có quyền → có link)
     assert.ok(html.includes('href="/integrations"'));
@@ -699,5 +715,217 @@ describe("Notifications UI & Logic", () => {
           "Automated notifications and email dispatch are currently paused by Administrator",
         ),
     );
+  });
+});
+
+// ============================================================================
+// Zalo Bot (ZALO_BOT) — card liên kết & badge kênh
+// ============================================================================
+
+const ZALO_BINDING = {
+  id: "b-1",
+  userId: "u-admin",
+  chatIdMasked: "1234****7890",
+  chatType: "PRIVATE",
+  displayName: "Nguyễn Văn A",
+  linkedAt: "2026-11-28T10:00:00.000Z",
+  updatedAt: "2026-11-28T10:00:00.000Z",
+} as const;
+
+function buildZaloStatus(overrides: Partial<ZaloBotStatusDto> = {}): ZaloBotStatusDto {
+  return {
+    botConfigured: true,
+    botMode: "polling",
+    botAccountName: "bot.example",
+    canJoinGroups: true,
+    linked: false,
+    binding: null,
+    ...overrides,
+  };
+}
+
+function renderZaloCard(
+  status: ZaloBotStatusDto | undefined,
+  options: { user?: MeDto; preferences?: NotificationPreferenceDto[] } = {},
+) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity, staleTime: Infinity } },
+  });
+  if (status) queryClient.setQueryData(notificationKeys.zaloStatus(), status);
+  if (options.preferences) {
+    queryClient.setQueryData(notificationKeys.preferences(), options.preferences);
+  }
+  const authValue: AuthContextValue = {
+    user: options.user ?? SAFETY_MANAGER_USER,
+    status: "authenticated",
+    logout: async () => {},
+    setUser: () => {},
+  };
+  return renderToString(
+    React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      React.createElement(
+        AuthContext.Provider,
+        { value: authValue },
+        React.createElement(
+          RealtimeContext.Provider,
+          { value: { isConnected: true, lastAlert: null } },
+          React.createElement(LocaleProvider, null, React.createElement(ZaloBotChannelCard)),
+        ),
+      ),
+    ),
+  );
+}
+
+function getSwitchTag(html: string): string {
+  const match = html.match(/<button[^>]*role="switch"[^>]*>/);
+  assert.ok(match, "Zalo card phải có công tắc kênh");
+  return match[0];
+}
+
+describe("Zalo Bot channel (ZALO_BOT)", () => {
+  it("adds zaloStatus query key under the notifications prefix", () => {
+    assert.deepEqual(notificationKeys.zaloStatus(), ["notifications", "zalo", "status"]);
+  });
+
+  it("resolves card state from GET /zalo/status", () => {
+    assert.equal(resolveZaloCardState(undefined), "loading");
+    assert.equal(resolveZaloCardState(undefined, { isError: true }), "error");
+    assert.equal(resolveZaloCardState(buildZaloStatus({ botConfigured: false })), "not_configured");
+    assert.equal(resolveZaloCardState(buildZaloStatus({ botMode: "disabled" })), "not_configured");
+    assert.equal(resolveZaloCardState(buildZaloStatus()), "not_linked");
+    // linked=true nhưng thiếu binding → vẫn coi là chưa liên kết
+    assert.equal(resolveZaloCardState(buildZaloStatus({ linked: true })), "not_linked");
+    assert.equal(
+      resolveZaloCardState(buildZaloStatus({ linked: true, binding: { ...ZALO_BINDING } })),
+      "linked",
+    );
+  });
+
+  it("formats countdown and computes token deadline from expiresInSeconds", () => {
+    assert.equal(formatZaloCountdown(600), "10:00");
+    assert.equal(formatZaloCountdown(65), "01:05");
+    assert.equal(formatZaloCountdown(-3), "00:00");
+    const token = {
+      code: "PPE-A1B2C3D4E5F6",
+      command: "/link PPE-A1B2C3D4E5F6",
+      expiresAt: "2026-11-28T10:10:00.000Z",
+      expiresInSeconds: 600,
+      botAccountName: "bot.example",
+      botConfigured: true,
+    };
+    assert.equal(computeZaloTokenDeadline(token, 1_000), 601_000);
+    assert.equal(
+      computeZaloTokenDeadline({ ...token, expiresInSeconds: 0 }, 1_000),
+      Date.parse("2026-11-28T10:10:00.000Z"),
+    );
+  });
+
+  it("renders the not-configured state with locked actions and admin guidance", () => {
+    const html = renderZaloCard(buildZaloStatus({ botConfigured: false, botMode: "disabled" }));
+    assert.ok(html.includes('data-state="not_configured"'));
+    assert.ok(html.includes('data-testid="zalo-not-configured"'));
+    assert.ok(
+      html.includes("Quản trị viên") || html.includes("administrator"),
+      "phải hướng dẫn liên hệ quản trị viên",
+    );
+    assert.ok(getSwitchTag(html).includes('disabled=""'));
+    assert.ok(!html.includes("Tạo mã liên kết") && !html.includes("Create link code"));
+  });
+
+  it("renders the not-linked state with create-code button and private/group guidance", () => {
+    const html = renderZaloCard(buildZaloStatus());
+    assert.ok(html.includes('data-state="not_linked"'));
+    assert.ok(html.includes("Tạo mã liên kết") || html.includes("Create link code"));
+    assert.ok(html.includes("bot.example"));
+    assert.ok(html.includes("Cá nhân") || html.includes("(Private)"));
+    assert.ok(html.includes("(Nhóm)") || html.includes("(Group)"));
+    // Chưa liên kết → không bật được kênh
+    assert.ok(getSwitchTag(html).includes('disabled=""'));
+    assert.ok(getSwitchTag(html).includes('aria-checked="false"'));
+
+    const noGroupHtml = renderZaloCard(buildZaloStatus({ canJoinGroups: false }));
+    assert.ok(!noGroupHtml.includes("(Nhóm)") && !noGroupHtml.includes("(Group)"));
+  });
+
+  it("renders the link command box with copy button, countdown and expired state", () => {
+    const render = (remainingSeconds: number) =>
+      renderNotifications(
+        React.createElement(ZaloLinkCommandBox, {
+          command: "/link PPE-A1B2C3D4E5F6",
+          remainingSeconds,
+          copied: false,
+          onCopy: () => {},
+          onRegenerate: () => {},
+          regenerating: false,
+        }),
+        SAFETY_MANAGER_USER,
+      );
+    const active = render(599);
+    assert.ok(active.includes("/link PPE-A1B2C3D4E5F6"));
+    assert.ok(active.includes("09:59"));
+    assert.ok(active.includes("Sao chép") || active.includes("Copy"));
+    assert.ok(active.includes('role="timer"'));
+
+    const expired = render(0);
+    assert.ok(expired.includes("hết hạn") || expired.includes("expired"));
+    assert.ok(expired.includes("Tạo mã mới") || expired.includes("New code"));
+    assert.ok(!expired.includes('role="timer"'));
+  });
+
+  it("renders the linked state with binding info, switch, threshold, test and unlink actions", () => {
+    const html = renderZaloCard(
+      buildZaloStatus({ linked: true, binding: { ...ZALO_BINDING } }),
+      {
+        preferences: [
+          {
+            id: "p-zalo",
+            userId: "u-sm",
+            channel: "ZALO_BOT",
+            enabled: true,
+            severityThreshold: "CRITICAL",
+            createdAt: "2026-11-28T10:00:00.000Z",
+            updatedAt: "2026-11-28T10:00:00.000Z",
+          },
+        ],
+      },
+    );
+    assert.ok(html.includes('data-state="linked"'));
+    assert.ok(html.includes("Nguyễn Văn A"));
+    assert.ok(html.includes("1234****7890"));
+    assert.ok(html.includes(">Cá nhân<") || html.includes(">Private<"));
+    const switchTag = getSwitchTag(html);
+    assert.ok(switchTag.includes('aria-checked="true"'));
+    assert.ok(!switchTag.includes('disabled=""'));
+    for (const level of ["LOW", "NORMAL", "MEDIUM", "HIGH", "CRITICAL"]) {
+      assert.ok(html.includes(`<option value="${level}"`));
+    }
+    assert.match(html, /<option value="CRITICAL" selected=""/);
+    assert.ok(html.includes("Gửi tin nhắn thử") || html.includes("Send test message"));
+    assert.ok(html.includes("Hủy liên kết") || html.includes("Unlink"));
+    // Không phải admin → không có khu vực quản trị Webhook
+    assert.ok(!html.includes("Quản trị Zalo Bot") && !html.includes("Zalo Bot administration"));
+  });
+
+  it("defaults ZALO_BOT preference to disabled + HIGH and shows Group badge for group bindings", () => {
+    const html = renderZaloCard(
+      buildZaloStatus({ linked: true, binding: { ...ZALO_BINDING, chatType: "GROUP", displayName: null } }),
+      { preferences: [] },
+    );
+    assert.ok(getSwitchTag(html).includes('aria-checked="false"'));
+    assert.match(html, /<option value="HIGH" selected=""/);
+    assert.ok(html.includes(">Nhóm<") || html.includes(">Group<"));
+    assert.ok(html.includes("Hội thoại Zalo") || html.includes("Zalo conversation"));
+  });
+
+  it("shows the admin webhook section only for NOTIFICATION_TEMPLATE_MANAGE", () => {
+    const html = renderZaloCard(buildZaloStatus(), { user: ADMIN_USER });
+    assert.ok(html.includes("Quản trị Zalo Bot") || html.includes("Zalo Bot administration"));
+  });
+
+  it("renders ZALO_BOT channel badge label", () => {
+    assert.equal(getChannelDisplay("ZALO_BOT").label, "Zalo Bot");
+    assert.notEqual(getChannelDisplay("ZALO_BOT").icon, getChannelDisplay("IN_APP").icon);
   });
 });

@@ -22,6 +22,7 @@ import {
   useSendNotification,
 } from "@/hooks/notifications/use-notification-mutations";
 import { useUsers } from "@/hooks/users";
+import { ApiError } from "@/lib/axios";
 import { toast } from "@/lib/toast";
 import { PREDEFINED_SYSTEM_TEMPLATES } from "../notification-predefined-data";
 import type { SoundPreset } from "@/services/sound.service";
@@ -96,6 +97,18 @@ export function CustomDispatchNotificationModal({
       onOpenChange(false);
       resetForm();
       onSuccess?.();
+    },
+    onError: (error) => {
+      // 400/422 VALIDATION_ERROR (vd. người nhận chưa liên kết Zalo Bot) không được toast tự động
+      if (
+        error instanceof ApiError &&
+        (error.code === "VALIDATION_ERROR" || error.status === 422)
+      ) {
+        toast.error(
+          error.message ||
+            (isVietnamese ? "Dữ liệu gửi thông báo không hợp lệ." : "Invalid notification request."),
+        );
+      }
     },
   });
 
@@ -362,8 +375,8 @@ export function CustomDispatchNotificationModal({
                     ? `Chọn người nhận (${selectedUserIds.length} đã chọn)`
                     : `Select Recipients (${selectedUserIds.length} selected)`}
                 </span>
-                <div className="flex items-center gap-3 text-xs">
-                  {(["IN_APP", "EMAIL"] as NotificationChannel[]).map((ch) => (
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  {(["IN_APP", "EMAIL", "ZALO_BOT"] as NotificationChannel[]).map((ch) => (
                     <label key={ch} className="flex cursor-pointer items-center gap-1.5 font-semibold">
                       <input
                         type="checkbox"
@@ -377,11 +390,22 @@ export function CustomDispatchNotificationModal({
                         }}
                         className="accent-primary"
                       />
-                      <span>{ch}</span>
+                      <span>{ch === "ZALO_BOT" ? "Zalo Bot" : ch}</span>
                     </label>
                   ))}
                 </div>
               </div>
+              {channels.includes("ZALO_BOT") && (
+                <p
+                  role="note"
+                  data-testid="custom-dispatch-zalo-note"
+                  className="rounded-lg border border-info/25 bg-info/[0.06] px-2.5 py-1.5 text-[11px] leading-relaxed text-muted-foreground"
+                >
+                  {isVietnamese
+                    ? "Kênh Zalo Bot: mọi người nhận phải đã liên kết Zalo Bot trong Cài đặt thông báo, nếu không hệ thống sẽ từ chối gửi."
+                    : "Zalo Bot channel: every recipient must have linked Zalo Bot in Notification settings, otherwise the request is rejected."}
+                </p>
+              )}
               <div className="grid max-h-36 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
                 {availableUsers.map((u) => {
                   const checked = selectedUserIds.includes(u.id);

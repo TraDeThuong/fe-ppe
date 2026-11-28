@@ -28,7 +28,7 @@ export const NOTIFICATION_CHANNEL = {
   IN_APP: "IN_APP",
   WEB: "WEB",
   EMAIL: "EMAIL",
-  ZALO_ZNS: "ZALO_ZNS",
+  ZALO_BOT: "ZALO_BOT",
   WEBHOOK: "WEBHOOK",
 } as const;
 
@@ -152,13 +152,15 @@ export interface NotificationPreferenceDto {
 }
 
 /**
- * Kênh người dùng tự cấu hình được trong /notifications.
+ * Kênh người dùng tự cấu hình được trong /notifications
+ * (khớp SUPPORTED_PREFERENCE_CHANNELS của BE: IN_APP, EMAIL, ZALO_BOT).
  * WEBHOOK là cấu hình cấp hệ thống (Outbound Webhooks tại /integrations),
  * notification-service không lưu URL đích theo từng người dùng.
+ * Bật ZALO_BOT yêu cầu đã liên kết Zalo Bot (BE trả 400 VALIDATION_ERROR nếu chưa).
  */
 export type PersonalNotificationPreferenceChannel = Extract<
   NotificationChannel,
-  "IN_APP" | "EMAIL"
+  "IN_APP" | "EMAIL" | "ZALO_BOT"
 >;
 
 export interface UpdateNotificationPreferencePayload {
@@ -316,4 +318,93 @@ export interface DispatchIncidentNotificationResult {
   dispatchedCount: number;
   channels: NotificationChannel[];
   notifications: Array<{ id: string; userId: string; channel: NotificationChannel; status: string }>;
+}
+
+// ============================================================================
+// 7. DTOs KÊNH ZALO BOT PLATFORM (ZALO_BOT)
+// Nguồn: smart-ppe-notification-service/src/modules/zalo-bot/zalo-bot.dto.ts
+// ============================================================================
+
+export type ZaloBotMode = "disabled" | "polling" | "webhook";
+
+export type ZaloChatType = "PRIVATE" | "GROUP";
+
+export interface ZaloBotBindingDto {
+  id: string;
+  userId: string;
+  /** chatId đã che bớt, ví dụ "1234****7890" */
+  chatIdMasked: string;
+  chatType: ZaloChatType | string;
+  displayName: string | null;
+  linkedAt: string;
+  updatedAt: string;
+}
+
+export interface ZaloBotStatusDto {
+  botConfigured: boolean;
+  botMode: ZaloBotMode;
+  botAccountName: string | null;
+  canJoinGroups: boolean;
+  linked: boolean;
+  binding: ZaloBotBindingDto | null;
+}
+
+export interface ZaloLinkTokenDto {
+  /** Mã dùng 1 lần dạng PPE-XXXXXXXXXXXX (12 ký tự hex), hết hạn sau 10 phút */
+  code: string;
+  /** Lệnh gửi cho Bot trên Zalo: "/link PPE-XXXXXXXXXXXX" */
+  command: string;
+  expiresAt: string;
+  expiresInSeconds: number;
+  botAccountName: string | null;
+  botConfigured: boolean;
+}
+
+export interface SendZaloTestPayload {
+  /** Tối đa 500 ký tự; bỏ trống để BE dùng nội dung mặc định */
+  message?: string;
+}
+
+export interface ZaloTestResultDto {
+  messageId: string;
+}
+
+export interface ZaloUnlinkResultDto {
+  unlinked: boolean;
+}
+
+/** Payload SSE notification:zalo_linked */
+export interface ZaloLinkedEventPayload {
+  binding: ZaloBotBindingDto;
+  linkedAt: string;
+}
+
+/** Payload SSE notification:zalo_unlinked */
+export interface ZaloUnlinkedEventPayload {
+  unlinkedAt: string;
+}
+
+export interface ZaloAdminBotInfoDto {
+  mode: ZaloBotMode;
+  bot: {
+    id: string;
+    account_name: string;
+    account_type?: string;
+    can_join_groups?: boolean;
+  } | null;
+  webhook: {
+    url?: string;
+    updated_at?: number;
+  };
+}
+
+export interface ZaloAdminWebhookResultDto {
+  url: string;
+  updated_at: number;
+  verification?: {
+    ok: boolean;
+    url?: string;
+    outcome?: string;
+    hint?: string;
+  };
 }

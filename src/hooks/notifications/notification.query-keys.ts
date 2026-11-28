@@ -14,6 +14,8 @@ export const notificationKeys = {
     params === undefined ? [...notificationKeys.all, "templates"] as const : [...notificationKeys.all, "templates", params] as const,
   templateDetail: (code: string) =>
     [...notificationKeys.all, "templates", "detail", code] as const,
+  zaloStatus: () => [...notificationKeys.all, "zalo", "status"] as const,
+  zaloAdminInfo: () => [...notificationKeys.all, "zalo", "admin-info"] as const,
   emailLogs: (params?: unknown) =>
     params === undefined
       ? ([...notificationKeys.all, "email-logs"] as const)

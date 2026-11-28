@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Info,
   Mail,
+  MessageCircle,
   MessageSquare,
   Radio,
   Send,
@@ -117,8 +118,8 @@ export function getChannelDisplay(channel: NotificationChannel | string) {
       return { label: "Email", icon: Mail };
     case "WEBHOOK":
       return { label: "Webhook", icon: Webhook };
-    case "ZALO_ZNS":
-      return { label: "Zalo ZNS", icon: Send };
+    case "ZALO_BOT":
+      return { label: "Zalo Bot", icon: MessageCircle };
     // WEB là bí danh cũ của IN_APP ở BE (cùng hộp thư web) → hiển thị chung một nhãn
     case "WEB":
     case "IN_APP":

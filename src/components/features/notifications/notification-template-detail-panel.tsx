@@ -1053,7 +1053,7 @@ export function NotificationTemplateDetailPanel({
                   <option value="WEBHOOK">
                     {isVietnamese ? "Webhook (ERP / Bot)" : "Webhook (ERP / Bot)"}
                   </option>
-                  <option value="ZALO_ZNS">Zalo ZNS SMS</option>
+                  <option value="ZALO_BOT">Zalo Bot</option>
                 </select>
               </div>
 
