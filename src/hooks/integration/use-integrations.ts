@@ -115,7 +115,9 @@ export function useIntegrationMutations() {
           [SYSTEM_CONFIG_KEYS.webhooksEnabled]: false,
         }),
       );
-      void queryClient.invalidateQueries({ queryKey: authKeys.config() });
+      // Không invalidate authKeys.config(): khi GET /system/public chưa trả
+      // feature.webhooks.enabled (user thiếu SYSTEM_CONFIG_READ), refetch sẽ ghi đè
+      // mất giá trị `false` vừa học được từ BE và banner OFF biến mất.
       void queryClient.invalidateQueries({
         queryKey: systemQueryKeys.featureFlags(),
       });

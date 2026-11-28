@@ -206,6 +206,10 @@ describe("Integrations review fixes", () => {
       html,
       /disabled=""[^>]*title="Tính năng Webhook hiện đang tạm khóa bởi quản trị viên"|title="Tính năng Webhook hiện đang tạm khóa bởi quản trị viên"[^>]*disabled=""/,
     );
+    // Khớp BE: tạo/sửa endpoint không bị chặn bởi cờ, chỉ Test Ping/Retry bị khóa.
+    const addButton = html.match(/<button[^>]*data-testid="webhook-add-button"[^>]*>/)?.[0];
+    assert.ok(addButton, "Add Webhook button should render");
+    assert.doesNotMatch(addButton, /disabled=""/);
   });
 
   it("IntegrationKpiSummary hides unauthorized KPI cards instead of displaying zeros", () => {

@@ -182,8 +182,8 @@ export function WebhooksTab({
             </p>
             <p className="text-muted-foreground">
               {isVi
-                ? "Quản trị viên đã tắt cờ feature.webhooks.enabled. Hệ thống tạm ngừng gửi callback sự kiện, Test Ping và Retry cho đến khi tính năng được bật lại."
-                : "An administrator has disabled feature.webhooks.enabled. Event callbacks, Test Ping, and delivery retries are paused until re-enabled."}
+                ? "Quản trị viên đã tắt cờ feature.webhooks.enabled. Hệ thống tạm ngừng gửi callback sự kiện, Test Ping và Retry cho đến khi tính năng được bật lại. Bạn vẫn có thể đăng ký hoặc chỉnh sửa sẵn Webhook endpoint."
+                : "An administrator has disabled feature.webhooks.enabled. Event callbacks, Test Ping, and delivery retries are paused until re-enabled. You can still register or edit endpoints in advance."}
             </p>
           </div>
         </div>
@@ -246,8 +246,8 @@ export function WebhooksTab({
             variant="primary"
             size="sm"
             onClick={openCreate}
-            disabled={!webhooksEnabled}
             className="gap-1.5"
+            data-testid="webhook-add-button"
           >
             <Plus className="h-4 w-4" />
             <span>{isVi ? "Thêm Webhook" : "Add Webhook"}</span>
