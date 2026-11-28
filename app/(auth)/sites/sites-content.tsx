@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Building2, MapPin, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,6 @@ import {
   parseSiteContactOfficers,
   syncSiteOfficersAccess,
 } from "@/components/features/sites/site-helpers";
-import { useCameraCountsBySite } from "@/hooks/cameras";
 import {
   useCreateSite,
   useDeleteSite,
@@ -37,6 +36,7 @@ import {
   useUpdateSite,
   useArchiveSite,
 } from "@/hooks/sites";
+import { useSitesWithCameraCounts } from "@/hooks/sites/use-sites-with-camera-counts";
 import { useCan } from "@/hooks/use-can";
 import { useLocale } from "@/providers/locale-provider";
 import type { CreateSitePayload, SiteItem, UpdateSitePayload } from "@/types";
@@ -52,6 +52,8 @@ const URL_TO_STAT: Record<string, SiteStatKey> = {
   totalZones: "totalZones",
   restrictedAreas: "restrictedAreas",
 };
+
+const EMPTY_SITES: SiteItem[] = [];
 
 export default function SitesContent() {
   const { t, locale } = useLocale();
@@ -102,58 +104,22 @@ export default function SitesContent() {
     status: statusFilter || undefined,
 
   });
-  const rawSites = data?.items || [];
   const {
-    data: rawSitesCatalog = [],
+    data: rawSitesCatalog = EMPTY_SITES,
     isLoading: catalogLoading,
     isFetching: catalogFetching,
     refetch: refetchCatalog,
   } = useSitesCatalog();
 
-  const allKnownSiteIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const s of rawSites) if (s.id) ids.add(s.id);
-    for (const s of rawSitesCatalog) if (s.id) ids.add(s.id);
-    return Array.from(ids);
-  }, [rawSites, rawSitesCatalog]);
-
   const {
-    data: cameraCountsBySite,
-    isSuccess: cameraCountsLoaded,
+    sites,
+    sitesCatalog,
     isFetching: cameraCountsFetching,
     refetch: refetchCameraCounts,
-  } = useCameraCountsBySite(allKnownSiteIds, {
-    enabled: canReadCameras && allKnownSiteIds.length > 0,
-  });
-
-  const cameraCountMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const item of cameraCountsBySite ?? []) {
-      map.set(item.siteId, item.total);
-    }
-    return map;
-  }, [cameraCountsBySite]);
-
-  const sites = useMemo(
-    () =>
-      rawSites.map((site) => ({
-        ...site,
-        cameraCount: cameraCountsLoaded
-          ? (cameraCountMap.get(site.id) ?? 0)
-          : site.cameraCount,
-      })),
-    [rawSites, cameraCountsLoaded, cameraCountMap],
-  );
-
-  const sitesCatalog = useMemo(
-    () =>
-      rawSitesCatalog.map((site) => ({
-        ...site,
-        cameraCount: cameraCountsLoaded
-          ? (cameraCountMap.get(site.id) ?? 0)
-          : site.cameraCount,
-      })),
-    [rawSitesCatalog, cameraCountsLoaded, cameraCountMap],
+  } = useSitesWithCameraCounts(
+    data?.items ?? EMPTY_SITES,
+    rawSitesCatalog,
+    canReadCameras,
   );
 
   const isRefreshingAll = isFetching || catalogFetching || cameraCountsFetching;
@@ -161,7 +127,7 @@ export default function SitesContent() {
     void Promise.all([
       refetch(),
       refetchCatalog(),
-      ...(canReadCameras ? [refetchCameraCounts()] : []),
+      refetchCameraCounts?.(),
     ]);
   };
 

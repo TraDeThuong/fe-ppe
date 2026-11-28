@@ -169,7 +169,7 @@ export function IncidentDetailHeader({
               </div>
 
               <span
-                title={isConnected ? "Realtime Telemetry Online" : "Polling Mode (15s)"}
+                title={isConnected ? "Realtime" : "Polling (30s)"}
                 className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-background shadow-[0_2px_6px_rgba(0,0,0,0.18)] ring-2 ring-background"
               >
                 {isConnected && (
@@ -228,7 +228,7 @@ export function IncidentDetailHeader({
                         }`}
                     />
                   </span>
-                  {isConnected ? "Realtime Active" : "Polling (15s)"}
+                  {isConnected ? "Realtime" : "Polling (30s)"}
                 </span>
 
                 <span

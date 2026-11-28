@@ -137,11 +137,13 @@ export function RoleDetailKpiBar({
         valueRender: (
           <div className="flex items-baseline gap-1.5">
             <span className="text-xl sm:text-2xl font-black tracking-tight text-foreground tabular-nums">
-              {auditLogsCount}
+              {canReadAuditLogs ? auditLogsCount : "—"}
             </span>
-            <span className="text-[11px] sm:text-xs font-normal text-muted-foreground">
-              {isVietnamese ? "sự kiện" : "events"}
-            </span>
+            {canReadAuditLogs && (
+              <span className="text-[11px] sm:text-xs font-normal text-muted-foreground">
+                {isVietnamese ? "sự kiện" : "events"}
+              </span>
+            )}
           </div>
         ),
         badgeRender: (
@@ -163,6 +165,7 @@ export function RoleDetailKpiBar({
       accessiblePagesCount,
       totalPagesCount,
       auditLogsCount,
+      canReadAuditLogs,
       role.isSystem,
     ],
   );
@@ -185,19 +188,19 @@ export function RoleDetailKpiBar({
             type="button"
             disabled={!isClickable}
             onClick={isClickable ? () => onSelectTab?.(card.tab) : undefined}
-            className="
-              group relative flex flex-col justify-between overflow-hidden text-left
+            className={`
+              ${isClickable ? "group" : ""} relative flex flex-col justify-between overflow-hidden text-left
               rounded-xl sm:rounded-2xl p-3 sm:p-4
               border border-white/80 bg-surface
               shadow-[4px_4px_10px_var(--shadow-dark),-3px_-3px_9px_rgba(255,255,255,0.85)]
               transition-all duration-200
-              hover:-translate-y-0.5 hover:shadow-[6px_6px_14px_var(--shadow-dark),-4px_-4px_12px_rgba(255,255,255,0.95)]
-              active:translate-y-px active:shadow-[inset_2px_2px_5px_var(--shadow-dark)]
+              enabled:hover:-translate-y-0.5 enabled:hover:shadow-[6px_6px_14px_var(--shadow-dark),-4px_-4px_12px_rgba(255,255,255,0.95)]
+              enabled:active:translate-y-px enabled:active:shadow-[inset_2px_2px_5px_var(--shadow-dark)]
               dark:border-white/[0.06] dark:bg-card
               dark:shadow-[4px_4px_10px_rgba(0,0,0,0.4),-2px_-2px_6px_rgba(255,255,255,0.025)]
-              dark:hover:shadow-[6px_6px_14px_rgba(0,0,0,0.45)]
+              dark:enabled:hover:shadow-[6px_6px_14px_rgba(0,0,0,0.45)]
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50
-            "
+            `}
           >
             {/* Ambient light gradient on top border */}
             <div className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent dark:via-white/10" />
@@ -215,7 +218,7 @@ export function RoleDetailKpiBar({
                   >
                     <Icon className="size-3.5 sm:size-4 stroke-[2]" />
                   </span>
-                  <span className="hidden sm:inline truncate text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
+                  <span className="hidden text-xs font-semibold leading-snug text-muted-foreground transition-colors group-hover:text-foreground sm:inline">
                     {card.title}
                   </span>
                 </div>
@@ -231,8 +234,12 @@ export function RoleDetailKpiBar({
             {/* Card Body */}
             <div className="mt-2.5 sm:mt-3">
               {card.valueRender}
-              <p className="mt-1 hidden sm:block truncate text-[10px] text-muted-foreground/75">
-                {card.subtitle}
+              <p
+                className={`mt-1 text-[10px] ${canAccessCardTab
+                  ? "hidden truncate text-muted-foreground/75 sm:block"
+                  : "leading-snug text-muted-foreground"}`}
+              >
+                {canAccessCardTab ? card.subtitle : t("roles.detailPage.kpi.readRestricted")}
               </p>
             </div>
           </button>

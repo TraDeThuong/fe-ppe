@@ -27,6 +27,7 @@ import { DispatchedGroupCard } from "./dispatched-group-card";
 import type {
   AssignmentFilterState,
   AssignmentFormatters,
+  AssignmentLoadMoreControls,
   AssignmentResponsibilityContext,
   AssignmentRowActions,
   CategorizedAssignments,
@@ -62,6 +63,8 @@ export interface OfficerTasksWorkspaceProps {
   formatters: AssignmentFormatters;
   rowActions: AssignmentRowActions;
   initialGroupMode?: OfficerGroupMode;
+  /** "Tải thêm" theo nhóm khi bước còn hồ sơ trên server chưa tải (U9). */
+  loadMore?: AssignmentLoadMoreControls;
 }
 
 export function OfficerTasksWorkspace({
@@ -79,6 +82,7 @@ export function OfficerTasksWorkspace({
   formatters,
   rowActions,
   initialGroupMode,
+  loadMore,
 }: OfficerTasksWorkspaceProps) {
   const { locale } = useLocale();
   const canResolve = useCan()("PPE_INCIDENT_UPDATE");
@@ -239,7 +243,7 @@ export function OfficerTasksWorkspace({
           }
         />
 
-        {officerTab === "pending" && activeItems.length > 0 && (
+        {officerTab === "pending" && canResolve && activeItems.length > 0 && (
           <div
             className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl p-3.5 ${NM.extruded}`}
           >
@@ -319,7 +323,7 @@ export function OfficerTasksWorkspace({
                   incident={inc}
                   currentUserId={currentUserId}
                   selected={selectedIds.has(inc.id)}
-                  selectable={officerTab === "pending"}
+                  selectable={officerTab === "pending" && canResolve}
                   showResponsibility
                   allowOfficerResolve={officerTab === "pending"}
                   onToggleSelect={onToggleSelectOne}
@@ -352,7 +356,7 @@ export function OfficerTasksWorkspace({
                 resetKey={resetKey}
                 currentUserId={currentUserId}
                 selectedIds={selectedIds}
-                selectable={officerTab === "pending"}
+                selectable={officerTab === "pending" && canResolve}
                 allowOfficerResolve={officerTab === "pending"}
                 actionMode="officer"
                 batchActionPending={batchActionPending}
@@ -362,6 +366,7 @@ export function OfficerTasksWorkspace({
                 responsibilityContext={responsibilityContext}
                 formatters={formatters}
                 rowActions={rowActions}
+                loadMore={loadMore}
               />
             ))}
 

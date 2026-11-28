@@ -37,6 +37,7 @@ import {
   canSyncSiteOfficers,
   parseSiteContactOfficers,
   resolveDisplayOfficers,
+  resolveSiteCameraCounts,
   syncSiteOfficersAccess,
 } from "../site-helpers";
 import { SiteDetailHero } from "./site-detail-hero";
@@ -152,11 +153,14 @@ export function SiteDetailContent({ siteId }: SiteDetailContentProps) {
       0);
 
   // Fetch camera counts via lightweight status-counts endpoint
-  const { data: cameraCounts } = useCameraStatusCounts(siteId, {
+  const cameraStatus = useCameraStatusCounts(siteId, {
     enabled: canReadCameras,
   });
-  const cameraCount = cameraCounts?.total ?? site?.cameraCount ?? 0;
-  const onlineCameraCount = cameraCounts?.online ?? 0;
+  const { cameraCount, onlineCameraCount } = resolveSiteCameraCounts(
+    site?.cameraCount,
+    canReadCameras,
+    cameraStatus,
+  );
 
   // Fetch pending incident count via lightweight status-counts endpoint
   const { data: incidentCounts } = useIncidentStatusCounts(

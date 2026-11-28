@@ -272,10 +272,13 @@ describe("Notifications UI & Logic", () => {
     assert.ok(html.includes("Theo giờ") || html.includes("By hour"));
     assert.ok(html.includes("Theo camera") || html.includes("By camera"));
     assert.equal(html.includes("dHash"), false);
-    for (const channel of ["IN_APP", "WEB", "EMAIL"]) {
-      assert.ok(html.includes(`<option value="${channel}"`));
+    // Hộp thư web (BE mặc định IN_APP + WEB) và Email; không tách WEB, không có WEBHOOK
+    assert.ok(html.includes('<option value="all"'));
+    assert.ok(html.includes('<option value="EMAIL"'));
+    assert.ok(html.includes("Hộp thư trong ứng dụng") || html.includes("In-app inbox"));
+    for (const channel of ["IN_APP", "WEB", "WEBHOOK"]) {
+      assert.ok(!html.includes(`<option value="${channel}"`));
     }
-    assert.ok(!html.includes('<option value="WEBHOOK"'));
   });
 
   it("renders only In-App and Email cards for personal channel preferences", () => {
@@ -283,6 +286,8 @@ describe("Notifications UI & Logic", () => {
     assert.match(html, /<h3[^>]*>(Thông báo Web|Web Notifications) \(In-App\)<\/h3>/);
     assert.match(html, /<h3[^>]*>(Thư điện tử|Electronic Mail) \(Email\)<\/h3>/);
     assert.doesNotMatch(html, /<h3[^>]*>[^<]*Webhook/i);
+    // Ghi chú dẫn sang trang Tích hợp (ADMIN có quyền → có link)
+    assert.ok(html.includes('href="/integrations"'));
   });
 
   it("renders flat items as individual rows and renders synthesized Multi-Violation cluster cards in person mode", () => {

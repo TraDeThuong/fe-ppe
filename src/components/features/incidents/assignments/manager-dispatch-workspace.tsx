@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
 import { useCan } from "@/hooks/use-can";
+import { batchCountLabel, capBatchItems } from "@/lib/incident-actions";
 import {
   filterAssignmentIncidents,
   groupIncidentsForAssignment,
@@ -34,6 +35,7 @@ import { DispatchedGroupCard } from "./dispatched-group-card";
 import type {
   AssignmentFilterState,
   AssignmentFormatters,
+  AssignmentLoadMoreControls,
   AssignmentResponsibilityContext,
   AssignmentRowActions,
   CategorizedAssignments,
@@ -103,6 +105,8 @@ export interface ManagerDispatchWorkspaceProps {
   rowActions: AssignmentRowActions;
   /** Override chế độ gom ban đầu (hữu ích cho test hoặc deep link) */
   initialGroupMode?: ManagerGroupMode;
+  /** "Tải thêm" theo nhóm khi bước còn hồ sơ trên server chưa tải (U9). */
+  loadMore?: AssignmentLoadMoreControls;
 }
 
 export function ManagerDispatchWorkspace({
@@ -127,6 +131,7 @@ export function ManagerDispatchWorkspace({
   formatters,
   rowActions,
   initialGroupMode,
+  loadMore,
 }: ManagerDispatchWorkspaceProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -218,6 +223,9 @@ export function ManagerDispatchWorkspace({
   const pendingInActive = activeItems.filter((i) => i.status === "PENDING_REVIEW");
   const allTabSelected =
     activeIds.length > 0 && activeIds.every((id) => selectedIds.has(id));
+  // Bước hiện tại có nút hàng loạt nào dùng được không; không có thì ẩn cả thanh hàng loạt và ô chọn.
+  const hasTabActions =
+    managerTab === "triage" ? canManage || canReview : canManage;
   // Giao sự cố đang chờ duyệt cần cả quyền xác nhận (batch-review) lẫn quyền giao (MANAGE).
   const canDispatchSelected =
     canManage && (canReview || pendingInSelected.length === 0);
@@ -312,7 +320,7 @@ export function ManagerDispatchWorkspace({
       />
 
       {/* 2. Thanh Thao tác Hàng loạt (Bulk Action Bar) */}
-      {currentMode !== "batches" && (
+      {currentMode !== "batches" && hasTabActions && (
         <div
           className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/25 p-3.5 ${NM.extruded}`}
         >
@@ -367,14 +375,14 @@ export function ManagerDispatchWorkspace({
                   size="sm"
                   variant="primary"
                   disabled={selectedInTab.length === 0 || batchActionPending || !canDispatchSelected}
-                  onClick={() => onBatchDispatch(selectedInTab)}
+                  onClick={() => onBatchDispatch(capBatchItems(selectedInTab))}
                   className="gap-1.5 text-xs font-bold"
                 >
                   <Send className="h-3.5 w-3.5" />
                   <span>
                     {isVietnamese
-                      ? `Duyệt & Giao Officer (${selectedInTab.length})`
-                      : `Confirm & Dispatch (${selectedInTab.length})`}
+                      ? `Duyệt & Giao Officer ${batchCountLabel(selectedInTab.length)}`
+                      : `Confirm & Dispatch ${batchCountLabel(selectedInTab.length)}`}
                   </span>
                 </Button>
                 )}
@@ -423,14 +431,14 @@ export function ManagerDispatchWorkspace({
                 size="sm"
                 variant="primary"
                 disabled={selectedInTab.length === 0 || batchActionPending}
-                onClick={() => onBatchDispatch(selectedInTab)}
+                onClick={() => onBatchDispatch(capBatchItems(selectedInTab))}
                 className="gap-1.5 text-xs font-bold"
               >
                 <UserCheck className="h-3.5 w-3.5" />
                 <span>
                   {isVietnamese
-                    ? `Đổi Officer phụ trách (${selectedInTab.length})`
-                    : `Reassign Officer (${selectedInTab.length})`}
+                    ? `Đổi Officer phụ trách ${batchCountLabel(selectedInTab.length)}`
+                    : `Reassign Officer ${batchCountLabel(selectedInTab.length)}`}
                 </span>
               </Button>
             )}
@@ -441,14 +449,14 @@ export function ManagerDispatchWorkspace({
                 size="sm"
                 variant="primary"
                 disabled={selectedInTab.length === 0 || batchActionPending}
-                onClick={() => onBatchClose(selectedInTab)}
+                onClick={() => onBatchClose(capBatchItems(selectedInTab))}
                 className="gap-1.5 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
               >
                 <Archive className="h-3.5 w-3.5" />
                 <span>
                   {isVietnamese
-                    ? `Nghiệm thu & Đóng hàng loạt (${selectedInTab.length})`
-                    : `Accept & Close Selected (${selectedInTab.length})`}
+                    ? `Nghiệm thu & Đóng hàng loạt ${batchCountLabel(selectedInTab.length)}`
+                    : `Accept & Close Selected ${batchCountLabel(selectedInTab.length)}`}
                 </span>
               </Button>
             )}
@@ -523,7 +531,7 @@ export function ManagerDispatchWorkspace({
               resetKey={resetKey}
               currentUserId={currentUserId}
               selectedIds={selectedIds}
-              selectable
+              selectable={hasTabActions}
               allowManagerActions
               actionMode={managerTab}
               batchReviewPending={batchReviewPending}
@@ -541,6 +549,7 @@ export function ManagerDispatchWorkspace({
               responsibilityContext={responsibilityContext}
               formatters={formatters}
               rowActions={rowActions}
+              loadMore={loadMore}
             />
           ))}
 

@@ -30,6 +30,8 @@ export interface AssignmentConsoleHeaderProps {
   selectedSiteName?: string;
   categorized: CategorizedAssignments;
   statusTotals?: Partial<AssignmentIncidentTotals>;
+  /** Không có quyền PPE_INCIDENT_REVIEW lẫn PPE_INCIDENT_MANAGE: hiện nhãn "Chế độ chỉ xem". */
+  readOnly?: boolean;
 }
 
 export function AssignmentConsoleHeader({
@@ -44,6 +46,7 @@ export function AssignmentConsoleHeader({
   selectedSiteName,
   categorized,
   statusTotals,
+  readOnly = false,
 }: AssignmentConsoleHeaderProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -84,7 +87,8 @@ export function AssignmentConsoleHeader({
     categorized.pendingReview.length,
   );
   const triageCount =
-    pendingReviewCount + categorized.unassignedConfirmed.length;
+    pendingReviewCount +
+    Math.max(statusTotals?.confirmedUnassigned ?? 0, categorized.unassignedConfirmed.length);
   const awaitingAcceptanceCount = Math.max(
     statusTotals?.resolved ?? 0,
     categorized.awaitingAcceptance.length,
@@ -147,6 +151,14 @@ export function AssignmentConsoleHeader({
                 <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                   {roleBadge}
                 </span>
+                {readOnly && (
+                  <span
+                    data-testid="assignment-readonly-badge"
+                    className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground"
+                  >
+                    {isVietnamese ? "Chế độ chỉ xem" : "View only"}
+                  </span>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -160,7 +172,7 @@ export function AssignmentConsoleHeader({
                   } ${NM.recessed}`}
                 >
                   <Radio className="size-3 text-accent" />
-                  {isConnected ? "Realtime Stream" : "Polling (15s)"}
+                  {isConnected ? "Realtime" : "Polling (30s)"}
                 </span>
 
                 <span

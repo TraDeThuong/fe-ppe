@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
 import { useCan } from "@/hooks/use-can";
+import { batchCountLabel, capBatchItems } from "@/lib/incident-actions";
 import {
   filterAssignmentIncidents,
   groupIncidentsForAssignment,
@@ -401,14 +402,14 @@ export function AdminOversightWorkspace({
                               type="button"
                               size="sm"
                               variant="primary"
-                              onClick={() => onBatchDispatch(dispatchable)}
+                              onClick={() => onBatchDispatch(capBatchItems(dispatchable))}
                               className="h-7 gap-1 px-2.5 text-[11px]"
                             >
                               <Send className="h-3 w-3" />
                               <span>
                                 {isVietnamese
-                                  ? `Duyệt & Giao thay (${dispatchable.length})`
-                                  : `Dispatch All (${dispatchable.length})`}
+                                  ? `Duyệt & Giao thay ${batchCountLabel(dispatchable.length)}`
+                                  : `Dispatch All ${batchCountLabel(dispatchable.length)}`}
                               </span>
                             </Button>
                           )}
@@ -698,14 +699,14 @@ export function AdminOversightWorkspace({
                         type="button"
                         size="sm"
                         variant="primary"
-                        onClick={() => onBatchDispatch(dispatchable)}
+                        onClick={() => onBatchDispatch(capBatchItems(dispatchable))}
                         className="h-7 gap-1 px-2.5 text-[11px]"
                       >
                         <Send className="h-3 w-3" />
                         <span>
                           {isVietnamese
-                            ? `Giao cả công trường (${dispatchable.length})`
-                            : `Dispatch Site (${dispatchable.length})`}
+                            ? `Giao cả công trường ${batchCountLabel(dispatchable.length)}`
+                            : `Dispatch Site ${batchCountLabel(dispatchable.length)}`}
                         </span>
                       </Button>
                     )}
@@ -813,14 +814,14 @@ export function AdminOversightWorkspace({
                         type="button"
                         size="sm"
                         variant="primary"
-                        onClick={() => onBatchDispatch(dispatchable)}
+                        onClick={() => onBatchDispatch(capBatchItems(dispatchable))}
                         className="h-7 gap-1 px-2.5 text-[11px]"
                       >
                         <Send className="h-3 w-3" />
                         <span>
                           {isVietnamese
-                            ? `Giao cả cụm (${dispatchable.length})`
-                            : `Dispatch Group (${dispatchable.length})`}
+                            ? `Giao cả cụm ${batchCountLabel(dispatchable.length)}`
+                            : `Dispatch Group ${batchCountLabel(dispatchable.length)}`}
                         </span>
                       </Button>
                     )}

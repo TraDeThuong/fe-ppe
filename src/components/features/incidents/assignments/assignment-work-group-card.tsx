@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Clock,
   Layers,
+  Loader2,
   Send,
   ShieldAlert,
   UserCheck,
@@ -21,11 +22,13 @@ import { Button } from "@/components/ui/button";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
 import { useCan } from "@/hooks/use-can";
+import { batchCountLabel, capBatchItems } from "@/lib/incident-actions";
 import type { IncidentWorkGroup } from "@/lib/incident-assignment-groups";
 import type { IncidentItem } from "@/types";
 import { PaginatedIncidentRows } from "./assignment-pagination";
 import type {
   AssignmentFormatters,
+  AssignmentLoadMoreControls,
   AssignmentResponsibilityContext,
   AssignmentRowActions,
 } from "./types";
@@ -51,6 +54,8 @@ export interface AssignmentWorkGroupCardProps {
   responsibilityContext: AssignmentResponsibilityContext;
   formatters: AssignmentFormatters;
   rowActions: AssignmentRowActions;
+  /** Nút "Tải thêm" của nhóm khi bước còn hồ sơ trên server chưa tải về. */
+  loadMore?: AssignmentLoadMoreControls;
 }
 
 function getGroupIcon(groupBy: IncidentWorkGroup["groupBy"]) {
@@ -112,6 +117,7 @@ export function AssignmentWorkGroupCard({
   responsibilityContext,
   formatters,
   rowActions,
+  loadMore,
 }: AssignmentWorkGroupCardProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -231,14 +237,14 @@ export function AssignmentWorkGroupCard({
                     size="sm"
                     variant="primary"
                     disabled={batchActionPending}
-                    onClick={() => onBatchDispatch(group.items)}
+                    onClick={() => onBatchDispatch(capBatchItems(group.items))}
                     className="h-7 gap-1 px-2.5 text-[11px]"
                   >
                     <Send className="h-3 w-3" />
                     <span>
                       {isVietnamese
-                        ? `Duyệt & Giao cả nhóm (${group.items.length})`
-                        : `Dispatch Group (${group.items.length})`}
+                        ? `Duyệt & Giao cả nhóm ${batchCountLabel(group.items.length)}`
+                        : `Dispatch Group ${batchCountLabel(group.items.length)}`}
                     </span>
                   </Button>
                 )}
@@ -251,14 +257,14 @@ export function AssignmentWorkGroupCard({
                 size="sm"
                 variant="outline"
                 disabled={batchActionPending}
-                onClick={() => onBatchDispatch(group.items)}
+                onClick={() => onBatchDispatch(capBatchItems(group.items))}
                 className="h-7 gap-1 px-2.5 text-[11px]"
               >
                 <UserCheck className="h-3 w-3" />
                 <span>
                   {isVietnamese
-                    ? `Đổi Officer cho nhóm (${group.items.length})`
-                    : `Reassign Group (${group.items.length})`}
+                    ? `Đổi Officer cho nhóm ${batchCountLabel(group.items.length)}`
+                    : `Reassign Group ${batchCountLabel(group.items.length)}`}
                 </span>
               </Button>
             )}
@@ -269,14 +275,14 @@ export function AssignmentWorkGroupCard({
                 size="sm"
                 variant="primary"
                 disabled={batchActionPending}
-                onClick={() => onBatchClose(group.items)}
+                onClick={() => onBatchClose(capBatchItems(group.items))}
                 className="h-7 gap-1 bg-emerald-600 px-2.5 text-[11px] text-white hover:bg-emerald-700"
               >
                 <Archive className="h-3 w-3" />
                 <span>
                   {isVietnamese
-                    ? `Nghiệm thu & Đóng nhóm (${group.items.length})`
-                    : `Close Group (${group.items.length})`}
+                    ? `Nghiệm thu & Đóng nhóm ${batchCountLabel(group.items.length)}`
+                    : `Close Group ${batchCountLabel(group.items.length)}`}
                 </span>
               </Button>
             )}
@@ -289,14 +295,14 @@ export function AssignmentWorkGroupCard({
                     size="sm"
                     variant="primary"
                     disabled={batchActionPending}
-                    onClick={() => onBatchDispatch(dispatchableItems)}
+                    onClick={() => onBatchDispatch(capBatchItems(dispatchableItems))}
                     className="h-7 gap-1 px-2.5 text-[11px]"
                   >
                     <Send className="h-3 w-3" />
                     <span>
                       {isVietnamese
-                        ? `Giao cả nhóm (${dispatchableItems.length})`
-                        : `Dispatch (${dispatchableItems.length})`}
+                        ? `Giao cả nhóm ${batchCountLabel(dispatchableItems.length)}`
+                        : `Dispatch ${batchCountLabel(dispatchableItems.length)}`}
                     </span>
                   </Button>
                 )}
@@ -419,6 +425,22 @@ export function AssignmentWorkGroupCard({
           formatters={formatters}
           actions={rowActions}
         />
+      )}
+
+      {expanded && loadMore?.canLoad(group) && (
+        <div className="flex justify-center border-t border-border/20 px-4 py-2.5">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={loadMore.isLoading(group)}
+            onClick={() => loadMore.onLoad(group)}
+            className="gap-1.5 text-xs"
+          >
+            {loadMore.isLoading(group) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            <span>{isVietnamese ? "Tải thêm" : "Load more"}</span>
+          </Button>
+        </div>
       )}
     </div>
   );

@@ -119,8 +119,8 @@ export function getChannelDisplay(channel: NotificationChannel | string) {
       return { label: "Webhook", icon: Webhook };
     case "ZALO_ZNS":
       return { label: "Zalo ZNS", icon: Send };
+    // WEB là bí danh cũ của IN_APP ở BE (cùng hộp thư web) → hiển thị chung một nhãn
     case "WEB":
-      return { label: "Web", icon: Bell };
     case "IN_APP":
     default:
       return { label: "In-App", icon: Bell };

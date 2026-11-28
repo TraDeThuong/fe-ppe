@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { hasRouteAccess } from "@/config/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
 import type { RoleDto } from "@/types";
 import {
@@ -25,6 +27,7 @@ export interface RoleCapabilitiesTabProps {
 
 export function RoleCapabilitiesTab({ role }: RoleCapabilitiesTabProps) {
   const { t, locale } = useLocale();
+  const { user } = useAuth();
   const isVietnamese = locale === "vi-VN";
 
   const profile: RoleKnowledgeProfile = useMemo(
@@ -56,7 +59,7 @@ export function RoleCapabilitiesTab({ role }: RoleCapabilitiesTabProps) {
         </div>
       </section>
 
-      {/* ── 2. BẢN ĐỒ PHẠM VI TRUY CẬP TRÊN 12 TRANG HỆ THỐNG ────────── */}
+      {/* ── 2. BẢN ĐỒ PHẠM VI TRUY CẬP TRÊN CÁC TRANG HỆ THỐNG ─────────── */}
       <section className="rounded-2xl border border-white/80 bg-surface p-4 sm:p-5 shadow-[6px_6px_14px_var(--shadow-dark),-6px_-6px_14px_rgba(255,255,255,0.9)] dark:border-white/[0.06] dark:bg-card dark:shadow-[6px_6px_14px_rgba(0,0,0,0.45)] space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/30 pb-3">
           <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-muted-foreground">
@@ -75,6 +78,19 @@ export function RoleCapabilitiesTab({ role }: RoleCapabilitiesTabProps) {
           {profile.pageCapabilities.map((page, idx) => {
             const PageIcon = page.icon;
             const isDenied = page.accessLevel === "none";
+            const canOpenPage = hasRouteAccess(page.route, user?.permissions, user?.role);
+            const openPageButton = (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={!canOpenPage}
+                className="h-7 px-2 text-xs text-primary hover:text-primary gap-1"
+              >
+                <span>{isVietnamese ? "Mở trang" : "Open"}</span>
+                <ExternalLink className="h-3 w-3" />
+              </Button>
+            );
 
             return (
               <div
@@ -121,19 +137,14 @@ export function RoleCapabilitiesTab({ role }: RoleCapabilitiesTabProps) {
                       </Badge>
                     )}
 
-                    {!isDenied && (
-                      <Link href={page.route} target="_blank">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-xs text-primary hover:text-primary gap-1"
-                        >
-                          <span>{isVietnamese ? "Mở trang" : "Open"}</span>
-                          <ExternalLink className="h-3 w-3" />
-                        </Button>
-                      </Link>
-                    )}
+                    {!isDenied &&
+                      (canOpenPage ? (
+                        <Link href={page.route} target="_blank">
+                          {openPageButton}
+                        </Link>
+                      ) : (
+                        openPageButton
+                      ))}
                   </div>
                 </div>
 

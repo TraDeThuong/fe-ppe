@@ -27,6 +27,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useAssignUserRole } from "@/hooks/rbac";
 import { useCan } from "@/hooks/use-can";
+import { useDebounce } from "@/hooks/use-debounce";
 import { useUsers } from "@/hooks/users";
 import { useLocale } from "@/providers/locale-provider";
 import type { RoleDto, UserResponseDto } from "@/types";
@@ -75,10 +76,11 @@ export function RoleUsersTab({
   const [addMemberModalOpen, setAddMemberModalOpen] = useState(false);
   const [candidateSearch, setCandidateSearch] = useState("");
   const [selectedCandidateId, setSelectedCandidateId] = useState<string>("");
+  const debouncedCandidateSearch = useDebounce(candidateSearch.trim(), 300);
 
   const { data: candidatesData } = useUsers(
     {
-      search: candidateSearch.trim() || undefined,
+      search: debouncedCandidateSearch || undefined,
       limit: 100,
     },
     {

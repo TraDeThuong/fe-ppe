@@ -91,7 +91,10 @@ export function RoleStatsDetailPanel({
 }: RoleStatsDetailPanelProps) {
   const { t, locale } = useLocale();
   const can = useCan();
+  const canCreateRole = can("ROLE_CREATE");
+  const canAssignPermissions = can("ROLE_PERMISSION_ASSIGN");
   const canReadUsers = can("USER_READ");
+  const canAssignUserRole = can("USER_ROLE_ASSIGN");
 
   const systemRoles = useMemo(() => roles.filter((r) => r.isSystem), [roles]);
   const customRoles = useMemo(() => roles.filter((r) => !r.isSystem), [roles]);
@@ -122,7 +125,10 @@ export function RoleStatsDetailPanel({
       Boolean(selectedRole?.name),
     staleTime: 30 * 1000,
   });
-  const allUsers: UserResponseDto[] = useMemo(() => usersData?.data ?? [], [usersData]);
+  const allUsers: UserResponseDto[] = useMemo(
+    () => (canReadUsers ? usersData?.data ?? [] : []),
+    [canReadUsers, usersData],
+  );
 
   // Filter users belonging to the currently selected role
   const selectedRoleUsers = useMemo(() => {
@@ -223,14 +229,15 @@ export function RoleStatsDetailPanel({
               {activeStat === "totalRoles" && t("roles.detail.totalRolesDesc")}
               {activeStat === "systemRoles" && t("roles.detail.systemRolesDesc")}
               {activeStat === "totalPermissions" && t("roles.detail.permissionsDesc")}
-              {activeStat === "assignedUsers" && t("roles.detail.assignedUsersDesc")}
+              {activeStat === "assignedUsers" &&
+                t(canReadUsers ? "roles.detail.assignedUsersDesc" : "roles.detail.assignedUsersSummaryDesc")}
             </p>
           </div>
         </div>
 
         {/* Action Controls & Close */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {activeStat === "totalRoles" && onCreateRole && (
+          {activeStat === "totalRoles" && canCreateRole && onCreateRole && (
             <Button
 
               type="button"
@@ -240,6 +247,7 @@ export function RoleStatsDetailPanel({
               size="sm"
 
               onClick={onCreateRole}
+              aria-label={t("roles.detail.createRole")}
 
               className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs text-primary hover:text-primary px-2 sm:px-3"
 
@@ -249,7 +257,7 @@ export function RoleStatsDetailPanel({
             </Button>
           )}
 
-          {activeStat === "totalPermissions" && roles[0] && onConfigurePermissions && (
+          {activeStat === "totalPermissions" && canAssignPermissions && roles[0] && onConfigurePermissions && (
             <Button
 
               type="button"
@@ -259,6 +267,7 @@ export function RoleStatsDetailPanel({
               size="sm"
 
               onClick={() => onConfigurePermissions(roles[0])}
+              aria-label={t("roles.detail.matrixBtn")}
 
               className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs text-primary hover:text-primary px-2 sm:px-3"
 
@@ -268,7 +277,7 @@ export function RoleStatsDetailPanel({
             </Button>
           )}
 
-          {activeStat === "assignedUsers" && (
+          {activeStat === "assignedUsers" && canReadUsers && (
             <Link href="/users">
               <Button
 
@@ -277,6 +286,7 @@ export function RoleStatsDetailPanel({
                 variant="outline"
 
                 size="sm"
+                aria-label={t("roles.detail.usersManagerBtn")}
 
                 className="h-7 sm:h-8 gap-1 text-[11px] sm:text-xs text-primary hover:text-primary px-2 sm:px-3"
 
@@ -688,23 +698,36 @@ export function RoleStatsDetailPanel({
                   <span className="font-mono text-primary font-black uppercase">
                     {selectedRole?.name || "—"}
                   </span>
-                  <Badge variant="outline" size="sm" className="font-mono text-[10px] text-primary border-primary/30 px-1 py-0">
-                    {selectedRoleUsers.length} {t("roles.table.personnel").toLowerCase()}
-                  </Badge>
+                  {selectedRole && (
+                    <Badge variant="outline" size="sm" className="font-mono text-[10px] text-primary border-primary/30 px-1 py-0">
+                      {canReadUsers ? selectedRoleUsers.length : (selectedRole.userCount ?? 0)}{" "}
+                      {t("roles.table.personnel").toLowerCase()}
+                    </Badge>
+                  )}
                 </span>
 
-                <Link
-                  href={`/users?role=${selectedRole?.id || ""}`}
-                  className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-1"
-                >
-                  <span>{t("roles.detail.viewAll")}</span>
-                  <ExternalLink className="h-2.5 w-2.5" />
-                </Link>
+                {canReadUsers && selectedRole && (
+                  <Link
+                    href={`/users?role=${encodeURIComponent(selectedRole.name)}`}
+                    className="text-[11px] text-primary hover:underline font-semibold flex items-center gap-1"
+                  >
+                    <span>{t("roles.detail.viewAll")}</span>
+                    <ExternalLink className="h-2.5 w-2.5" />
+                  </Link>
+                )}
               </div>
 
               {/* Danh sách người dùng trong vai trò đã chọn */}
               <div className="max-h-[260px] overflow-y-auto space-y-1.5 pr-0.5">
-                {usersLoading ? (
+                {!canReadUsers ? (
+                  <div className="flex flex-col items-center gap-2 rounded-xl border border-border/40 bg-background/40 p-5 text-center">
+                    <Lock aria-hidden="true" className="h-5 w-5 text-muted-foreground" />
+                    <div className="space-y-1">
+                      <p className="text-xs font-semibold text-foreground">{t("roles.detail.usersRestrictedTitle")}</p>
+                      <p className="text-xs text-muted-foreground">{t("roles.detail.usersRestrictedHint")}</p>
+                    </div>
+                  </div>
+                ) : usersLoading ? (
                   <div className="rounded-xl border border-border/30 bg-background/50 p-4 text-center text-xs text-muted-foreground">
                     {t("roles.detail.loadingUsers")}
                   </div>
@@ -713,16 +736,20 @@ export function RoleStatsDetailPanel({
                     <User className="h-6 w-6 text-muted-foreground/40" />
                     <div>
                       <p className="font-semibold text-foreground text-xs">{t("roles.detail.noUsersInRole")}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        {t("roles.detail.noUsersHint")}
-                      </p>
+                      {canAssignUserRole && (
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {t("roles.detail.noUsersHint")}
+                        </p>
+                      )}
                     </div>
-                    <Link href="/users">
-                      <Button variant="outline" size="sm" className="h-6 text-[11px] text-primary gap-1 px-2.5">
-                        <Users className="h-3 w-3" />
-                        {t("roles.detail.assignNow")}
-                      </Button>
-                    </Link>
+                    {canAssignUserRole && (
+                      <Link href="/users">
+                        <Button variant="outline" size="sm" className="h-6 text-[11px] text-primary gap-1 px-2.5">
+                          <Users className="h-3 w-3" />
+                          {t("roles.detail.assignNow")}
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 ) : (
                   selectedRoleUsers.map((user) => (

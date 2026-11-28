@@ -48,6 +48,8 @@ export interface UserCardGridProps {
   currentAdminId?: string;
   canUpdate?: boolean;
   canAssignRole?: boolean;
+  /** Thiếu ROLE_READ: nút phân vai trò bị khóa kèm tooltip lý do */
+  canReadRoles?: boolean;
   canDelete?: boolean;
   canRestore?: boolean;
   onViewProfile: (user: UserResponseDto) => void;
@@ -74,6 +76,7 @@ export function UserCardGrid({
   currentAdminId,
   canUpdate = false,
   canAssignRole = false,
+  canReadRoles = true,
   canDelete = false,
   canRestore = false,
   onViewProfile,
@@ -518,7 +521,7 @@ export function UserCardGrid({
                   {canAssignRole && !isDeleted && (
                     <button
                       type="button"
-                      disabled={isSelf}
+                      disabled={isSelf || !canReadRoles}
                       onClick={() => onAssignRole(user)}
                       aria-label={
                         isVietnamese
@@ -528,6 +531,10 @@ export function UserCardGrid({
                       title={
                         isSelf
                           ? t("users.actions.selfDisabled")
+                          : !canReadRoles
+                            ? isVietnamese
+                              ? "Cần thêm quyền xem danh sách vai trò (ROLE_READ) để dùng chức năng này"
+                              : "Requires permission to view roles (ROLE_READ)"
                           : isVietnamese
                             ? "Phân vai trò RBAC"
                             : "Assign RBAC Role"

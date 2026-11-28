@@ -71,6 +71,12 @@ export function UserTable({
   const canUpdate = can("USER_UPDATE");
   const canCreate = can("USER_CREATE");
   const canAssignRole = can("USER_ROLE_ASSIGN");
+  // Tạo user / phân vai trò đều phải chọn vai trò → cần ROLE_READ để tải danh sách.
+  // Thiếu quyền: vẫn hiện nút nhưng khóa + tooltip giải thích (không mở modal ngõ cụt).
+  const canReadRoles = can("ROLE_READ");
+  const missingRoleReadHint = isVietnamese
+    ? "Cần thêm quyền xem danh sách vai trò (ROLE_READ) để dùng chức năng này"
+    : "Requires permission to view roles (ROLE_READ)";
   const canDelete = can("USER_DELETE");
   const canRestore = can("USER_RESTORE") || canDelete;
   const [bulkPending, setBulkPending] = useState(false);
@@ -332,11 +338,12 @@ export function UserTable({
 
         },
         {
-          hidden: !can("USER_ROLE_ASSIGN") || isDeleted,
+          hidden: !canAssignRole || isDeleted,
           id: "assign-role",
           label: isVietnamese ? "Phân vai trò RBAC" : "Assign RBAC Role",
           icon: <Shield size={14} />,
-          disabled: isSelf,
+          disabled: isSelf || !canReadRoles,
+          title: !canReadRoles ? missingRoleReadHint : undefined,
           onClick: (u) => setAssignRoleUser(u),
 
         },
@@ -390,7 +397,7 @@ export function UserTable({
 
       return actions;
     },
-    [currentAdmin, isVietnamese, canUpdate, canDelete, canRestore],
+    [currentAdmin, isVietnamese, canUpdate, canAssignRole, canReadRoles, missingRoleReadHint, canDelete, canRestore],
   );
 
   // Columns definition
@@ -733,15 +740,22 @@ export function UserTable({
                 iconClassName="size-3.5"
               />
               {/* Add User Button */}
-              {canCreate ? <Button
-                variant="primary"
-                size="sm"
-                className="h-9 gap-1.5 whitespace-nowrap px-3 text-xs sm:text-sm shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)]"
-                onClick={() => setIsCreateOpen(true)}
-              >
-                <UserPlus size={15} className="shrink-0" />
-                <span>{t("users.create")}</span>
-              </Button> : null}
+              {canCreate ? (
+                // span bọc để tooltip vẫn hiện khi nút bị khóa
+                <span title={!canReadRoles ? missingRoleReadHint : undefined} className="inline-flex">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="h-9 gap-1.5 whitespace-nowrap px-3 text-xs sm:text-sm shadow-[3px_3px_6px_var(--shadow-dark),-3px_-3px_6px_var(--shadow-light)]"
+                    onClick={() => setIsCreateOpen(true)}
+                    disabled={!canReadRoles}
+                    aria-label={!canReadRoles ? `${t("users.create")} — ${missingRoleReadHint}` : undefined}
+                  >
+                    <UserPlus size={15} className="shrink-0" />
+                    <span>{t("users.create")}</span>
+                  </Button>
+                </span>
+              ) : null}
             </div>
           }
         />
@@ -835,6 +849,7 @@ export function UserTable({
             currentAdminId={currentAdmin?.id}
             canUpdate={canUpdate}
             canAssignRole={canAssignRole}
+            canReadRoles={canReadRoles}
             canDelete={canDelete}
             canRestore={canRestore}
             onViewProfile={(u) => router.push(`/users/${u.id}`)}

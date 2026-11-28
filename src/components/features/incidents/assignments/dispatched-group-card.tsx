@@ -16,6 +16,7 @@ import { NM } from "@/components/features/ai-test/nm-styles";
 import { useLocale } from "@/providers/locale-provider";
 import { useCan } from "@/hooks/use-can";
 import { incidentGroupHref } from "@/lib/incident-group";
+import { UNKNOWN_DISPATCHER_ID } from "@/lib/incident-dispatch-batches";
 import { summarizeIncidentGroup } from "@/lib/incident-assignment-groups";
 import type { ResponsiblePersonRef } from "@/lib/incident-workflow";
 import type { IncidentItem } from "@/types";
@@ -44,6 +45,8 @@ export function DispatchedGroupCard({
 
   const total = group.incidentIds.length;
   const pct = total > 0 ? Math.round((resolvedCount / total) * 100) : 0;
+  // BE chưa lưu người giao: ẩn dòng "Giao bởi" thay vì hiện nhãn chung.
+  const hasDispatcher = Boolean(group.assignedBy) && group.assignedBy !== UNKNOWN_DISPATCHER_ID;
   const managerName =
     usersById.get(group.assignedBy)?.name ||
     (isVietnamese ? "Quản lý An toàn" : "Safety Manager");
@@ -82,18 +85,23 @@ export function DispatchedGroupCard({
               )}
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            {isVietnamese ? "Giao bởi: " : "Assigned by: "}
-            <strong className="text-foreground">{managerName}</strong>
+            {hasDispatcher && (
+              <>
+                {isVietnamese ? "Giao bởi: " : "Assigned by: "}
+                <strong className="text-foreground">{managerName}</strong>
+              </>
+            )}
             {showAssignee && (
               <>
-                {" → "}
+                {hasDispatcher ? " → " : isVietnamese ? "Giao cho: " : "Assigned to: "}
                 <span className="inline-flex items-center gap-1 font-semibold text-primary">
                   <UserCheck className="h-3 w-3" />
                   {assigneeName}
                 </span>
               </>
-            )}{" "}
-            • {new Date(group.createdAt).toLocaleString(locale)}
+            )}
+            {hasDispatcher || showAssignee ? " • " : ""}
+            {new Date(group.createdAt).toLocaleString(locale)}
           </p>
         </div>
 
@@ -144,7 +152,7 @@ export function DispatchedGroupCard({
         </div>
       )}
 
-      <p className="line-clamp-2 text-xs text-muted-foreground">{message}</p>
+      {message && <p className="line-clamp-2 text-xs text-muted-foreground">{message}</p>}
 
       <div className={`h-2 overflow-hidden rounded-full ${NM.recessed}`}>
         <div

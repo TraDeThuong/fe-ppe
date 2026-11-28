@@ -9,6 +9,7 @@ import {
   Layers,
   ShieldAlert,
 } from "lucide-react";
+import { useId } from "react";
 import { useLocale } from "@/providers/locale-provider";
 import { NM } from "@/components/features/ai-test/nm-styles";
 import { isReportTypeGroup, REPORT_TYPE_GROUPS } from "@/lib/report-archive";
@@ -21,6 +22,7 @@ export interface ReportTypeOverviewStripProps {
   /** Số hồ sơ theo loại của cả cơ sở (không theo trang/bộ lọc); undefined khi chưa có dữ liệu */
   countsByType?: Record<string, number>;
   totalCount?: number;
+  countsLoading?: boolean;
   templates: ReportTemplateDto[];
   canExportReports: boolean;
   onQuickGenerateForType: (reportType: string) => void;
@@ -31,12 +33,14 @@ export function ReportTypeOverviewStrip({
   onSelectType,
   countsByType,
   totalCount,
+  countsLoading = false,
   templates,
   canExportReports,
   onQuickGenerateForType,
 }: ReportTypeOverviewStripProps) {
   const { t, locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+  const groupLabelId = useId();
 
   const items = [
     {
@@ -93,14 +97,16 @@ export function ReportTypeOverviewStrip({
     (tpl) => !tpl.status || tpl.status.toUpperCase() === "ACTIVE",
   );
 
-  // Đang lọc theo nhóm (từ thẻ KPI hoặc dropdown): làm nổi các loại thuộc nhóm.
-  const selectedGroupTypes: readonly string[] = isReportTypeGroup(selectedType)
-    ? REPORT_TYPE_GROUPS[selectedType]
-    : [];
+  const selectedGroup = isReportTypeGroup(selectedType) ? selectedType : null;
+  const selectedGroupTypes: readonly string[] = selectedGroup ? REPORT_TYPE_GROUPS[selectedGroup] : [];
+  const groupLabel = selectedGroup
+    ? t(selectedGroup === "PERIODIC" ? "reports.types.filteringPeriodic" : "reports.types.filteringSpecialized")
+    : null;
 
   return (
     <section
       aria-label={t("reports.types.sectionTitle")}
+      aria-busy={countsLoading}
       className={`rounded-2xl p-2.5 sm:p-3 border border-white/50 dark:border-white/5 ${NM.extruded}`}
     >
       {/* Header siêu gọn 1 dòng */}
@@ -110,10 +116,16 @@ export function ReportTypeOverviewStrip({
           <h3 className="truncate text-xs font-extrabold tracking-tight text-foreground">
             {t("reports.types.sectionTitle")}
           </h3>
-          <span className="hidden md:inline text-muted-foreground/30">•</span>
-          <p className="hidden md:block truncate text-[11px] text-muted-foreground">
-            {t("reports.types.sectionDesc")}
-          </p>
+          <span aria-hidden="true" className="hidden md:inline text-muted-foreground/30">•</span>
+          {groupLabel ? (
+            <p id={groupLabelId} className="shrink-0 text-[11px] font-medium text-primary">
+              {groupLabel}
+            </p>
+          ) : (
+            <p className="hidden md:block truncate text-[11px] text-muted-foreground">
+              {t("reports.types.sectionDesc")}
+            </p>
+          )}
         </div>
 
         {selectedType && (
@@ -141,11 +153,13 @@ export function ReportTypeOverviewStrip({
             <div
               key={item.type || "ALL"}
               role="button"
+              aria-pressed={isSelected}
+              aria-describedby={isInSelectedGroup ? groupLabelId : undefined}
               tabIndex={0}
               title={item.formatHint ? `${item.subtitle} (${item.formatHint})` : item.subtitle}
               onClick={() => onSelectType(item.type)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
+                if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
                   e.preventDefault();
                   onSelectType(item.type);
                 }
@@ -202,7 +216,7 @@ export function ReportTypeOverviewStrip({
                         : "bg-black/[0.05] dark:bg-white/[0.07] text-foreground/75"
                     }`}
                 >
-                  {item.count ?? "–"}
+                  {item.count ?? (countsLoading ? "..." : "–")}
                 </span>
 
                 {showQuickExport && (

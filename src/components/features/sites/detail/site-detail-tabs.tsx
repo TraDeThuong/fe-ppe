@@ -36,7 +36,8 @@ interface TabItemConfig {
   labelShort: string;
   labelFull: string;
   icon: typeof Camera;
-  badge?: number;
+  badge?: number | "--";
+  badgeLabel?: string;
   badgeTone?: "default" | "danger" | "primary";
   permitted: boolean;
 }
@@ -44,7 +45,7 @@ interface TabItemConfig {
 export function SiteDetailTabs({
   activeTab,
   onTabChange,
-  cameraCount = 0,
+  cameraCount,
   pendingIncidentsCount = 0,
   zoneCount = 0,
   officersCount = 0,
@@ -74,7 +75,11 @@ export function SiteDetailTabs({
         labelShort: t("sites.detail.tabs.camerasShort"),
         labelFull: t("sites.detail.tabs.cameras"),
         icon: Camera,
-        badge: cameraCount > 0 ? cameraCount : undefined,
+        badge: cameraCount ?? "--",
+        badgeLabel:
+          cameraCount === undefined
+            ? t("sites.detail.tabs.cameraCountUnavailable")
+            : t("sites.detail.tabs.cameraCount", { count: cameraCount }),
         badgeTone: "primary",
         permitted: canReadCameras,
       },
@@ -243,19 +248,27 @@ export function SiteDetailTabs({
                 {/* Badge Indicator */}
                 {tab.badge !== undefined && (
                   <span
+                    title={tab.badgeLabel}
                     className={`
                       inline-flex items-center justify-center rounded-full px-1.5 py-0.5
                       text-[10px] font-mono font-bold leading-none tabular-nums
                       ${
                         tab.badgeTone === "danger"
                           ? "bg-danger/10 text-danger border border-danger/25"
-                          : isSelected
+                          : isSelected && tab.badge !== "--"
                           ? "bg-primary/15 text-primary border border-primary/25"
                           : "bg-muted-foreground/15 text-muted-foreground group-hover:text-foreground"
                       }
                     `}
                   >
-                    {tab.badge}
+                    {tab.badgeLabel ? (
+                      <>
+                        <span aria-hidden="true">{tab.badge}</span>
+                        <span className="sr-only">{tab.badgeLabel}</span>
+                      </>
+                    ) : (
+                      tab.badge
+                    )}
                   </span>
                 )}
 

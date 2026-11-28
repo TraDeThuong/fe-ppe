@@ -5,7 +5,7 @@ import { ApiError } from "@/lib/axios";
 import { incidentService } from "@/services/incident.service";
 import { notificationService } from "@/services/notification.service";
 import type { EvidenceItem, IncidentItem } from "@/types";
-import { closeIncidentsBatch, resolveIncidentsWithReport } from "../incident-actions";
+import { batchCountLabel, capBatchItems, closeIncidentsBatch, resolveIncidentsWithReport } from "../incident-actions";
 import { deriveDispatchBatches, stableBatchId } from "../incident-dispatch-batches";
 import {
   decodeIncidentGroup, incidentGroupHref, notificationIncidentTarget, appendIncidentGroupLink,
@@ -157,5 +157,21 @@ describe("group links without member ids in the URL", () => {
     } finally {
       g.window = previous;
     }
+  });
+});
+
+describe("capBatchItems / batchCountLabel", () => {
+  it("keeps the 100 newest incidents and labels (100/151)", () => {
+    const items = Array.from({ length: 151 }, (_, i) => ({
+      ...fixtureIncident(i + 1),
+      detectedAt: new Date(Date.UTC(2026, 10, 1) + i * 60_000).toISOString(),
+    }));
+    const capped = capBatchItems(items);
+    assert.equal(capped.length, 100);
+    assert.equal(capped[0].id, uuid(151), "newest first");
+    assert.ok(!capped.some((i) => i.id === uuid(51)), "oldest 51 are left out");
+    assert.equal(batchCountLabel(151), "(100/151)");
+    assert.equal(batchCountLabel(7), "(7)");
+    assert.equal(capBatchItems(items.slice(0, 5)).length, 5);
   });
 });

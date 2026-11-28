@@ -16,6 +16,8 @@ export interface TableRowAction<TData extends RowData = any> {
   variant?: "primary" | "secondary" | "outline" | "ghost" | "danger";
   disabled?: boolean | ((row: TData) => boolean);
   hidden?: boolean | ((row: TData) => boolean);
+  /** Tooltip (vd. lý do action bị khóa). Mặc định dùng label ở chế độ inline. */
+  title?: string | ((row: TData) => string | undefined);
 }
 
 export interface TableRowActionsProps<TData extends RowData = any> {
@@ -255,6 +257,11 @@ export function TableRowActions<TData extends RowData = any>({
                     role="menuitem"
                     type="button"
                     disabled={isDisabled}
+                    title={
+                      typeof action.title === "function"
+                        ? action.title(row.original)
+                        : action.title
+                    }
                     onClick={(event) => {
                       event.stopPropagation();
                       if (!isDisabled) {
@@ -320,7 +327,11 @@ export function TableRowActions<TData extends RowData = any>({
             key={action.id}
             type="button"
             disabled={isDisabled}
-            title={action.label}
+            title={
+              (typeof action.title === "function"
+                ? action.title(row.original)
+                : action.title) ?? action.label
+            }
             aria-label={action.label}
             onClick={() => action.onClick(row.original, row.id)}
             className={[

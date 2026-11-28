@@ -5,16 +5,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { JSDOM } from "jsdom";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { useReportsArchive } from "../../../../app/(auth)/reports/reports-archive-tab";
+import { ReportsArchiveTab, useReportsArchive } from "../../../../app/(auth)/reports/reports-archive-tab";
 import { AuthContext, type AuthContextValue } from "@/contexts/AuthContext";
 import { reportingService } from "@/services/reporting.service";
 import type { ReportHistoryQueryDto } from "@/types";
 
-it("keeps archive counts scoped to the loaded site and resets the KPI selection when filters change", async () => {
-  const dom = new JSDOM("<div id='root'></div>");
+it("shows scoped archive counts, group selection, and loading and error states", async () => {
+  const dom = new JSDOM("<div id='root'></div>", { pretendToBeVisual: true });
   const globals = {
     window: dom.window,
     document: dom.window.document,
+    requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window),
+    cancelAnimationFrame: dom.window.cancelAnimationFrame.bind(dom.window),
     IS_REACT_ACT_ENVIRONMENT: true,
   };
   const previousGlobals = Object.fromEntries(
@@ -37,6 +39,7 @@ it("keeps archive counts scoped to the loaded site and resets the KPI selection 
     "getReportHistory",
     async ({ siteId, page = 1, limit = 20 }: ReportHistoryQueryDto = {}) => {
       if (siteId === "site-b") await siteBReady.promise;
+      if (siteId === "site-c" && limit === 1) throw new Error("Counts unavailable");
       const total = siteId === "site-b" ? 7 : siteATotal;
       return { items: [], meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
     },
@@ -46,7 +49,16 @@ it("keeps archive counts scoped to the loaded site and resets the KPI selection 
 
   function Probe({ enabled }: { enabled: boolean }) {
     archive = useReportsArchive({ enabled, loadTemplates: false, siteIdParam: "site-a", sites: [] });
-    return null;
+    return enabled ? (
+      <ReportsArchiveTab
+        archive={archive}
+        canExportReports={false}
+        onGenerate={() => {}}
+        onOpenPreview={() => {}}
+        onCreateTemplate={() => {}}
+        onDeleteTemplate={() => {}}
+      />
+    ) : null;
   }
 
   const render = (enabled: boolean) => act(async () => {
@@ -64,6 +76,8 @@ it("keeps archive counts scoped to the loaded site and resets the KPI selection 
   const countRequests = () =>
     history.mock.calls.filter(({ arguments: [params] }) => params?.limit === 1).length;
   const archiveStats = () => archive.archiveStats;
+  const strip = () => dom.window.document.querySelector('[aria-label="Danh mục Loại Báo cáo Hệ thống"]')!;
+  const summary = () => dom.window.document.querySelector('[aria-label="Chỉ số kho báo cáo"]')!;
 
   try {
     await render(false);
@@ -75,19 +89,25 @@ it("keeps archive counts scoped to the loaded site and resets the KPI selection 
     await render(true);
     await settle();
     assert.equal(archiveStats()?.totalReports, 24);
+    assert.match(summary().textContent ?? "", /Tổng hồ sơ báo cáo/);
     const initialCountRequests = countRequests();
 
     await act(async () => archive.handleSelectArchiveKpi("periodic"));
     assert.equal(archive!.archiveKpiFilter, "periodic");
     assert.equal(archive!.historyType, "PERIODIC");
+    assert.match(strip().textContent ?? "", /Nhóm Định kỳ/);
+    assert.equal(strip().querySelectorAll("[aria-describedby]").length, 3);
 
     await act(async () => archive.selectHistoryStatus("COMPLETED"));
     assert.equal(archive!.archiveKpiFilter, null);
     assert.equal(archive!.historyType, "PERIODIC");
     assert.equal(archive!.historyStatus, "COMPLETED");
+    assert.match(strip().textContent ?? "", /Nhóm Định kỳ/);
 
     await act(async () => archive.selectHistoryType("DAILY"));
     await settle();
+    assert.doesNotMatch(strip().textContent ?? "", /Nhóm Định kỳ/);
+    assert.match(strip().querySelector('[aria-pressed="true"]')?.textContent ?? "", /Ca Hàng ngày/);
     await act(async () => archive.setHistoryPage(2));
     await settle();
     assert.equal(archiveStats()?.totalReports, 24);
@@ -101,9 +121,22 @@ it("keeps archive counts scoped to the loaded site and resets the KPI selection 
     await act(async () => archive.selectHistorySite("site-b"));
     assert.equal(archiveStats(), undefined);
     assert.equal(archive!.isHistoryLoading, true);
+    assert.equal(strip().getAttribute("aria-busy"), "true");
+    assert.match(strip().textContent ?? "", /\.\.\./);
+    assert.match(summary().textContent ?? "", /\.\.\./);
     await act(async () => siteBReady.resolve());
     await settle();
     assert.equal(archiveStats()?.totalReports, 7);
+    assert.equal(strip().getAttribute("aria-busy"), "false");
+
+    await act(async () => archive.selectHistorySite("site-c"));
+    await settle();
+    assert.equal(strip().getAttribute("aria-busy"), "false");
+    assert.match(strip().textContent ?? "", /–/);
+    assert.match(
+      dom.window.document.body.textContent ?? "",
+      /Không tải được số liệu kho báo cáo\. Bấm Làm mới ở đầu trang để thử lại\./,
+    );
   } finally {
     await act(async () => root.unmount());
     client.clear();

@@ -233,22 +233,21 @@ export function NotificationFilterToolbar({
 
         {/* Channel */}
         <select
-          value={filter.channel || "all"}
-          aria-label={t("notifications.filter.allChannels")}
+          // BE: không truyền channel = hộp thư web (IN_APP + WEB cũ); EMAIL = bản ghi email đã gửi.
+          // WEB chỉ là bí danh cũ của IN_APP (cùng vào hộp thư, cùng SSE) nên không tách option riêng.
+          value={filter.channel === "EMAIL" ? "EMAIL" : "all"}
+          aria-label={t("notifications.filter.channel")}
           onChange={(e) => {
             const val = e.target.value;
             onFilterChange({
               ...filter,
-              channel:
-                val === "all" ? undefined : (val as NotificationChannel),
+              channel: val === "EMAIL" ? ("EMAIL" as NotificationChannel) : undefined,
             });
           }}
           className="flex-1 sm:flex-initial max-w-full rounded-lg border border-border/40 bg-background px-2.5 py-1.5 text-xs text-foreground shadow-[inset_1px_1px_3px_var(--shadow-dark)] outline-none focus:border-primary/50"
         >
-          <option value="all">{t("notifications.filter.allChannels")}</option>
-          <option value="IN_APP">Web (In-App)</option>
-          <option value="WEB">Web</option>
-          <option value="EMAIL">Email</option>
+          <option value="all">{t("notifications.filter.channelInApp")}</option>
+          <option value="EMAIL">{t("notifications.filter.channelEmail")}</option>
         </select>
 
         {/* Date Range with explicit labels */}

@@ -151,8 +151,18 @@ export interface NotificationPreferenceDto {
   updatedAt: string | Date;
 }
 
+/**
+ * Kênh người dùng tự cấu hình được trong /notifications.
+ * WEBHOOK là cấu hình cấp hệ thống (Outbound Webhooks tại /integrations),
+ * notification-service không lưu URL đích theo từng người dùng.
+ */
+export type PersonalNotificationPreferenceChannel = Extract<
+  NotificationChannel,
+  "IN_APP" | "EMAIL"
+>;
+
 export interface UpdateNotificationPreferencePayload {
-  channel: NotificationChannel;
+  channel: PersonalNotificationPreferenceChannel;
   enabled: boolean;
   severityThreshold?: NotificationSeverity;
 }

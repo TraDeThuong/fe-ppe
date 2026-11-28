@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCan } from "@/hooks/use-can";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
-import { useUsers } from "@/hooks/users";
+import { userKeys } from "@/hooks/users/user.query-keys";
+import { useSiteStaff } from "@/hooks/users/use-site-staff";
+import { userService } from "@/services/user.service";
 import { incidentService } from "@/services/incident.service";
 import { incidentKeys } from "./incident.query-keys";
 import type { ResponsiblePersonRef } from "@/lib/incident-workflow";
@@ -35,6 +37,8 @@ export interface UseHydratedIncidentsOptions {
   includeClosed?: boolean;
   /** Giới hạn tối đa số sự cố cần hydrate trong 1 lượt để bảo vệ rate-limit */
   maxHydrateCount?: number;
+  /** Chỉ tra tên nhân sự của công trường này (đang lọc theo công trường) để danh sách gọn hơn. */
+  userSiteId?: string;
 }
 
 // ── Bộ điều tiết Concurrency & Circuit Breaker 429 cho hydration nền ──────────
@@ -124,13 +128,28 @@ export function useHydratedIncidents(
   const canReadUsers = can("USER_READ");
   const { sites } = useEntityLookup({ enabled });
 
-  const { data: usersData } = useUsers(
-    { limit: 100 },
-    { enabled: enabled && canReadUsers },
+  // Danh sách sự cố không kèm tên người được giao, nên vẫn cần bảng tra tên. Tải đủ các trang
+  // (không cắt ở 100 người), lọc theo công trường đang chọn và cache 5 phút để không gọi lặp.
+  const userSiteId = options?.userSiteId || undefined;
+  const { data: usersData } = useQuery({
+    queryKey: [...userKeys.all, "directory", { siteId: userSiteId }] as const,
+    queryFn: () => userService.getAllUsers(userSiteId ? { siteId: userSiteId } : undefined),
+    enabled: enabled && canReadUsers,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  // Thiếu USER_READ → tra tên qua `/users/site-staff` của các công trường đang hiển thị (khi BE có).
+  const incidentSiteIds = useMemo(
+    () => [...new Set(rawIncidents.map((inc) => inc.siteId).filter(Boolean))],
+    [rawIncidents],
+  );
+  const siteStaff = useSiteStaff(
+    userSiteId ? [userSiteId] : incidentSiteIds,
+    enabled && !canReadUsers,
   );
   const allUsers = useMemo<UserResponseDto[]>(
-    () => usersData?.data ?? [],
-    [usersData?.data],
+    () => (canReadUsers ? usersData?.data ?? [] : siteStaff.users ?? []),
+    [canReadUsers, usersData?.data, siteStaff.users],
   );
 
   const { usersById, siteManagersBySiteId, siteOfficersBySiteId } = useMemo(() => {

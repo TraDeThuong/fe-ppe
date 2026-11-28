@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   SlidersHorizontal,
@@ -11,8 +12,10 @@ import {
   Volume2,
   VolumeX,
   Clock,
+  Info,
 } from "lucide-react";
 import { usePublicConfig } from "@/hooks/auth";
+import { useCan } from "@/hooks/use-can";
 import {
   useNotificationPreferences,
   useUpdateNotificationPreference,
@@ -28,9 +31,10 @@ import {
   SOUND_PRESET_NAMES,
   type SoundPreset,
 } from "@/services/sound.service";
-import type { NotificationSeverity } from "@/types";
-
-type PersonalPreferenceChannel = "IN_APP" | "EMAIL";
+import type {
+  NotificationSeverity,
+  PersonalNotificationPreferenceChannel as PersonalPreferenceChannel,
+} from "@/types";
 
 export function NotificationPreferencesCard({
   className = "",
@@ -47,6 +51,10 @@ export function NotificationPreferencesCard({
     isFeatureFlagEnabled(
       getConfig(publicConfig, SYSTEM_CONFIG_KEYS.notificationsEnabled, true),
     );
+
+  // Link /integrations chỉ hiện với người có quyền xem tích hợp (giống menu điều hướng)
+  const can = useCan();
+  const canOpenIntegrations = can("WEBHOOK_READ") || can("API_KEY_READ");
 
   // Preferences từ backend
   const { data: preferences = [], isLoading } = useNotificationPreferences();
@@ -703,6 +711,29 @@ export function NotificationPreferencesCard({
           </div>
         </div>
       </div>
+
+      {/* Outbound Webhook là cấu hình cấp hệ thống (smart-ppe-identity-service), không phải kênh cá nhân */}
+      <p className="-mt-3 flex items-start gap-2 text-[11px] text-muted-foreground">
+        <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+        <span>
+          {isVietnamese
+            ? "Outbound Webhook (gửi sang ERP/Bot) là cấu hình cấp hệ thống, quản lý tại trang "
+            : "Outbound Webhooks (to ERP/Bot) are a system-level setting, managed on the "}
+          {canOpenIntegrations ? (
+            <Link
+              href="/integrations"
+              className="font-medium text-primary underline-offset-2 hover:underline"
+            >
+              {isVietnamese ? "Tích hợp" : "Integrations"}
+            </Link>
+          ) : (
+            <span className="font-medium text-foreground">
+              {isVietnamese ? "Tích hợp" : "Integrations"}
+            </span>
+          )}
+          {isVietnamese ? "." : " page."}
+        </span>
+      </p>
     </div>
   );
 }

@@ -88,13 +88,20 @@ export function AssignmentKpiSummary({
     statusTotals?.pendingReview ?? 0,
     categorized.pendingReview.length,
   );
-  const unassignedConfirmedCount = categorized.unassignedConfirmed.length;
+  // Số "chưa giao / đã giao" lấy từ server khi BE hỗ trợ (hợp đồng mục 3), không bị cắt theo số đã tải.
+  const unassignedConfirmedCount = Math.max(
+    statusTotals?.confirmedUnassigned ?? 0,
+    categorized.unassignedConfirmed.length,
+  );
   const triageCount = pendingReviewCount + unassignedConfirmedCount;
   const triageClusterCount = useMemo(
     () => clusterIncidentsByPerson(categorized.triageItems).length,
     [categorized.triageItems],
   );
-  const assignedConfirmedCount = categorized.assignedConfirmed.length;
+  const assignedConfirmedCount = Math.max(
+    statusTotals?.confirmedAssigned ?? 0,
+    categorized.assignedConfirmed.length,
+  );
   const awaitingAcceptanceCount = Math.max(
     statusTotals?.resolved ?? 0,
     categorized.awaitingAcceptance.length,

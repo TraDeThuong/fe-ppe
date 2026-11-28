@@ -133,11 +133,13 @@ export async function dispatchIncidentsWithSignal(params: {
   });
 
   const assigned = new Set<string>();
+  const serverBatchIds: string[] = [];
   let useLegacy = false;
   for (const ids of chunk(eligible.map((incident) => incident.id))) {
     try {
       const res = await incidentService.batchAssignIncidents({ ids, assignedTo, ...(note ? { note } : {}) });
       for (const id of res.assignedIds || []) assigned.add(id);
+      if (res.batchId) serverBatchIds.push(res.batchId);
       for (const id of ids) {
         if (!assigned.has(id)) result.failedItems.push({ id, stage: "assignment", message: ASSIGN_SKIPPED_MESSAGE });
       }
@@ -163,7 +165,13 @@ export async function dispatchIncidentsWithSignal(params: {
   result.assignedCount = succeeded.length;
   result.assignedIds = succeeded.map((incident) => incident.id);
   result.failedCount = result.failedItems.length;
-  if (draft && succeeded.length) result.group = { ...draft, incidentIds: result.assignedIds };
+  if (draft && succeeded.length) {
+    // BE trả batchId (hợp đồng mục 4) → dùng làm id nhóm để khớp với "Đợt giao việc" và mở được ở máy khác.
+    const batchId = serverBatchIds.length === 1 && isIncidentGroup({ ...draft, groupId: serverBatchIds[0] })
+      ? serverBatchIds[0]
+      : draft.groupId;
+    result.group = { ...draft, groupId: batchId, incidentIds: result.assignedIds };
+  }
 
   if (!useLegacy) {
     result.notifiedByServer = succeeded.length > 0;
@@ -431,4 +439,20 @@ export async function closeIncidentsBatch(ids: readonly string[], closeNote?: st
     failedIds: unique.filter((id) => !closed.has(id)),
     ...(firstError ? { firstError } : {}),
   };
+}
+
+/** BE nhận tối đa 100 sự cố mỗi lệnh giao/đóng hàng loạt, nhóm giao việc cũng tối đa 100. */
+export const MAX_BATCH_ACTION_ITEMS = BATCH_CHUNK_SIZE;
+
+/** Giữ 100 hồ sơ mới nhất (theo thời điểm phát hiện) cho một lần thao tác hàng loạt. */
+export function capBatchItems<T extends { detectedAt?: string }>(items: readonly T[]): T[] {
+  if (items.length <= MAX_BATCH_ACTION_ITEMS) return [...items];
+  return [...items]
+    .sort((a, b) => (Date.parse(b.detectedAt || "") || 0) - (Date.parse(a.detectedAt || "") || 0))
+    .slice(0, MAX_BATCH_ACTION_ITEMS);
+}
+
+/** Nhãn số lượng cho nút hàng loạt: "(n)" hoặc "(100/151)" khi vượt giới hạn. */
+export function batchCountLabel(total: number): string {
+  return total > MAX_BATCH_ACTION_ITEMS ? `(${MAX_BATCH_ACTION_ITEMS}/${total})` : `(${total})`;
 }

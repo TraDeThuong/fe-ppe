@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { PhoneReveal } from "@/components/ui/phone-reveal";
 import { useLocale } from "@/providers/locale-provider";
 import { useCan } from "@/hooks/use-can";
-import { useUsers } from "@/hooks/users";
+import { useQuery } from "@tanstack/react-query";
+import { userKeys } from "@/hooks/users/user.query-keys";
+import { userService } from "@/services/user.service";
+import { useSiteStaff } from "@/hooks/users/use-site-staff";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import type { CreateAssignmentPayload, IncidentItem, UserResponseDto } from "@/types";
 
@@ -40,14 +43,23 @@ export function AssignIncidentModal({
   // Chỉ lấy nhân sự đang hoạt động thuộc đúng công trường của sự cố (BE lọc theo siteId), vì BE từ chối
   // giao cho người ngoài công trường. Không giữ dữ liệu của sự cố trước để tránh chọn nhầm công trường khác.
   const siteId = incident?.siteId;
-  const { data: usersData, isLoading: usersQueryLoading } = useUsers(
-    { siteId, isActive: true, limit: 100, sortBy: "fullName", order: "asc" },
-    { enabled: open && canReadUsers && Boolean(siteId), placeholderData: undefined },
-  );
-  const usersLoading = canReadUsers && usersQueryLoading;
+  // Ưu tiên `/users/site-staff` (không cần USER_READ). BE chưa có endpoint → `GET /users?siteId=`
+  // (cần USER_READ) → cuối cùng là cán bộ liên hệ khai báo ở công trường.
+  const siteStaff = useSiteStaff(siteId ? [siteId] : [], open);
+  const useLegacyDirectory = !siteStaff.isLoading && siteStaff.users === null;
+  // Dùng chung cache "danh bạ theo công trường" với /incidents/assignments; tải đủ mọi trang.
+  const { data: usersData, isLoading: usersQueryLoading } = useQuery({
+    queryKey: [...userKeys.all, "directory", { siteId }] as const,
+    queryFn: () => userService.getAllUsers({ siteId }),
+    enabled: open && useLegacyDirectory && canReadUsers && Boolean(siteId),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  const usersLoading =
+    siteStaff.isLoading || (useLegacyDirectory && canReadUsers && usersQueryLoading);
 
-  // Thiếu USER_READ → dùng cán bộ liên hệ khai báo ở công trường (có userId) làm danh sách chọn.
   const allUsers: UserResponseDto[] = useMemo(() => {
+    if (siteStaff.users) return siteStaff.users;
     if (canReadUsers) return usersData?.data ?? [];
     return (currentSite?.contactOfficers || [])
       .filter((o): o is typeof o & { userId: string } => Boolean(o.userId))
@@ -63,7 +75,7 @@ export function AssignIncidentModal({
         createdAt: "",
         updatedAt: "",
       }));
-  }, [canReadUsers, usersData, currentSite, siteId]);
+  }, [siteStaff.users, canReadUsers, usersData, currentSite, siteId]);
 
   // Chỉ cán bộ an toàn của công trường: bỏ tài khoản role USER / ADMIN và người không gắn công trường này.
   const { siteOfficers, safetyOfficers, generalOfficers } = useMemo(() => {
@@ -80,7 +92,11 @@ export function AssignIncidentModal({
       .filter((u) => u.isActive !== false)
       .filter((u) => !siteId || !Array.isArray(u.siteIds) || u.siteIds.length === 0 || u.siteIds.includes(siteId))
       .filter((u) => isEligibleRole((u.role?.name || "").toUpperCase()))
-      .sort((a, b) => officerFirst(a) - officerFirst(b));
+      .sort(
+        (a, b) =>
+          officerFirst(a) - officerFirst(b) ||
+          (a.fullName || a.email || "").localeCompare(b.fullName || b.email || "", "vi"),
+      );
 
     return {
       siteOfficers: siteAssigned,
@@ -226,8 +242,8 @@ export function AssignIncidentModal({
               <optgroup
                 label={
                   isVietnamese
-                    ? `Cán bộ phụ trách tại ${currentSite?.name || "Công trường"} (Ưu tiên)`
-                    : `Assigned Officers at ${currentSite?.name || "Site"} (Priority)`
+                    ? `Cán bộ thuộc công trường ${currentSite?.name || ""}`.trim()
+                    : `Officers at site ${currentSite?.name || ""}`.trim()
                 }
               >
                 {siteOfficers.map((u) => (

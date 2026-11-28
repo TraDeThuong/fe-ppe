@@ -1,3 +1,4 @@
+import type { CameraStatusCountsResult } from "@/hooks/cameras/use-camera-status-counts";
 import {
   buildExistingCodeSet,
   generateRandomToken,
@@ -5,6 +6,24 @@ import {
 } from "@/lib/code-generator";
 import { userService } from "@/services/user.service";
 import type { SiteContactOfficer, SiteItem, UserResponseDto } from "@/types";
+
+export function resolveSiteCameraCounts(
+  siteCameraCount: number | undefined,
+  canReadCameras: boolean,
+  cameraStatus: { data?: CameraStatusCountsResult; isSuccess: boolean },
+) {
+  if (canReadCameras && cameraStatus.isSuccess && cameraStatus.data) {
+    return {
+      cameraCount: cameraStatus.data.total,
+      onlineCameraCount: cameraStatus.data.online,
+    };
+  }
+
+  return {
+    cameraCount: siteCameraCount,
+    onlineCameraCount: siteCameraCount === 0 ? 0 : undefined,
+  };
+}
 
 export const SITE_SAFETY_RULE_LIMITS = {
   MIN_CONFIRMATION_DURATION: 1,

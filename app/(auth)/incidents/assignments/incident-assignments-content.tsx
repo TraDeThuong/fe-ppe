@@ -14,6 +14,12 @@ import {
 } from "@/hooks/incidents";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { useIncidentStatusCounts } from "@/hooks/incidents/use-incident-status-counts";
+import {
+  mergeLoadedIncidents,
+  useGroupLoadMore,
+  type LoadMoreTab,
+} from "@/hooks/incidents/use-group-load-more";
+import type { IncidentWorkGroup } from "@/lib/incident-assignment-groups";
 import type { AssignmentIncidentTotals } from "@/hooks/incidents/use-assignment-incidents";
 import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
 import { useCan } from "@/hooks/use-can";
@@ -107,19 +113,44 @@ export default function IncidentAssignmentsContent() {
   // - Quản lý: Chờ duyệt + Đã xác nhận luôn cần cho KPI; Đã khắc phục chỉ khi mở bước Đang giao/Nghiệm thu.
   // - Admin: giám sát toàn cục nên tải đủ.
   // KPI tổng dùng `/incidents/status-counts` (1 request) nên không cần tải hết danh sách để đếm.
+  const statusCountsQuery = useIncidentStatusCounts(
+    { siteId: siteFilter || undefined },
+    {
+      enabled: !isOfficerRole,
+      // SSE online → hook tự invalidate khi có sự kiện; chỉ poll khi mất SSE.
+      refetchInterval: isConnected ? false : 30 * 1000,
+    },
+  );
+  const statusCounts = statusCountsQuery.data;
+  // BE hỗ trợ lọc "đã xác nhận, chưa giao / đã giao" (hợp đồng mục 3) khi status-counts trả 2 số này.
+  const splitConfirmed =
+    typeof statusCounts?.confirmedUnassigned === "number" &&
+    typeof statusCounts?.confirmedAssigned === "number";
+
   const bucketPlan = isOfficerRole
     ? { pendingReview: false, confirmed: true, resolved: true, closed: true, dismissed: false }
     : isAdminRole
       ? undefined
-      : {
-          pendingReview: true,
-          confirmed: true,
-          resolved: managerTab !== "triage",
-          closed: false,
-          dismissed: false,
-        };
+      : splitConfirmed
+        ? {
+            // Mỗi bước chỉ tải đúng phần của nó ở server
+            pendingReview: managerTab === "triage",
+            confirmed: false,
+            confirmedUnassigned: managerTab === "triage",
+            confirmedAssigned: managerTab === "dispatched",
+            resolved: managerTab === "acceptance",
+            closed: false,
+            dismissed: false,
+          }
+        : {
+            pendingReview: true,
+            confirmed: true,
+            resolved: managerTab !== "triage",
+            closed: false,
+            dismissed: false,
+          };
   const {
-    items: rawIncidents,
+    items: bucketIncidents,
     totals: bucketTotals,
     isLoading,
     isRefetching,
@@ -131,15 +162,6 @@ export default function IncidentAssignmentsContent() {
     buckets: bucketPlan,
   });
 
-  const statusCountsQuery = useIncidentStatusCounts(
-    { siteId: siteFilter || undefined },
-    {
-      enabled: !isOfficerRole,
-      // SSE online → hook tự invalidate khi có sự kiện; chỉ poll khi mất SSE.
-      refetchInterval: isConnected ? false : 30 * 1000,
-    },
-  );
-  const statusCounts = statusCountsQuery.data;
   const assignmentTotals = useMemo<AssignmentIncidentTotals>(() => {
     if (isOfficerRole || !statusCounts) return bucketTotals;
     const closed = statusCounts.closed ?? 0;
@@ -147,13 +169,30 @@ export default function IncidentAssignmentsContent() {
     return {
       pendingReview: statusCounts.pendingReview ?? 0,
       confirmed: statusCounts.confirmed ?? 0,
+      ...(splitConfirmed
+        ? {
+            confirmedUnassigned: statusCounts.confirmedUnassigned,
+            confirmedAssigned: statusCounts.confirmedAssigned,
+          }
+        : {}),
       resolved: statusCounts.resolved ?? 0,
       closed,
       dismissed,
       closedOrDismissed: closed + dismissed,
       total: statusCounts.total ?? 0,
     };
-  }, [isOfficerRole, statusCounts, bucketTotals]);
+  }, [isOfficerRole, statusCounts, bucketTotals, splitConfirmed]);
+
+  // "Tải thêm" theo từng nhóm (U9): hồ sơ tải thêm được gộp vào danh sách, dữ liệu từ danh sách chính ưu tiên.
+  const groupLoader = useGroupLoadMore({
+    siteId: siteFilter || undefined,
+    isOfficer: isOfficerRole,
+    splitConfirmed,
+  });
+  const rawIncidents = useMemo(
+    () => mergeLoadedIncidents(bucketIncidents, groupLoader.extraIncidents),
+    [bucketIncidents, groupLoader.extraIncidents],
+  );
 
   // Danh sách đã kèm `assignments` (includeAssignments) nên không gọi N+1 GET /:id/assignments.
   const {
@@ -164,6 +203,7 @@ export default function IncidentAssignmentsContent() {
   } = useHydratedIncidents(rawIncidents, {
     includeClosed: isOfficerRole,
     fetchMissingAssignments: false,
+    userSiteId: siteFilter || undefined,
   });
 
   // Tự động làm mới khi có SSE event (debounce 1.5s để tránh bão request khi AI phát hiện liên tiếp)
@@ -327,13 +367,62 @@ export default function IncidentAssignmentsContent() {
 
       return {
         group: grp,
-        message: "",
+        // Chỉ đạo khi BE lưu `note` theo đợt (hợp đồng mục 4); chưa có thì để trống.
+        message: grp.note ?? "",
         memberIncidents,
         resolvedCount,
         remainingEditableItems,
       };
     });
   }, [incidents, isOfficerRole, user?.id]);
+
+  // "Tải thêm" (U9): bước nào còn hồ sơ trên server chưa tải về thì nhóm trong bước đó có nút tải thêm.
+  const bucketIncidentIds = useMemo(
+    () => new Set(bucketIncidents.map((inc) => inc.id)),
+    [bucketIncidents],
+  );
+  const loadedByStatus = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const inc of rawIncidents) counts[inc.status] = (counts[inc.status] ?? 0) + 1;
+    return counts;
+  }, [rawIncidents]);
+  const tabHasMore = (tab: LoadMoreTab): boolean => {
+    const loaded = (status: string) => loadedByStatus[status] ?? 0;
+    switch (tab) {
+      case "triage":
+        return (
+          loaded("PENDING_REVIEW") < assignmentTotals.pendingReview ||
+          (typeof assignmentTotals.confirmedUnassigned === "number"
+            ? categorized.unassignedConfirmed.length < assignmentTotals.confirmedUnassigned
+            : loaded("CONFIRMED") < assignmentTotals.confirmed)
+        );
+      case "dispatched":
+        return typeof assignmentTotals.confirmedAssigned === "number"
+          ? categorized.assignedConfirmed.length < assignmentTotals.confirmedAssigned
+          : loaded("CONFIRMED") < assignmentTotals.confirmed;
+      case "acceptance":
+        return loaded("RESOLVED") < assignmentTotals.resolved;
+      case "pending":
+        return loaded("CONFIRMED") < bucketTotals.confirmed;
+      case "completed":
+        return loaded("RESOLVED") + loaded("CLOSED") < bucketTotals.resolved + bucketTotals.closed;
+    }
+  };
+  const groupLoadMore = (tab: LoadMoreTab) => ({
+    canLoad: (group: IncidentWorkGroup) => tabHasMore(tab) && !groupLoader.stateOf(tab, group).done,
+    isLoading: (group: IncidentWorkGroup) => groupLoader.stateOf(tab, group).loading,
+    onLoad: (group: IncidentWorkGroup) => {
+      groupLoader.loadMore(tab, group, bucketIncidentIds).catch((error: unknown) => {
+        toast.error(
+          error instanceof Error && error.message
+            ? error.message
+            : isVietnamese
+              ? "Không tải thêm được hồ sơ."
+              : "Unable to load more records.",
+        );
+      });
+    },
+  });
 
   // Dữ liệu gom nhóm cho ADMIN & Stats
   const responsibilityGroups = useMemo(
@@ -662,6 +751,7 @@ export default function IncidentAssignmentsContent() {
         selectedSiteName={selectedSiteName}
         categorized={categorized}
         statusTotals={assignmentTotals}
+        readOnly={isOfficerRole ? !canUpdate : !canReview && !canManage}
       />
 
       {/* 2. Stats KPI đồng bộ 4 cột soft-extruded (giống /incidents, /cameras, /sites) */}
@@ -728,6 +818,7 @@ export default function IncidentAssignmentsContent() {
           responsibilityContext={responsibilityContext}
           formatters={formatters}
           rowActions={rowActions}
+          loadMore={groupLoadMore(officerTab)}
         />
       ) : (
         <ManagerDispatchWorkspace
@@ -756,6 +847,7 @@ export default function IncidentAssignmentsContent() {
           responsibilityContext={responsibilityContext}
           formatters={formatters}
           rowActions={rowActions}
+          loadMore={groupLoadMore(managerTab)}
         />
       )}
 

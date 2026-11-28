@@ -2,6 +2,7 @@ import {
   BarChart3,
   Bell,
   Building2,
+  CalendarClock,
   Cctv,
   Cpu,
   LayoutDashboard,
@@ -10,8 +11,10 @@ import {
   ShieldAlert,
   ShieldCheck,
   Users,
+  Webhook,
   Wrench,
 } from "lucide-react";
+import { hasRouteAccess, isAdminRole } from "@/config/navigation";
 import type { RoleDto } from "@/types";
 
 export interface PageAccessRule {
@@ -37,9 +40,6 @@ interface RouteCapabilitySpec {
   icon: typeof LayoutDashboard;
   titleVi: string;
   titleEn: string;
-  /** Nếu true, mọi user đăng nhập đều vào được route này (vd: /dashboard) */
-  alwaysAccessible?: boolean;
-  readPerms: readonly string[];
   reviewPerms?: readonly string[];
   managePerms: readonly string[];
   fullDescVi: string;
@@ -51,9 +51,7 @@ interface RouteCapabilitySpec {
 }
 
 /**
- * Bản đồ 12 trang hệ thống đồng bộ 100% với ROUTE_PERMISSIONS / ROUTE_ANY_PERMISSIONS
- * tại src/config/navigation.ts. Mọi trạng thái truy cập được suy diễn trực tiếp từ
- * tập quyền thực tế (role.permissions) trong cơ sở dữ liệu.
+ * Mô tả quyền thao tác trên từng trang. Điều kiện truy cập trang do hasRouteAccess quyết định.
  */
 const SYSTEM_ROUTE_SPECS: readonly RouteCapabilitySpec[] = [
   {
@@ -61,8 +59,6 @@ const SYSTEM_ROUTE_SPECS: readonly RouteCapabilitySpec[] = [
     icon: LayoutDashboard,
     titleVi: "Bảng điều khiển",
     titleEn: "Dashboard",
-    alwaysAccessible: true,
-    readPerms: ["PPE_INCIDENT_READ", "PPE_REPORTING_READ"],
     managePerms: ["PPE_INCIDENT_MANAGE", "PPE_SITE_MANAGE", "SYSTEM_CONFIG_MANAGE"],
     fullDescVi:
       "Giám sát toàn bộ chỉ số KPI an toàn tổng hợp, tỷ lệ tuân thủ PPE đa công trường và cảnh báo thời gian thực.",
@@ -80,7 +76,6 @@ const SYSTEM_ROUTE_SPECS: readonly RouteCapabilitySpec[] = [
     icon: Cctv,
     titleVi: "Giám sát Camera AI",
     titleEn: "AI Camera Surveillance",
-    readPerms: ["PPE_CAMERA_READ"],
     managePerms: ["PPE_CAMERA_MANAGE"],
     fullDescVi:
       "Xem luồng trực tiếp, thêm/sửa camera RTSP, vẽ vùng ROI và điều khiển luồng nhận diện AI.",
@@ -98,7 +93,6 @@ const SYSTEM_ROUTE_SPECS: readonly RouteCapabilitySpec[] = [
     icon: ShieldAlert,
     titleVi: "Sự cố An toàn PPE",
     titleEn: "PPE Safety Incidents",
-    readPerms: ["PPE_INCIDENT_READ"],
     reviewPerms: ["PPE_INCIDENT_REVIEW", "PPE_INCIDENT_UPDATE"],
     managePerms: ["PPE_INCIDENT_MANAGE", "PPE_INCIDENT_DELETE"],
     fullDescVi:
@@ -117,7 +111,6 @@ const SYSTEM_ROUTE_SPECS: readonly RouteCapabilitySpec[] = [
     icon: Building2,
     titleVi: "Công trường & Vùng cấm",
     titleEn: "Sites & Restricted Areas",
-    readPerms: ["PPE_SITE_READ", "PPE_ZONE_READ", "PPE_RESTRICTED_AREA_READ"],
     managePerms: [
       "PPE_SITE_MANAGE",
       "PPE_ZONE_MANAGE",
@@ -140,7 +133,6 @@ const SYSTEM_ROUTE_SPECS: readonly RouteCapabilitySpec[] = [
     icon: BarChart3,
     titleVi: "Báo cáo & Thống kê",
     titleEn: "Compliance Reports",
-    readPerms: ["PPE_REPORTING_READ"],
     managePerms: ["PPE_REPORTING_EXPORT"],
     fullDescVi:
       "Phân tích biểu đồ tuân thủ an toàn chuyên sâu và trích xuất báo cáo định kỳ (PDF/Excel/CSV).",
@@ -158,7 +150,6 @@ const SYSTEM_ROUTE_SPECS: readonly RouteCapabilitySpec[] = [
     icon: Cpu,
     titleVi: "Đo lường & Model AI",
     titleEn: "AI Metrics & Models",
-    readPerms: ["PPE_AI_METRICS_READ", "PPE_MODEL_READ"],
     managePerms: ["PPE_MODEL_MANAGE"],
     fullDescVi:
       "Theo dõi hiệu năng nhận diện (mAP, FPS, độ trễ), quản lý phiên bản model và chạy AI Sandbox Test.",
@@ -176,7 +167,6 @@ const SYSTEM_ROUTE_SPECS: readonly RouteCapabilitySpec[] = [
     icon: Users,
     titleVi: "Quản lý Người dùng",
     titleEn: "User Directory",
-    readPerms: ["USER_READ"],
     managePerms: [
       "USER_CREATE",
       "USER_UPDATE",
@@ -200,7 +190,6 @@ const SYSTEM_ROUTE_SPECS: readonly RouteCapabilitySpec[] = [
     icon: ShieldCheck,
     titleVi: "Vai trò & Phân quyền",
     titleEn: "Roles & Permissions",
-    readPerms: ["ROLE_READ", "PERMISSION_READ"],
     managePerms: [
       "ROLE_CREATE",
       "ROLE_UPDATE",
@@ -223,7 +212,6 @@ const SYSTEM_ROUTE_SPECS: readonly RouteCapabilitySpec[] = [
     icon: ScrollText,
     titleVi: "Nhật ký Hệ thống",
     titleEn: "System Audit Logs",
-    readPerms: ["AUDIT_LOG_READ"],
     managePerms: ["AUDIT_LOG_EXPORT"],
     fullDescVi:
       "Tra soát toàn bộ lịch sử thao tác bảo mật kèm IP/User-Agent và xuất dữ liệu kiểm toán.",
@@ -241,7 +229,6 @@ const SYSTEM_ROUTE_SPECS: readonly RouteCapabilitySpec[] = [
     icon: Bell,
     titleVi: "Trung tâm Thông báo",
     titleEn: "Notification Center",
-    readPerms: ["NOTIFICATION_READ", "NOTIFICATION_TEMPLATE_READ"],
     managePerms: [
       "NOTIFICATION_CREATE",
       "NOTIFICATION_UPDATE",
@@ -264,35 +251,50 @@ const SYSTEM_ROUTE_SPECS: readonly RouteCapabilitySpec[] = [
     icon: Settings2,
     titleVi: "Cấu hình Hệ thống",
     titleEn: "System Settings",
-    readPerms: ["SYSTEM_CONFIG_READ", "API_KEY_READ", "WEBHOOK_READ", "CRON_JOB_READ"],
-    managePerms: [
-      "SYSTEM_CONFIG_MANAGE",
-      "API_KEY_MANAGE",
-      "WEBHOOK_MANAGE",
-      "CRON_JOB_MANAGE",
-    ],
-    fullDescVi:
-      "Quản trị tham số hệ thống, Feature Flags, khóa tích hợp API Keys, Webhooks và tiến trình nền Cron.",
-    fullDescEn:
-      "Manage system parameters, feature flags, API keys, webhooks, and scheduled cron jobs.",
-    readDescVi:
-      "Xem cấu hình tham số vận hành hệ thống và trạng thái các dịch vụ tích hợp.",
-    readDescEn:
-      "View system configuration parameters and integration service status.",
+    managePerms: ["SYSTEM_CONFIG_MANAGE"],
+    fullDescVi: "Quản trị tham số hệ thống và các cờ tính năng.",
+    fullDescEn: "Manage system parameters and feature flags.",
+    readDescVi: "Xem cấu hình tham số vận hành hệ thống.",
+    readDescEn: "View system configuration parameters.",
     noneDescVi: "Chưa được cấp quyền SYSTEM_CONFIG_READ để truy cập cấu hình hệ thống.",
     noneDescEn: "Missing SYSTEM_CONFIG_READ permission to access system settings.",
+  },
+  {
+    route: "/scheduled-tasks",
+    icon: CalendarClock,
+    titleVi: "Tác vụ định kỳ",
+    titleEn: "Scheduled Tasks",
+    managePerms: ["CRON_JOB_MANAGE"],
+    fullDescVi: "Cấu hình và quản lý các tác vụ định kỳ.",
+    fullDescEn: "Configure and manage scheduled tasks.",
+    readDescVi: "Xem danh sách và trạng thái các tác vụ định kỳ.",
+    readDescEn: "View scheduled tasks and their status.",
+    noneDescVi: "Chưa được cấp quyền CRON_JOB_READ để xem tác vụ định kỳ.",
+    noneDescEn: "Missing CRON_JOB_READ permission to view scheduled tasks.",
+  },
+  {
+    route: "/integrations",
+    icon: Webhook,
+    titleVi: "Tích hợp API Keys & Webhooks",
+    titleEn: "API Keys & Webhooks Integration",
+    managePerms: ["API_KEY_MANAGE", "WEBHOOK_MANAGE"],
+    fullDescVi: "Quản lý khóa API hoặc cấu hình webhook theo quyền được cấp.",
+    fullDescEn: "Manage API keys or configure webhooks according to granted permissions.",
+    readDescVi: "Xem khóa API hoặc webhook theo quyền được cấp.",
+    readDescEn: "View API keys or webhooks according to granted permissions.",
+    noneDescVi: "Cần quyền API_KEY_READ hoặc WEBHOOK_READ để truy cập trang tích hợp.",
+    noneDescEn: "Missing API_KEY_READ or WEBHOOK_READ permission to access integrations.",
   },
   {
     route: "/maintenance",
     icon: Wrench,
     titleVi: "Bảo trì Hệ thống",
     titleEn: "System Maintenance",
-    readPerms: ["MAINTENANCE_READ"],
-    managePerms: ["MAINTENANCE_MANAGE", "MAINTENANCE_BYPASS"],
+    managePerms: ["MAINTENANCE_MANAGE"],
     fullDescVi:
-      "Kích hoạt/tắt chế độ bảo trì toàn hệ thống, cấu hình thông điệp bảo trì và quyền miễn trừ truy cập.",
+      "Kích hoạt/tắt chế độ bảo trì toàn hệ thống và cấu hình thông điệp bảo trì.",
     fullDescEn:
-      "Toggle system-wide maintenance mode, configure notice banners, and bypass maintenance lock.",
+      "Toggle system-wide maintenance mode and configure notice banners.",
     readDescVi:
       "Xem trạng thái và lịch trình bảo trì định kỳ của hệ thống.",
     readDescEn:
@@ -370,26 +372,22 @@ export function getRoleKnowledgeProfile(
   locale: "vi-VN" | "en-US",
 ): RoleKnowledgeProfile {
   const isEn = locale === "en-US";
-  const roleName = role?.name?.toUpperCase() || "USER";
-  const isAdmin = roleName === "ADMIN" || roleName === "SUPER_ADMIN";
+  const roleName = role?.name || "USER";
+  const isAdmin = isAdminRole(roleName);
   const permNames = new Set((role?.permissions || []).map((p) => p.name));
+  const permissions = Array.from(permNames);
   const hasAny = (list?: readonly string[]) =>
     Boolean(list && list.some((p) => permNames.has(p)));
 
-  // 1. Tính toán động khả năng truy cập trên 12 trang hệ thống từ tập quyền thực tế trong DB
+  // 1. Kiểm tra điều kiện truy cập trước khi phân loại quyền thao tác.
   const pageCapabilities: PageAccessRule[] = SYSTEM_ROUTE_SPECS.map((spec) => {
-    const canManage = isAdmin || hasAny(spec.managePerms);
-    const canReview = !canManage && hasAny(spec.reviewPerms);
-    const canRead =
-      !canManage &&
-      !canReview &&
-      (Boolean(spec.alwaysAccessible) || hasAny(spec.readPerms));
+    const canAccess = hasRouteAccess(spec.route, permissions, roleName);
 
     let accessLevel: PageAccessRule["accessLevel"] = "none";
     let accessLabel = isEn ? "No Access" : "Không truy cập";
     let description = isEn ? spec.noneDescEn : spec.noneDescVi;
 
-    if (canManage) {
+    if (canAccess && (isAdmin || hasAny(spec.managePerms))) {
       accessLevel = isAdmin ? "full" : "manage";
       accessLabel = isAdmin
         ? isEn
@@ -399,11 +397,11 @@ export function getRoleKnowledgeProfile(
         ? "Manage"
         : "Quản lý & Cấu hình";
       description = isEn ? spec.fullDescEn : spec.fullDescVi;
-    } else if (canReview) {
+    } else if (canAccess && hasAny(spec.reviewPerms)) {
       accessLevel = "review";
       accessLabel = isEn ? "Review & Update" : "Xử lý & Cập nhật";
       description = isEn ? spec.fullDescEn : spec.fullDescVi;
-    } else if (canRead) {
+    } else if (canAccess) {
       accessLevel = "read";
       accessLabel = isEn ? "View Only" : "Chỉ xem";
       description = isEn ? spec.readDescEn : spec.readDescVi;
@@ -427,7 +425,7 @@ export function getRoleKnowledgeProfile(
   ).length;
 
   // 2. Metadata tiêu đề, cấp độ an ninh & sứ mệnh
-  const preset = SYSTEM_ROLE_META[roleName];
+  const preset = SYSTEM_ROLE_META[roleName.toUpperCase()];
   const title = preset
     ? isEn
       ? preset.titleEn

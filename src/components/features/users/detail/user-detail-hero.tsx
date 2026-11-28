@@ -53,6 +53,7 @@ export function UserDetailHero({
   const can = useCan();
   const canUpdate = can("USER_UPDATE");
   const canAssignRole = can("USER_ROLE_ASSIGN");
+  const canReadRoles = can("ROLE_READ");
   const canAssignSites = canUpdate;
   const canDelete = can("USER_DELETE");
   const canRestore = can("USER_RESTORE") || canDelete;
@@ -291,16 +292,28 @@ export function UserDetailHero({
             )}
 
             {canAssignRole && !isDeleted && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onAssignRoleClick}
-                disabled={isSelf}
-                className="gap-1.5 text-xs h-9 shadow-[2px_2px_4px_var(--shadow-dark)]"
+              // span bọc để tooltip vẫn hiện khi nút bị khóa (thiếu ROLE_READ)
+              <span
+                className="inline-flex"
+                title={
+                  !canReadRoles
+                    ? isVietnamese
+                      ? "Cần thêm quyền xem danh sách vai trò (ROLE_READ) để dùng chức năng này"
+                      : "Requires permission to view roles (ROLE_READ)"
+                    : undefined
+                }
               >
-                <Shield size={13} />
-                <span>{isVietnamese ? "Đổi vai trò" : "Role"}</span>
-              </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onAssignRoleClick}
+                  disabled={isSelf || !canReadRoles}
+                  className="gap-1.5 text-xs h-9 shadow-[2px_2px_4px_var(--shadow-dark)]"
+                >
+                  <Shield size={13} />
+                  <span>{isVietnamese ? "Đổi vai trò" : "Role"}</span>
+                </Button>
+              </span>
             )}
 
             {canUpdate && !isDeleted && (

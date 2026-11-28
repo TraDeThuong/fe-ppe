@@ -30,7 +30,7 @@ import { useRealtime } from "@/contexts/RealtimeContext";
 import { incidentKeys } from "@/hooks/incidents/incident.query-keys";
 import { reportingKeys } from "@/hooks/reporting/reporting.query-keys";
 import { toast } from "@/lib/toast";
-import { resolveEvidenceUrl } from "@/lib/evidence-url";
+import { isSignedInternalMinioUrl, resolveEvidenceUrl } from "@/lib/evidence-url";
 import {
   dispatchIncidentsWithSignal,
   getTrustedEvidenceDownloadPath,
@@ -147,7 +147,8 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
   // Queries lấy dữ liệu thực tế từ Backend
   // Group mode shares the verified group snapshot with the detail view. Do not issue a
   // fifth member-detail request alongside the four group readers, or display a stale assignee.
-  const detailQuery = useIncidentDetail(id, canRead && !groupWorkspace, user?.id);
+  // Khi mất SSE thì tự làm mới mỗi 30s (khớp chip "Polling (30s)" ở header); SSE online thì không poll.
+  const detailQuery = useIncidentDetail(id, canRead && !groupWorkspace, user?.id, isConnected ? false : 30_000);
   const groupRow = groupWorkspace?.snapshot?.rows.find((row) => row.id === id);
   const incident = groupWorkspace ? (!groupRow?.error ? groupRow?.incident : undefined) : detailQuery.data;
   const isLoading = groupWorkspace ? !groupWorkspace.snapshot && !groupWorkspace.query.error && groupWorkspace.readable : detailQuery.isLoading;
@@ -479,11 +480,15 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
 
   const handleDownloadEvidence = async (ev: EvidenceItem) => {
     try {
-      // Chỉ dùng presigned URL do BE ký (có ghi EvidenceAccessLog); không tự ghép link bucket từ storageKey.
+      // Dùng presigned URL do BE ký (có ghi EvidenceAccessLog). Chỉ khi BE ký theo host nội bộ Docker
+      // (thiếu PPE_MINIO_PUBLIC_ENDPOINT, trình duyệt không mở được) mới tạm ghép từ bucket công khai
+      // nếu môi trường có cấu hình NEXT_PUBLIC_EVIDENCE_PUBLIC_BASE_URL.
       const res = await incidentService.getEvidenceDownloadUrl(ev.id, {
         action: "DOWNLOAD",
       });
-      const targetUrl = resolveEvidenceUrl(res.downloadUrl) || res.downloadUrl;
+      const targetUrl = isSignedInternalMinioUrl(res.downloadUrl)
+        ? resolveEvidenceUrl(ev.storageKey)
+        : resolveEvidenceUrl(res.downloadUrl) || res.downloadUrl;
       if (!targetUrl) {
         throw new Error(
           isVietnamese ? "BE chưa trả đường dẫn tải tệp." : "No download URL was returned.",
@@ -782,90 +787,23 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
             cameraId={incident.cameraId}
             incidentId={incident.id}
             defaultViewMode={searchParams.get("focus") === "compare" ? "split" : "single"}
+            onDownloadOriginal={handleDownloadEvidence}
+            onDeleteEvidence={
+              canDeleteEvidence && incident.status !== "CLOSED"
+                ? (ev) => setDeleteEvidenceTarget(ev)
+                : undefined
+            }
+            onAttach={
+              canUpdate && incident.status !== "CLOSED"
+                ? () => setIsAttachOpen(true)
+                : undefined
+            }
           />
 
           <IncidentChecksumVerifier
             evidenceId={primaryEvidence?.id}
             expectedChecksum={primaryEvidence?.metadata?.checksum}
           />
-
-          {/* Attached Evidence Files Management */}
-          <section className="rounded-2xl border border-border/30 bg-surface p-4 shadow-nm-sm space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h4 className="text-xs font-extrabold text-foreground">
-                  {isVietnamese
-                    ? `Tệp Minh chứng Đính kèm (${incident.evidences?.length ?? 0})`
-                    : `Attached Evidence Files (${incident.evidences?.length ?? 0})`}
-                </h4>
-                <p className="text-[11px] text-muted-foreground">
-                  {isVietnamese
-                    ? "Tải bản gốc có ghi nhận EvidenceAccessLog hoặc đính kèm thêm ảnh/video clip."
-                    : "Download originals with access logging or attach additional snapshots/clips."}
-                </p>
-              </div>
-              {canUpdate && incident.status !== "CLOSED" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setIsAttachOpen(true)}
-                  className="gap-1.5"
-                >
-                  <FilePlus2 className="h-3.5 w-3.5 text-primary" />
-                  <span>{isVietnamese ? "Đính kèm" : "Attach"}</span>
-                </Button>
-              )}
-            </div>
-
-            {(!incident.evidences || incident.evidences.length === 0) ? (
-              <p className="rounded-xl p-4 text-center text-xs text-muted-foreground shadow-nm-inset">
-                {isVietnamese ? "Chưa có tệp minh chứng nào trong DB." : "No evidence files stored yet."}
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {incident.evidences.map((ev) => (
-                  <div
-                    key={ev.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/20 bg-background/60 px-3 py-2 text-xs"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <Badge variant="info" className="text-[10px]">
-                          {ev.evidenceType}
-                        </Badge>
-                        <span className="truncate font-mono font-bold text-foreground">
-                          {ev.fileName}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-[10px] text-muted-foreground">
-                        {new Date(ev.capturedAt).toLocaleString(locale)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDownloadEvidence(ev)}
-                        title={isVietnamese ? "Tải bản gốc" : "Download original"}
-                      >
-                        <Download className="h-3.5 w-3.5" />
-                      </Button>
-                      {canDeleteEvidence && incident.status !== "CLOSED" && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-danger hover:text-danger"
-                          onClick={() => setDeleteEvidenceTarget(ev)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
         </div>
 
         {/* Right Column (Metadata, Assignment & Comments): 5 Cols */}
@@ -917,7 +855,7 @@ function IncidentDetailBody({ id }: IncidentDetailContentProps) {
         key={id}
         open={isResolveOpen}
         onOpenChange={(open) => {
-          if (!open && groupWorkspace && !groupWorkspace.confirmDiscard("single")) return;
+          if (!open && groupWorkspace && !groupWorkspace.confirmDiscard("single", () => setIsResolveOpen(false))) return;
           setIsResolveOpen(open);
         }}
         incident={incident}

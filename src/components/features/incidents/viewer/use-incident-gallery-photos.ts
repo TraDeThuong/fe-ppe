@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
+import { useQueries } from "@tanstack/react-query";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
-import { resolveEvidenceUrl } from "@/lib/evidence-url";
+import { evidenceViewUrlKey, fetchEvidenceViewUrl } from "@/hooks/incidents/use-evidences";
+import { isSignedInternalMinioUrl, resolveEvidenceUrl } from "@/lib/evidence-url";
 import { useLocale } from "@/providers/locale-provider";
 import { EVIDENCE_TYPE, type EvidenceItem } from "@/types";
 import type { GalleryMediaItem } from "./evidence-lightbox-modal";
@@ -33,9 +35,44 @@ export interface IncidentGalleryInput {
  * Dùng chung cho IncidentEvidenceViewer (desktop) và IncidentMobileDetail (mobile)
  * để hai bản luôn chọn cùng một bộ ảnh.
  */
+const EVIDENCE_VIEW_URL_STALE_MS = 45 * 60 * 1000;
+
+function hasDirectBrowserUrl(e: EvidenceItem): boolean {
+  const url = e.url?.trim() || "";
+  return /^(https?:|blob:|data:)/i.test(url) && !isSignedInternalMinioUrl(url) && !/\/\/(?:ppe-minio|minio)(?::\d+)?\//i.test(url);
+}
+
+/**
+ * Presigned VIEW URL (`GET /evidences/:id/download-url?action=VIEW`) cho từng tệp bằng chứng chưa có
+ * URL trình duyệt mở được. Cache 45 phút (BE ký 60 phút), dùng chung key với trang /evidences.
+ * URL bị BE ký theo host nội bộ Docker (thiếu PPE_MINIO_PUBLIC_ENDPOINT) thì bỏ qua để giữ cách cũ.
+ */
+function useEvidencePresignedUrls(evidences: readonly EvidenceItem[]): ReadonlyMap<string, string> {
+  const targets = evidences.filter((e) => e.id && e.storageKey && !hasDirectBrowserUrl(e));
+  const queries = useQueries({
+    queries: targets.map((e) => ({
+      queryKey: evidenceViewUrlKey(e.id),
+      queryFn: () => fetchEvidenceViewUrl(e.id),
+      staleTime: EVIDENCE_VIEW_URL_STALE_MS,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    })),
+  });
+  const urls = queries.map((q) => q.data ?? "");
+  const key = targets.map((e, i) => `${e.id}=${urls[i]}`).join("|");
+  return useMemo(() => {
+    const map = new Map<string, string>();
+    targets.forEach((e, i) => {
+      const url = urls[i];
+      if (url && !isSignedInternalMinioUrl(url)) map.set(e.id, url);
+    });
+    return map;
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 export function useIncidentGalleryPhotos({
   evidence,
-  evidences = [],
+  evidences: rawEvidences = [],
   snapshotUrl,
   violationType,
   confidence,
@@ -44,6 +81,23 @@ export function useIncidentGalleryPhotos({
 }: IncidentGalleryInput) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
+
+  // Ưu tiên presigned URL do BE ký thay cho link bucket ghép từ storageKey.
+  const presignedById = useEvidencePresignedUrls(
+    rawEvidences.length > 0 ? rawEvidences : evidence ? [evidence] : [],
+  );
+  const withPresigned = (e: EvidenceItem): EvidenceItem => {
+    const url = presignedById.get(e.id);
+    return url ? { ...e, url } : e;
+  };
+  const evidences = useMemo(
+    () => rawEvidences.map(withPresigned),
+    [rawEvidences, presignedById], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const evidencePrimary = useMemo(
+    () => (evidence ? withPresigned(evidence) : evidence),
+    [evidence, presignedById], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const { getCamera } = useEntityLookup();
   const targetCamera = useMemo(() => getCamera(cameraId), [getCamera, cameraId]);
@@ -66,7 +120,7 @@ export function useIncidentGalleryPhotos({
   const galleryPhotos = useMemo<GalleryMediaItem[]>(() => {
     const list: GalleryMediaItem[] = [];
     const resolvedSnap = resolveIncidentSnapshot(snapshotUrl);
-    const allEvidences = evidences.length > 0 ? evidences : evidence ? [evidence] : [];
+    const allEvidences = evidences.length > 0 ? evidences : evidencePrimary ? [evidencePrimary] : [];
 
     // Tệp chỉ trỏ tới ảnh mẫu (hoặc không có đường dẫn) bị loại khỏi bộ ảnh.
     const imageEvidences = allEvidences.filter(
@@ -224,7 +278,7 @@ export function useIncidentGalleryPhotos({
   }, [
     snapshotUrl,
     evidences,
-    evidence,
+    evidencePrimary,
     incidentFallbackUrl,
     incidentRefFallbackUrl,
     cameraSnapshotUrl,

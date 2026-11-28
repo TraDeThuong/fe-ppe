@@ -35,7 +35,10 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
   const [roleId, setRoleId] = useState("");
   const [siteIds, setSiteIds] = useState<string[]>([]);
   const [mustChangePassword, setMustChangePassword] = useState(true);
-  const canReadSites = useCan()("PPE_SITE_READ");
+  const can = useCan();
+  const canReadSites = can("PPE_SITE_READ");
+  // Không có ROLE_READ thì không gọi GET /roles (tránh 403), Select hiển thị lý do.
+  const canReadRoles = can("ROLE_READ");
 
   const [errors, setErrors] = useState<{
     email?: string;
@@ -45,7 +48,7 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
   }>({});
 
   const { data: roles = [], isLoading: isLoadingRoles } = useRoles(undefined, {
-    enabled: open,
+    enabled: open && canReadRoles,
   });
   const { data: sites = [], isLoading: isLoadingSites } = useSitesCatalog({
     enabled: open && canReadSites,
@@ -236,8 +239,8 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
           helperText={
             !errors.password
               ? isVietnamese
-                ? "Tối thiểu 8 ký tự"
-                : "Minimum 8 characters"
+                ? "8–128 ký tự, gồm chữ hoa, chữ thường, chữ số và ký tự đặc biệt"
+                : "8–128 characters, including uppercase, lowercase, number and special character"
               : undefined
           }
         >
@@ -249,7 +252,7 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
               setPassword(e.target.value);
               if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
             }}
-            placeholder={isVietnamese ? "Tối thiểu 8 ký tự..." : "At least 8 characters..."}
+            placeholder={isVietnamese ? "Nhập mật khẩu mạnh..." : "Enter a strong password..."}
             prefix={<Lock className="h-4 w-4" />}
             disabled={createUserMutation.isPending}
             autoComplete="new-password"
@@ -317,7 +320,11 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
               if (errors.roleId) setErrors((prev) => ({ ...prev, roleId: "" }));
             }}
             placeholder={
-              isLoadingRoles
+              !canReadRoles
+                ? isVietnamese
+                  ? "Bạn không có quyền xem danh sách vai trò"
+                  : "You don't have permission to view roles"
+                : isLoadingRoles
                 ? isVietnamese
                   ? "Đang tải vai trò..."
                   : "Loading roles..."
@@ -326,7 +333,7 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
                 : "-- Select a role --"
             }
             options={roleOptions}
-            disabled={isLoadingRoles || createUserMutation.isPending}
+            disabled={!canReadRoles || isLoadingRoles || createUserMutation.isPending}
             emptyMessage={isVietnamese ? "Không có vai trò khả dụng" : "No roles available"}
           />
         </FormField>

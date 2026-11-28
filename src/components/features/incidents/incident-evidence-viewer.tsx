@@ -9,6 +9,7 @@ import {
   Download,
   Eye,
   EyeOff,
+  FilePlus2,
   Image as ImageIcon,
   ImageOff,
   Layers,
@@ -16,6 +17,7 @@ import {
   Play,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
   Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -45,6 +47,12 @@ export interface IncidentEvidenceViewerProps {
   cameraId?: string;
   incidentId?: string;
   defaultViewMode?: "single" | "split";
+  /** Tải bản gốc của tệp đang xem qua presigned URL (BE ghi EvidenceAccessLog). */
+  onDownloadOriginal?: (evidence: EvidenceItem) => void;
+  /** Xóa tệp đang xem (trang gọi tự kiểm tra quyền và trạng thái hồ sơ). */
+  onDeleteEvidence?: (evidence: EvidenceItem) => void;
+  /** Mở hộp đính kèm thêm ảnh/video. */
+  onAttach?: () => void;
 }
 
 export function IncidentEvidenceViewer({
@@ -57,6 +65,9 @@ export function IncidentEvidenceViewer({
   cameraId = "",
   incidentId = "",
   defaultViewMode = "single",
+  onDownloadOriginal,
+  onDeleteEvidence,
+  onAttach,
 }: IncidentEvidenceViewerProps) {
   const { locale } = useLocale();
   const isVietnamese = locale === "vi-VN";
@@ -81,6 +92,8 @@ export function IncidentEvidenceViewer({
   const normalizedConf = normalizeConfidenceRatio(confidence);
 
   const activePhoto = galleryPhotos[selectedIndex] || galleryPhotos[0];
+  // Tệp minh chứng thật (có id trong DB) của mục đang xem; ảnh camera/ảnh dự phòng thì không có.
+  const activeEvidenceItem = activePhoto?.evidenceItem?.id ? activePhoto.evidenceItem : undefined;
   const isActiveVideo = activePhoto?.category === "video";
 
   useEffect(() => {
@@ -299,6 +312,46 @@ export function IncidentEvidenceViewer({
             <Maximize2 className="size-3.5" />
             <span className="hidden md:inline">{isVietnamese ? "Phóng to" : "Expand"}</span>
           </Button>
+
+          {/* Thao tác trên tệp minh chứng (trước đây ở khối "Tệp Minh chứng Đính kèm" riêng) */}
+          {onDownloadOriginal && activeEvidenceItem && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onDownloadOriginal(activeEvidenceItem)}
+              className="h-8 gap-1 rounded-xl text-xs font-medium text-foreground hover:bg-surface-elevated"
+              title={isVietnamese ? "Tải bản gốc (có ghi nhật ký truy cập)" : "Download original (access logged)"}
+            >
+              <Download className="size-3.5" />
+              <span className="hidden md:inline">{isVietnamese ? "Tải gốc" : "Original"}</span>
+            </Button>
+          )}
+
+          {onDeleteEvidence && activeEvidenceItem && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onDeleteEvidence(activeEvidenceItem)}
+              className="h-8 gap-1 rounded-xl text-xs font-medium text-danger hover:bg-danger/10 hover:text-danger"
+              title={isVietnamese ? "Xóa tệp minh chứng đang xem" : "Delete this evidence file"}
+            >
+              <Trash2 className="size-3.5" />
+              <span className="hidden md:inline">{isVietnamese ? "Xóa" : "Delete"}</span>
+            </Button>
+          )}
+
+          {onAttach && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onAttach}
+              className="h-8 gap-1 rounded-xl text-xs font-medium text-foreground hover:bg-surface-elevated"
+              title={isVietnamese ? "Đính kèm thêm ảnh/video clip" : "Attach snapshots/clips"}
+            >
+              <FilePlus2 className="size-3.5 text-primary" />
+              <span className="hidden md:inline">{isVietnamese ? "Đính kèm" : "Attach"}</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -589,7 +642,24 @@ export function IncidentEvidenceViewer({
           {activePhoto.description}
         </p>
 
-        {activePhoto.url && (
+        {onDownloadOriginal && activeEvidenceItem ? (
+          <button
+            type="button"
+            onClick={() => onDownloadOriginal(activeEvidenceItem)}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-all hover:bg-primary/20"
+          >
+            <Download className="size-3.5" />
+            <span>
+              {isActiveVideo
+                ? isVietnamese
+                  ? "Tải video này về"
+                  : "Download This Video"
+                : isVietnamese
+                  ? "Tải ảnh này về"
+                  : "Download This Image"}
+            </span>
+          </button>
+        ) : activePhoto.url && (
           <a
             href={activePhoto.url}
             download={`evidence_${activePhoto.category}_${Date.now()}.${

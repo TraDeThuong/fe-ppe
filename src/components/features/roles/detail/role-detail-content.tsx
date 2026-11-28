@@ -100,7 +100,10 @@ export function RoleDetailContent({ roleId }: RoleDetailContentProps) {
     enabled: canReadUsers && Boolean(role?.name),
     staleTime: 30 * 1000,
   });
-  const allUsers: UserResponseDto[] = useMemo(() => usersData?.data ?? [], [usersData]);
+  const allUsers: UserResponseDto[] = useMemo(
+    () => (canReadUsers ? usersData?.data ?? [] : []),
+    [canReadUsers, usersData],
+  );
 
   // Audit count for KPI
   const { data: auditData } = useAuditLogs(

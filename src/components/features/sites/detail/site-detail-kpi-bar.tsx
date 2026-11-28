@@ -21,8 +21,8 @@ export interface SiteDetailKpiBarProps {
 
 export function SiteDetailKpiBar({
   site,
-  cameraCount = 0,
-  onlineCameraCount = 0,
+  cameraCount,
+  onlineCameraCount,
   pendingIncidentsCount = 0,
   complianceRate,
   zoneCount: propZoneCount,
@@ -42,7 +42,12 @@ export function SiteDetailKpiBar({
     site._count?.restrictedAreas ??
     0;
 
-  const totalCameras = cameraCount || site.cameraCount || 0;
+  const cameraOnlineRate =
+    cameraCount === undefined || onlineCameraCount === undefined
+      ? undefined
+      : cameraCount === 0
+        ? 0
+        : Math.round((onlineCameraCount / cameraCount) * 100);
   const isComplianceWarning = complianceRate !== undefined && complianceRate < 80;
 
   const cards = useMemo(
@@ -86,26 +91,43 @@ export function SiteDetailKpiBar({
         tab: "cameras",
         icon: Camera,
         title: t("sites.detail.kpi.camerasShort"),
-        subtitle: t("sites.detail.kpi.camerasSub"),
+        subtitle: t(
+          onlineCameraCount === undefined
+            ? "sites.detail.kpi.cameraStatusUnavailable"
+            : "sites.detail.kpi.camerasSub",
+        ),
         toneIcon:
-          onlineCameraCount > 0
-            ? "bg-primary/10 text-primary border border-primary/20"
-            : "bg-danger/10 text-danger border border-danger/20",
+          onlineCameraCount === undefined || cameraCount === 0
+            ? "bg-muted text-muted-foreground border border-border"
+            : onlineCameraCount > 0
+              ? "bg-primary/10 text-primary border border-primary/20"
+              : "bg-danger/10 text-danger border border-danger/20",
         valueRender: (
           <div className="flex items-baseline">
             <span className="text-xl sm:text-2xl font-black tracking-tight text-foreground tabular-nums">
-              {onlineCameraCount}
+              {onlineCameraCount ?? "--"}
             </span>
             <span className="ml-1 text-xs sm:text-sm font-semibold text-muted-foreground/80 tabular-nums">
-              /{totalCameras}
+              {cameraCount === undefined ? null : `/${cameraCount}`}
             </span>
           </div>
         ),
         badgeRender: (
-          <span className="inline-flex shrink-0 whitespace-nowrap items-center rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary border border-primary/20">
-            {totalCameras > 0
-              ? `${Math.round((onlineCameraCount / totalCameras) * 100)}%`
-              : "0%"}
+          <span
+            className={`inline-flex shrink-0 whitespace-nowrap items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold border ${
+              cameraOnlineRate === undefined || cameraCount === 0
+                ? "bg-muted text-muted-foreground border-border"
+                : "bg-primary/10 text-primary border-primary/20"
+            }`}
+          >
+            {cameraOnlineRate === undefined ? (
+              <>
+                <span aria-hidden="true">--</span>
+                <span className="sr-only">{t("sites.detail.kpi.cameraOnlineRateUnavailable")}</span>
+              </>
+            ) : (
+              `${cameraOnlineRate}%`
+            )}
           </span>
         ),
       },
@@ -185,7 +207,8 @@ export function SiteDetailKpiBar({
       complianceRate,
       isComplianceWarning,
       onlineCameraCount,
-      totalCameras,
+      cameraCount,
+      cameraOnlineRate,
       pendingIncidentsCount,
       zoneCount,
       restrictedCount,

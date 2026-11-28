@@ -5,6 +5,7 @@ import { Shield, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { SculptedModal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { useRoles, useAssignUserRole } from "@/hooks/rbac";
+import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocale } from "@/providers/locale-provider";
 import { toast } from "@/lib/toast";
@@ -21,8 +22,10 @@ export function AssignUserRoleModal({ open, onOpenChange, user }: AssignUserRole
   const isVietnamese = locale === "vi-VN";
 
   const { user: currentAdmin } = useAuth();
+  // Không có ROLE_READ thì không gọi GET /roles (tránh 403), hiện thông báo thay danh sách.
+  const canReadRoles = useCan()("ROLE_READ");
   const { data: roles = [], isLoading: isLoadingRoles } = useRoles(undefined, {
-    enabled: open,
+    enabled: open && canReadRoles,
   });
   const assignRoleMutation = useAssignUserRole();
 
@@ -130,6 +133,17 @@ export function AssignUserRoleModal({ open, onOpenChange, user }: AssignUserRole
           </label>
 
           <div className="space-y-2">
+            {!canReadRoles ? (
+              <p className="text-[11px] text-muted-foreground italic py-1">
+                {isVietnamese
+                  ? "Bạn không có quyền xem danh sách vai trò (ROLE_READ) nên chưa thể phân vai trò."
+                  : "You don't have permission to view roles (ROLE_READ), so roles cannot be assigned."}
+              </p>
+            ) : isLoadingRoles ? (
+              <p className="text-[11px] text-muted-foreground italic py-1">
+                {isVietnamese ? "Đang tải vai trò..." : "Loading roles..."}
+              </p>
+            ) : null}
             {roles.map((role) => {
               const isCurrent = role.id === user?.roleId;
               const isSelected = role.id === selectedRoleId;

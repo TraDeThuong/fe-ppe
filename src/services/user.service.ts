@@ -21,6 +21,40 @@ import type {
  */
 export const userService = {
   /**
+   * GET /api/v1/users/site-staff?siteId= (hợp đồng mục 5, chờ BE): nhân sự đang hoạt động của một
+   * công trường, dùng được với PPE_INCIDENT_READ (không cần USER_READ), BE giới hạn theo công trường
+   * của người gọi. Trả `null` khi BE chưa có endpoint (404/405/501) để nơi gọi dùng cách cũ.
+   */
+  async getSiteStaff(
+    siteId: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<UserResponseDto[] | null> {
+    try {
+      const res = await apiClient.get<unknown, unknown>("/users/site-staff", {
+        params: { siteId },
+        signal: options?.signal,
+        suppressToast: true,
+      } as Record<string, unknown>);
+      const raw = res as { data?: unknown } | unknown[] | null;
+      const list = Array.isArray(raw)
+        ? raw
+        : raw && typeof raw === "object" && Array.isArray((raw as { data?: unknown }).data)
+          ? ((raw as { data: unknown[] }).data)
+          : null;
+      if (!list) return null;
+      return (list as UserResponseDto[]).filter((u) => u && typeof u.id === "string");
+    } catch (error) {
+      const status = Number((error as { status?: unknown })?.status);
+      // BE hiện tại khớp nhầm route `/users/:id` → 422 "Invalid user ID format"; 403 khi thiếu quyền.
+      const errors = (error as { errors?: Array<{ field?: string }> })?.errors;
+      const matchedUserIdRoute =
+        (status === 400 || status === 422) && Array.isArray(errors) && errors.some((e) => e?.field === "id");
+      if (status === 403 || status === 404 || status === 405 || status === 501 || matchedUserIdRoute) return null;
+      throw error;
+    }
+  },
+
+  /**
    * GET /api/v1/users
    * Lấy danh sách người dùng có phân trang, tìm kiếm và lọc vai trò/trạng thái (bao gồm twoFactorEnabled và isLocked).
    */

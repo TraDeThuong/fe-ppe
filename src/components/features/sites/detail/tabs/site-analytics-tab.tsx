@@ -176,7 +176,7 @@ export function SiteAnalyticsTab({ site }: SiteAnalyticsTabProps) {
 }
 
 function SiteAnalyticsContent({ site }: SiteAnalyticsTabProps) {
-  const { locale } = useLocale();
+  const { t, locale } = useLocale();
   const vi = locale === "vi-VN";
   const { user, status } = useAuth();
   const can = useCan();
@@ -460,9 +460,7 @@ function SiteAnalyticsContent({ site }: SiteAnalyticsTabProps) {
 
         {canExport && (
           <p className="px-1 text-[11px] text-muted-foreground">
-            {vi
-              ? "Card hiển thị thống kê thời gian thực; tệp PDF/Excel dùng dữ liệu tổng hợp nên có thể chênh lệch nếu dữ liệu trong ngày chưa được tổng hợp."
-              : "Cards show real-time statistics; PDF/Excel uses aggregated data and may differ if today's data has not been aggregated yet."}
+            {t("sites.detail.analytics.exportDataNote")}
           </p>
         )}
       </section>

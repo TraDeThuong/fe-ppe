@@ -10,6 +10,9 @@ import type { IncidentItem, IncidentStatus, ViolationType } from "@/types";
 export interface AssignmentIncidentTotals {
   pendingReview: number;
   confirmed: number;
+  /** CONFIRMED chưa giao / đã giao — chỉ có khi BE hỗ trợ (hợp đồng mục 3). */
+  confirmedUnassigned?: number;
+  confirmedAssigned?: number;
   resolved: number;
   closed: number;
   dismissed: number;
@@ -20,6 +23,10 @@ export interface AssignmentIncidentTotals {
 export type AssignmentBucketKey =
   | "pendingReview"
   | "confirmed"
+  /** CONFIRMED chưa có phân công ACTIVE (`hasActiveAssignment=false`) — mặc định tắt. */
+  | "confirmedUnassigned"
+  /** CONFIRMED đang có phân công ACTIVE (`hasActiveAssignment=true`) — mặc định tắt. */
+  | "confirmedAssigned"
   | "resolved"
   | "closed"
   | "dismissed";
@@ -94,6 +101,7 @@ export async function fetchIncidentStatusBucket(
     includeAssignments?: boolean;
     includeAllAssignments?: boolean;
     assignedToMe?: boolean;
+    hasActiveAssignment?: boolean;
   },
   signal?: AbortSignal,
 ): Promise<StatusBucketResult> {
@@ -115,6 +123,7 @@ export async function fetchIncidentStatusBucket(
       ...(params.includeAssignments ? { includeAssignments: true } : {}),
       ...(params.includeAllAssignments ? { includeAllAssignments: true } : {}),
       ...(params.assignedToMe ? { assignedToMe: true } : {}),
+      ...(typeof params.hasActiveAssignment === "boolean" ? { hasActiveAssignment: params.hasActiveAssignment } : {}),
     },
     { signal },
   );
@@ -149,6 +158,7 @@ export async function fetchIncidentStatusBucket(
             ...(params.includeAssignments ? { includeAssignments: true } : {}),
             ...(params.includeAllAssignments ? { includeAllAssignments: true } : {}),
             ...(params.assignedToMe ? { assignedToMe: true } : {}),
+            ...(typeof params.hasActiveAssignment === "boolean" ? { hasActiveAssignment: params.hasActiveAssignment } : {}),
           },
           { signal, suppressToast: true },
         );
@@ -179,6 +189,8 @@ export async function fetchIncidentStatusBucket(
 export function mergeStatusBuckets(buckets: {
   pendingReview?: StatusBucketResult;
   confirmed?: StatusBucketResult;
+  confirmedUnassigned?: StatusBucketResult;
+  confirmedAssigned?: StatusBucketResult;
   resolved?: StatusBucketResult;
   closed?: StatusBucketResult;
   dismissed?: StatusBucketResult;
@@ -188,6 +200,8 @@ export function mergeStatusBuckets(buckets: {
   const orderedBuckets = [
     buckets.pendingReview,
     buckets.confirmed,
+    buckets.confirmedUnassigned,
+    buckets.confirmedAssigned,
     buckets.resolved,
     buckets.closed,
     buckets.dismissed,
@@ -212,9 +226,14 @@ export function mergeStatusBuckets(buckets: {
     buckets.pendingReview?.total ?? 0,
     buckets.pendingReview?.items.length ?? 0,
   );
+  const countOf = (bucket?: StatusBucketResult) =>
+    bucket ? Math.max(bucket.total, bucket.items.length) : undefined;
+  const confirmedUnassigned = countOf(buckets.confirmedUnassigned);
+  const confirmedAssigned = countOf(buckets.confirmedAssigned);
   const confirmed = Math.max(
     buckets.confirmed?.total ?? 0,
     buckets.confirmed?.items.length ?? 0,
+    (confirmedUnassigned ?? 0) + (confirmedAssigned ?? 0),
   );
   const resolved = Math.max(
     buckets.resolved?.total ?? 0,
@@ -236,6 +255,8 @@ export function mergeStatusBuckets(buckets: {
     totals: {
       pendingReview,
       confirmed,
+      ...(confirmedUnassigned !== undefined ? { confirmedUnassigned } : {}),
+      ...(confirmedAssigned !== undefined ? { confirmedAssigned } : {}),
       resolved,
       closed,
       dismissed,
@@ -310,6 +331,26 @@ export function useAssignmentIncidents(
           includeAllAssignments: false,
         },
         {
+          key: "confirmedUnassigned" as const,
+          status: "CONFIRMED" as IncidentStatus,
+          limit: DEFAULT_BUCKET_LIMIT,
+          maxPages: maxConfirmedPages,
+          includeAssignments,
+          includeAllAssignments: false,
+          hasActiveAssignment: false,
+          defaultOn: false,
+        },
+        {
+          key: "confirmedAssigned" as const,
+          status: "CONFIRMED" as IncidentStatus,
+          limit: DEFAULT_BUCKET_LIMIT,
+          maxPages: maxConfirmedPages,
+          includeAssignments,
+          includeAllAssignments: false,
+          hasActiveAssignment: true,
+          defaultOn: false,
+        },
+        {
           key: "resolved" as const,
           status: "RESOLVED" as IncidentStatus,
           limit: DEFAULT_BUCKET_LIMIT,
@@ -355,6 +396,7 @@ export function useAssignmentIncidents(
           maxPages: spec.maxPages,
           includeAssignments: spec.includeAssignments || undefined,
           includeAllAssignments: spec.includeAllAssignments || undefined,
+          hasActiveAssignment: "hasActiveAssignment" in spec ? spec.hasActiveAssignment : undefined,
         },
       ] as const,
       queryFn: ({ signal }: { signal: AbortSignal }) =>
@@ -366,10 +408,14 @@ export function useAssignmentIncidents(
             maxPages: spec.maxPages,
             includeAssignments: spec.includeAssignments,
             includeAllAssignments: spec.includeAllAssignments,
+            ...("hasActiveAssignment" in spec ? { hasActiveAssignment: spec.hasActiveAssignment } : {}),
           },
           signal,
         ),
-      enabled: enabled && buckets?.[spec.key] !== false,
+      // Nhóm "chưa giao / đã giao" mặc định tắt: chỉ bật khi BE báo hỗ trợ `hasActiveAssignment`.
+      enabled:
+        enabled &&
+        (buckets?.[spec.key] ?? ("defaultOn" in spec ? spec.defaultOn : true)) !== false,
       staleTime,
       retry: false,
       refetchOnWindowFocus: false,
@@ -384,22 +430,32 @@ export function useAssignmentIncidents(
     })),
   });
 
-  const pendingData = queries[0]?.data;
-  const confirmedData = queries[1]?.data;
-  const resolvedData = queries[2]?.data;
-  const closedData = queries[3]?.data;
-  const dismissedData = queries[4]?.data;
+  const dataOf = (key: AssignmentBucketKey) => {
+    const index = bucketSpecs.findIndex((spec) => spec.key === key);
+    const q = queries[index];
+    // Nhóm đang tắt vẫn có thể còn cache cũ; chỉ dùng dữ liệu của nhóm đang bật.
+    return q && (buckets?.[key] ?? ("defaultOn" in bucketSpecs[index] ? false : true)) !== false ? q.data : undefined;
+  };
+  const pendingData = dataOf("pendingReview");
+  const confirmedData = dataOf("confirmed");
+  const confirmedUnassignedData = dataOf("confirmedUnassigned");
+  const confirmedAssignedData = dataOf("confirmedAssigned");
+  const resolvedData = dataOf("resolved");
+  const closedData = dataOf("closed");
+  const dismissedData = dataOf("dismissed");
 
   const merged = useMemo(
     () =>
       mergeStatusBuckets({
         pendingReview: pendingData,
         confirmed: confirmedData,
+        confirmedUnassigned: confirmedUnassignedData,
+        confirmedAssigned: confirmedAssignedData,
         resolved: resolvedData,
         closed: closedData,
         dismissed: dismissedData,
       }),
-    [pendingData, confirmedData, resolvedData, closedData, dismissedData],
+    [pendingData, confirmedData, confirmedUnassignedData, confirmedAssignedData, resolvedData, closedData, dismissedData],
   );
 
   const isLoading = queries.some((q) => q.isLoading);

@@ -13,7 +13,7 @@ export function IncidentGroupPanel({ group, currentId, userId, controller, navig
   group: IncidentGroupContext; currentId: string; userId: string;
   controller: IncidentGroupController; navigate: (id: string) => void;
   markDirty: (source: string, dirty: boolean) => void;
-  confirmDiscard: (source?: string) => boolean;
+  confirmDiscard: (source?: string, onProceed?: () => void) => boolean;
 }) {
   const { locale } = useLocale();
   const vi = locale === "vi-VN";
@@ -78,7 +78,7 @@ export function IncidentGroupPanel({ group, currentId, userId, controller, navig
         </tr>;
       })}
     </tbody></table></div>}
-    <BatchResolveModal open={batchOpen} onOpenChange={(open) => { if (!open && !confirmDiscard("batch")) return; setBatchOpen(open); }} incidents={selectedIncidents}
+    <BatchResolveModal open={batchOpen} onOpenChange={(open) => { if (!open && !confirmDiscard("batch", () => setBatchOpen(false))) return; setBatchOpen(open); }} incidents={selectedIncidents}
       onSubmit={submitBatch} loading={controller.busy} groupMode onDirtyChange={markBatchDirty}
       failures={batchOpen ? controller.lastResult?.failed : []} />
   </section>;

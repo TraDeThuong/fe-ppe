@@ -75,3 +75,10 @@ export type AssignmentResponsibilityContext = ResponsibilityLookupContext & {
   resolveSiteName: (siteId: string, fallbackName?: string) => string;
   resolveCameraLabel: (incident: IncidentItem) => string;
 };
+
+/** Nút "Tải thêm" theo nhóm (U9): trang cha quyết định nhóm nào còn hồ sơ trên server. */
+export interface AssignmentLoadMoreControls {
+  canLoad: (group: import("@/lib/incident-assignment-groups").IncidentWorkGroup) => boolean;
+  isLoading: (group: import("@/lib/incident-assignment-groups").IncidentWorkGroup) => boolean;
+  onLoad: (group: import("@/lib/incident-assignment-groups").IncidentWorkGroup) => void;
+}

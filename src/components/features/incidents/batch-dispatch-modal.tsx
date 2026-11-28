@@ -4,7 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Building2, Loader2, Send, ShieldAlert, UserCheck, Users } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { useUsers } from "@/hooks/users";
+import { useQuery } from "@tanstack/react-query";
+import { useCan } from "@/hooks/use-can";
+import { userKeys } from "@/hooks/users/user.query-keys";
+import { useSiteStaff } from "@/hooks/users/use-site-staff";
+import { userService } from "@/services/user.service";
 import { useEntityLookup } from "@/hooks/use-entity-lookup";
 import { useLocale } from "@/providers/locale-provider";
 import { summarizeIncidentGroup } from "@/lib/incident-assignment-groups";
@@ -36,8 +40,68 @@ export function BatchDispatchModal({
   const isVietnamese = locale === "vi-VN";
   const { getSite, getCameraCode } = useEntityLookup();
 
-  const { data: usersData, isLoading: usersLoading } = useUsers({ limit: 100 });
-  const allUsers: UserResponseDto[] = useMemo(() => usersData?.data ?? [], [usersData]);
+  // Chỉ nhân sự đang hoạt động thuộc công trường của các sự cố được chọn (BE từ chối người ngoài
+  // công trường), bỏ role USER/ADMIN. Tải khi mở modal, đủ mọi trang (không cắt ở 100 người).
+  const can = useCan();
+  const canReadUsers = can("USER_READ");
+  const siteIdList = useMemo(
+    () => [...new Set(incidents.map((i) => i.siteId).filter(Boolean))].sort(),
+    [incidents],
+  );
+  const singleSiteId = siteIdList.length === 1 ? siteIdList[0] : undefined;
+  // Ưu tiên `/users/site-staff` (không cần USER_READ); BE chưa có → danh bạ USER_READ → cán bộ liên hệ.
+  const siteStaff = useSiteStaff(siteIdList, open);
+  const useLegacyDirectory = !siteStaff.isLoading && siteStaff.users === null;
+  const { data: usersData, isLoading: usersQueryLoading } = useQuery({
+    queryKey: [...userKeys.all, "directory", { siteId: singleSiteId }] as const,
+    queryFn: () => userService.getAllUsers(singleSiteId ? { siteId: singleSiteId } : undefined),
+    enabled: open && useLegacyDirectory && canReadUsers && siteIdList.length > 0,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  const usersLoading =
+    siteStaff.isLoading || (useLegacyDirectory && canReadUsers && usersQueryLoading);
+  const allUsers: UserResponseDto[] = useMemo(() => {
+    const isEligibleRole = (roleName: string) =>
+      !roleName.includes("ADMIN") &&
+      (roleName.includes("SAFETY") ||
+        roleName.includes("OFFICER") ||
+        roleName.includes("MANAGER") ||
+        roleName.includes("SUPERVISOR"));
+    // Thiếu USER_READ → dùng cán bộ liên hệ khai báo ở các công trường liên quan.
+    const source: UserResponseDto[] = siteStaff.users
+      ? siteStaff.users
+      : canReadUsers
+      ? usersData?.data ?? []
+      : siteIdList.flatMap((sid) =>
+          (getSite(sid)?.contactOfficers || [])
+            .filter((o): o is typeof o & { userId: string } => Boolean(o.userId))
+            .map((o) => ({
+              id: o.userId,
+              email: null,
+              fullName: o.name,
+              phoneNumber: o.phones?.[0] ?? null,
+              roleId: "",
+              role: { name: o.roleTitle || "SAFETY_OFFICER" } as UserResponseDto["role"],
+              siteIds: [sid],
+              isActive: true,
+              createdAt: "",
+              updatedAt: "",
+            })),
+        );
+    const seen = new Set<string>();
+    return source.filter((u) => {
+      if (seen.has(u.id)) return false;
+      seen.add(u.id);
+      return (
+        u.isActive !== false &&
+        isEligibleRole((u.role?.name || "").toUpperCase()) &&
+        (singleSiteId && (siteStaff.users || canReadUsers)
+          ? true
+          : Array.isArray(u.siteIds) && u.siteIds.some((sid) => siteIdList.includes(sid)))
+      );
+    });
+  }, [siteStaff.users, canReadUsers, usersData, siteIdList, singleSiteId, getSite]);
 
   const pendingCount = useMemo(
     () => incidents.filter((i) => i.status === "PENDING_REVIEW").length,

@@ -136,6 +136,10 @@ export interface IncidentAssignmentItem {
   deadline?: string | null;
   priority?: "URGENT" | "HIGH" | "NORMAL";
   note?: string | null;
+  /** Người giao (BE cần lưu cột assigned_by — xem hợp đồng mục 4). */
+  assignedBy?: string | null;
+  /** Mã đợt giao việc: mọi phân công tạo trong cùng một lệnh batch-assign có chung batchId. */
+  batchId?: string | null;
 }
 
 export interface IncidentCommentItem {
@@ -206,6 +210,10 @@ export interface IncidentQueryParams {
   cameraIds?: string[] | string;
   assignedTo?: string;
   assignedToMe?: boolean;
+  /** Lọc CONFIRMED đã (true) / chưa (false) có phân công ACTIVE — hợp đồng mục 3; BE cũ bỏ qua. */
+  hasActiveAssignment?: boolean;
+  /** Lọc các sự cố thuộc một đợt giao việc — hợp đồng mục 4; BE cũ bỏ qua. */
+  batchId?: string;
   violationType?: ViolationType | string;
   severity?: IncidentSeverity | string;
   status?: IncidentStatus | string;
@@ -225,6 +233,10 @@ export interface IncidentStatusCounts {
   resolved: number;
   closed: number;
   dismissed: number;
+  /** CONFIRMED chưa có phân công ACTIVE (hợp đồng mục 3; BE cũ không trả). */
+  confirmedUnassigned?: number;
+  /** CONFIRMED đang có phân công ACTIVE (hợp đồng mục 3; BE cũ không trả). */
+  confirmedAssigned?: number;
   /** FE tự đếm khi mở panel thống kê (BE develop không trả). */
   bySeverity?: Partial<Record<IncidentSeverity, number>>;
   /** FE tự đếm khi mở panel thống kê (BE develop không trả). */
@@ -329,6 +341,8 @@ export interface BatchAssignIncidentsResult {
   assignedToName?: string;
   assignedIds: string[];
   skippedIds: string[];
+  /** Mã đợt giao việc BE tạo cho lệnh này (hợp đồng mục 4). */
+  batchId?: string;
 }
 
 /** Tệp đã tải lên một lần, gắn chung cho nhiều sự cố khi khắc phục hàng loạt */
